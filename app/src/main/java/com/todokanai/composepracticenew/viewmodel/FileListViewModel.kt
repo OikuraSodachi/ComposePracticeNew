@@ -1,0 +1,100 @@
+package com.todokanai.composepracticenew.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.data.dataclass.ProgressState
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
+import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
+import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
+import com.todokanai.composepracticenew.tools.FileAction
+import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.variables.Variables
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.launch
+import java.io.File
+import javax.inject.Inject
+
+@HiltViewModel
+class FileListViewModel @Inject constructor():ViewModel(){
+
+    private val currentPath = Variables.currentPath
+    private val fAction = FileAction({updateCurrentPath(it)},currentPath)
+    private val vars = Variables()
+
+    private lateinit var selectedItem : File
+    val selectMode = Variables.selectMode
+
+    fun addToList(file: File) = vars.addToSelectedList(file)
+    fun removeFromList(file: File) = vars.removeFromSelectedList(file)
+    fun clearList() = vars.clearSelectedList()
+
+    val fileHolderItemList = Variables.fileHolderItemList
+
+    private val myNoti = MyNotification()
+    val progressState = Variables.myProgressState
+    fun progressNoti(actionKey:Int,progressState:ProgressState) {
+        when(actionKey){
+            ACTION_KEY_COPY ->{
+                progressState.progress?.let { myNoti.copyProgressNoti(it) }
+            }
+            ACTION_KEY_DELETE ->{
+                progressState.currentIndex?.let{ index ->
+                    progressState.listSize?.let { size ->
+                        myNoti.deleteProgressNoti(index, size)
+                    }
+                }
+            }
+            ACTION_KEY_MOVE ->{
+                progressState.progress?.let { myNoti.moveProgressNoti(it) }
+            }
+            ACTION_KEY_ZIP ->{
+                progressState.progress?.let { myNoti.zipProgressNoti(it) }
+            }
+            ACTION_KEY_UNZIP ->{
+                progressState.progress?.let { myNoti.unzipProgressNoti(it) }
+            }
+
+        }
+
+      //  myNoti.progressNoti("test", "test", progress)
+    }
+
+
+
+    fun updateCurrentPath(file: File){
+        viewModelScope.launch {
+            vars.setCurrentPath(file)
+        }
+    }
+
+    fun onItemClick(context: Context, selected: File){
+        viewModelScope.launch {
+            selectedItem = selected
+            when (selectMode.value) {
+                DEFAULT_MODE -> {
+                    fAction.openAction(context, selected)
+                }
+
+                MULTI_SELECT_MODE -> {
+
+                }
+                else -> {
+                    if (selected.isDirectory) {
+                        fAction.openAction(context, selected)
+                    }
+                }
+            }
+        }
+    }
+    /** change to MULTI_SELECT_MODE */
+    fun onItemLongClick() {
+        if (selectMode.value == DEFAULT_MODE) {
+            vars.setSelectMode(MULTI_SELECT_MODE)
+        }
+    }
+}
