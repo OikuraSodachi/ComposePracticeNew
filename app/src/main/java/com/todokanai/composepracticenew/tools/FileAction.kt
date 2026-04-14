@@ -31,7 +31,7 @@ class FileAction(
     private val notiSorter = CompletedNotiSorter()
 
     /** CoroutineScope 감싸고 invokeOnCompletion? */
-    fun openAction(
+    suspend fun openAction(
         context:Context,
         selected: File
     ){
