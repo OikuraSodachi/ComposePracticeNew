@@ -11,8 +11,7 @@ import java.io.File
  *
  *  notification 내용은 여기서 설정(?)
  */
-class ActionWrapper(val actionKey:Int) {
-    private val myNoti = MyNotification()
+class ActionWrapper(val actionKey: Int, private val myNoti: MyNotification) {
 
     /** path에 null 입력시 update 미발생
      *

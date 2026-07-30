@@ -16,8 +16,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.dataclass.StorageHolderItem
-import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.variables.Variables
+import com.todokanai.composepracticenew.repository.FileNavigator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -26,19 +25,17 @@ import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
-class MainViewModel @Inject constructor() : ViewModel(){
+class MainViewModel @Inject constructor(
+    private val nav: FileNavigator,
+    private val converter: DataConverter
+) : ViewModel() {
 
-    companion object{
-        private val _physicalStorageList = MutableStateFlow<List<StorageHolderItem>>(emptyList())       // 물리적 저장소 목록
-        val physicalStorageList : StateFlow<List<StorageHolderItem>>
-            get() = _physicalStorageList
+    companion object {
+        private val _physicalStorageList = MutableStateFlow<List<StorageHolderItem>>(emptyList())
+        val physicalStorageList: StateFlow<List<StorageHolderItem>> get() = _physicalStorageList
     }
 
-    private val selectMode = Variables.selectMode
-    private val vars = Variables()
-    private val currentPath = Variables.currentPath
-
-    fun getPermission(activity: Activity){
+    fun getPermission(activity: Activity) {
         viewModelScope.launch {
             if (!checkPermission(activity)) {
                 requestPermission(activity)
@@ -76,7 +73,7 @@ class MainViewModel @Inject constructor() : ViewModel(){
     private fun requestStorageManageAccess(activity: Activity) {
         if (Environment.isExternalStorageManager()) {
             val storages = getPhysicalStorages(activity)
-            val storageHolderList = DataConverter(activity).storageHolderItemList(storages)
+            val storageHolderList = converter.storageHolderItemList(storages)
             _physicalStorageList.value = storageHolderList
         } else {
             val intent = Intent()
@@ -86,7 +83,8 @@ class MainViewModel @Inject constructor() : ViewModel(){
             activity.startActivity(intent)
         }
     }
-    private fun getPhysicalStorages(context: Context):List<File>{
+
+    private fun getPhysicalStorages(context: Context): List<File> {
         val defaultStorage = Environment.getExternalStorageDirectory()
         val volumes = context.getSystemService(StorageManager::class.java)?.storageVolumes
         val storageList = mutableListOf<File>(defaultStorage)
@@ -101,18 +99,13 @@ class MainViewModel @Inject constructor() : ViewModel(){
         return storageList
     }
 
-    /** viewModelScope 적절하게 배치한건지 잘 몰?루 */
-    fun onBackPressed(toStorageFrag:()->Unit){
+    fun onBackPressed(toStorageFrag: () -> Unit) {
         viewModelScope.launch {
-            if (selectMode.value == Constants.MULTI_SELECT_MODE) {
-                vars.setSelectMode(Constants.DEFAULT_MODE)
+            val parentFile = nav.currentPath.value.parentFile
+            if (parentFile?.listFiles() == null) {
+                toStorageFrag()
             } else {
-                val parentFile = currentPath.value.parentFile
-                if (parentFile?.listFiles() == null) {
-                    toStorageFrag()
-                } else {
-                    vars.setCurrentPath(parentFile)
-                }
+                nav.setCurrentPath(parentFile)
             }
         }
     }
