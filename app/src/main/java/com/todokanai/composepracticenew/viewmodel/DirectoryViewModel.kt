@@ -2,20 +2,20 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.variables.Variables
+import com.todokanai.composepracticenew.repository.FileNavigator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
-class DirectoryViewModel @Inject constructor(private val vars: Variables) : ViewModel() {
+class DirectoryViewModel @Inject constructor(private val nav: FileNavigator) : ViewModel() {
 
-    val dirTree = vars.dirTree
+    val dirTree = nav.dirTree
 
     fun updateCurrentPath(file: File) {
         viewModelScope.launch {
-            vars.setCurrentPath(file)
+            nav.setCurrentPath(file)
         }
     }
 }

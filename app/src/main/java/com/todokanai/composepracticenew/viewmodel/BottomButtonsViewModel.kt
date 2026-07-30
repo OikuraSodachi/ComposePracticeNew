@@ -4,10 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.data.dataclass.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.repository.FileNavigator
+import com.todokanai.composepracticenew.repository.ProgressTracker
+import com.todokanai.composepracticenew.repository.SelectionState
 import com.todokanai.composepracticenew.tools.FileAction
 import com.todokanai.composepracticenew.tools.LogTool
 import com.todokanai.composepracticenew.tools.MyNotification
-import com.todokanai.composepracticenew.variables.Variables
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -16,24 +18,26 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
-    private val vars: Variables,
+    private val nav: FileNavigator,
+    private val sel: SelectionState,
+    private val prog: ProgressTracker,
     private val myNoti: MyNotification,
     private val logTool: LogTool
 ) : ViewModel() {
 
-    val selectMode = vars.selectMode
-    val currentPath = vars.currentPath
-    private val fAction = FileAction({ updateCurrentPath(it) }, vars.currentPath, myNoti, logTool)
+    val selectMode = sel.selectMode
+    val currentPath = nav.currentPath
+    private val fAction = FileAction({ updateCurrentPath(it) }, nav.currentPath, myNoti, logTool)
 
-    private val selectedList = vars.selectedList
+    private val selectedList = sel.selectedList
 
     private fun updateCurrentPath(file: File) {
-        viewModelScope.launch { vars.setCurrentPath(file) }
+        viewModelScope.launch { nav.setCurrentPath(file) }
     }
 
-    private fun changeSelectMode(mode: Int) = vars.setSelectMode(mode)
+    private fun changeSelectMode(mode: Int) = sel.setSelectMode(mode)
 
-    private fun setProgressState(progressState: ProgressState) = vars.setProgressState(progressState)
+    private fun setProgressState(progressState: ProgressState) = prog.setProgressState(progressState)
 
     fun confirm(currentPath: File) {
         viewModelScope.launch {

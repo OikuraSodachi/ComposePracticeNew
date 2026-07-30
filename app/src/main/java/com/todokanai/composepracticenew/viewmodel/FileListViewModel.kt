@@ -11,10 +11,12 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
+import com.todokanai.composepracticenew.repository.FileNavigator
+import com.todokanai.composepracticenew.repository.ProgressTracker
+import com.todokanai.composepracticenew.repository.SelectionState
 import com.todokanai.composepracticenew.tools.FileAction
 import com.todokanai.composepracticenew.tools.LogTool
 import com.todokanai.composepracticenew.tools.MyNotification
-import com.todokanai.composepracticenew.variables.Variables
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -22,23 +24,25 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FileListViewModel @Inject constructor(
-    private val vars: Variables,
+    private val nav: FileNavigator,
+    private val sel: SelectionState,
+    private val prog: ProgressTracker,
     private val myNoti: MyNotification,
     private val logTool: LogTool
 ) : ViewModel() {
 
-    private val fAction = FileAction({ updateCurrentPath(it) }, vars.currentPath, myNoti, logTool)
+    private val fAction = FileAction({ updateCurrentPath(it) }, nav.currentPath, myNoti, logTool)
 
     private lateinit var selectedItem: File
-    val selectMode = vars.selectMode
+    val selectMode = sel.selectMode
 
-    fun addToList(file: File) = vars.addToSelectedList(file)
-    fun removeFromList(file: File) = vars.removeFromSelectedList(file)
-    fun clearList() = vars.clearSelectedList()
+    fun addToList(file: File) = sel.addToSelectedList(file)
+    fun removeFromList(file: File) = sel.removeFromSelectedList(file)
+    fun clearList() = sel.clearSelectedList()
 
-    val fileHolderItemList = vars.fileHolderItemList
+    val fileHolderItemList = nav.fileHolderItemList
 
-    val progressState = vars.myProgressState
+    val progressState = prog.progressState
 
     fun progressNoti(actionKey: Int, progressState: ProgressState) {
         when (actionKey) {
@@ -54,7 +58,7 @@ class FileListViewModel @Inject constructor(
 
     fun updateCurrentPath(file: File) {
         viewModelScope.launch {
-            vars.setCurrentPath(file)
+            nav.setCurrentPath(file)
         }
     }
 
@@ -71,7 +75,7 @@ class FileListViewModel @Inject constructor(
 
     fun onItemLongClick() {
         if (selectMode.value == DEFAULT_MODE) {
-            vars.setSelectMode(MULTI_SELECT_MODE)
+            sel.setSelectMode(MULTI_SELECT_MODE)
         }
     }
 }
