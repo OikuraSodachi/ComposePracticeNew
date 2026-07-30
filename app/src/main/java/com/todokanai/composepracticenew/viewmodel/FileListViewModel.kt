@@ -13,7 +13,6 @@ import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
 import com.todokanai.composepracticenew.repository.FileNavigator
 import com.todokanai.composepracticenew.repository.ProgressTracker
-import com.todokanai.composepracticenew.repository.SelectionState
 import com.todokanai.composepracticenew.tools.FileAction
 import com.todokanai.composepracticenew.tools.LogTool
 import com.todokanai.composepracticenew.tools.MyNotification
@@ -25,7 +24,6 @@ import javax.inject.Inject
 @HiltViewModel
 class FileListViewModel @Inject constructor(
     private val nav: FileNavigator,
-    private val sel: SelectionState,
     private val prog: ProgressTracker,
     private val myNoti: MyNotification,
     private val logTool: LogTool
@@ -34,11 +32,6 @@ class FileListViewModel @Inject constructor(
     private val fAction = FileAction({ updateCurrentPath(it) }, nav.currentPath, myNoti, logTool)
 
     private lateinit var selectedItem: File
-    val selectMode = sel.selectMode
-
-    fun addToList(file: File) = sel.addToSelectedList(file)
-    fun removeFromList(file: File) = sel.removeFromSelectedList(file)
-    fun clearList() = sel.clearSelectedList()
 
     val fileHolderItemList = nav.fileHolderItemList
 
@@ -62,20 +55,14 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    fun onItemClick(context: Context, selected: File) {
+    fun onItemClick(context: Context, selected: File, selectMode: Int) {
         viewModelScope.launch {
             selectedItem = selected
-            when (selectMode.value) {
+            when (selectMode) {
                 DEFAULT_MODE -> fAction.openAction(context, selected)
                 MULTI_SELECT_MODE -> { }
                 else -> if (selected.isDirectory) fAction.openAction(context, selected)
             }
-        }
-    }
-
-    fun onItemLongClick() {
-        if (selectMode.value == DEFAULT_MODE) {
-            sel.setSelectMode(MULTI_SELECT_MODE)
         }
     }
 }

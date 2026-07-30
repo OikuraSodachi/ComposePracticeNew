@@ -16,9 +16,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.dataclass.StorageHolderItem
-import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.repository.FileNavigator
-import com.todokanai.composepracticenew.repository.SelectionState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,7 +27,6 @@ import javax.inject.Inject
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val nav: FileNavigator,
-    private val sel: SelectionState,
     private val converter: DataConverter
 ) : ViewModel() {
 
@@ -104,15 +101,11 @@ class MainViewModel @Inject constructor(
 
     fun onBackPressed(toStorageFrag: () -> Unit) {
         viewModelScope.launch {
-            if (sel.selectMode.value == Constants.MULTI_SELECT_MODE) {
-                sel.setSelectMode(Constants.DEFAULT_MODE)
+            val parentFile = nav.currentPath.value.parentFile
+            if (parentFile?.listFiles() == null) {
+                toStorageFrag()
             } else {
-                val parentFile = nav.currentPath.value.parentFile
-                if (parentFile?.listFiles() == null) {
-                    toStorageFrag()
-                } else {
-                    nav.setCurrentPath(parentFile)
-                }
+                nav.setCurrentPath(parentFile)
             }
         }
     }

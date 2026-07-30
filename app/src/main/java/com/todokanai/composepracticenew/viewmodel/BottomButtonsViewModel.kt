@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.data.dataclass.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.repository.FileNavigator
 import com.todokanai.composepracticenew.repository.ProgressTracker
-import com.todokanai.composepracticenew.repository.SelectionState
 import com.todokanai.composepracticenew.tools.FileAction
 import com.todokanai.composepracticenew.tools.LogTool
 import com.todokanai.composepracticenew.tools.MyNotification
@@ -19,63 +18,47 @@ import javax.inject.Inject
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
     private val nav: FileNavigator,
-    private val sel: SelectionState,
     private val prog: ProgressTracker,
     private val myNoti: MyNotification,
     private val logTool: LogTool
 ) : ViewModel() {
 
-    val selectMode = sel.selectMode
     val currentPath = nav.currentPath
     private val fAction = FileAction({ updateCurrentPath(it) }, nav.currentPath, myNoti, logTool)
-
-    private val selectedList = sel.selectedList
 
     private fun updateCurrentPath(file: File) {
         viewModelScope.launch { nav.setCurrentPath(file) }
     }
 
-    private fun changeSelectMode(mode: Int) = sel.setSelectMode(mode)
-
     private fun setProgressState(progressState: ProgressState) = prog.setProgressState(progressState)
 
-    fun confirm(currentPath: File) {
+    fun confirm(selectedList: List<File>, selectMode: Int, currentPath: File) {
         viewModelScope.launch {
-            val list = selectedList.value.toTypedArray()
-            when (selectMode.value) {
+            val list = selectedList.toTypedArray()
+            when (selectMode) {
                 Constants.CONFIRM_MODE_COPY -> fAction.copyAction(list, currentPath, { setProgressState(it) })
                 Constants.CONFIRM_MODE_MOVE -> fAction.moveAction(list, currentPath, { setProgressState(it) })
                 Constants.CONFIRM_MODE_UNZIP -> fAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = false, { setProgressState(it) })
-                Constants.CONFIRM_MODE_UNZIP_HERE -> fAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = false, { setProgressState(it) })
+                Constants.CONFIRM_MODE_UNZIP_HERE -> fAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = true, { setProgressState(it) })
             }
-            changeSelectMode(Constants.DEFAULT_MODE)
         }
     }
 
-    fun moveMode() = changeSelectMode(Constants.CONFIRM_MODE_MOVE)
-    fun copyMode() = changeSelectMode(Constants.CONFIRM_MODE_COPY)
-    fun unzipMode() = changeSelectMode(Constants.CONFIRM_MODE_UNZIP)
-    fun unzipHereMode() = changeSelectMode(Constants.CONFIRM_MODE_UNZIP_HERE)
-    fun cancel() = changeSelectMode(Constants.DEFAULT_MODE)
-
-    fun zip(name: String) {
+    fun zip(selectedList: List<File>, name: String) {
         viewModelScope.launch {
-            fAction.zipAction(selectedList.value.toTypedArray(), name, { setProgressState(it) })
-            changeSelectMode(Constants.DEFAULT_MODE)
+            fAction.zipAction(selectedList.toTypedArray(), name, { setProgressState(it) })
         }
     }
 
-    fun rename(name: String) {
+    fun rename(file: File, name: String) {
         viewModelScope.launch {
-            fAction.renameAction(selectedList.value.first(), name)
-            changeSelectMode(Constants.DEFAULT_MODE)
+            fAction.renameAction(file, name)
         }
     }
 
-    fun delete() {
+    fun delete(selectedList: List<File>) {
         viewModelScope.launch {
-            fAction.deleteAction(selectedList.value.toTypedArray(), { setProgressState(it) })
-            changeSelectMode(Constants.DEFAULT_MODE)
+            fAction.deleteAction(selectedList.toTypedArray(), { setProgressState(it) })
         }
     }
 }

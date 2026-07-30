@@ -12,60 +12,75 @@ import com.todokanai.composepracticenew.compose.dialog.InfoDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
+import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
 import java.io.File
 
 @Composable
 fun BottomButtonsFrag(
     modifier: Modifier,
-    selectedList:List<File>,
-    viewModel:BottomButtonsViewModel
-){
+    selectedList: List<File>,
+    selectMode: Int,
+    onSelectModeChange: (Int) -> Unit,
+    onClearSelection: () -> Unit,
+    viewModel: BottomButtonsViewModel
+) {
     val currentPath = viewModel.currentPath.collectAsStateWithLifecycle()
 
     var zipDialog by remember { mutableStateOf(false) }
     var renameDialog by remember { mutableStateOf(false) }
     var infoDialog by remember { mutableStateOf(false) }
-    var deleteDialog by remember{ mutableStateOf(false) }
+    var deleteDialog by remember { mutableStateOf(false) }
 
     BottomButtonListView(
         modifier = modifier,
-        selectModeFlow = viewModel.selectMode,
+        selectMode = selectMode,
         zipDialog = { zipDialog = true },
         renameDialog = { renameDialog = true },
         infoDialog = { infoDialog = true },
-        moveMode = { viewModel.moveMode() },
-        copyMode = { viewModel.copyMode() },
-        unzipMode = { viewModel.unzipMode() },
-        unzipHereMode = { viewModel.unzipHereMode() },
+        moveMode = { onSelectModeChange(Constants.CONFIRM_MODE_MOVE) },
+        copyMode = { onSelectModeChange(Constants.CONFIRM_MODE_COPY) },
+        unzipMode = { onSelectModeChange(Constants.CONFIRM_MODE_UNZIP) },
+        unzipHereMode = { onSelectModeChange(Constants.CONFIRM_MODE_UNZIP_HERE) },
         delete = { deleteDialog = true },
-        cancel = { viewModel.cancel() },
-        //confirm = { viewModel.confirm(selectedList, currentPath.value) },
-        confirm = { viewModel.confirm(currentPath.value) },
+        cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
+        confirm = {
+            viewModel.confirm(selectedList, selectMode, currentPath.value)
+            onSelectModeChange(Constants.DEFAULT_MODE)
+            onClearSelection()
+        },
         selectedList = selectedList
     )
-    if(zipDialog){
+    if (zipDialog) {
         ZipDialog(
-            onConfirm = { viewModel.zip(it) },
-            onCancel =  { zipDialog = false }
+            onConfirm = {
+                viewModel.zip(selectedList, it)
+                onSelectModeChange(Constants.DEFAULT_MODE)
+                onClearSelection()
+            },
+            onCancel = { zipDialog = false }
         )
     }
-    if(renameDialog){
+    if (renameDialog) {
         RenameDialog(
-            onConfirm = { viewModel.rename(it) },
-            onCancel = {renameDialog = false}
+            onConfirm = { viewModel.rename(selectedList.first(), it) },
+            onCancel = { renameDialog = false }
         )
     }
-    if(infoDialog){
+    if (infoDialog) {
         InfoDialog(
             files = selectedList,
-            onCancel =  { infoDialog = false }
+            onCancel = { infoDialog = false }
         )
     }
-    if(deleteDialog){
+    if (deleteDialog) {
         DeleteDialog(
-            onConfirm = { viewModel.delete() },
-            onCancel = {deleteDialog = false}
+            onConfirm = {
+                viewModel.delete(selectedList)
+                onSelectModeChange(Constants.DEFAULT_MODE)
+                onClearSelection()
+            },
+            onCancel = { deleteDialog = false }
         )
     }
 }
