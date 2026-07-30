@@ -9,12 +9,11 @@ import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
-class DirectoryViewModel @Inject constructor() : ViewModel(){
+class DirectoryViewModel @Inject constructor(private val vars: Variables) : ViewModel() {
 
-    val dirTree = Variables.dirTree
-    private val vars = Variables()
+    val dirTree = vars.dirTree
 
-    fun updateCurrentPath(file: File){
+    fun updateCurrentPath(file: File) {
         viewModelScope.launch {
             vars.setCurrentPath(file)
         }

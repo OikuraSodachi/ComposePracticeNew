@@ -10,10 +10,14 @@ import com.todokanai.composepracticenew.data.dataclass.FileHolderItem
 import com.todokanai.composepracticenew.data.dataclass.StorageHolderItem
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import com.todokanai.composepracticenew.variables.FileListSorter
+import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.text.DateFormat
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class DataConverter(context:Context) {
+@Singleton
+class DataConverter @Inject constructor(@ApplicationContext context: Context) {
     private val sorter = FileListSorter()
     private val thumbnailFolder =
         ContextCompat.getDrawable(context, R.drawable.ic_baseline_folder_24)?.toBitmap()!!
@@ -22,7 +26,6 @@ class DataConverter(context:Context) {
         ContextCompat.getDrawable(context, R.drawable.ic_baseline_insert_drive_file_24)
             ?.toBitmap()!!
 
-    /** file의 extension에 따른 기본 thumbnail 값 */
     private fun thumbnail(file: File): Bitmap {
         return if (file.isDirectory) {
             thumbnailFolder
@@ -50,33 +53,31 @@ class DataConverter(context:Context) {
             }
         val thumbnail = thumbnail(file)
 
-        return FileHolderItem(file,file.name,size,lastModified,thumbnail.asImageBitmap() )
+        return FileHolderItem(file, file.name, size, lastModified, thumbnail.asImageBitmap())
     }
 
-
-    fun fileHolderItemList(files:Array<File>, sortBy:String):List<FileHolderItem>{
+    fun fileHolderItemList(files: Array<File>, sortBy: String): List<FileHolderItem> {
         val result = mutableListOf<FileHolderItem>()
-        val sortedFileHolderItemList = sorter.sortFileList(sortBy,files)
+        val sortedFileHolderItemList = sorter.sortFileList(sortBy, files)
         sortedFileHolderItemList.forEach { file ->
             result.add(file.toFileHolderItem())
         }
         return result
     }
 
-    private fun File.toStorageHolderItem():StorageHolderItem{
+    private fun File.toStorageHolderItem(): StorageHolderItem {
         val file = this
         val storageSize = file.totalSpace
         val freeSize = file.freeSpace
-        val progress  = ((storageSize.toDouble()-freeSize.toDouble())/storageSize.toDouble()).toFloat()
-        val used = readableFileSize_td(storageSize-freeSize)
+        val progress = ((storageSize.toDouble() - freeSize.toDouble()) / storageSize.toDouble()).toFloat()
+        val used = readableFileSize_td(storageSize - freeSize)
         val total = readableFileSize_td(storageSize)
-        return StorageHolderItem(file,file.absolutePath,used,total, progress)
+        return StorageHolderItem(file, file.absolutePath, used, total, progress)
     }
 
-
-    fun storageHolderItemList(storages:List<File>):List<StorageHolderItem>{
+    fun storageHolderItemList(storages: List<File>): List<StorageHolderItem> {
         val result = mutableListOf<StorageHolderItem>()
-        storages.forEach{
+        storages.forEach {
             result.add(it.toStorageHolderItem())
         }
         return result
