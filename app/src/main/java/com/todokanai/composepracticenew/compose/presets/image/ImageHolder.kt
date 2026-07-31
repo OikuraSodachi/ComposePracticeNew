@@ -3,7 +3,8 @@ package com.todokanai.composepracticenew.compose.presets.image
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalContext
 import coil.compose.AsyncImage
@@ -13,7 +14,7 @@ import coil.request.ImageRequest
 fun ImageHolder(
     modifier: Modifier,
     isAsyncImage:Boolean,
-    icon: ImageBitmap,
+    icon: Bitmap,
     data: Any?
 ){
     val context = LocalContext.current
@@ -25,11 +26,11 @@ fun ImageHolder(
                 .build(),
             null,
             modifier = modifier,
-            placeholder = BitmapPainter(icon)
+            placeholder = BitmapPainter(icon.asImageBitmap())
         )                                           // AsyncImage에 해당될 경우
     } else {
         Image(
-            bitmap = icon,
+            bitmap = icon.asImageBitmap(),
             null,
             modifier = modifier
         )

@@ -18,7 +18,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
-import com.todokanai.composepracticenew.data.dataclass.FileHolderItem
+import com.todokanai.composepracticenew.model.FileHolderItem
 
 
 /** modifier.background 처리를 FileListView로 옮길것 ( FileHolder에서 myobjects.Constants 의존성 제거하기 ) */

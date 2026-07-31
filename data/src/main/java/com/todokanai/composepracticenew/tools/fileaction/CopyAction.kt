@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.tools.fileaction
 
-import com.todokanai.composepracticenew.data.dataclass.ProgressState
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
 import com.todokanai.composepracticenew.tools.independent.getTotalSize_td
@@ -10,20 +10,20 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 
 /** ViewModel 이상 단계에서 보이면 안됨 */
-class CopyAction(val fromMoveAction:Boolean = false,val onSpaceRequired: () -> Unit?) {
+class CopyAction(val fromMoveAction: Boolean = false, val onSpaceRequired: () -> Unit?) {
 
     private val actionKey =
-        if(fromMoveAction){
+        if (fromMoveAction) {
             ACTION_KEY_MOVE
-        }else {
+        } else {
             ACTION_KEY_COPY
         }
 
     fun copyFiles(
-        files:Array<File>,
+        files: Array<File>,
         target: File,
-        progressCallback:(progress:ProgressState)->Unit,
-    ){
+        progressCallback: (progress: ProgressState) -> Unit,
+    ) {
         val totalSize = getTotalSize_td(files)
 
         if (totalSize >= target.freeSpace) {
@@ -33,7 +33,6 @@ class CopyAction(val fromMoveAction:Boolean = false,val onSpaceRequired: () -> U
             val prevProgress = MutableStateFlow<Int>(0)
 
             files.forEach { file ->
-
                 val tempTarget = File("${target.toPath()}/${file.name}")
                 copyFileRecursively(
                     file = file,
@@ -45,19 +44,16 @@ class CopyAction(val fromMoveAction:Boolean = false,val onSpaceRequired: () -> U
                 )
             }
         }
-    }       // Done
-
+    }
 
     private fun copyFileRecursively(
         file: File,
         target: File,
-        bytesProgress : MutableStateFlow<Long>,
+        bytesProgress: MutableStateFlow<Long>,
         prevProgress: MutableStateFlow<Int>,
         totalSize: Long,
-        //callback: (percent: Int) -> Unit,
-        callback:(progressState:ProgressState)->Unit
+        callback: (progressState: ProgressState) -> Unit
     ) {
-
         if (file.isDirectory) {
             if (!target.exists()) {
                 target.mkdir()
@@ -82,16 +78,9 @@ class CopyAction(val fromMoveAction:Boolean = false,val onSpaceRequired: () -> U
             while (inputStream.read(buffer).also { bytesRead = it } > 0) {
                 outputStream.write(buffer, 0, bytesRead)
                 bytesProgress.value += bytesRead
-                /** */
                 val progress = (100 * bytesProgress.value / totalSize).toInt()
-                if (prevProgress.value != progress || bytesProgress.value == totalSize) {      // 진행도 변경되거나 전체 파일의 끝일때
-
-                    val state = ProgressState(
-                        progress = progress,
-                        actionKey = actionKey
-                    )
-                //    callback(progress)
-
+                if (prevProgress.value != progress || bytesProgress.value == totalSize) {
+                    val state = ProgressState(progress = progress, actionKey = actionKey)
                     callback(state)
                     prevProgress.value = progress
                 }

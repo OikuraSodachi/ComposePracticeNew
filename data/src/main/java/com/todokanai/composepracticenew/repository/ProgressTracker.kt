@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.data.dataclass.ProgressState
+import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject

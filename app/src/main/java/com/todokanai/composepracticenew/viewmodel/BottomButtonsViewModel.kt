@@ -2,13 +2,14 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.data.dataclass.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.repository.FileNavigator
-import com.todokanai.composepracticenew.repository.ProgressTracker
-import com.todokanai.composepracticenew.tools.FileAction
-import com.todokanai.composepracticenew.tools.LogTool
-import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.usecase.CopyFilesUseCase
+import com.todokanai.composepracticenew.usecase.DeleteFilesUseCase
+import com.todokanai.composepracticenew.usecase.MoveFilesUseCase
+import com.todokanai.composepracticenew.usecase.RenameFileUseCase
+import com.todokanai.composepracticenew.usecase.UnzipFilesUseCase
+import com.todokanai.composepracticenew.usecase.ZipFilesUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -17,48 +18,44 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
-    private val nav: FileNavigator,
-    private val prog: ProgressTracker,
-    private val myNoti: MyNotification,
-    private val logTool: LogTool
+    private val nav: FileNavigatorRepository,
+    private val copyFilesUseCase: CopyFilesUseCase,
+    private val moveFilesUseCase: MoveFilesUseCase,
+    private val deleteFilesUseCase: DeleteFilesUseCase,
+    private val renameFileUseCase: RenameFileUseCase,
+    private val zipFilesUseCase: ZipFilesUseCase,
+    private val unzipFilesUseCase: UnzipFilesUseCase
 ) : ViewModel() {
 
     val currentPath = nav.currentPath
-    private val fAction = FileAction({ updateCurrentPath(it) }, nav.currentPath, myNoti, logTool)
-
-    private fun updateCurrentPath(file: File) {
-        viewModelScope.launch { nav.setCurrentPath(file) }
-    }
-
-    private fun setProgressState(progressState: ProgressState) = prog.setProgressState(progressState)
 
     fun confirm(selectedList: List<File>, selectMode: Int, currentPath: File) {
         viewModelScope.launch {
             val list = selectedList.toTypedArray()
             when (selectMode) {
-                Constants.CONFIRM_MODE_COPY -> fAction.copyAction(list, currentPath, { setProgressState(it) })
-                Constants.CONFIRM_MODE_MOVE -> fAction.moveAction(list, currentPath, { setProgressState(it) })
-                Constants.CONFIRM_MODE_UNZIP -> fAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = false, { setProgressState(it) })
-                Constants.CONFIRM_MODE_UNZIP_HERE -> fAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = true, { setProgressState(it) })
+                Constants.CONFIRM_MODE_COPY -> copyFilesUseCase(list, currentPath)
+                Constants.CONFIRM_MODE_MOVE -> moveFilesUseCase(list, currentPath)
+                Constants.CONFIRM_MODE_UNZIP -> unzipFilesUseCase(ZipFile(list.first()), currentPath, unzipHere = false)
+                Constants.CONFIRM_MODE_UNZIP_HERE -> unzipFilesUseCase(ZipFile(list.first()), currentPath, unzipHere = true)
             }
         }
     }
 
     fun zip(selectedList: List<File>, name: String) {
         viewModelScope.launch {
-            fAction.zipAction(selectedList.toTypedArray(), name, { setProgressState(it) })
+            zipFilesUseCase(selectedList.toTypedArray(), name)
         }
     }
 
     fun rename(file: File, name: String) {
         viewModelScope.launch {
-            fAction.renameAction(file, name)
+            renameFileUseCase(file, name)
         }
     }
 
     fun delete(selectedList: List<File>) {
         viewModelScope.launch {
-            fAction.deleteAction(selectedList.toTypedArray(), { setProgressState(it) })
+            deleteFilesUseCase(selectedList.toTypedArray())
         }
     }
 }

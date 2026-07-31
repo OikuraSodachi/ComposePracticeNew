@@ -12,7 +12,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.myobjects.Constants
@@ -26,7 +25,6 @@ fun FileListFrag(
     viewModel: FileListViewModel,
     bViewModel: BottomButtonsViewModel
 ) {
-    val context = LocalContext.current
     var selectedList by remember { mutableStateOf<List<File>>(emptyList()) }
     var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
     val fileHolderItemList = viewModel.fileHolderItemList.collectAsStateWithLifecycle()
@@ -54,7 +52,7 @@ fun FileListFrag(
                     .weight(1f),
                 fileHolderItemListFlow = viewModel.fileHolderItemList,
                 selectMode = selectMode,
-                onItemClick = { viewModel.onItemClick(context, it, selectMode) },
+                onItemClick = { viewModel.onItemClick(it, selectMode) },
                 onItemLongClick = { selectMode = Constants.MULTI_SELECT_MODE },
                 addToList = { selectedList = selectedList + it },
                 removeFromList = { selectedList = selectedList - it },

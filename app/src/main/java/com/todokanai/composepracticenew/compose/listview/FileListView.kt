@@ -13,7 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.holder.FileHolder
-import com.todokanai.composepracticenew.data.dataclass.FileHolderItem
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.myobjects.Constants
 import kotlinx.coroutines.flow.StateFlow
 import java.io.File

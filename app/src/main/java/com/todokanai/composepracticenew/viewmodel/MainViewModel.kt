@@ -14,26 +14,18 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.data.DataConverter
-import com.todokanai.composepracticenew.data.dataclass.StorageHolderItem
-import com.todokanai.composepracticenew.repository.FileNavigator
+import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val nav: FileNavigator,
-    private val converter: DataConverter
+    private val navigateBackUseCase: NavigateBackUseCase,
+    private val getStorageListUseCase: GetStorageListUseCase
 ) : ViewModel() {
-
-    companion object {
-        private val _physicalStorageList = MutableStateFlow<List<StorageHolderItem>>(emptyList())
-        val physicalStorageList: StateFlow<List<StorageHolderItem>> get() = _physicalStorageList
-    }
 
     fun getPermission(activity: Activity) {
         viewModelScope.launch {
@@ -72,9 +64,7 @@ class MainViewModel @Inject constructor(
 
     private fun requestStorageManageAccess(activity: Activity) {
         if (Environment.isExternalStorageManager()) {
-            val storages = getPhysicalStorages(activity)
-            val storageHolderList = converter.storageHolderItemList(storages)
-            _physicalStorageList.value = storageHolderList
+            getStorageListUseCase(getPhysicalStorages(activity))
         } else {
             val intent = Intent()
             intent.action = Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
@@ -101,12 +91,7 @@ class MainViewModel @Inject constructor(
 
     fun onBackPressed(toStorageFrag: () -> Unit) {
         viewModelScope.launch {
-            val parentFile = nav.currentPath.value.parentFile
-            if (parentFile?.listFiles() == null) {
-                toStorageFrag()
-            } else {
-                nav.setCurrentPath(parentFile)
-            }
+            navigateBackUseCase(toStorageFrag)
         }
     }
 }

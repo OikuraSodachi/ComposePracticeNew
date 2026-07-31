@@ -1,112 +1,107 @@
 package com.todokanai.composepracticenew.tools
 
-import android.content.Context
-import com.todokanai.composepracticenew.data.dataclass.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
+import com.todokanai.composepracticenew.repository.FileActionRepository
+import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.tools.fileaction.CopyAction
 import com.todokanai.composepracticenew.tools.fileaction.DeleteAction
 import com.todokanai.composepracticenew.tools.fileaction.MoveAction
 import com.todokanai.composepracticenew.tools.fileaction.NewFolderAction
-import com.todokanai.composepracticenew.tools.fileaction.OpenAction
 import com.todokanai.composepracticenew.tools.fileaction.RenameAction
 import com.todokanai.composepracticenew.tools.fileaction.UnzipAction
 import com.todokanai.composepracticenew.tools.fileaction.ZipAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.zip.ZipFile
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class FileAction(
-    val setCurrentPath: (File) -> Unit,
-    private val currentPathFlow: StateFlow<File>,
+/** Orchestrates all file I/O operations, delegating to per-action classes and refreshing the navigator on completion. */
+@Singleton
+class FileAction @Inject constructor(
+    private val nav: FileNavigatorRepository,
+    private val prog: ProgressTracker,
     private val myNoti: MyNotification,
     private val logTool: LogTool
-) {
+) : FileActionRepository {
     private val notiSorter = CompletedNotiSorter(myNoti)
 
-    suspend fun openAction(context: Context, selected: File) {
-        if (selected.isDirectory) {
-            setCurrentPath(selected)
-        } else {
-            OpenAction().openFile(context, selected)
-        }
-    }
-
-    fun renameAction(selectedFile: File, name: String) {
+    override fun renameAction(selectedFile: File, name: String) {
         actionWrapper(
             action = { RenameAction().renameAction(selectedFile = selectedFile, name = name) },
             completionCallback = { onComplete(selectedFile.parentFile, null) }
         )
     }
 
-    fun copyAction(files: Array<File>, currentPath: File, setProgressState: (ProgressState) -> Unit) {
+    override fun copyAction(files: Array<File>, currentPath: File) {
         actionWrapper(
             action = {
                 CopyAction(onSpaceRequired = { onSpaceRequired() }).copyFiles(
                     files = files,
                     target = currentPath,
-                    progressCallback = { setProgressState(it) }
+                    progressCallback = { prog.setProgressState(it) }
                 )
             },
             completionCallback = { onComplete(currentPath, ACTION_KEY_COPY) }
         )
     }
 
-    fun moveAction(files: Array<File>, currentPath: File, setProgressState: (ProgressState) -> Unit) {
+    override fun moveAction(files: Array<File>, currentPath: File) {
         actionWrapper(
             action = {
                 MoveAction(onSpaceRequired = { onSpaceRequired() }).moveAction(
                     files = files,
                     path = currentPath,
-                    progressCallback = { setProgressState(it) }
+                    progressCallback = { prog.setProgressState(it) }
                 )
             },
             completionCallback = { onComplete(currentPath, ACTION_KEY_MOVE) }
         )
     }
 
-    fun deleteAction(files: Array<File>, setProgressState: (ProgressState) -> Unit) {
+    override fun deleteAction(files: Array<File>) {
         actionWrapper(
-            action = { DeleteAction().deleteFiles(files = files, progressCallback = { setProgressState(it) }) },
+            action = { DeleteAction().deleteFiles(files = files, progressCallback = { prog.setProgressState(it) }) },
             completionCallback = { onComplete(files.first().parentFile, ACTION_KEY_DELETE) }
         )
     }
 
-    fun newFolderAction(currentPath: File, folderName: String) {
+    override fun newFolderAction(currentPath: File, folderName: String) {
         actionWrapper(
             action = { NewFolderAction().newFolderAction(path = currentPath, folderName = folderName) },
             completionCallback = { onComplete(currentPath, null) }
         )
     }
 
-    fun zipAction(files: Array<File>, zipFileName: String, setProgressState: (ProgressState) -> Unit) {
-        val targetPath = currentPathFlow.value.parentFile
+    override fun zipAction(files: Array<File>, zipFileName: String) {
+        val targetPath = nav.currentPath.value
         val zipFile = File("$targetPath/$zipFileName.zip")
         actionWrapper(
             action = {
                 ZipAction(onSpaceRequired = { onSpaceRequired() }).zipFiles(
                     files = files,
                     zipFile = zipFile,
-                    progressCallback = { setProgressState(it) }
+                    progressCallback = { prog.setProgressState(it) }
                 )
             },
             completionCallback = { onComplete(targetPath, ACTION_KEY_ZIP) }
         )
     }
 
-    fun unzipAction(zipFile: ZipFile, currentPath: File, unzipHere: Boolean, setProgressState: (ProgressState) -> Unit) {
+    override fun unzipAction(zipFile: ZipFile, currentPath: File, unzipHere: Boolean) {
         actionWrapper(
             action = {
                 UnzipAction(onSpaceRequired = { onSpaceRequired() }).unzip(
                     zipFile = zipFile,
                     target = currentPath,
-                    progressCallback = { setProgressState(it) },
+                    progressCallback = { prog.setProgressState(it) },
                     unzipHere = unzipHere
                 )
             },
@@ -126,9 +121,9 @@ class FileAction(
 
     private fun onComplete(path: File?, actionKey: Int?) {
         CoroutineScope(Dispatchers.IO).launch {
-            if (currentPathFlow.value == path) {
+            if (nav.currentPath.value == path) {
                 path.listFiles()?.let {
-                    setCurrentPath(path)
+                    nav.setCurrentPath(path)
                 }
             }
             actionKey?.let {

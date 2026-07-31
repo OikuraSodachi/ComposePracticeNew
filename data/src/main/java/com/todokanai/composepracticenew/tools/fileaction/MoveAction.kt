@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.tools.fileaction
 
-import com.todokanai.composepracticenew.data.dataclass.ProgressState
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.tools.independent.getPhysicalStorage_td
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,11 +13,11 @@ import kotlin.io.path.absolutePathString
 class MoveAction(val onSpaceRequired: () -> Unit) {
 
     fun moveAction(
-        files:Array<File>,
+        files: Array<File>,
         path: File,
-        progressCallback:(progress:ProgressState)->Unit,
-    ){
-        if( getPhysicalStorage_td(files.first()) == getPhysicalStorage_td(path) ) {
+        progressCallback: (progress: ProgressState) -> Unit,
+    ) {
+        if (getPhysicalStorage_td(files.first()) == getPhysicalStorage_td(path)) {
             CoroutineScope(Dispatchers.IO).launch {
                 files.forEach { file ->
                     Files.move(
@@ -39,7 +39,7 @@ class MoveAction(val onSpaceRequired: () -> Unit) {
             ).copyFiles(
                 files = files,
                 target = path,
-                progressCallback = { progressCallback(it)},
+                progressCallback = { progressCallback(it) },
             )
         }
     }
