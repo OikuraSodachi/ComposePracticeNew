@@ -13,21 +13,22 @@ import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 
 @Composable
 fun DirectoryFrag(
-    modifier : Modifier,
+    modifier: Modifier,
     viewModel: DirectoryViewModel
-){
-    val items = viewModel.dirTree.collectAsStateWithLifecycle()
+) {
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
     LazyRow(
         modifier = modifier
             .fillMaxWidth()
             .height(30.dp)
     ) {
-        items(items.value.size) {
-            val item = items.value[it]
+        items(uiState.value.dirTree.size) {
+            val item = uiState.value.dirTree[it]
             DirectoryHolder(
                 modifier = Modifier
                     .clickable { viewModel.updateCurrentPath(item) },
+
                 pathName = item
             )
         }

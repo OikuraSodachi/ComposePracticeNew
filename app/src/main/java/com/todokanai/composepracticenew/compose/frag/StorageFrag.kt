@@ -18,28 +18,28 @@ fun StorageFrag(
     modifier: Modifier,
     activity: MainActivity,
     viewModel: StorageViewModel,
-    exitStorageFrag:()->Unit,
-    setInitialPath: (File)->Unit
-){
-    val storageList = viewModel.storageList.collectAsStateWithLifecycle()
+    exitStorageFrag: () -> Unit,
+    setInitialPath: (File) -> Unit
+) {
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
     Column {
         StorageMenuButtons(
             modifier = Modifier,
-            button1 = {viewModel.button1()},
-            exit = {viewModel.exit(activity)}
+            button1 = { viewModel.button1() },
+            exit = { viewModel.exit(activity) }
         )
 
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
         ) {
-            items(storageList.value.size) {
-                val storage = storageList.value[it]
+            items(uiState.value.storageList.size) {
+                val storage = uiState.value.storageList[it]
                 StorageHolder(
                     modifier = Modifier
                         .clickable {
-                            viewModel.setInitialPath({setInitialPath(storage.storage)})
+                            viewModel.setInitialPath({ setInitialPath(storage.storage) })
                             exitStorageFrag()
                         },
                     storage = storage

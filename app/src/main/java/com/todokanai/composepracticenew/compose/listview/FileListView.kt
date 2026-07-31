@@ -11,18 +11,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.myobjects.Constants
-import kotlinx.coroutines.flow.StateFlow
 import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileListView(
     modifier: Modifier,
-    fileHolderItemListFlow: StateFlow<List<FileHolderItem>>,
+    fileHolderItemList: List<FileHolderItem>,
     selectMode: Int,
     onItemClick: (File) -> Unit,
     onItemLongClick: () -> Unit,
@@ -30,14 +28,12 @@ fun FileListView(
     removeFromList: (File) -> Unit,
     clearList: () -> Unit
 ) {
-    val fileHolderItemList = fileHolderItemListFlow.collectAsStateWithLifecycle()
-
     LazyColumn(
         modifier = modifier
             .fillMaxWidth()
     ) {
-        items(fileHolderItemList.value.size) { index ->
-            val fileHolderItem = fileHolderItemList.value[index]
+        items(fileHolderItemList.size) { index ->
+            val fileHolderItem = fileHolderItemList[index]
             val file = fileHolderItem.file
 
             var isSelected by remember { mutableStateOf(false) }

@@ -1,12 +1,12 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.StorageHolderItem
-import com.todokanai.composepracticenew.repository.StorageRepository
+import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import java.io.File
 
 /** Converts raw storage File list into display models and updates StorageRepository. */
-class GetStorageListUseCase(private val storageRepo: StorageRepository) {
+class GetStorageListUseCase(private val storageRepo: StorageVolumeRepository) {
     operator fun invoke(storages: List<File>) {
         val list = storages.map { file ->
             val storageSize = file.totalSpace

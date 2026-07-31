@@ -10,6 +10,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.coroutineContext
 
+/** Toast 및 디버그 로그 출력 유틸리티. */
 @Singleton
 class LogTool @Inject constructor(@ApplicationContext private val context: Context) {
     private val hModel = HandlerModel()

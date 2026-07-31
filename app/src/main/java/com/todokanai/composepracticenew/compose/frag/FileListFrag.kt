@@ -27,7 +27,7 @@ fun FileListFrag(
 ) {
     var selectedList by remember { mutableStateOf<List<File>>(emptyList()) }
     var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
-    val fileHolderItemList = viewModel.fileHolderItemList.collectAsStateWithLifecycle()
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
     BackHandler(enabled = selectMode != Constants.DEFAULT_MODE) {
         selectMode = Constants.DEFAULT_MODE
@@ -38,7 +38,7 @@ fun FileListFrag(
         modifier = modifier
             .fillMaxSize()
     ) {
-        if (fileHolderItemList.value.isEmpty()) {
+        if (uiState.value.fileHolderItemList.isEmpty()) {
             Text(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -50,7 +50,7 @@ fun FileListFrag(
             FileListView(
                 modifier = Modifier
                     .weight(1f),
-                fileHolderItemListFlow = viewModel.fileHolderItemList,
+                fileHolderItemList = uiState.value.fileHolderItemList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
                 onItemLongClick = { selectMode = Constants.MULTI_SELECT_MODE },

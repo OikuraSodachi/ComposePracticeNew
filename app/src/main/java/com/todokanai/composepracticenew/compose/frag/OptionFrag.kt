@@ -21,15 +21,13 @@ import com.todokanai.composepracticenew.viewmodel.OptionViewModel
 @Composable
 fun OptionFrag(
     modifier: Modifier,
-    activity:Activity,
-    viewModel:OptionViewModel
+    activity: Activity,
+    viewModel: OptionViewModel
 ) {
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
-    val storageList = viewModel.storageList.collectAsStateWithLifecycle()
-
-    val sortModeSelected = viewModel.sortMode.collectAsStateWithLifecycle()
     var showEditTextDialog by remember { mutableStateOf(false) }
-    if(showEditTextDialog){
+    if (showEditTextDialog) {
         EditTextDialog(
             modifier = Modifier,
             title = "Name of the new folder",
@@ -42,10 +40,10 @@ fun OptionFrag(
     }
 
     var showSortDialog by remember { mutableStateOf(false) }
-    if(showSortDialog){
+    if (showSortDialog) {
         SortDialog(
             items = viewModel.sortModeCallbackList(),
-            selectedItem = sortModeSelected.value,
+            selectedItem = uiState.value.sortMode,
             onCancel = {
                 showSortDialog = false
             }
@@ -55,33 +53,33 @@ fun OptionFrag(
         modifier = modifier
             .fillMaxWidth()
     ) {
-        val storageButtonExpanded = remember{ mutableStateOf(false) }
+        val storageButtonExpanded = remember { mutableStateOf(false) }
         TextButton(
-            onClick = {storageButtonExpanded.value=!storageButtonExpanded.value},
+            onClick = { storageButtonExpanded.value = !storageButtonExpanded.value },
             modifier = Modifier
                 .weight(1f)
-        ){
+        ) {
             Text("Storage")
             MyDropdownMenu(
-                contents = viewModel.toPair(storageList.value),
+                contents = viewModel.toPair(uiState.value.storageList),
                 expanded = storageButtonExpanded
             )
         }
 
-        val moreButtonExpanded = remember{ mutableStateOf(false) }
+        val moreButtonExpanded = remember { mutableStateOf(false) }
         TextButton(
             modifier = Modifier
                 .weight(1f)
                 .wrapContentSize(),
-            onClick = { moreButtonExpanded.value = !moreButtonExpanded.value}
+            onClick = { moreButtonExpanded.value = !moreButtonExpanded.value }
         ) {
             Text("More")
 
             MyDropdownMenu(
                 contents = listOf(
-                    Pair("Create New Folder",{ showEditTextDialog = true}),
-                    Pair("Sort",{showSortDialog = true}),
-                    Pair("Exit",{viewModel.exit(activity)})
+                    Pair("Create New Folder", { showEditTextDialog = true }),
+                    Pair("Sort", { showSortDialog = true }),
+                    Pair("Exit", { viewModel.exit(activity) })
                 ),
                 expanded = moreButtonExpanded
             )

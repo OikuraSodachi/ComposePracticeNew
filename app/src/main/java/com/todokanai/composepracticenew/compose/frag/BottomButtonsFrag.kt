@@ -25,7 +25,7 @@ fun BottomButtonsFrag(
     onClearSelection: () -> Unit,
     viewModel: BottomButtonsViewModel
 ) {
-    val currentPath = viewModel.currentPath.collectAsStateWithLifecycle()
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
     var zipDialog by remember { mutableStateOf(false) }
     var renameDialog by remember { mutableStateOf(false) }
@@ -45,7 +45,7 @@ fun BottomButtonsFrag(
         delete = { deleteDialog = true },
         cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
         confirm = {
-            viewModel.confirm(selectedList, selectMode, currentPath.value)
+            viewModel.confirm(selectedList, selectMode, uiState.value.currentPath)
             onSelectModeChange(Constants.DEFAULT_MODE)
             onClearSelection()
         },

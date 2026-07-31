@@ -8,7 +8,7 @@ import javax.inject.Singleton
 
 /** Singleton in-memory store for the physical storage device list. */
 @Singleton
-class StorageRepositoryImpl @Inject constructor() : StorageRepository {
+class StorageVolumeRepositoryImpl @Inject constructor() : StorageVolumeRepository {
     private val _storageList = MutableStateFlow<List<StorageHolderItem>>(emptyList())
     override val storageList: StateFlow<List<StorageHolderItem>> get() = _storageList
 

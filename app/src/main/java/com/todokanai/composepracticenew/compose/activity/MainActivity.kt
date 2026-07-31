@@ -12,11 +12,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.lifecycle.asLiveData
 import androidx.navigation.compose.NavHost
+import kotlinx.coroutines.flow.map
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.compose.frag.DirectoryFrag
@@ -95,7 +95,7 @@ private fun HomeScreen(
                     )
                 }
                 composable("fileList") {
-                    val progressFlow = remember { viewModel.progressState }
+                    val progressFlow = remember { viewModel.uiState.map { it.progressState } }
 
                     BackHandler {
                         mViewModel.onBackPressed { navController.popBackStack() }
@@ -119,8 +119,8 @@ private fun HomeScreen(
                     }
 
                     /** progress Notification 용도 **/
-                    SideEffect {
-                        progressFlow.asLiveData().observeForever { progressState ->
+                    LaunchedEffect(Unit) {
+                        progressFlow.collect { progressState ->
                             progressState.actionKey?.let { actionKey ->
                                 viewModel.progressNoti(actionKey, progressState)
                             }

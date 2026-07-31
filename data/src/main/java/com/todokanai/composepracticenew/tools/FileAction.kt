@@ -81,7 +81,7 @@ class FileAction @Inject constructor(
     }
 
     override fun zipAction(files: Array<File>, zipFileName: String) {
-        val targetPath = nav.currentPath.value
+        val targetPath = nav.currentFile.value
         val zipFile = File("$targetPath/$zipFileName.zip")
         actionWrapper(
             action = {
@@ -121,7 +121,7 @@ class FileAction @Inject constructor(
 
     private fun onComplete(path: File?, actionKey: Int?) {
         CoroutineScope(Dispatchers.IO).launch {
-            if (nav.currentPath.value == path) {
+            if (nav.currentFile.value == path) {
                 path.listFiles()?.let {
                     nav.setCurrentPath(path)
                 }

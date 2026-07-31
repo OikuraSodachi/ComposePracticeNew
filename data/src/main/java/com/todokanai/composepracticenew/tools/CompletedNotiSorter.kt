@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.tools
 
 import com.todokanai.composepracticenew.myobjects.Constants
 
+/** 완료된 파일 작업 종류에 따라 알림 메시지를 분기하는 유틸리티. */
 class CompletedNotiSorter(private val myNoti: MyNotification) {
 
     fun callback(actionKey: Int) = myNoti.completedNotification(
