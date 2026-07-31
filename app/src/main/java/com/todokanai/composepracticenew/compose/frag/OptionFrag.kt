@@ -1,6 +1,9 @@
 package com.todokanai.composepracticenew.compose.frag
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.content.Context
+import kotlin.system.exitProcess
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentSize
@@ -80,10 +83,16 @@ fun OptionFrag(
                 contents = listOf(
                     Pair("Create New Folder", { showEditTextDialog = true }),
                     Pair("Sort", { showSortDialog = true }),
-                    Pair("Exit", { viewModel.exit(activity) })
+                    Pair("Exit", { exitApp(activity) })
                 ),
                 expanded = moreButtonExpanded
             )
         }
     }
+}
+
+private fun exitApp(activity: Activity) {
+    val activityManager = activity.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    activityManager.appTasks.forEach { it.finishAndRemoveTask() }
+    exitProcess(0)
 }

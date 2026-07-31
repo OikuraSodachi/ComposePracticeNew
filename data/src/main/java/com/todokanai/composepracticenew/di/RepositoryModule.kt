@@ -1,13 +1,11 @@
 package com.todokanai.composepracticenew.di
 
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
-import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.SortModeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepositoryImpl
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
-import com.todokanai.composepracticenew.tools.FileAction
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -19,9 +17,6 @@ import dagger.hilt.components.SingletonComponent
 abstract class RepositoryModule {
     @Binds
     abstract fun bindFileNavigatorRepository(impl: FileExplorerRepositoryImpl): FileNavigatorRepository
-
-    @Binds
-    abstract fun bindFileActionRepository(impl: FileAction): FileActionRepository
 
     @Binds
     abstract fun bindSortModeRepository(impl: DataStoreRepository): SortModeRepository

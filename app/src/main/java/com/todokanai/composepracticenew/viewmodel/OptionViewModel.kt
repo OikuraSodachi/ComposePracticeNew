@@ -1,15 +1,12 @@
 package com.todokanai.composepracticenew.viewmodel
 
-import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.model.StorageHolderItem
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
-import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.usecase.UpdateSortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -23,7 +20,6 @@ import javax.inject.Inject
 @HiltViewModel
 class OptionViewModel @Inject constructor(
     private val nav: FileNavigatorRepository,
-    private val fileAction: FileActionRepository,
     private val storageRepo: StorageVolumeRepository,
     private val dsRepo: DataStoreRepository,
     private val updateSortModeUseCase: UpdateSortModeUseCase
@@ -48,9 +44,7 @@ class OptionViewModel @Inject constructor(
 
     fun toPair(storageList: List<StorageHolderItem>) = listToPair(storageList)
 
-    fun newFolder(name: String) = fileAction.newFolderAction(nav.currentFile.value, name)
-
-    fun exit(activity: Activity) = exit_td(activity)
+    fun newFolder(name: String) {} // stub — not yet implemented
 
     fun sortModeCallbackList() = FileListSorter().getSortModeCallbackList { updateSortModeUseCase(it) }
 

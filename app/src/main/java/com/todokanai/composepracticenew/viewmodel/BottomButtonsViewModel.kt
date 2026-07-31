@@ -2,23 +2,18 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.io.File
-import java.util.zip.ZipFile
 import javax.inject.Inject
 
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
-    private val nav: FileNavigatorRepository,
-    private val fileAction: FileActionRepository
+    private val nav: FileNavigatorRepository
 ) : ViewModel() {
 
     /** 하단 버튼 영역 화면에 필요한 UI 상태를 담는 클래스. */
@@ -26,41 +21,19 @@ class BottomButtonsViewModel @Inject constructor(
         val currentPath: File = File("/")
     )
 
-    val uiState: StateFlow<UiState> = nav.currentFile
-        .map { UiState(it) }
+    val uiState: StateFlow<UiState> = nav.currentDirectory
+        .map { UiState(File(it)) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = UiState()
         )
 
-    fun confirm(selectedList: List<File>, selectMode: Int, currentPath: File) {
-        viewModelScope.launch {
-            val list = selectedList.toTypedArray()
-            when (selectMode) {
-                Constants.CONFIRM_MODE_COPY -> fileAction.copyAction(list, currentPath)
-                Constants.CONFIRM_MODE_MOVE -> fileAction.moveAction(list, currentPath)
-                Constants.CONFIRM_MODE_UNZIP -> fileAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = false)
-                Constants.CONFIRM_MODE_UNZIP_HERE -> fileAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = true)
-            }
-        }
-    }
+    fun confirm(selectedList: List<File>, selectMode: Int, currentPath: File) {} // stub — not yet implemented
 
-    fun zip(selectedList: List<File>, name: String) {
-        viewModelScope.launch {
-            fileAction.zipAction(selectedList.toTypedArray(), name)
-        }
-    }
+    fun zip(selectedList: List<File>, name: String) {} // stub — not yet implemented
 
-    fun rename(file: File, name: String) {
-        viewModelScope.launch {
-            fileAction.renameAction(file, name)
-        }
-    }
+    fun rename(file: File, name: String) {} // stub — not yet implemented
 
-    fun delete(selectedList: List<File>) {
-        viewModelScope.launch {
-            fileAction.deleteAction(selectedList.toTypedArray())
-        }
-    }
+    fun delete(selectedList: List<File>) {} // stub — not yet implemented
 }

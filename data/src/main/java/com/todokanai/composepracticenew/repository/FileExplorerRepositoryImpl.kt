@@ -21,8 +21,8 @@ class FileExplorerRepositoryImpl @Inject constructor(
 
     private val defaultStorage = Environment.getExternalStorageDirectory()
 
-    private val _currentFile = MutableStateFlow<File>(defaultStorage)
-    override val currentFile: StateFlow<File> get() = _currentFile
+    private val _currentDirectory = MutableStateFlow(defaultStorage.absolutePath)
+    override val currentDirectory: StateFlow<String> get() = _currentDirectory
 
     private val _fileHolderItemList = MutableStateFlow<List<FileHolderItem>>(emptyList())
     override val fileHolderItemList: StateFlow<List<FileHolderItem>> get() = _fileHolderItemList
@@ -33,7 +33,7 @@ class FileExplorerRepositoryImpl @Inject constructor(
 
     override fun navigateTo(path: String?) {
         super.navigateTo(path)
-        path?.let { _currentFile.value = File(it) }
+        path?.let { _currentDirectory.value = it }
     }
 
     override suspend fun listFiles(path: String): List<FileEntry> =
@@ -55,7 +55,7 @@ class FileExplorerRepositoryImpl @Inject constructor(
     }
 
     override fun setFileHolderItemList(sortMode: String) {
-        currentFile.value.listFiles()?.let { files ->
+        File(currentDirectory.value).listFiles()?.let { files ->
             _fileHolderItemList.value = converter.fileHolderItemList(files, sortMode)
         }
     }
