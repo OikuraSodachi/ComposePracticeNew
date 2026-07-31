@@ -2,34 +2,19 @@ package com.todokanai.composepracticenew.compose.activity
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.navigation.compose.NavHost
-import kotlinx.coroutines.flow.map
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-import com.todokanai.composepracticenew.compose.frag.DirectoryFrag
-import com.todokanai.composepracticenew.compose.frag.FileListFrag
-import com.todokanai.composepracticenew.compose.frag.OptionFrag
-import com.todokanai.composepracticenew.compose.frag.StorageFrag
+import com.todokanai.composepracticenew.navigation.AppNavHost
 import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
-import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
-import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
-import com.todokanai.composepracticenew.viewmodel.OptionViewModel
-import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -38,10 +23,6 @@ class MainActivity : ComponentActivity() {
     private lateinit var activityResult: ActivityResultLauncher<String>
     private val mViewModel: MainViewModel by viewModels()
     private val fViewModel: FileListViewModel by viewModels()
-    private val sViewModel: StorageViewModel by viewModels()
-    private val oViewModel: OptionViewModel by viewModels()
-    private val dViewModel: DirectoryViewModel by viewModels()
-    private val bViewModel: BottomButtonsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,11 +30,7 @@ class MainActivity : ComponentActivity() {
             HomeScreen(
                 activity = this,
                 viewModel = fViewModel,
-                mViewModel = mViewModel,
-                sViewModel = sViewModel,
-                oViewModel = oViewModel,
-                dViewModel = dViewModel,
-                bViewModel = bViewModel
+                mViewModel = mViewModel
             )
         }
 
@@ -71,63 +48,18 @@ class MainActivity : ComponentActivity() {
 private fun HomeScreen(
     activity: MainActivity,
     viewModel: FileListViewModel,
-    mViewModel: MainViewModel,
-    sViewModel: StorageViewModel,
-    oViewModel: OptionViewModel,
-    dViewModel: DirectoryViewModel,
-    bViewModel: BottomButtonsViewModel
+    mViewModel: MainViewModel
 ) {
     ComposePracticeTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            val navController = rememberNavController()
-
-            NavHost(navController = navController, startDestination = "storage") {
-                composable("storage") {
-                    StorageFrag(
-                        modifier = Modifier,
-                        activity = activity,
-                        viewModel = sViewModel,
-                        exitStorageFrag = { navController.navigate("fileList") },
-                        setInitialPath = { viewModel.updateCurrentPath(it) }
-                    )
-                }
-                composable("fileList") {
-                    val progressFlow = remember { viewModel.uiState.map { it.progressState } }
-
-                    BackHandler {
-                        mViewModel.onBackPressed { navController.popBackStack() }
-                    }
-
-                    Column(modifier = Modifier) {
-                        OptionFrag(
-                            modifier = Modifier,
-                            activity = activity,
-                            viewModel = oViewModel
-                        )
-                        DirectoryFrag(
-                            modifier = Modifier,
-                            viewModel = dViewModel
-                        )
-                        FileListFrag(
-                            modifier = Modifier,
-                            viewModel = viewModel,
-                            bViewModel = bViewModel
-                        )
-                    }
-
-                    /** progress Notification 용도 **/
-                    LaunchedEffect(Unit) {
-                        progressFlow.collect { progressState ->
-                            progressState.actionKey?.let { actionKey ->
-                                viewModel.progressNoti(actionKey, progressState)
-                            }
-                        }
-                    }
-                }
-            }
+            AppNavHost(
+                activity = activity,
+                viewModel = viewModel,
+                mViewModel = mViewModel
+            )
         }
     }
 }

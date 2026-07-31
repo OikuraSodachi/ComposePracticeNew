@@ -15,15 +15,13 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import java.io.File
 
 @Composable
 fun FileListFrag(
     modifier: Modifier,
-    viewModel: FileListViewModel,
-    bViewModel: BottomButtonsViewModel
+    viewModel: FileListViewModel
 ) {
     var selectedList by remember { mutableStateOf<List<File>>(emptyList()) }
     var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
@@ -65,8 +63,7 @@ fun FileListFrag(
             selectedList = selectedList,
             selectMode = selectMode,
             onSelectModeChange = { selectMode = it },
-            onClearSelection = { selectedList = emptyList() },
-            viewModel = bViewModel
+            onClearSelection = { selectedList = emptyList() }
         )
     }
 

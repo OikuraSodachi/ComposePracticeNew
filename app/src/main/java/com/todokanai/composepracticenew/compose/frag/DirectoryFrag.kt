@@ -9,12 +9,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 
 @Composable
 fun DirectoryFrag(
     modifier: Modifier,
-    viewModel: DirectoryViewModel
+    viewModel: DirectoryViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 

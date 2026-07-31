@@ -16,13 +16,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.viewmodel.OptionViewModel
 
 @Composable
 fun OptionFrag(
     modifier: Modifier,
     activity: Activity,
-    viewModel: OptionViewModel
+    viewModel: OptionViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
