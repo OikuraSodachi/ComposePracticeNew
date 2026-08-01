@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
 import com.todokanai.composepracticenew.compose.activity.MainActivity
@@ -17,29 +18,29 @@ import java.io.File
 fun StorageFrag(
     modifier: Modifier,
     activity: MainActivity,
-    viewModel: StorageViewModel,
-    exitStorageFrag:()->Unit,
-    setInitialPath: (File)->Unit
-){
-    val storageList = viewModel.storageList.collectAsStateWithLifecycle()
+    exitStorageFrag: () -> Unit,
+    setInitialPath: (File) -> Unit,
+    viewModel: StorageViewModel = hiltViewModel()
+) {
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
     Column {
         StorageMenuButtons(
             modifier = Modifier,
-            button1 = {viewModel.button1()},
-            exit = {viewModel.exit(activity)}
+            button1 = { viewModel.button1() },
+            exit = { viewModel.exit(activity) }
         )
 
         LazyColumn(
             modifier = modifier
                 .fillMaxSize()
         ) {
-            items(storageList.value.size) {
-                val storage = storageList.value[it]
+            items(uiState.value.storageList.size) {
+                val storage = uiState.value.storageList[it]
                 StorageHolder(
                     modifier = Modifier
                         .clickable {
-                            viewModel.setInitialPath({setInitialPath(storage.storage)})
+                            viewModel.setInitialPath({ setInitialPath(storage.storage) })
                             exitStorageFrag()
                         },
                     storage = storage

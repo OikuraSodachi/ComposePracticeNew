@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.dialog.InfoDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
@@ -23,9 +24,9 @@ fun BottomButtonsFrag(
     selectMode: Int,
     onSelectModeChange: (Int) -> Unit,
     onClearSelection: () -> Unit,
-    viewModel: BottomButtonsViewModel
+    viewModel: BottomButtonsViewModel = hiltViewModel()
 ) {
-    val currentPath = viewModel.currentPath.collectAsStateWithLifecycle()
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
     var zipDialog by remember { mutableStateOf(false) }
     var renameDialog by remember { mutableStateOf(false) }
@@ -45,7 +46,7 @@ fun BottomButtonsFrag(
         delete = { deleteDialog = true },
         cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
         confirm = {
-            viewModel.confirm(selectedList, selectMode, currentPath.value)
+            viewModel.confirm(selectedList, selectMode, uiState.value.currentPath)
             onSelectModeChange(Constants.DEFAULT_MODE)
             onClearSelection()
         },

@@ -1,6 +1,9 @@
 package com.todokanai.composepracticenew.compose.frag
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.content.Context
+import kotlin.system.exitProcess
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentSize
@@ -16,20 +19,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.viewmodel.OptionViewModel
 
 @Composable
 fun OptionFrag(
     modifier: Modifier,
-    activity:Activity,
-    viewModel:OptionViewModel
+    activity: Activity,
+    viewModel: OptionViewModel = hiltViewModel()
 ) {
+    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
-    val storageList = viewModel.storageList.collectAsStateWithLifecycle()
-
-    val sortModeSelected = viewModel.sortMode.collectAsStateWithLifecycle()
     var showEditTextDialog by remember { mutableStateOf(false) }
-    if(showEditTextDialog){
+    if (showEditTextDialog) {
         EditTextDialog(
             modifier = Modifier,
             title = "Name of the new folder",
@@ -42,10 +44,10 @@ fun OptionFrag(
     }
 
     var showSortDialog by remember { mutableStateOf(false) }
-    if(showSortDialog){
+    if (showSortDialog) {
         SortDialog(
             items = viewModel.sortModeCallbackList(),
-            selectedItem = sortModeSelected.value,
+            selectedItem = uiState.value.sortMode,
             onCancel = {
                 showSortDialog = false
             }
@@ -55,36 +57,42 @@ fun OptionFrag(
         modifier = modifier
             .fillMaxWidth()
     ) {
-        val storageButtonExpanded = remember{ mutableStateOf(false) }
+        val storageButtonExpanded = remember { mutableStateOf(false) }
         TextButton(
-            onClick = {storageButtonExpanded.value=!storageButtonExpanded.value},
+            onClick = { storageButtonExpanded.value = !storageButtonExpanded.value },
             modifier = Modifier
                 .weight(1f)
-        ){
+        ) {
             Text("Storage")
             MyDropdownMenu(
-                contents = viewModel.toPair(storageList.value),
+                contents = viewModel.toPair(uiState.value.storageList),
                 expanded = storageButtonExpanded
             )
         }
 
-        val moreButtonExpanded = remember{ mutableStateOf(false) }
+        val moreButtonExpanded = remember { mutableStateOf(false) }
         TextButton(
             modifier = Modifier
                 .weight(1f)
                 .wrapContentSize(),
-            onClick = { moreButtonExpanded.value = !moreButtonExpanded.value}
+            onClick = { moreButtonExpanded.value = !moreButtonExpanded.value }
         ) {
             Text("More")
 
             MyDropdownMenu(
                 contents = listOf(
-                    Pair("Create New Folder",{ showEditTextDialog = true}),
-                    Pair("Sort",{showSortDialog = true}),
-                    Pair("Exit",{viewModel.exit(activity)})
+                    Pair("Create New Folder", { showEditTextDialog = true }),
+                    Pair("Sort", { showSortDialog = true }),
+                    Pair("Exit", { exitApp(activity) })
                 ),
                 expanded = moreButtonExpanded
             )
         }
     }
+}
+
+private fun exitApp(activity: Activity) {
+    val activityManager = activity.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    activityManager.appTasks.forEach { it.finishAndRemoveTask() }
+    exitProcess(0)
 }

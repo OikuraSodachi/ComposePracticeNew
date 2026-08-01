@@ -16,9 +16,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
+import androidx.compose.ui.res.painterResource
 import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
-import com.todokanai.composepracticenew.data.dataclass.FileHolderItem
+import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.data.R as DataR
 
 
 /** modifier.background 처리를 FileListView로 옮길것 ( FileHolder에서 myobjects.Constants 의존성 제거하기 ) */
@@ -30,6 +32,12 @@ fun FileHolder(
 ) {
 
 
+
+    val icon = when {
+        file.file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)
+        file.file.extension == "pdf" -> painterResource(DataR.drawable.ic_pdf)
+        else -> painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
+    }
 
     ConstraintLayout(
         modifier = modifier
@@ -53,7 +61,7 @@ fun FileHolder(
                 .padding(5.dp),
             isAsyncImage = (file.file.extension == "jpg"),
             data = file.file.toUri(),
-            icon = file.thumbnail
+            icon = icon
         )
 
         Text(

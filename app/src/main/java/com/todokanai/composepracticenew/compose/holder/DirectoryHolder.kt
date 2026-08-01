@@ -10,20 +10,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.io.File
+import com.todokanai.fileexplorer.FileEntry
 
 @Composable
 fun DirectoryHolder(
     modifier: Modifier,
-    pathName: File
-){
+    pathName: FileEntry
+) {
     Row(
         modifier = modifier
             .wrapContentWidth()
             .fillMaxHeight()
-    ){
-        Text(text = "/${pathName.name}",
-            Modifier
+    ) {
+        Text(
+            text = "/${pathName.name}",
+            modifier = Modifier
                 .padding(horizontal = 4.dp)
                 .align(Alignment.CenterVertically),
             fontSize = 14.sp

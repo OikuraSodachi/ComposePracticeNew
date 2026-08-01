@@ -2,63 +2,38 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.data.dataclass.ProgressState
-import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.repository.FileNavigator
-import com.todokanai.composepracticenew.repository.ProgressTracker
-import com.todokanai.composepracticenew.tools.FileAction
-import com.todokanai.composepracticenew.tools.LogTool
-import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.io.File
-import java.util.zip.ZipFile
 import javax.inject.Inject
 
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
-    private val nav: FileNavigator,
-    private val prog: ProgressTracker,
-    private val myNoti: MyNotification,
-    private val logTool: LogTool
+    private val nav: FileNavigatorRepository
 ) : ViewModel() {
 
-    val currentPath = nav.currentPath
-    private val fAction = FileAction({ updateCurrentPath(it) }, nav.currentPath, myNoti, logTool)
+    /** 하단 버튼 영역 화면에 필요한 UI 상태를 담는 클래스. */
+    data class UiState(
+        val currentPath: File = File("/")
+    )
 
-    private fun updateCurrentPath(file: File) {
-        viewModelScope.launch { nav.setCurrentPath(file) }
-    }
+    val uiState: StateFlow<UiState> = nav.currentPath
+        .map { UiState(it?.let { File(it) } ?: File("/")) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = UiState()
+        )
 
-    private fun setProgressState(progressState: ProgressState) = prog.setProgressState(progressState)
+    fun confirm(selectedList: List<File>, selectMode: Int, currentPath: File) {} // stub — not yet implemented
 
-    fun confirm(selectedList: List<File>, selectMode: Int, currentPath: File) {
-        viewModelScope.launch {
-            val list = selectedList.toTypedArray()
-            when (selectMode) {
-                Constants.CONFIRM_MODE_COPY -> fAction.copyAction(list, currentPath, { setProgressState(it) })
-                Constants.CONFIRM_MODE_MOVE -> fAction.moveAction(list, currentPath, { setProgressState(it) })
-                Constants.CONFIRM_MODE_UNZIP -> fAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = false, { setProgressState(it) })
-                Constants.CONFIRM_MODE_UNZIP_HERE -> fAction.unzipAction(ZipFile(list.first()), currentPath, unzipHere = true, { setProgressState(it) })
-            }
-        }
-    }
+    fun zip(selectedList: List<File>, name: String) {} // stub — not yet implemented
 
-    fun zip(selectedList: List<File>, name: String) {
-        viewModelScope.launch {
-            fAction.zipAction(selectedList.toTypedArray(), name, { setProgressState(it) })
-        }
-    }
+    fun rename(file: File, name: String) {} // stub — not yet implemented
 
-    fun rename(file: File, name: String) {
-        viewModelScope.launch {
-            fAction.renameAction(file, name)
-        }
-    }
-
-    fun delete(selectedList: List<File>) {
-        viewModelScope.launch {
-            fAction.deleteAction(selectedList.toTypedArray(), { setProgressState(it) })
-        }
-    }
+    fun delete(selectedList: List<File>) {} // stub — not yet implemented
 }

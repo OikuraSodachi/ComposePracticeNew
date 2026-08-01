@@ -2,20 +2,38 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.repository.FileNavigator
+import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.fileexplorer.FileEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
-class DirectoryViewModel @Inject constructor(private val nav: FileNavigator) : ViewModel() {
+class DirectoryViewModel @Inject constructor(
+    private val nav: FileNavigatorRepository
+) : ViewModel() {
 
-    val dirTree = nav.dirTree
+    /** 경로 breadcrumb 화면에 필요한 UI 상태를 담는 클래스. */
+    data class UiState(
+        val dirTree: List<FileEntry> = emptyList()
+    )
 
-    fun updateCurrentPath(file: File) {
+    val uiState: StateFlow<UiState> = nav.dirTree
+        .map { UiState(it) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = UiState()
+        )
+
+    fun updateCurrentPath(entry: FileEntry) {
         viewModelScope.launch {
-            nav.setCurrentPath(file)
+            nav.setCurrentPath(File(entry.path))
         }
     }
 }

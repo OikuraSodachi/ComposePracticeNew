@@ -19,6 +19,7 @@ android {
 
 dependencies {
     implementation project(':domain')
+    implementation project(':fileExplorer')
 
     def room_version = "2.6.1"
     implementation "androidx.room:room-runtime:$room_version"
@@ -31,4 +32,5 @@ dependencies {
     kapt "com.google.dagger:hilt-android-compiler:2.51"
 
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.6.4'
+    implementation 'androidx.core:core-ktx:1.12.0'
 }

@@ -34,20 +34,17 @@ A File Manager app built with Jetpack Compose (Android). Package: `com.todokanai
 
 `MainActivity` owns six ViewModels and renders `HomeScreen`, which switches between `StorageFrag` (storage picker) and the main file browser (`OptionFrag` + `DirectoryFrag` + `FileListFrag`).
 
-### Global State — `Variables` companion object
+### Global State — `@Singleton` Repositories
 
-All cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `Variables`'s `companion object`. ViewModels read these flows directly and mutate them through `Variables` instance methods:
+Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@Singleton` repository implementations in the data module:
 
-| State | Type | Purpose |
+| Repository | Key State | Purpose |
 |---|---|---|
-| `currentPath` | `StateFlow<File>` | Currently displayed directory |
-| `fileHolderItemList` | `StateFlow<List<FileHolderItem>>` | Files shown in the list |
-| `selectedList` | `StateFlow<List<File>>` | Multi-selected files |
-| `selectMode` | `StateFlow<Int>` | Current UI mode (see `Constants`) |
-| `myProgressState` | `StateFlow<ProgressState>` | Ongoing operation progress |
-| `dirTree` | `StateFlow<List<File>>` | Breadcrumb path segments |
+| `FileNavigator` | `currentPath`, `fileHolderItemList`, `dirTree` | Navigation and directory listing |
+| `ProgressTracker` | `progressState` | Ongoing operation progress |
+| `StorageRepositoryImpl` | `storageList` | Available storage volumes |
 
-Calling `vars.setCurrentPath(file)` is the canonical way to navigate — it updates `currentPath`, `dirTree`, and `fileHolderItemList` atomically.
+Calling `nav.setCurrentPath(file)` is the canonical way to navigate — it updates `currentPath`, `dirTree`, and `fileHolderItemList` atomically.
 
 ### UI Modes (`Constants`)
 
@@ -61,23 +58,23 @@ CONFIRM_MODE_UNZIP (14/15) — navigate to extract destination
 
 ### File Operations — `FileAction`
 
-`FileAction` is the single point of entry for all file mutations. ViewModels instantiate it and call its methods:
+`FileAction` (data module, `data/.../tools/FileAction.kt`) is the single point of entry for all file mutations, implementing `FileActionRepository`. ViewModels call it via UseCase wrappers:
 
 - Each method wraps its body in `CoroutineScope(Dispatchers.IO).launch { ... }.invokeOnCompletion { onComplete(...) }`
 - `onComplete` refreshes the current directory listing and fires a completion notification via `CompletedNotiSorter`
-- Progress is reported via a `(ProgressState) -> Unit` callback that flows to `Variables.myProgressState`
+- Progress is reported via `ProgressTracker.setProgressState()`
 
-Individual operation classes (`CopyAction`, `MoveAction`, `DeleteAction`, `RenameAction`, `NewFolderAction`, `ZipAction`, `UnzipAction`, `OpenAction`) live in `tools/fileaction/` and contain the raw I/O logic.
+Individual operation classes (`CopyAction`, `MoveAction`, `DeleteAction`, `RenameAction`, `NewFolderAction`, `ZipAction`, `UnzipAction`) live in `data/.../tools/fileaction/`. `OpenAction` lives in `app/.../tools/fileaction/`.
 
 ### Data Layer
 
 - **Room** (`data/room/`): `MyDatabase` + `UserDao` / `User` entity. Provided as a singleton via `di/DatabaseModule`.
-- **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `copyOverwrite` (boolean) preferences. Accessed directly (not injected) using `MyApplication.appContext`.
+- **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `copyOverwrite` (boolean) preferences. Injected via Hilt `@ApplicationContext`.
 - **`DataConverter`**: Transforms raw `File` arrays into `FileHolderItem` / `StorageHolderItem` display models, applying the current sort order.
 
 ### `MyApplication`
 
-Exposes a static `appContext: Context` used throughout the app where a `Context` isn't otherwise injectable (e.g., `DataStoreRepository`, `Variables`).
+Hilt 진입점(`@HiltAndroidApp`). static `appContext`는 제거됨 — 모든 Context 의존은 Hilt `@ApplicationContext` 주입으로 처리.
 
 ### Independent Utility Functions (`tools/independent/FileActionModel.kt`)
 
