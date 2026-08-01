@@ -9,9 +9,8 @@ import java.io.File
 
 /** Contract for reading and updating the active directory navigation state. */
 interface FileNavigatorRepository {
-    val currentDirectory: StateFlow<String>
+    val currentPath: StateFlow<String?>
     val dirTree: Flow<List<FileEntry>>
     val fileHolderItemList: StateFlow<List<FileHolderItem>>
     suspend fun setCurrentPath(file: File)
-    fun setFileHolderItemList(sortMode: String)
 }

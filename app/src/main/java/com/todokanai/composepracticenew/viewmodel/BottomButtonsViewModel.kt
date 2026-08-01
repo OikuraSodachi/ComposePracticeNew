@@ -21,8 +21,8 @@ class BottomButtonsViewModel @Inject constructor(
         val currentPath: File = File("/")
     )
 
-    val uiState: StateFlow<UiState> = nav.currentDirectory
-        .map { UiState(File(it)) }
+    val uiState: StateFlow<UiState> = nav.currentPath
+        .map { UiState(it?.let { File(it) } ?: File("/")) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

@@ -33,9 +33,8 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideUpdateSortModeUseCase(
-        sortModeRepo: SortModeRepository,
-        nav: FileNavigatorRepository
-    ) = UpdateSortModeUseCase(sortModeRepo, nav)
+        sortModeRepo: SortModeRepository
+    ) = UpdateSortModeUseCase(sortModeRepo)
 
     @Provides @Singleton
     fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =

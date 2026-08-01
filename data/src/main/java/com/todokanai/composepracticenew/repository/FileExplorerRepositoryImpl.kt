@@ -6,8 +6,15 @@ import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.stateIn
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,19 +28,23 @@ class FileExplorerRepositoryImpl @Inject constructor(
 
     private val defaultStorage = Environment.getExternalStorageDirectory()
 
-    private val _currentDirectory = MutableStateFlow(defaultStorage.absolutePath)
-    override val currentDirectory: StateFlow<String> get() = _currentDirectory
-
-    private val _fileHolderItemList = MutableStateFlow<List<FileHolderItem>>(emptyList())
-    override val fileHolderItemList: StateFlow<List<FileHolderItem>> get() = _fileHolderItemList
+    @Suppress("OPT_IN_USAGE")
+    override val fileHolderItemList: StateFlow<List<FileHolderItem>> =
+        currentPath.combine(dsRepo.sortBy) { path, sortMode -> path to sortMode }
+            .flatMapLatest { (path, sortMode) ->
+                flow {
+                    val files = path?.let { listFiles(it) } ?: emptyList()
+                    emit(converter.fileHolderItemList(files, sortMode))
+                }
+            }
+            .stateIn(
+                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                started = SharingStarted.WhileSubscribed(5_000),
+                initialValue = emptyList()
+            )
 
     init {
         navigateTo(defaultStorage.absolutePath)
-    }
-
-    override fun navigateTo(path: String?) {
-        super.navigateTo(path)
-        path?.let { _currentDirectory.value = it }
     }
 
     override suspend fun listFiles(path: String): List<FileEntry> =
@@ -48,15 +59,6 @@ class FileExplorerRepositoryImpl @Inject constructor(
         } ?: emptyList()
 
     override suspend fun setCurrentPath(file: File) {
-        file.listFiles()?.let {
-            navigateTo(file.absolutePath)
-            setFileHolderItemList(dsRepo.sortBy())
-        }
-    }
-
-    override fun setFileHolderItemList(sortMode: String) {
-        File(currentDirectory.value).listFiles()?.let { files ->
-            _fileHolderItemList.value = converter.fileHolderItemList(files, sortMode)
-        }
+        if (file.listFiles() != null) navigateTo(file.absolutePath)
     }
 }
