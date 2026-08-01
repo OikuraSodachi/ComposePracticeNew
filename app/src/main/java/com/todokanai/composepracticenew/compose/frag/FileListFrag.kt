@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
@@ -58,12 +59,12 @@ fun FileListFrag(
             )
         }
 
-        BottomButtonsFrag(
+        BottomButtonListView(
             modifier = Modifier,
-            selectedList = selectedList,
             selectMode = selectMode,
             onSelectModeChange = { selectMode = it },
-            onClearSelection = { selectedList = emptyList() }
+            onClearSelection = { selectedList = emptyList() },
+            selectedList = selectedList
         )
     }
 

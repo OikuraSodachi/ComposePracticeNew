@@ -10,7 +10,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.compose.activity.MainActivity
-import com.todokanai.composepracticenew.compose.frag.DirectoryFrag
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.OptionFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
@@ -45,7 +44,6 @@ fun AppNavHost(
 
             Column(modifier = Modifier) {
                 OptionFrag(modifier = Modifier, activity = activity)
-                DirectoryFrag(modifier = Modifier)
                 FileListFrag(modifier = Modifier, viewModel = viewModel)
             }
 
