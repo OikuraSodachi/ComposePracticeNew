@@ -1,5 +1,6 @@
 package com.todokanai.fileexplorer
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,7 @@ abstract class StorageRepository {
     val currentPath: StateFlow<String?> = _currentPath.asStateFlow()
 
     /** Ancestor path entries from filesystem root down to [currentPath]; updates when [currentPath] changes. */
+    @OptIn(ExperimentalCoroutinesApi::class)
     val dirTree: Flow<List<FileEntry>> = currentPath
         .flatMapLatest { path -> flow { emit(path?.let { buildAncestors(it) } ?: emptyList()) } }
 
