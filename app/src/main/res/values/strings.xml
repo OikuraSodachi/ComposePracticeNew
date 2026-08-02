@@ -1,3 +1,57 @@
 <resources>
     <string name="app_name">FileManager</string>
+
+    <!-- Buttons -->
+    <string name="btn_button1">Button1</string>
+    <string name="btn_exit">Exit</string>
+    <string name="btn_move">Move</string>
+    <string name="btn_copy">Copy</string>
+    <string name="btn_delete">Delete</string>
+    <string name="btn_more">More</string>
+    <string name="btn_zip">Zip</string>
+    <string name="btn_info">Info</string>
+    <string name="btn_rename">Rename</string>
+    <string name="btn_unzip">Unzip</string>
+    <string name="btn_unzip_here">Unzip Here</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_confirm">Confirm</string>
+    <string name="btn_dismiss">Dismiss</string>
+    <string name="btn_storage">Storage</string>
+    <string name="btn_create_new_folder">Create New Folder</string>
+    <string name="btn_sort">Sort</string>
+
+    <!-- OptionFrag dialogs -->
+    <string name="dialog_new_folder_title">Name of the new folder</string>
+    <string name="dialog_new_folder_hint">folder name</string>
+
+    <!-- File list -->
+    <string name="empty_directory">Empty Directory</string>
+
+    <!-- Progress dialog -->
+    <string name="progress_dialog_title">작업 중&#8230;</string>
+    <string name="progress_copying">복사 중</string>
+    <string name="progress_moving">이동 중</string>
+    <string name="progress_deleting">삭제 중</string>
+    <string name="progress_zipping">압축 중</string>
+    <string name="progress_unzipping">압축 해제 중</string>
+    <string name="progress_processing">처리 중</string>
+
+    <!-- Dialogs -->
+    <string name="dialog_delete_message">Delete?</string>
+    <string name="dialog_rename_title">Rename</string>
+    <string name="dialog_rename_hint">Name</string>
+    <string name="dialog_zip_title">ZipFile Name</string>
+    <string name="dialog_zip_hint">Name</string>
+    <string name="dialog_info_selected">Selected</string>
+    <string name="dialog_info_size">Size</string>
+    <string name="dialog_info_selected_count">%d 개</string>
+
+    <!-- Notifications -->
+    <string name="noti_move_complete">이동 완료</string>
+    <string name="noti_delete_complete">삭제 완료</string>
+    <string name="noti_complete">완료</string>
+
+    <!-- Toast / Errors -->
+    <string name="toast_storage_permission">Storage permission is required, please allow from settings</string>
+    <string name="toast_cannot_open_file">Cannot open the file</string>
 </resources>

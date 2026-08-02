@@ -2,6 +2,8 @@ package com.todokanai.composepracticenew.compose.dialog
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.BooleanDialog
 
 @Composable
@@ -14,6 +16,6 @@ fun DeleteDialog(
         onConfirm = onConfirm,
         onCancel = onCancel,
         title = "",
-        message = "Delete?"
+        message = stringResource(R.string.dialog_delete_message)
     )
 }

@@ -6,7 +6,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.todokanai.composepracticenew.R
 
 @Composable
 fun BooleanDialog(
@@ -29,7 +31,7 @@ fun BooleanDialog(
                         onCancel()
                     }
                 ) {
-                    Text(text = "Confirm")
+                    Text(text = stringResource(R.string.btn_confirm))
                 }
             },
             dismissButton = {
@@ -39,7 +41,7 @@ fun BooleanDialog(
 
                     }
                 ) {
-                    Text(text = "Cancel")
+                    Text(text = stringResource(R.string.btn_cancel))
                 }
             }
         )

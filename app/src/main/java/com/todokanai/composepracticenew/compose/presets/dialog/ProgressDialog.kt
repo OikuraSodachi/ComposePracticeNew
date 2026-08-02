@@ -19,7 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.todokanai.composepracticenew.R
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
@@ -36,7 +38,7 @@ fun ProgressDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text("작업 중...") },
+        title = { Text(stringResource(R.string.progress_dialog_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -74,13 +76,14 @@ private fun ProgressItem(state: ProgressState) {
     }
 }
 
+@Composable
 private fun actionKeyToLabel(actionKey: Int?) = when (actionKey) {
-    ACTION_KEY_COPY -> "복사 중"
-    ACTION_KEY_MOVE -> "이동 중"
-    ACTION_KEY_DELETE -> "삭제 중"
-    ACTION_KEY_ZIP -> "압축 중"
-    ACTION_KEY_UNZIP -> "압축 해제 중"
-    else -> "처리 중"
+    ACTION_KEY_COPY -> stringResource(R.string.progress_copying)
+    ACTION_KEY_MOVE -> stringResource(R.string.progress_moving)
+    ACTION_KEY_DELETE -> stringResource(R.string.progress_deleting)
+    ACTION_KEY_ZIP -> stringResource(R.string.progress_zipping)
+    ACTION_KEY_UNZIP -> stringResource(R.string.progress_unzipping)
+    else -> stringResource(R.string.progress_processing)
 }
 
 /** 둥근 모서리의 커스텀 LinearProgressIndicator. */

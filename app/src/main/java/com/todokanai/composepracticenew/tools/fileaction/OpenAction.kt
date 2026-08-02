@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.tools.fileaction
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import com.todokanai.composepracticenew.R
 import androidx.core.app.ActivityCompat
 import androidx.core.content.FileProvider
 import java.io.File
@@ -25,7 +26,7 @@ class OpenAction {
         } catch (e: Exception) {
             Toast.makeText(
                 context.applicationContext,
-                "Cannot open the file",
+                context.getString(R.string.toast_cannot_open_file),
                 Toast.LENGTH_SHORT
             ).show()
             println(e)

@@ -16,6 +16,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
+import com.todokanai.composepracticenew.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import java.io.File
@@ -44,7 +45,7 @@ class MainViewModel @Inject constructor(
         ) {
             Toast.makeText(
                 activity,
-                "Storage permission is requires,please allow from settings",
+                activity.getString(R.string.toast_storage_permission),
                 Toast.LENGTH_SHORT
             ).show()
         } else ActivityCompat.requestPermissions(

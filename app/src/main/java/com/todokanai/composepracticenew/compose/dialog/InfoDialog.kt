@@ -8,7 +8,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.tools.independent.getTotalSize_td
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import java.io.File
@@ -20,7 +22,7 @@ fun InfoDialog(
     onCancel:()->Unit
 ){
     val list = files.toTypedArray()
-    val selectedNumber = "${list.size} 개"
+    val selectedNumber = stringResource(R.string.dialog_info_selected_count, list.size)
     val sizeText : String = readableFileSize_td( getTotalSize_td(list))
 
     AlertDialog(
@@ -38,7 +40,7 @@ fun InfoDialog(
                 .fillMaxWidth(),
             onClick = {onCancel()}
         ){
-            Text(text = "Dismiss")
+            Text(text = stringResource(R.string.btn_dismiss))
         }},
         confirmButton = {}
     )
@@ -70,12 +72,12 @@ private fun InfoChart(
     ) {
         InfoColumn(
             modifier = Modifier,
-            title = "Selected",
+            title = stringResource(R.string.dialog_info_selected),
             info = selectedNumber
         )
         InfoColumn(
             modifier = Modifier,
-            title = "Size",
+            title = stringResource(R.string.dialog_info_size),
             info = sizeText
         )
     }

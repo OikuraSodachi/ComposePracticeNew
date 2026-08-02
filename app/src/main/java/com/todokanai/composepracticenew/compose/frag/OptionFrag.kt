@@ -19,8 +19,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
@@ -43,8 +45,8 @@ fun OptionFrag(
     if (showEditTextDialog) {
         EditTextDialog(
             modifier = Modifier,
-            title = "Name of the new folder",
-            defaultText = "folder name",
+            title = stringResource(R.string.dialog_new_folder_title),
+            defaultText = stringResource(R.string.dialog_new_folder_hint),
             onConfirm = {
                 showEditTextDialog = false
                 viewModel.newFolder(it)
@@ -76,7 +78,7 @@ fun OptionFrag(
                 modifier = Modifier
                     .weight(1f)
             ) {
-                Text("Storage")
+                Text(stringResource(R.string.btn_storage))
                 MyDropdownMenu(
                     contents = viewModel.toPair(uiState.value.storageList),
                     expanded = storageButtonExpanded
@@ -90,13 +92,13 @@ fun OptionFrag(
                     .wrapContentSize(),
                 onClick = { moreButtonExpanded.value = !moreButtonExpanded.value }
             ) {
-                Text("More")
+                Text(stringResource(R.string.btn_more))
 
                 MyDropdownMenu(
                     contents = listOf(
-                        Pair("Create New Folder", { showEditTextDialog = true }),
-                        Pair("Sort", { showSortDialog = true }),
-                        Pair("Exit", { exitApp(activity) })
+                        Pair(stringResource(R.string.btn_create_new_folder), { showEditTextDialog = true }),
+                        Pair(stringResource(R.string.btn_sort), { showSortDialog = true }),
+                        Pair(stringResource(R.string.btn_exit), { exitApp(activity) })
                     ),
                     expanded = moreButtonExpanded
                 )

@@ -1,7 +1,10 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.R
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
@@ -25,6 +28,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val nav: FileNavigatorRepository,
     private val fileActionUseCase: FileActionUseCase,
     private val prog: ProgressTracker,
@@ -65,7 +69,7 @@ class BottomButtonsViewModel @Inject constructor(
                 if (!hasError) {
                     nav.setCurrentPath(currentPath)
                     nav.refresh()
-                    myNoti.completedNotification("", "이동 완료", ACTION_KEY_MOVE)
+                    myNoti.completedNotification("", context.getString(R.string.noti_move_complete), ACTION_KEY_MOVE)
                 }
             }
         }
@@ -102,7 +106,7 @@ class BottomButtonsViewModel @Inject constructor(
             if (!hasError) {
                 nav.setCurrentPath(refreshPath)
                 nav.refresh()
-                myNoti.completedNotification("", "삭제 완료", ACTION_KEY_DELETE)
+                myNoti.completedNotification("", context.getString(R.string.noti_delete_complete), ACTION_KEY_DELETE)
             }
         }
     }
@@ -118,7 +122,7 @@ class BottomButtonsViewModel @Inject constructor(
             if (!hasError) {
                 refreshPath?.let { nav.setCurrentPath(it) }
                 nav.refresh()
-                myNoti.completedNotification("", "완료", actionKey)
+                myNoti.completedNotification("", context.getString(R.string.noti_complete), actionKey)
             }
         }
     }

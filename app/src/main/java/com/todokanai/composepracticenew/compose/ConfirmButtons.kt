@@ -8,8 +8,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP
@@ -30,7 +32,7 @@ fun ConfirmButtons(
             onClick = { cancel() },
             Modifier.weight(1f)
         ) {
-            Text("Cancel")
+            Text(stringResource(R.string.btn_cancel))
         }
         TextButton(
             onClick = { confirm() },
@@ -38,13 +40,13 @@ fun ConfirmButtons(
         ) {
             when(mode){
                 CONFIRM_MODE_MOVE ->{
-                    Text("Move")
+                    Text(stringResource(R.string.btn_move))
                 }
                 CONFIRM_MODE_COPY ->{
-                    Text("Copy")
+                    Text(stringResource(R.string.btn_copy))
                 }
                 CONFIRM_MODE_UNZIP ->{
-                    Text("Unzip")
+                    Text(stringResource(R.string.btn_unzip))
                 }
             }
         }
