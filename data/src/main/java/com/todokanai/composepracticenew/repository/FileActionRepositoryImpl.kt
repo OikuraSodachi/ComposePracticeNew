@@ -53,12 +53,16 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
     override fun renameFile(targetFile: String, newName: String): Flow<ProgressState> = flow {
         val file = File(targetFile)
-        file.renameTo(File("${file.parent}/$newName"))
-        emit(ProgressState(progress = 100))
+        val success = file.renameTo(File("${file.parent}/$newName"))
+        if (success) {
+            emit(ProgressState(progress = 100))
+        } else {
+            emit(ProgressState(error = "이름 변경 실패: ${file.name} → $newName"))
+        }
     }.flowOn(Dispatchers.IO)
 
     override fun deleteFile(targetFile: String): Flow<ProgressState> = flow {
-        val files = File(targetFile).walkTopDown().toList()
+        val files = File(targetFile).walkBottomUp().toList()
         val total = files.size.coerceAtLeast(1)
         files.forEachIndexed { index, file ->
             file.delete()
