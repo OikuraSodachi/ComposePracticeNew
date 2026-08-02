@@ -53,12 +53,20 @@ class BottomButtonsViewModel @Inject constructor(
                 )
             }
             CONFIRM_MODE_MOVE -> viewModelScope.launch {
+                var hasError = false
                 selectedList.forEach { file ->
                     fileActionUseCase.moveFile(file.absolutePath, currentPath.absolutePath)
-                        .collect { prog.setProgressState(it.copy(actionKey = ACTION_KEY_MOVE)) }
+                        .collect { state ->
+                            prog.setProgressState(ACTION_KEY_MOVE, state)
+                            if (state.error != null) hasError = true
+                        }
                 }
-                nav.setCurrentPath(currentPath)
-                myNoti.completedNotification("", "이동 완료")
+                prog.removeProgress(ACTION_KEY_MOVE)
+                if (!hasError) {
+                    nav.setCurrentPath(currentPath)
+                    nav.refresh()
+                    myNoti.completedNotification("", "이동 완료", ACTION_KEY_MOVE)
+                }
             }
         }
     }
@@ -82,20 +90,36 @@ class BottomButtonsViewModel @Inject constructor(
     fun delete(selectedList: List<File>) {
         val refreshPath = selectedList.firstOrNull()?.parentFile ?: return
         viewModelScope.launch {
+            var hasError = false
             selectedList.forEach { file ->
                 fileActionUseCase.deleteFile(file.absolutePath)
-                    .collect { prog.setProgressState(it.copy(actionKey = ACTION_KEY_DELETE)) }
+                    .collect { state ->
+                        prog.setProgressState(ACTION_KEY_DELETE, state)
+                        if (state.error != null) hasError = true
+                    }
             }
-            nav.setCurrentPath(refreshPath)
-            myNoti.completedNotification("", "삭제 완료")
+            prog.removeProgress(ACTION_KEY_DELETE)
+            if (!hasError) {
+                nav.setCurrentPath(refreshPath)
+                nav.refresh()
+                myNoti.completedNotification("", "삭제 완료", ACTION_KEY_DELETE)
+            }
         }
     }
 
     private fun launchAction(actionKey: Int?, refreshPath: File?, flowProvider: () -> Flow<ProgressState>) {
         viewModelScope.launch {
-            flowProvider().collect { prog.setProgressState(it.copy(actionKey = actionKey)) }
-            refreshPath?.let { nav.setCurrentPath(it) }
-            myNoti.completedNotification("", "완료")
+            var hasError = false
+            flowProvider().collect { state ->
+                actionKey?.let { prog.setProgressState(it, state) }
+                if (state.error != null) hasError = true
+            }
+            actionKey?.let { prog.removeProgress(it) }
+            if (!hasError) {
+                refreshPath?.let { nav.setCurrentPath(it) }
+                nav.refresh()
+                myNoti.completedNotification("", "완료", actionKey)
+            }
         }
     }
 }

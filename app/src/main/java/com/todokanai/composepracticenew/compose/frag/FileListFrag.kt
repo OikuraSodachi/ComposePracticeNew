@@ -28,7 +28,7 @@ fun FileListFrag(
     var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = selectMode != Constants.DEFAULT_MODE) {
+    BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
         selectMode = Constants.DEFAULT_MODE
         selectedList = emptyList()
     }

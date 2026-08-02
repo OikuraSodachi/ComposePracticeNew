@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
@@ -18,7 +20,7 @@ import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.compose.presets.dialog.ProgressDialog
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
-import kotlinx.coroutines.flow.map
+
 
 /** 앱 전체 navigation graph를 정의하고 각 destination을 composable에 연결한다. */
 @Composable
@@ -39,10 +41,27 @@ fun AppNavHost(
             )
         }
         composable(NavDestinations.FILE_LIST) {
-            val progressFlow = remember { viewModel.uiState.map { it.progressState } }
-            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-            val progressState = uiState.progressState
-            val showProgress = progressState.progress.let { it != null && it < 100 }
+            val progressFlow = remember { viewModel.progressMap }
+            val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
+            val isProgressActive = progressMap.isNotEmpty()
+            var userDismissed by remember { mutableStateOf(false) }
+            val showProgressDialogForKey by viewModel.showProgressDialogForKey.collectAsStateWithLifecycle()
+
+            // 새 작업이 시작될 때 dismiss 상태 초기화
+            LaunchedEffect(isProgressActive) {
+                if (isProgressActive) userDismissed = false
+            }
+
+            // 알림 클릭으로 다이얼로그 재표시 요청이 들어올 때 dismiss 상태 초기화
+            LaunchedEffect(showProgressDialogForKey) {
+                if (showProgressDialogForKey != null) {
+                    userDismissed = false
+                    viewModel.onProgressDialogShown()
+                }
+            }
+
+            val activeProgressMap = progressMap.filter { (_, state) -> (state.progress ?: 100) < 100 }
+            val showProgress = activeProgressMap.isNotEmpty() && !userDismissed
 
             BackHandler {
                 mViewModel.onBackPressed { navController.popBackStack() }
@@ -54,12 +73,15 @@ fun AppNavHost(
             }
 
             if (showProgress) {
-                ProgressDialog(progressState = progressState)
+                ProgressDialog(
+                    progressMap = activeProgressMap,
+                    onDismissRequest = { userDismissed = true }
+                )
             }
 
             LaunchedEffect(Unit) {
-                progressFlow.collect { state ->
-                    state.actionKey?.let { actionKey ->
+                progressFlow.collect { map ->
+                    map.forEach { (actionKey, state) ->
                         viewModel.progressNoti(actionKey, state)
                     }
                 }
