@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.compose.activity
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.todokanai.composepracticenew.myobjects.Constants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.navigation.AppNavHost
 import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
@@ -41,6 +43,18 @@ class MainActivity : ComponentActivity() {
                 if (!isGranted)
                     finish()
             }
+
+        handleProgressIntent(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleProgressIntent(intent)
+    }
+
+    private fun handleProgressIntent(intent: Intent?) {
+        val actionKey = intent?.getIntExtra(EXTRA_ACTION_KEY, -1) ?: return
+        if (actionKey != -1) fViewModel.requestShowProgressDialog(actionKey)
     }
 }
 

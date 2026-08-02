@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.di
 
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
+import com.todokanai.composepracticenew.repository.FileActionRepository
+import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.SortModeRepository
@@ -23,4 +25,7 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindStorageRepository(impl: StorageVolumeRepositoryImpl): StorageVolumeRepository
+
+    @Binds
+    abstract fun bindFileActionRepository(impl: FileActionRepositoryImpl): FileActionRepository
 }

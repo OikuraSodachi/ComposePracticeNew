@@ -9,6 +9,7 @@ import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -27,10 +28,11 @@ class FileExplorerRepositoryImpl @Inject constructor(
 ) : StorageRepository(), FileNavigatorRepository {
 
     private val defaultStorage = Environment.getExternalStorageDirectory()
+    private val _refreshTrigger = MutableStateFlow(0L)
 
     @Suppress("OPT_IN_USAGE")
     override val fileHolderItemList: StateFlow<List<FileHolderItem>> =
-        currentPath.combine(dsRepo.sortBy) { path, sortMode -> path to sortMode }
+        combine(currentPath, dsRepo.sortBy, _refreshTrigger) { path, sortMode, _ -> path to sortMode }
             .flatMapLatest { (path, sortMode) ->
                 flow {
                     val files = path?.let { listFiles(it) } ?: emptyList()
@@ -42,6 +44,10 @@ class FileExplorerRepositoryImpl @Inject constructor(
                 started = SharingStarted.WhileSubscribed(5_000),
                 initialValue = emptyList()
             )
+
+    override fun refresh() {
+        _refreshTrigger.value = System.currentTimeMillis()
+    }
 
     init {
         navigateTo(defaultStorage.absolutePath)

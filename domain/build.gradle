@@ -1,17 +1,9 @@
 plugins {
-    id 'com.android.library'
-    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.jvm'
 }
 
-android {
-    namespace 'com.todokanai.composepracticenew.domain'
-    compileSdk 34
-    defaultConfig { minSdk 30 }
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
-    }
-    kotlin { jvmToolchain(17) }
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {

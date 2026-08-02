@@ -13,4 +13,5 @@ interface FileNavigatorRepository {
     val dirTree: Flow<List<FileEntry>>
     val fileHolderItemList: StateFlow<List<FileHolderItem>>
     suspend fun setCurrentPath(file: File)
+    fun refresh()
 }

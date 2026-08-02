@@ -27,4 +27,6 @@ object Constants {
     const val BY_DATE_ASCENDING : String = "BY_DATE_ASCENDING"
     const val BY_DATE_DESCENDING : String = "BY_DATE_DESCENDING"
 
+    const val EXTRA_ACTION_KEY = "com.todokanai.composepracticenew.EXTRA_ACTION_KEY"
+
 }

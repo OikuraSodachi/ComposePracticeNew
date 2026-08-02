@@ -3,18 +3,22 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Tracks progress state for ongoing file operations (copy, move, delete, zip, unzip). */
+/** 동시에 진행 중인 파일 작업들의 progress 상태를 actionKey별로 관리한다. */
 @Singleton
 class ProgressTracker @Inject constructor() {
-    private val _progressState = MutableStateFlow(
-        ProgressState(null, totalSize = null, currentSize = null, listSize = null, currentIndex = null)
-    )
-    val progressState: StateFlow<ProgressState> get() = _progressState
+    private val _progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
+    val progressMap: StateFlow<Map<Int, ProgressState>> = _progressMap.asStateFlow()
 
-    fun setProgressState(state: ProgressState) {
-        _progressState.value = state
+    fun setProgressState(actionKey: Int, state: ProgressState) {
+        _progressMap.update { it + (actionKey to state) }
+    }
+
+    fun removeProgress(actionKey: Int) {
+        _progressMap.update { it - actionKey }
     }
 }

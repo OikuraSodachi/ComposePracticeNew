@@ -80,6 +80,18 @@ Hilt 진입점(`@HiltAndroidApp`). static `appContext`는 제거됨 — 모든 C
 
 Top-level `_td`-suffixed functions (e.g., `dirTree_td`, `readableFileSize_td`, `getTotalSize_td`) are pure/standalone helpers. The `_td` suffix marks them as authored by Todokanai and free of framework dependencies.
 
+## Domain Module Design Principles
+
+- domain 모듈의 Repository 인터페이스와 UseCase는 로컬 파일시스템뿐 아니라 NAS 등 원격 스토리지도 구현체로 교체할 수 있도록 Android/로컬 I/O에 직접 의존하지 않는다.
+- 파일 경로는 `String` (절대 경로 또는 URI 문자열)으로 추상화하여 원격 경로도 동일하게 표현할 수 있도록 한다.
+- 원격 스토리지 구현체는 data 모듈에 별도 클래스로 작성하고, Hilt 바인딩만 교체하여 전환 가능하게 유지한다.
+
+## Feature Roadmap
+
+### Planned
+
+- [ ] I/O 작업 진행상황 조회 — 복사, 압축 등 파일 작업 중 진행률을 UI에 실시간으로 표시
+
 ## Key Conventions
 
 - Sort mode constants are strings defined in `Constants` (e.g., `BY_NAME_ASCENDING`).
