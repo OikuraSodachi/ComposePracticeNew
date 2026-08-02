@@ -4,8 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -13,6 +15,7 @@ import com.todokanai.composepracticenew.compose.activity.MainActivity
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.OptionFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
+import com.todokanai.composepracticenew.compose.presets.dialog.ProgressDialog
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.map
@@ -37,6 +40,9 @@ fun AppNavHost(
         }
         composable(NavDestinations.FILE_LIST) {
             val progressFlow = remember { viewModel.uiState.map { it.progressState } }
+            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+            val progressState = uiState.progressState
+            val showProgress = progressState.progress.let { it != null && it < 100 }
 
             BackHandler {
                 mViewModel.onBackPressed { navController.popBackStack() }
@@ -47,10 +53,14 @@ fun AppNavHost(
                 FileListFrag(modifier = Modifier, viewModel = viewModel)
             }
 
+            if (showProgress) {
+                ProgressDialog(progressState = progressState)
+            }
+
             LaunchedEffect(Unit) {
-                progressFlow.collect { progressState ->
-                    progressState.actionKey?.let { actionKey ->
-                        viewModel.progressNoti(actionKey, progressState)
+                progressFlow.collect { state ->
+                    state.actionKey?.let { actionKey ->
+                        viewModel.progressNoti(actionKey, state)
                     }
                 }
             }

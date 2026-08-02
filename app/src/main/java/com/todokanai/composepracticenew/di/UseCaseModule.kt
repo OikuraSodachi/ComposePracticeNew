@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.di
 
 import android.content.Context
+import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.SortModeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
+import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.tools.fileaction.OpenAction
 import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
@@ -39,4 +41,8 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
         GetStorageListUseCase(storageRepo)
+
+    @Provides @Singleton
+    fun provideFileActionUseCase(repo: FileActionRepository) =
+        FileActionUseCase(repo)
 }

@@ -1,71 +1,60 @@
 package com.todokanai.composepracticenew.compose.presets.dialog
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.model.ProgressState
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 
-
-/** 아직 불안정 **/
-@OptIn(ExperimentalMaterial3Api::class)
+/** 파일 작업 진행 중 진행률을 표시하는 다이얼로그. progress가 null이거나 100이면 호출하지 않을 것. */
 @Composable
 fun ProgressDialog(
-    modifier:Modifier,
-    state: StateFlow<ProgressState>,
-    onConfirm:()->Unit
-    //progress:Float
+    progressState: ProgressState,
+    onDismissRequest: ()->Unit = {}
 ) {
-//    var state by remember{mutableStateOf(progressState)}     // var 로 사용하는거 맞음. val로 수정하지 말것
-
-    val stateTemp = state.collectAsStateWithLifecycle()
- //   val progress= (stateTemp.value.progress!!.toDouble()/100).toFloat()
+    val progress = progressState.progress ?: 0
     AlertDialog(
-        modifier = modifier,
-        onDismissRequest = {},
-        content = {
-            Column() {
-
-                LinearProgressIndicator(
-                    modifier = Modifier.size(48.dp), // 원하는 크기로 조정합니다.
-                    color = Color.Blue, // 원하는 색상으로 조정합니다.
-                    progress = (stateTemp.value.progress!!.toDouble()/100).toFloat(),
-                    strokeCap = StrokeCap.Round,
-                    trackColor = Color.Red
+        onDismissRequest = {onDismissRequest()},
+        title = { Text("작업 중...") },
+        text = {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                CustomLinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    progress = progress / 100f
                 )
-                CustomLinearProgressIndicator(progress = (stateTemp.value.progress!!.toDouble()/100).toFloat())
-                TextButton(
-                    onClick = {onConfirm()}
-                ){
-                    Text(text = "Confirm")
-                }
+                Text(
+                    text = "$progress%",
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
-        }
+        },
+        confirmButton = {}
     )
 }
 
+/** 둥근 모서리의 커스텀 LinearProgressIndicator. */
 @Composable
 fun CustomLinearProgressIndicator(
     modifier: Modifier = Modifier,
@@ -78,7 +67,6 @@ fun CustomLinearProgressIndicator(
         modifier = modifier
             .clip(clipShape)
             .background(backgroundColor)
-            .height(8.dp)
     ) {
         Box(
             modifier = Modifier
@@ -91,24 +79,21 @@ fun CustomLinearProgressIndicator(
 
 @Preview
 @Composable
-private fun ProgressDialogPreview(){
-    Surface() {
-        ProgressDialog(
-            modifier = Modifier,
-            state = MutableStateFlow(ProgressState(progress = 20)),
-            onConfirm = {}
-        )
+private fun ProgressDialogPreview() {
+    Surface {
+        ProgressDialog(progressState = ProgressState(progress = 42))
     }
 }
 
 @Preview
 @Composable
-private fun LPreview(){
-    Surface() {
+private fun CustomLinearProgressIndicatorPreview() {
+    Surface {
         CustomLinearProgressIndicator(
             modifier = Modifier
-                .width(200.dp)
+                .fillMaxWidth()
                 .height(10.dp),
-            progress = 0.9f)
+            progress = 0.7f
+        )
     }
 }
