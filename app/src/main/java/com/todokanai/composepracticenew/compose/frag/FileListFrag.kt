@@ -12,7 +12,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.myobjects.Constants
@@ -43,7 +45,7 @@ fun FileListFrag(
                     .fillMaxWidth()
                     .weight(1f)
                     .wrapContentSize(),
-                text = "Empty Directory"
+                text = stringResource(R.string.empty_directory)
             )
         } else {
             FileListView(

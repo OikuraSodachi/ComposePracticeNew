@@ -11,7 +11,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
 import java.io.File
 
@@ -28,6 +30,16 @@ fun BottomButtons(
     info:()->Unit,
     selectedList:List<File>
 ) {
+    val strMove = stringResource(R.string.btn_move)
+    val strCopy = stringResource(R.string.btn_copy)
+    val strDelete = stringResource(R.string.btn_delete)
+    val strMore = stringResource(R.string.btn_more)
+    val strZip = stringResource(R.string.btn_zip)
+    val strInfo = stringResource(R.string.btn_info)
+    val strRename = stringResource(R.string.btn_rename)
+    val strUnzip = stringResource(R.string.btn_unzip)
+    val strUnzipHere = stringResource(R.string.btn_unzip_here)
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -37,19 +49,19 @@ fun BottomButtons(
             onClick = { move() },
             Modifier.weight(1f)
         ) {
-            Text("Move")
+            Text(strMove)
         }
         TextButton(
             onClick = { copy() },
             Modifier.weight(1f)
         ) {
-            Text("Copy")
+            Text(strCopy)
         }
         TextButton(
             onClick = { delete() },
             Modifier.weight(1f)
         ) {
-            Text("Delete")
+            Text(strDelete)
         }
         Box(
             modifier = Modifier
@@ -59,14 +71,14 @@ fun BottomButtons(
             val expanded = remember {mutableStateOf(false)}
 
             fun contents(selectedList: List<File>) : List<Pair<String,()->Unit>> {
-                val result = mutableListOf(Pair("Zip") { zip() },Pair("info"){info()})
+                val result = mutableListOf(Pair(strZip) { zip() }, Pair(strInfo) { info() })
                 if(selectedList.size ==1) {
                     val selected = selectedList.first()
-                    result.add(Pair("Rename") { rename() })
+                    result.add(Pair(strRename) { rename() })
 
                     if(selected.extension == "zip"){
-                        result.add(Pair("unzip") { unzip() })
-                        result.add(Pair("unzip Here") { unzipHere() })
+                        result.add(Pair(strUnzip) { unzip() })
+                        result.add(Pair(strUnzipHere) { unzipHere() })
                     }
                 }
                 return result
@@ -75,7 +87,7 @@ fun BottomButtons(
                 modifier = Modifier,
                 onClick = { expanded.value = !expanded.value}
             ) {
-                Text("More")
+                Text(strMore)
 
                 MyDropdownMenu(
                     contents = contents(selectedList),

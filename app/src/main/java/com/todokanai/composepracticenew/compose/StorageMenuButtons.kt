@@ -7,8 +7,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.todokanai.composepracticenew.R
 
 @Composable
 fun StorageMenuButtons(
@@ -26,7 +28,7 @@ fun StorageMenuButtons(
                 .weight(1f),
             onClick = {button1()}
         ){
-            Text("Button1")
+            Text(stringResource(R.string.btn_button1))
         }
 
         TextButton(
@@ -34,7 +36,7 @@ fun StorageMenuButtons(
                 .weight(1f),
             onClick = {exit()}
         ){
-            Text("Exit")
+            Text(stringResource(R.string.btn_exit))
         }
     }
 }
