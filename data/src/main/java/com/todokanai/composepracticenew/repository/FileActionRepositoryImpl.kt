@@ -95,6 +95,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 }
             }
         }
+        emit(ProgressState(
+            progress = 100,
+            totalSize = readableFileSize_td(totalBytes),
+            currentSize = readableFileSize_td(totalBytes),
+            listSize = totalFileCount,
+            currentIndex = totalFileCount
+        ))
     }.flowOn(Dispatchers.IO)
 
     override fun renameFile(targetFile: String, newName: String): Flow<ProgressState> = flow {
