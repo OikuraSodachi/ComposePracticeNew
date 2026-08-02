@@ -104,6 +104,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         with(NotificationManagerCompat.from(context)) {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 notify(actionKey, builder.build())
+                return
             }
             notify(actionKey, builder.build())
         }

@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
 import android.os.storage.StorageManager
 import android.provider.Settings
@@ -34,6 +35,21 @@ class MainViewModel @Inject constructor(
                 requestPermission(activity)
             }
             requestStorageManageAccess(activity)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                requestNotificationPermission(activity)
+            }
+        }
+    }
+
+    private fun requestNotificationPermission(activity: Activity) {
+        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(
+                activity,
+                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                112
+            )
         }
     }
 

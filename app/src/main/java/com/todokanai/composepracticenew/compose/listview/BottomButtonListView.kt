@@ -7,7 +7,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.BottomButtons
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
@@ -27,8 +26,6 @@ fun BottomButtonListView(
     selectedList: List<File>,
     viewModel: BottomButtonsViewModel = hiltViewModel()
 ) {
-    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-
     var zipDialog by remember { mutableStateOf(false) }
     var renameDialog by remember { mutableStateOf(false) }
     var infoDialog by remember { mutableStateOf(false) }
@@ -53,7 +50,7 @@ fun BottomButtonListView(
             ConfirmButtons(
                 modifier = modifier,
                 confirm = {
-                    viewModel.confirm(selectedList, selectMode, uiState.value.currentPath)
+                    viewModel.confirm(selectedList, selectMode)
                     onSelectModeChange(Constants.DEFAULT_MODE)
                     onClearSelection()
                 },
@@ -65,7 +62,7 @@ fun BottomButtonListView(
             ConfirmButtons(
                 modifier = modifier,
                 confirm = {
-                    viewModel.confirm(selectedList, selectMode, uiState.value.currentPath)
+                    viewModel.confirm(selectedList, selectMode)
                     onSelectModeChange(Constants.DEFAULT_MODE)
                     onClearSelection()
                 },
@@ -77,7 +74,7 @@ fun BottomButtonListView(
             ConfirmButtons(
                 modifier = modifier,
                 confirm = {
-                    viewModel.confirm(selectedList, selectMode, uiState.value.currentPath)
+                    viewModel.confirm(selectedList, selectMode)
                     onSelectModeChange(Constants.DEFAULT_MODE)
                     onClearSelection()
                 },
