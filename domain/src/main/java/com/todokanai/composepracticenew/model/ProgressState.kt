@@ -6,18 +6,18 @@ data class ProgressState(
     val progress: Int? = null,
     /** 진행도(Float) **/
     val progressFloat: Float? = null,
-    /** 전체 파일 크기 **/
-    val totalSize: String? = null,
-    /** 작업 진행된 크기 **/
-    val currentSize: String? = null,
+    /** 전체 파일 크기(bytes) **/
+    val totalBytes: Long? = null,
+    /** 작업 진행된 크기(bytes) **/
+    val writtenBytes: Long? = null,
     /** 전체 목록의 갯수 **/
     val listSize: Int? = null,
     /** 진행된 갯수 **/
     val currentIndex: Int? = null,
     /** 현재 작업중인 파일명 **/
     val currentFileName: String? = null,
-    /** 현재 작업중인 파일의 전체 용량 **/
-    val currentFileSize: String? = null,
+    /** 현재 작업중인 파일의 전체 용량(bytes) **/
+    val currentFileBytes: Long? = null,
     /** 그 외의 정보? **/
     val actionKey: Int? = null,
     /** non-null이면 해당 작업이 실패했음을 의미하며 오류 메시지를 담는다. **/
