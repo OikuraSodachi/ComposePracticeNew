@@ -19,37 +19,37 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
     override fun zipAction(targetFiles: List<String>, zipFile: String): Flow<ProgressState> = flow {
         val roots = targetFiles.map(::File)
-        val allFiles = roots.flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
-        val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+        val allFiles = roots.flatMap { root ->
+            root.walkTopDown().filter { f -> !f.isDirectory }.map { root to it }.toList()
+        }
+        val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
         var fileIndex = 0
 
         ZipOutputStream(File(zipFile).outputStream()).use { zos ->
-            roots.forEach { root ->
-                root.walkTopDown().filter { !it.isDirectory }.forEach { sFile ->
-                    fileIndex++
-                    val entryName = root.toPath().relativize(sFile.toPath())
-                        .toString().replace("\\", "/")
-                    zos.putNextEntry(ZipEntry(entryName))
-                    sFile.inputStream().use { input ->
-                        val (wb, pp) = pumpBytes(input, zos, totalBytes, writtenBytes, prevProgress) { written, progress ->
-                            emit(ProgressState(
-                                progress = progress,
-                                totalBytes = totalBytes,
-                                writtenBytes = written,
-                                listSize = totalFileCount,
-                                currentIndex = fileIndex,
-                                currentFileName = sFile.name,
-                                currentFileBytes = sFile.length()
-                            ))
-                        }
-                        writtenBytes = wb
-                        prevProgress = pp
+            allFiles.forEach { (root, sFile) ->
+                fileIndex++
+                val entryName = root.toPath().relativize(sFile.toPath())
+                    .toString().replace("\\", "/")
+                zos.putNextEntry(ZipEntry(entryName))
+                sFile.inputStream().use { input ->
+                    val (wb, pp) = pumpBytes(input, zos, totalBytes, writtenBytes, prevProgress) { written, progress ->
+                        emit(ProgressState(
+                            progress = progress,
+                            totalBytes = totalBytes,
+                            writtenBytes = written,
+                            listSize = totalFileCount,
+                            currentIndex = fileIndex,
+                            currentFileName = sFile.name,
+                            currentFileBytes = sFile.length()
+                        ))
                     }
-                    zos.closeEntry()
+                    writtenBytes = wb
+                    prevProgress = pp
                 }
+                zos.closeEntry()
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -182,7 +182,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         var wb = writtenBytes
         var pp = prevProgress
         var fi = fileIndex
-        root.walkTopDown().forEach { src ->
+        root.walkTopDown().onEnter { it != dest }.forEach { src ->
             val target = dest.toPath().resolve(root.toPath().relativize(src.toPath())).toFile()
             if (src.isDirectory) {
                 target.mkdirs()
