@@ -56,14 +56,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
     override fun copyAction(targetFiles: List<String>, targetPath: String): Flow<ProgressState> = flow {
         emit(ProgressState(progress = 0))
-        val allFiles = targetFiles.map(::File)
-            .flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
+        val roots = targetFiles.map(::File)
+        val allFiles = roots.flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
         val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var fileIndex = 0
 
-        targetFiles.map(::File).forEach { root ->
+        roots.forEach { root ->
             val dest = File(targetPath, root.name)
             root.walkTopDown().forEach { src ->
                 val target = dest.toPath().resolve(root.toPath().relativize(src.toPath())).toFile()
