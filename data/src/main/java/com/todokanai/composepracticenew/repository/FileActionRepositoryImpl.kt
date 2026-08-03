@@ -1,12 +1,13 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
@@ -17,39 +18,38 @@ import javax.inject.Singleton
 class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
     override fun zipAction(targetFiles: List<String>, zipFile: String): Flow<ProgressState> = flow {
-        val allFiles = targetFiles.map(::File).flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
-        val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+        val roots = targetFiles.map(::File)
+        val allFiles = roots.flatMap { root ->
+            root.walkTopDown().filter { f -> !f.isDirectory }.map { root to it }.toList()
+        }
+        val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
+        var prevProgress = -1
         var fileIndex = 0
 
         ZipOutputStream(File(zipFile).outputStream()).use { zos ->
-            targetFiles.map(::File).forEach { root ->
-                root.walkTopDown().filter { !it.isDirectory }.forEach { sFile ->
-                    fileIndex++
-                    val entryName = root.toPath().relativize(sFile.toPath())
-                        .toString().replace("\\", "/")
-                    zos.putNextEntry(ZipEntry(entryName))
-                    val buffer = ByteArray(8192)
-                    sFile.inputStream().use { input ->
-                        var read = input.read(buffer)
-                        while (read != -1) {
-                            zos.write(buffer, 0, read)
-                            writtenBytes += read
-                            emit(ProgressState(
-                                progress = (writtenBytes * 100 / totalBytes).toInt(),
-                                totalSize = readableFileSize_td(totalBytes),
-                                currentSize = readableFileSize_td(writtenBytes),
-                                listSize = totalFileCount,
-                                currentIndex = fileIndex,
-                                currentFileName = sFile.name,
-                                currentFileSize = readableFileSize_td(sFile.length())
-                            ))
-                            read = input.read(buffer)
-                        }
+            allFiles.forEach { (root, sFile) ->
+                fileIndex++
+                val entryName = root.toPath().relativize(sFile.toPath())
+                    .toString().replace("\\", "/")
+                zos.putNextEntry(ZipEntry(entryName))
+                sFile.inputStream().use { input ->
+                    val (wb, pp) = pumpBytes(input, zos, totalBytes, writtenBytes, prevProgress) { written, progress ->
+                        emit(ProgressState(
+                            progress = progress,
+                            totalBytes = totalBytes,
+                            writtenBytes = written,
+                            listSize = totalFileCount,
+                            currentIndex = fileIndex,
+                            currentFileName = sFile.name,
+                            currentFileBytes = sFile.length()
+                        ))
                     }
-                    zos.closeEntry()
+                    writtenBytes = wb
+                    prevProgress = pp
                 }
+                zos.closeEntry()
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -61,44 +61,30 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
+        var prevProgress = -1
         var fileIndex = 0
 
         roots.forEach { root ->
             val dest = File(targetPath, root.name)
-            root.walkTopDown().forEach { src ->
-                val target = dest.toPath().resolve(root.toPath().relativize(src.toPath())).toFile()
-                if (src.isDirectory) {
-                    target.mkdirs()
-                } else {
-                    target.parentFile?.mkdirs()
-                    fileIndex++
-                    val buffer = ByteArray(8192)
-                    src.inputStream().use { input ->
-                        target.outputStream().use { output ->
-                            var read = input.read(buffer)
-                            while (read != -1) {
-                                output.write(buffer, 0, read)
-                                writtenBytes += read
-                                emit(ProgressState(
-                                    progress = (writtenBytes * 100 / totalBytes).toInt(),
-                                    totalSize = readableFileSize_td(totalBytes),
-                                    currentSize = readableFileSize_td(writtenBytes),
-                                    listSize = totalFileCount,
-                                    currentIndex = fileIndex,
-                                    currentFileName = src.name,
-                                    currentFileSize = readableFileSize_td(src.length())
-                                ))
-                                read = input.read(buffer)
-                            }
-                        }
-                    }
-                }
+            val (wb, pp, fi) = copyTree(root, dest, totalBytes, totalFileCount, writtenBytes, prevProgress, fileIndex) { src, written, progress, idx ->
+                emit(ProgressState(
+                    progress = progress,
+                    totalBytes = totalBytes,
+                    writtenBytes = written,
+                    listSize = totalFileCount,
+                    currentIndex = idx,
+                    currentFileName = src.name,
+                    currentFileBytes = src.length()
+                ))
             }
+            writtenBytes = wb
+            prevProgress = pp
+            fileIndex = fi
         }
         emit(ProgressState(
             progress = 100,
-            totalSize = readableFileSize_td(totalBytes),
-            currentSize = readableFileSize_td(totalBytes),
+            totalBytes = totalBytes,
+            writtenBytes = totalBytes,
             listSize = totalFileCount,
             currentIndex = totalFileCount
         ))
@@ -135,42 +121,85 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val allFiles = src.walkTopDown().filter { !it.isDirectory }.toList()
         val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
         val totalFileCount = allFiles.size
-        var writtenBytes = 0L
-        var fileIndex = 0
         val dest = File(targetPath, src.name)
 
-        src.walkTopDown().forEach { srcFile ->
-            val target = dest.toPath().resolve(src.toPath().relativize(srcFile.toPath())).toFile()
-            if (srcFile.isDirectory) {
-                target.mkdirs()
-            } else {
-                target.parentFile?.mkdirs()
-                fileIndex++
-                val buffer = ByteArray(8192)
-                srcFile.inputStream().use { input ->
-                    target.outputStream().use { output ->
-                        var read = input.read(buffer)
-                        while (read != -1) {
-                            output.write(buffer, 0, read)
-                            writtenBytes += read
-                            // copy phase: 0–90%
-                            emit(ProgressState(
-                                progress = (writtenBytes * 90 / totalBytes).toInt(),
-                                totalSize = readableFileSize_td(totalBytes),
-                                currentSize = readableFileSize_td(writtenBytes),
-                                listSize = totalFileCount,
-                                currentIndex = fileIndex,
-                                currentFileName = srcFile.name,
-                                currentFileSize = readableFileSize_td(srcFile.length())
-                            ))
-                            read = input.read(buffer)
-                        }
-                    }
-                }
-            }
+        // copy phase: 0–90%
+        copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90) { srcFile, written, progress, idx ->
+            emit(ProgressState(
+                progress = progress,
+                totalBytes = totalBytes,
+                writtenBytes = written,
+                listSize = totalFileCount,
+                currentIndex = idx,
+                currentFileName = srcFile.name,
+                currentFileBytes = srcFile.length()
+            ))
         }
 
         src.deleteRecursively()
         emit(ProgressState(progress = 100))
     }.flowOn(Dispatchers.IO)
+
+    /** 버퍼 단위로 [input]을 읽어 [output]에 쓰면서 진행률이 바뀔 때만 [onProgress]를 호출한다. */
+    private suspend fun pumpBytes(
+        input: InputStream,
+        output: OutputStream,
+        totalBytes: Long,
+        writtenBytes: Long,
+        prevProgress: Int,
+        progressScale: Int = 100,
+        onProgress: suspend (written: Long, progress: Int) -> Unit
+    ): Pair<Long, Int> {
+        var wb = writtenBytes
+        var pp = prevProgress
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var read = input.read(buffer)
+        while (read != -1) {
+            output.write(buffer, 0, read)
+            wb += read
+            val progress = (wb * progressScale / totalBytes).toInt()
+            if (progress != pp) {
+                onProgress(wb, progress)
+                pp = progress
+            }
+            read = input.read(buffer)
+        }
+        return wb to pp
+    }
+
+    /** [root] 트리를 [dest]로 재귀 복사하며 진행률이 바뀔 때만 [onProgress]를 호출한다. */
+    private suspend fun copyTree(
+        root: File,
+        dest: File,
+        totalBytes: Long,
+        totalFileCount: Int,
+        writtenBytes: Long,
+        prevProgress: Int,
+        fileIndex: Int,
+        progressScale: Int = 100,
+        onProgress: suspend (src: File, written: Long, progress: Int, fileIndex: Int) -> Unit
+    ): Triple<Long, Int, Int> {
+        var wb = writtenBytes
+        var pp = prevProgress
+        var fi = fileIndex
+        root.walkTopDown().onEnter { it != dest }.forEach { src ->
+            val target = dest.toPath().resolve(root.toPath().relativize(src.toPath())).toFile()
+            if (src.isDirectory) {
+                target.mkdirs()
+            } else {
+                target.parentFile?.mkdirs()
+                fi++
+                src.inputStream().use { input ->
+                    target.outputStream().use { output ->
+                        val (newWb, newPp) = pumpBytes(input, output, totalBytes, wb, pp, progressScale) { written, progress ->
+                            onProgress(src, written, progress, fi)
+                        }
+                        wb = newWb
+                        pp = newPp
+                    }
+                }
+            }
+        }
+        return Triple(wb, pp, fi)
+    }
 }
