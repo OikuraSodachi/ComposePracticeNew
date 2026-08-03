@@ -3,7 +3,8 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.FileHolderItem
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressStateEntity
+import com.todokanai.composepracticenew.model.toEntity
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
@@ -48,7 +49,13 @@ class FileListViewModel @Inject constructor(
         )
 
     /** 동시에 진행 중인 파일 작업들의 progress 상태. actionKey를 키로 사용한다. */
-    val progressMap: StateFlow<Map<Int, ProgressState>> = prog.progressMap
+    val progressMap: StateFlow<Map<Int, ProgressStateEntity>> = prog.progressMap
+        .map { map -> map.mapValues { (_, state) -> state.toEntity() } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyMap()
+        )
 
     /** 알림 클릭으로 다이얼로그를 다시 표시해야 할 때 설정되는 actionKey. null이면 신호 없음. */
     private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
@@ -62,15 +69,15 @@ class FileListViewModel @Inject constructor(
         _showProgressDialogForKey.value = null
     }
 
-    fun progressNoti(actionKey: Int, progressState: ProgressState) {
+    fun progressNoti(actionKey: Int, progressState: ProgressStateEntity) {
         when (actionKey) {
-            ACTION_KEY_COPY -> progressState.progress?.let { myNoti.copyProgressNoti(it) }
+            ACTION_KEY_COPY -> myNoti.copyProgressNoti(progressState.progress)
             ACTION_KEY_DELETE -> progressState.currentIndex?.let { index ->
                 progressState.listSize?.let { size -> myNoti.deleteProgressNoti(index, size) }
             }
-            ACTION_KEY_MOVE -> progressState.progress?.let { myNoti.moveProgressNoti(it) }
-            ACTION_KEY_ZIP -> progressState.progress?.let { myNoti.zipProgressNoti(it) }
-            ACTION_KEY_UNZIP -> progressState.progress?.let { myNoti.unzipProgressNoti(it) }
+            ACTION_KEY_MOVE -> myNoti.moveProgressNoti(progressState.progress)
+            ACTION_KEY_ZIP -> myNoti.zipProgressNoti(progressState.progress)
+            ACTION_KEY_UNZIP -> myNoti.unzipProgressNoti(progressState.progress)
         }
     }
 

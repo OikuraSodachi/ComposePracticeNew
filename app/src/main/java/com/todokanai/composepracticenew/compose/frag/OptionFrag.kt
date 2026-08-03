@@ -35,6 +35,7 @@ import com.todokanai.composepracticenew.viewmodel.OptionViewModel
 fun OptionFrag(
     modifier: Modifier,
     activity: Activity,
+    navigateToStorage: () -> Unit,
     viewModel: OptionViewModel = hiltViewModel(),
     directoryViewModel: DirectoryViewModel = hiltViewModel()
 ) {
@@ -72,17 +73,12 @@ fun OptionFrag(
             modifier = Modifier
                 .fillMaxWidth()
         ) {
-            val storageButtonExpanded = remember { mutableStateOf(false) }
             TextButton(
-                onClick = { storageButtonExpanded.value = !storageButtonExpanded.value },
+                onClick = { navigateToStorage() },
                 modifier = Modifier
                     .weight(1f)
             ) {
                 Text(stringResource(R.string.btn_storage))
-                MyDropdownMenu(
-                    contents = viewModel.toPair(uiState.value.storageList),
-                    expanded = storageButtonExpanded
-                )
             }
 
             val moreButtonExpanded = remember { mutableStateOf(false) }

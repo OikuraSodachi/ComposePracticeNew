@@ -14,6 +14,10 @@ data class ProgressState(
     val listSize: Int? = null,
     /** 진행된 갯수 **/
     val currentIndex: Int? = null,
+    /** 현재 작업중인 파일명 **/
+    val currentFileName: String? = null,
+    /** 현재 작업중인 파일의 전체 용량 **/
+    val currentFileSize: String? = null,
     /** 그 외의 정보? **/
     val actionKey: Int? = null,
     /** non-null이면 해당 작업이 실패했음을 의미하며 오류 메시지를 담는다. **/

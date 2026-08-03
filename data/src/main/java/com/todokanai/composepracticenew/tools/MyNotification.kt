@@ -103,7 +103,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setContentIntent(buildClickIntent(actionKey))
         with(NotificationManagerCompat.from(context)) {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notify(actionKey, builder.build())
+                return
             }
             notify(actionKey, builder.build())
         }
@@ -131,7 +131,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         with(NotificationManagerCompat.from(context)) {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notify(notifId, builder.build())
+                return
             }
             notify(notifId, builder.build())
         }

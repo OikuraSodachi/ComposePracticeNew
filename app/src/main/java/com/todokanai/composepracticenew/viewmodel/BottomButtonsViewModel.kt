@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.viewmodel
 
 import android.content.Context
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.todokanai.composepracticenew.model.ProgressState
@@ -17,11 +16,9 @@ import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -35,20 +32,8 @@ class BottomButtonsViewModel @Inject constructor(
     private val myNoti: MyNotification
 ) : ViewModel() {
 
-    /** 하단 버튼 영역 화면에 필요한 UI 상태를 담는 클래스. */
-    data class UiState(
-        val currentPath: File = File("/")
-    )
-
-    val uiState: StateFlow<UiState> = nav.currentPath
-        .map { UiState(it?.let { File(it) } ?: File("/")) }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = UiState()
-        )
-
-    fun confirm(selectedList: List<File>, selectMode: Int, currentPath: File) {
+    fun confirm(selectedList: List<File>, selectMode: Int) {
+        val currentPath = nav.currentPath.value?.let { File(it) } ?: return
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchAction(ACTION_KEY_COPY, currentPath) {
                 fileActionUseCase.copyAction(
@@ -56,21 +41,13 @@ class BottomButtonsViewModel @Inject constructor(
                     targetPath = currentPath.absolutePath
                 )
             }
-            CONFIRM_MODE_MOVE -> viewModelScope.launch {
-                var hasError = false
-                selectedList.forEach { file ->
-                    fileActionUseCase.moveFile(file.absolutePath, currentPath.absolutePath)
-                        .collect { state ->
-                            prog.setProgressState(ACTION_KEY_MOVE, state)
-                            if (state.error != null) hasError = true
-                        }
-                }
-                prog.removeProgress(ACTION_KEY_MOVE)
-                if (!hasError) {
-                    nav.setCurrentPath(currentPath)
-                    nav.refresh()
-                    myNoti.completedNotification("", context.getString(R.string.noti_move_complete), ACTION_KEY_MOVE)
-                }
+            CONFIRM_MODE_MOVE -> launchAction(
+                actionKey = ACTION_KEY_MOVE,
+                refreshPath = currentPath,
+                targetList = selectedList,
+                completionMessage = context.getString(R.string.noti_move_complete)
+            ) { file ->
+                fileActionUseCase.moveFile(file.absolutePath, currentPath.absolutePath)
             }
         }
     }
@@ -93,7 +70,7 @@ class BottomButtonsViewModel @Inject constructor(
 
     fun delete(selectedList: List<File>) {
         val refreshPath = selectedList.firstOrNull()?.parentFile ?: return
-        viewModelScope.launch {
+        CoroutineScope(Dispatchers.IO).launch {
             var hasError = false
             selectedList.forEach { file ->
                 fileActionUseCase.deleteFile(file.absolutePath)
@@ -112,7 +89,7 @@ class BottomButtonsViewModel @Inject constructor(
     }
 
     private fun launchAction(actionKey: Int?, refreshPath: File?, flowProvider: () -> Flow<ProgressState>) {
-        viewModelScope.launch {
+        CoroutineScope(Dispatchers.IO).launch {
             var hasError = false
             flowProvider().collect { state ->
                 actionKey?.let { prog.setProgressState(it, state) }
@@ -123,6 +100,34 @@ class BottomButtonsViewModel @Inject constructor(
                 refreshPath?.let { nav.setCurrentPath(it) }
                 nav.refresh()
                 myNoti.completedNotification("", context.getString(R.string.noti_complete), actionKey)
+            }
+        }
+    }
+
+    private fun launchAction(
+        actionKey: Int?,
+        refreshPath: File?,
+        targetList: List<File>,
+        completionMessage: String? = null,
+        flowProvider: (File) -> Flow<ProgressState>
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            var hasError = false
+            targetList.forEach { file ->
+                flowProvider(file).collect { state ->
+                    actionKey?.let { prog.setProgressState(it, state) }
+                    if (state.error != null) hasError = true
+                }
+            }
+            actionKey?.let { prog.removeProgress(it) }
+            if (!hasError) {
+                refreshPath?.let { nav.setCurrentPath(it) }
+                nav.refresh()
+                myNoti.completedNotification(
+                    "",
+                    completionMessage ?: context.getString(R.string.noti_complete),
+                    actionKey
+                )
             }
         }
     }

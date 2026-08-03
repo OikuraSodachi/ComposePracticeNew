@@ -60,7 +60,7 @@ fun AppNavHost(
                 }
             }
 
-            val activeProgressMap = progressMap.filter { (_, state) -> (state.progress ?: 100) < 100 }
+            val activeProgressMap = progressMap.filter { (_, state) -> state.progress < 100 }
             val showProgress = activeProgressMap.isNotEmpty() && !userDismissed
 
             BackHandler {
@@ -68,7 +68,11 @@ fun AppNavHost(
             }
 
             Column(modifier = Modifier) {
-                OptionFrag(modifier = Modifier, activity = activity)
+                OptionFrag(
+                    modifier = Modifier,
+                    activity = activity,
+                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
+                )
                 FileListFrag(modifier = Modifier, viewModel = viewModel)
             }
 
