@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.di
 
 import android.content.Context
 import com.todokanai.composepracticenew.data.room.MyDatabase
+import com.todokanai.composepracticenew.data.room.RemoteStorageInfoDao
 import com.todokanai.composepracticenew.data.room.UserDao
 import dagger.Module
 import dagger.Provides
@@ -23,5 +24,10 @@ class DatabaseModule {
     @Provides
     fun provideUserDao(myDatabase: MyDatabase) : UserDao {
         return myDatabase.userDao()
+    }
+
+    @Provides
+    fun provideRemoteStorageInfoDao(myDatabase: MyDatabase) : RemoteStorageInfoDao {
+        return myDatabase.remoteStorageInfoDao()
     }
 }
