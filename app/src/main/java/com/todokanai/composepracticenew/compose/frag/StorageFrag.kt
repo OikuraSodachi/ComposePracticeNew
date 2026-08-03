@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,8 +61,7 @@ fun StorageFrag(
                     storage = storage
                 )
             }
-            items(uiState.value.remoteStorageList.size) {
-                val remote = uiState.value.remoteStorageList[it]
+            items(uiState.value.remoteStorageList, key = { it.id }) { remote ->
                 RemoteStorageHolder(
                     modifier = Modifier.clickable { },
                     item = remote
