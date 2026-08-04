@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
 import com.todokanai.composepracticenew.model.FileHolderItem
-import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
@@ -77,14 +76,14 @@ class FileExplorerRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun setCurrentPath(path: String) {
+    override suspend fun setLocalPath(path: String) {
         if (File(path).listFiles() != null) navigateTo(path)
     }
 
-    override suspend fun setRemotePath(item: RemoteStorageItem) {
-        val connected = ftpFileSystem.connect(item.address, item.port, item.userId, item.password)
-        if (connected) {
-            navigateTo(ftpFileSystem.buildRootPath(item.address))
-        }
+    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String): Boolean =
+        ftpFileSystem.connect(address, port, userId, password)
+
+    override suspend fun setRemotePath(path: String) {
+        navigateTo(path)
     }
 }

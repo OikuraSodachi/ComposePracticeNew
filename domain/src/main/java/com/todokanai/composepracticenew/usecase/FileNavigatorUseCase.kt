@@ -15,7 +15,10 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     // stub — not yet implemented: setLocalPath, setRemotePath 분기점
     suspend fun setPath(path: String, isRemoteStorage: Boolean) {}
 
-    suspend fun setLocalPath(path: String) = nav.setCurrentPath(path)
-    suspend fun setRemotePath(item: RemoteStorageItem) = nav.setRemotePath(item)
+    suspend fun setLocalPath(path: String) = nav.setLocalPath(path)
+    suspend fun setRemotePath(item: RemoteStorageItem) {
+        val connected = nav.connectRemote(item.address, item.port, item.userId, item.password)
+        if (connected) nav.setRemotePath("ftp://${item.address.removePrefix("ftp://")}")
+    }
     fun refresh() = nav.refresh()
 }

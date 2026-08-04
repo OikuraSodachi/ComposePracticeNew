@@ -10,7 +10,7 @@ class NavigateBackUseCase(private val nav: FileNavigatorRepository) {
         if (parentFile?.listFiles() == null) {
             toStorageFrag()
         } else {
-            nav.setCurrentPath(parentFile.absolutePath)
+            nav.setLocalPath(parentFile.absolutePath)
         }
     }
 }
