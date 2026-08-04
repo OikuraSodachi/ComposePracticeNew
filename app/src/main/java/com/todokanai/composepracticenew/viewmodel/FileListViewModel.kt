@@ -12,10 +12,10 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
-import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
+import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -29,8 +29,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FileListViewModel @Inject constructor(
-    private val nav: FileNavigatorRepository,
-    private val prog: ProgressTracker,
+    private val fileNavigatorUseCase: FileNavigatorUseCase,
+    private val progressUseCase: ProgressUseCase,
     private val myNoti: MyNotification,
     private val openFileUseCase: OpenFileUseCase
 ) : ViewModel() {
@@ -40,7 +40,7 @@ class FileListViewModel @Inject constructor(
         val fileHolderItemList: List<FileHolderItem> = emptyList()
     )
 
-    val uiState: StateFlow<UiState> = nav.fileHolderItemList
+    val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
         .map { UiState(it) }
         .stateIn(
             scope = viewModelScope,
@@ -49,7 +49,7 @@ class FileListViewModel @Inject constructor(
         )
 
     /** 동시에 진행 중인 파일 작업들의 progress 상태. actionKey를 키로 사용한다. */
-    val progressMap: StateFlow<Map<Int, ProgressStateEntity>> = prog.progressMap
+    val progressMap: StateFlow<Map<Int, ProgressStateEntity>> = progressUseCase.progressMap
         .map { map -> map.mapValues { (_, state) -> state.toEntity() } }
         .stateIn(
             scope = viewModelScope,
@@ -83,16 +83,16 @@ class FileListViewModel @Inject constructor(
 
     fun updateCurrentPath(file: File) {
         viewModelScope.launch {
-            nav.setCurrentPath(file)
+            fileNavigatorUseCase.navigateTo(file)
         }
     }
 
     fun onItemClick(selected: File, selectMode: Int) {
         viewModelScope.launch {
             when (selectMode) {
-                DEFAULT_MODE -> openFileUseCase(selected)
+                DEFAULT_MODE -> openFileUseCase.open(selected)
                 MULTI_SELECT_MODE -> { }
-                else -> if (selected.isDirectory) openFileUseCase(selected)
+                else -> if (selected.isDirectory) openFileUseCase.open(selected)
             }
         }
     }

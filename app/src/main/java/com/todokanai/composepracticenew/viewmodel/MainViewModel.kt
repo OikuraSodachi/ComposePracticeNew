@@ -81,7 +81,7 @@ class MainViewModel @Inject constructor(
 
     private fun requestStorageManageAccess(activity: Activity) {
         if (Environment.isExternalStorageManager()) {
-            getStorageListUseCase(getPhysicalStorages(activity))
+            getStorageListUseCase.execute(getPhysicalStorages(activity))
         } else {
             val intent = Intent()
             intent.action = Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
@@ -108,7 +108,7 @@ class MainViewModel @Inject constructor(
 
     fun onBackPressed(toStorageFrag: () -> Unit) {
         viewModelScope.launch {
-            navigateBackUseCase(toStorageFrag)
+            navigateBackUseCase.navigateBack(toStorageFrag)
         }
     }
 }

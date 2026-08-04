@@ -8,7 +8,7 @@ class OpenFileUseCase(
     private val nav: FileNavigatorRepository,
     private val openFile: (File) -> Unit
 ) {
-    suspend operator fun invoke(file: File) {
+    suspend fun open(file: File) {
         if (file.isDirectory) nav.setCurrentPath(file)
         else openFile(file)
     }
