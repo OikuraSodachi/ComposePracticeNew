@@ -82,9 +82,9 @@ class FileExplorerRepositoryImpl @Inject constructor(
     }
 
     override suspend fun setRemotePath(item: RemoteStorageItem) {
-        val connected = ftpFileSystem.connect(item)
+        val connected = ftpFileSystem.connect(item.address, item.port, item.userId, item.password)
         if (connected) {
-            navigateTo(ftpFileSystem.buildRootPath(item))
+            navigateTo(ftpFileSystem.buildRootPath(item.address))
         }
     }
 }
