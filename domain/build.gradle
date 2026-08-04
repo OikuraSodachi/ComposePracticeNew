@@ -7,7 +7,6 @@ kotlin {
 }
 
 dependencies {
-    implementation libs.zip4j
     implementation libs.kotlinx.coroutines.core
     implementation project(':fileExplorer')
 }
