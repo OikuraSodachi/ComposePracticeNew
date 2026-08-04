@@ -32,7 +32,7 @@ class DirectoryViewModel @Inject constructor(
 
     fun updateCurrentPath(entry: FileEntry) {
         viewModelScope.launch {
-            fileNavigatorUseCase.setLocalPath(entry.path)
+            fileNavigatorUseCase.setPath(entry.path)
         }
     }
 }

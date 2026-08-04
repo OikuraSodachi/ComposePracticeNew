@@ -81,7 +81,7 @@ class BottomButtonsViewModel @Inject constructor(
             }
             progressUseCase.removeProgress(ACTION_KEY_DELETE)
             if (!hasError) {
-                fileNavigatorUseCase.setLocalPath(refreshPath.absolutePath)
+                fileNavigatorUseCase.setPath(refreshPath.absolutePath)
                 fileNavigatorUseCase.refresh()
                 myNoti.completedNotification("", context.getString(R.string.noti_delete_complete), ACTION_KEY_DELETE)
             }
@@ -97,7 +97,7 @@ class BottomButtonsViewModel @Inject constructor(
             }
             actionKey?.let { progressUseCase.removeProgress(it) }
             if (!hasError) {
-                refreshPath?.let { fileNavigatorUseCase.setLocalPath(it.absolutePath) }
+                refreshPath?.let { fileNavigatorUseCase.setPath(it.absolutePath) }
                 fileNavigatorUseCase.refresh()
                 myNoti.completedNotification("", context.getString(R.string.noti_complete), actionKey)
             }
@@ -121,7 +121,7 @@ class BottomButtonsViewModel @Inject constructor(
             }
             actionKey?.let { progressUseCase.removeProgress(it) }
             if (!hasError) {
-                refreshPath?.let { fileNavigatorUseCase.setLocalPath(it.absolutePath) }
+                refreshPath?.let { fileNavigatorUseCase.setPath(it.absolutePath) }
                 fileNavigatorUseCase.refresh()
                 myNoti.completedNotification(
                     "",

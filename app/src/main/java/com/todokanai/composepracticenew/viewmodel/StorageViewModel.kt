@@ -56,9 +56,9 @@ class StorageViewModel @Inject constructor(
     }
 
     /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. */
-    fun setRemotePath(item: RemoteStorageItem) {
+    fun setPath(item: RemoteStorageItem) {
         viewModelScope.launch {
-            fileNavigatorUseCase.setRemotePath(item)
+            fileNavigatorUseCase.setPath(item)
         }
     }
 

@@ -50,7 +50,7 @@ class OptionViewModel @Inject constructor(
         val result = mutableListOf<Pair<String, () -> Unit>>()
         storageList.forEach {
             result.add(Pair(it.absolutePath, {
-                viewModelScope.launch { fileNavigatorUseCase.setLocalPath(it.storage.absolutePath) }
+                viewModelScope.launch { fileNavigatorUseCase.setPath(it.storage.absolutePath) }
             }))
         }
         return result
