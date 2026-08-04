@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
@@ -33,7 +32,7 @@ class DirectoryViewModel @Inject constructor(
 
     fun updateCurrentPath(entry: FileEntry) {
         viewModelScope.launch {
-            fileNavigatorUseCase.setLocalPath(File(entry.path))
+            fileNavigatorUseCase.setLocalPath(entry.path)
         }
     }
 }
