@@ -11,7 +11,7 @@ data class RemoteStorageInfo(
     @ColumnInfo val id: Long = 0,
     @ColumnInfo val name: String,
     @ColumnInfo val address: String,
-    @ColumnInfo val port: Long,
+    @ColumnInfo val port: Int,
     @ColumnInfo val userId: String,
     @ColumnInfo val password: String
 )

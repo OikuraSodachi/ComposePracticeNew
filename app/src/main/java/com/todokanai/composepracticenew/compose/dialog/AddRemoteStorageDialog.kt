@@ -25,7 +25,7 @@ import com.todokanai.composepracticenew.R
 /** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호)를 입력받아 추가하는 다이얼로그. */
 @Composable
 fun AddRemoteStorageDialog(
-    onConfirm: (name: String, address: String, port: Long, id: String, password: String) -> Unit,
+    onConfirm: (name: String, address: String, port: Int, id: String, password: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
@@ -85,7 +85,7 @@ fun AddRemoteStorageDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(name, address, port.toLongOrNull() ?: 0L, id, password)
+                    onConfirm(name, address, port.toIntOrNull() ?: 0, id, password)
                     onCancel()
                 }
             ) {

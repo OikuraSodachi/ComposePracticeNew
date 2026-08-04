@@ -31,7 +31,7 @@ class FtpFileSystem @Inject constructor() {
                 runCatching { client.disconnect() }
             }
             client.connectTimeout = 10_000
-            client.connect(server, 90)
+            client.connect(server, item.port)
             client.soTimeout = 15_000
             val loggedIn = client.login(item.userId, item.password)
             if (loggedIn) {

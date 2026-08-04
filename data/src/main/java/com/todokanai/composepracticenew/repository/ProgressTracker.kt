@@ -13,13 +13,13 @@ import javax.inject.Singleton
 @Singleton
 class ProgressTracker @Inject constructor() : ProgressRepository {
     private val _progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
-    val progressMap: StateFlow<Map<Int, ProgressState>> = _progressMap.asStateFlow()
+    override val progressMap: StateFlow<Map<Int, ProgressState>> = _progressMap.asStateFlow()
 
-    fun setProgressState(actionKey: Int, state: ProgressState) {
+    override fun setProgressState(actionKey: Int, state: ProgressState) {
         _progressMap.update { it + (actionKey to state) }
     }
 
-    fun removeProgress(actionKey: Int) {
+    override fun removeProgress(actionKey: Int) {
         _progressMap.update { it - actionKey }
     }
 }
