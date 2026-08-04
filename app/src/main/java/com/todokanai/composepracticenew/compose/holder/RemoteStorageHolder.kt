@@ -45,6 +45,7 @@ private fun RemoteStorageHolderPreview() {
         item = RemoteStorageItem(
             name = "내 NAS",
             address = "smb://192.168.0.1/share",
+            port = 445,
             userId = "user",
             password = ""
         )

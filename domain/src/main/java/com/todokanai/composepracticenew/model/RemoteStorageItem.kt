@@ -5,6 +5,7 @@ data class RemoteStorageItem(
     val id: Long = 0,
     val name: String,
     val address: String,
+    val port: Long,
     val userId: String,
     val password: String
 )

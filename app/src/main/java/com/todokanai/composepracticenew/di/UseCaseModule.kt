@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortModeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.usecase.AddRemoteStorageUseCase
+import com.todokanai.composepracticenew.usecase.ConnectRemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.tools.fileaction.OpenAction
@@ -51,4 +52,8 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideAddRemoteStorageUseCase(repo: RemoteStorageRepository) =
         AddRemoteStorageUseCase(repo)
+
+    @Provides @Singleton
+    fun provideConnectRemoteStorageUseCase(nav: FileNavigatorRepository) =
+        ConnectRemoteStorageUseCase(nav)
 }

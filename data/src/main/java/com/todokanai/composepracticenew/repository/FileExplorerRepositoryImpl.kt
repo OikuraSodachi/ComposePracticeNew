@@ -1,9 +1,12 @@
 package com.todokanai.composepracticenew.repository
 
 import android.os.Environment
+import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
+import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
@@ -24,7 +27,8 @@ import javax.inject.Singleton
 @Singleton
 class FileExplorerRepositoryImpl @Inject constructor(
     private val converter: DataConverter,
-    private val dsRepo: DataStoreRepository
+    private val dsRepo: DataStoreRepository,
+    private val ftpFileSystem: FtpFileSystem
 ) : StorageRepository(), FileNavigatorRepository {
 
     private val defaultStorage = Environment.getExternalStorageDirectory()
@@ -53,18 +57,44 @@ class FileExplorerRepositoryImpl @Inject constructor(
         navigateTo(defaultStorage.absolutePath)
     }
 
-    override suspend fun listFiles(path: String): List<FileEntry> =
-        File(path).listFiles()?.map { file ->
-            FileEntry(
-                name = file.name,
-                path = file.absolutePath,
-                isDirectory = file.isDirectory,
-                size = file.length(),
-                lastModified = file.lastModified()
-            )
-        } ?: emptyList()
+    override fun getParent(path: String): String? =
+        if (ftpFileSystem.isRemotePath(path)) ftpFileSystem.getParent(path)
+        else super.getParent(path)
+
+    override suspend fun listFiles(path: String): List<FileEntry> {
+        val isRemote = ftpFileSystem.isRemotePath(path)
+        Log.d(TAG, "listFiles: path=$path isRemote=$isRemote")
+        return if (isRemote) {
+            ftpFileSystem.listFiles(path)
+        } else {
+            File(path).listFiles()?.map { file ->
+                FileEntry(
+                    name = file.name,
+                    path = file.absolutePath,
+                    isDirectory = file.isDirectory,
+                    size = file.length(),
+                    lastModified = file.lastModified()
+                )
+            } ?: emptyList()
+        }
+    }
 
     override suspend fun setCurrentPath(file: File) {
         if (file.listFiles() != null) navigateTo(file.absolutePath)
+    }
+
+    override suspend fun navigateToRemote(item: RemoteStorageItem) {
+        Log.d(TAG, "navigateToRemote: address=${item.address}")
+        val connected = ftpFileSystem.connect(item)
+        Log.d(TAG, "navigateToRemote: connected=$connected")
+        if (connected) {
+            val rootPath = ftpFileSystem.buildRootPath(item)
+            Log.d(TAG, "navigateToRemote: navigateTo rootPath=$rootPath")
+            navigateTo(rootPath)
+        }
+    }
+
+    companion object {
+        private const val TAG = "FileExplorerRepo"
     }
 }
