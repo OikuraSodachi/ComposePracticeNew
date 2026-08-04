@@ -14,7 +14,10 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     val dirTree: Flow<List<FileEntry>> = nav.dirTree
     val currentPath: StateFlow<String?> = nav.currentPath
 
-    suspend fun navigateTo(file: File) = nav.setCurrentPath(file)
-    suspend fun navigateToRemote(item: RemoteStorageItem) = nav.navigateToRemote(item)
+    // stub — not yet implemented: setLocalPath, setRemotePath 분기점
+    suspend fun setPath(path: String, isRemoteStorage: Boolean) {}
+
+    suspend fun setLocalPath(file: File) = nav.setCurrentPath(file.absolutePath)
+    suspend fun setRemotePath(item: RemoteStorageItem) = nav.setRemotePath(item)
     fun refresh() = nav.refresh()
 }

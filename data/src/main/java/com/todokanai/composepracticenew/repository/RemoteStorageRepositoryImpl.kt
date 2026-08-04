@@ -8,19 +8,19 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** RemoteStorageRepository의 Room 기반 구현체. */
+/** 원격 스토리지 접속 정보의 Room 기반 구현체. */
 @Singleton
 class RemoteStorageRepositoryImpl @Inject constructor(
     private val dao: RemoteStorageInfoDao
-) : RemoteStorageRepository {
+) {
 
-    override fun getAll(): Flow<List<RemoteStorageItem>> =
+    fun getAll(): Flow<List<RemoteStorageItem>> =
         dao.getAll().map { list -> list.map { it.toItem() } }
 
-    override suspend fun insert(item: RemoteStorageItem) =
+    suspend fun insert(item: RemoteStorageItem) =
         dao.insert(item.toEntity())
 
-    override suspend fun delete(item: RemoteStorageItem) =
+    suspend fun delete(item: RemoteStorageItem) =
         dao.delete(item.toEntity())
 }
 

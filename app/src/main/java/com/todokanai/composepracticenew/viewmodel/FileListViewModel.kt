@@ -83,7 +83,7 @@ class FileListViewModel @Inject constructor(
 
     fun updateCurrentPath(file: File) {
         viewModelScope.launch {
-            fileNavigatorUseCase.navigateTo(file)
+            fileNavigatorUseCase.setLocalPath(file)
         }
     }
 

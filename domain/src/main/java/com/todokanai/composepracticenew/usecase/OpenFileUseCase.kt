@@ -9,7 +9,7 @@ class OpenFileUseCase(
     private val openFile: (File) -> Unit
 ) {
     suspend fun open(file: File) {
-        if (file.isDirectory) nav.setCurrentPath(file)
+        if (file.isDirectory) nav.setCurrentPath(file.absolutePath)
         else openFile(file)
     }
 }

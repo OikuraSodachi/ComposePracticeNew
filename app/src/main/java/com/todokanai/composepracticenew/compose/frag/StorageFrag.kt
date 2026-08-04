@@ -64,7 +64,7 @@ fun StorageFrag(
             items(uiState.value.remoteStorageList, key = { it.id }) { remote ->
                 RemoteStorageHolder(
                     modifier = Modifier.clickable {
-                        viewModel.navigateToRemote(remote)
+                        viewModel.setRemotePath(remote)
                         exitStorageFrag()
                     },
                     item = remote

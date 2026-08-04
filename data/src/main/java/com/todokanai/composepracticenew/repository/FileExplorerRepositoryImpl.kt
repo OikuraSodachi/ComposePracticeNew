@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
 import android.os.Environment
-import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
@@ -63,7 +62,6 @@ class FileExplorerRepositoryImpl @Inject constructor(
 
     override suspend fun listFiles(path: String): List<FileEntry> {
         val isRemote = ftpFileSystem.isRemotePath(path)
-        Log.d(TAG, "listFiles: path=$path isRemote=$isRemote")
         return if (isRemote) {
             ftpFileSystem.listFiles(path)
         } else {
@@ -79,22 +77,14 @@ class FileExplorerRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun setCurrentPath(file: File) {
-        if (file.listFiles() != null) navigateTo(file.absolutePath)
+    override suspend fun setCurrentPath(path: String) {
+        if (File(path).listFiles() != null) navigateTo(path)
     }
 
-    override suspend fun navigateToRemote(item: RemoteStorageItem) {
-        Log.d(TAG, "navigateToRemote: address=${item.address}")
+    override suspend fun setRemotePath(item: RemoteStorageItem) {
         val connected = ftpFileSystem.connect(item)
-        Log.d(TAG, "navigateToRemote: connected=$connected")
         if (connected) {
-            val rootPath = ftpFileSystem.buildRootPath(item)
-            Log.d(TAG, "navigateToRemote: navigateTo rootPath=$rootPath")
-            navigateTo(rootPath)
+            navigateTo(ftpFileSystem.buildRootPath(item))
         }
-    }
-
-    companion object {
-        private const val TAG = "FileExplorerRepo"
     }
 }

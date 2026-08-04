@@ -8,7 +8,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.todokanai.composepracticenew.myobjects.Constants.BY_DEFAULT
-import com.todokanai.composepracticenew.repository.SortModeRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,14 +22,14 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class DataStoreRepository @Inject constructor(@ApplicationContext private val context: Context) : SortModeRepository {
+class DataStoreRepository @Inject constructor(@ApplicationContext private val context: Context) {
     companion object {
         val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "mydatastore")
         val DATASTORE_SORT_BY = stringPreferencesKey("datastore_sort_by")
         val DATASTORE_COPY_OVERWRITE = booleanPreferencesKey("datastore_copy_overwrite")
     }
 
-    override fun saveSortBy(value: String) {
+    fun saveSortBy(value: String) {
         CoroutineScope(Dispatchers.IO).launch {
             context.dataStore.edit {
                 it[DATASTORE_SORT_BY] = value
@@ -42,7 +41,7 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
         return context.dataStore.data.first()[DATASTORE_SORT_BY] ?: BY_DEFAULT
     }
 
-    override val sortBy: Flow<String> = context.dataStore.data.map {
+    val sortBy: Flow<String> = context.dataStore.data.map {
         it[DATASTORE_SORT_BY] ?: BY_DEFAULT
     }
 
