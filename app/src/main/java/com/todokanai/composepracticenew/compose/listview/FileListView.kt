@@ -22,7 +22,7 @@ fun FileListView(
     modifier: Modifier,
     fileHolderItemList: List<FileHolderItem>,
     selectMode: Int,
-    onItemClick: (File) -> Unit,
+    onItemClick: (FileHolderItem) -> Unit,
     onItemLongClick: () -> Unit,
     addToList: (File) -> Unit,
     removeFromList: (File) -> Unit,
@@ -34,7 +34,7 @@ fun FileListView(
     ) {
         items(fileHolderItemList.size) { index ->
             val fileHolderItem = fileHolderItemList[index]
-            val file = fileHolderItem.file
+            val file = File(fileHolderItem.path)
 
             var isSelected by remember { mutableStateOf(false) }
 
@@ -51,7 +51,7 @@ fun FileListView(
                                     addToList(file)
                                 }
                             } else {
-                                onItemClick(file)
+                                onItemClick(fileHolderItem)
                             }
                         },
                         onLongClick = {

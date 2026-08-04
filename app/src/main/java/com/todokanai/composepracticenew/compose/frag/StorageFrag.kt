@@ -55,7 +55,7 @@ fun StorageFrag(
                 StorageHolder(
                     modifier = Modifier
                         .clickable {
-                            viewModel.setInitialPath({ setInitialPath(storage.storage) })
+                            viewModel.setInitialPath({ setInitialPath(File(storage.absolutePath)) })
                             exitStorageFrag()
                         },
                     storage = storage

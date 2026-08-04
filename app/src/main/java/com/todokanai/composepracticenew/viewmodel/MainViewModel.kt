@@ -15,6 +15,7 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
 import com.todokanai.composepracticenew.R
@@ -91,15 +92,17 @@ class MainViewModel @Inject constructor(
         }
     }
 
-    private fun getPhysicalStorages(context: Context): List<File> {
+    private fun getPhysicalStorages(context: Context): List<StorageVolumeInfo> {
         val defaultStorage = Environment.getExternalStorageDirectory()
         val volumes = context.getSystemService(StorageManager::class.java)?.storageVolumes
-        val storageList = mutableListOf<File>(defaultStorage)
+        val storageList = mutableListOf(
+            StorageVolumeInfo(defaultStorage.absolutePath, defaultStorage.totalSpace, defaultStorage.freeSpace)
+        )
         volumes?.forEach { volume ->
             if (!volume.isPrimary && volume.isRemovable) {
                 val sdCard = volume.directory
                 if (sdCard != null) {
-                    storageList.add(sdCard)
+                    storageList.add(StorageVolumeInfo(sdCard.absolutePath, sdCard.totalSpace, sdCard.freeSpace))
                 }
             }
         }

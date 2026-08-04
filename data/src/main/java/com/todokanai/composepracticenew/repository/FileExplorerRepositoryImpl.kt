@@ -76,6 +76,8 @@ class FileExplorerRepositoryImpl @Inject constructor(
         }
     }
 
+    override fun getParentPath(path: String): String? = getParent(path)
+
     override suspend fun setLocalPath(path: String) {
         if (File(path).listFiles() != null) navigateTo(path)
     }

@@ -1,16 +1,16 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import java.io.File
 
 /** Navigates to the parent directory, or calls toStorageFrag if already at a storage root. */
 class NavigateBackUseCase(private val nav: FileNavigatorRepository) {
     suspend fun navigateBack(toStorageFrag: () -> Unit) {
-        val parentFile = nav.currentPath.value?.let { File(it).parentFile }
-        if (parentFile?.listFiles() == null) {
+        val currentPath = nav.currentPath.value ?: return
+        val parentPath = nav.getParentPath(currentPath)
+        if (parentPath == null) {
             toStorageFrag()
         } else {
-            nav.setLocalPath(parentFile.absolutePath)
+            nav.setLocalPath(parentPath)
         }
     }
 }
