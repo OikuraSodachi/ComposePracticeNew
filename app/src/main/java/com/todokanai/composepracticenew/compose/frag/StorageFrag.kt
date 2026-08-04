@@ -34,7 +34,7 @@ fun StorageFrag(
 
     if (showAddRemoteStorageDialog) {
         AddRemoteStorageDialog(
-            onConfirm = { name, address, id, password -> viewModel.addRemoteStorage(name, address, id, password) },
+            onConfirm = { name, address, port, id, password -> viewModel.addRemoteStorage(name, address, port, id, password) },
             onCancel = { showAddRemoteStorageDialog = false }
         )
     }
@@ -63,7 +63,10 @@ fun StorageFrag(
             }
             items(uiState.value.remoteStorageList, key = { it.id }) { remote ->
                 RemoteStorageHolder(
-                    modifier = Modifier.clickable { },
+                    modifier = Modifier.clickable {
+                        viewModel.navigateToRemote(remote)
+                        exitStorageFrag()
+                    },
                     item = remote
                 )
             }

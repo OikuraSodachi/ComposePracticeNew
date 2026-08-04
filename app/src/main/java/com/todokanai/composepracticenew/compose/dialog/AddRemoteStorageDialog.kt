@@ -15,19 +15,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 
-/** 원격 스토리지 연결 정보(이름, 주소, 아이디, 비밀번호)를 입력받아 추가하는 다이얼로그. */
+/** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호)를 입력받아 추가하는 다이얼로그. */
 @Composable
 fun AddRemoteStorageDialog(
-    onConfirm: (name: String, address: String, id: String, password: String) -> Unit,
+    onConfirm: (name: String, address: String, port: Int, id: String, password: String) -> Unit,
     onCancel: () -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf("") }
     var id by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
@@ -54,6 +57,15 @@ fun AddRemoteStorageDialog(
                 Spacer(modifier = Modifier.height(8.dp))
                 TextField(
                     modifier = Modifier.fillMaxWidth(),
+                    value = port,
+                    placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_port_hint)) },
+                    onValueChange = { port = it },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                TextField(
+                    modifier = Modifier.fillMaxWidth(),
                     value = id,
                     placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_id_hint)) },
                     onValueChange = { id = it },
@@ -73,7 +85,7 @@ fun AddRemoteStorageDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(name, address, id, password)
+                    onConfirm(name, address, port.toIntOrNull() ?: 0, id, password)
                     onCancel()
                 }
             ) {
@@ -92,7 +104,7 @@ fun AddRemoteStorageDialog(
 @Composable
 private fun AddRemoteStorageDialogPreview() {
     AddRemoteStorageDialog(
-        onConfirm = { _, _, _, _ -> },
+        onConfirm = { _, _, _, _, _ -> },
         onCancel = {}
     )
 }

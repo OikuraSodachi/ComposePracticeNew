@@ -11,10 +11,10 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
-import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,14 +26,14 @@ import javax.inject.Inject
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val nav: FileNavigatorRepository,
+    private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val fileActionUseCase: FileActionUseCase,
-    private val prog: ProgressTracker,
+    private val progressUseCase: ProgressUseCase,
     private val myNoti: MyNotification
 ) : ViewModel() {
 
     fun confirm(selectedList: List<File>, selectMode: Int) {
-        val currentPath = nav.currentPath.value?.let { File(it) } ?: return
+        val currentPath = fileNavigatorUseCase.currentPath.value?.let { File(it) } ?: return
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchAction(ACTION_KEY_COPY, currentPath) {
                 fileActionUseCase.copyAction(
@@ -75,14 +75,14 @@ class BottomButtonsViewModel @Inject constructor(
             selectedList.forEach { file ->
                 fileActionUseCase.deleteFile(file.absolutePath)
                     .collect { state ->
-                        prog.setProgressState(ACTION_KEY_DELETE, state)
+                        progressUseCase.setProgressState(ACTION_KEY_DELETE, state)
                         if (state.error != null) hasError = true
                     }
             }
-            prog.removeProgress(ACTION_KEY_DELETE)
+            progressUseCase.removeProgress(ACTION_KEY_DELETE)
             if (!hasError) {
-                nav.setCurrentPath(refreshPath)
-                nav.refresh()
+                fileNavigatorUseCase.navigateTo(refreshPath)
+                fileNavigatorUseCase.refresh()
                 myNoti.completedNotification("", context.getString(R.string.noti_delete_complete), ACTION_KEY_DELETE)
             }
         }
@@ -92,13 +92,13 @@ class BottomButtonsViewModel @Inject constructor(
         CoroutineScope(Dispatchers.IO).launch {
             var hasError = false
             flowProvider().collect { state ->
-                actionKey?.let { prog.setProgressState(it, state) }
+                actionKey?.let { progressUseCase.setProgressState(it, state) }
                 if (state.error != null) hasError = true
             }
-            actionKey?.let { prog.removeProgress(it) }
+            actionKey?.let { progressUseCase.removeProgress(it) }
             if (!hasError) {
-                refreshPath?.let { nav.setCurrentPath(it) }
-                nav.refresh()
+                refreshPath?.let { fileNavigatorUseCase.navigateTo(it) }
+                fileNavigatorUseCase.refresh()
                 myNoti.completedNotification("", context.getString(R.string.noti_complete), actionKey)
             }
         }
@@ -115,14 +115,14 @@ class BottomButtonsViewModel @Inject constructor(
             var hasError = false
             targetList.forEach { file ->
                 flowProvider(file).collect { state ->
-                    actionKey?.let { prog.setProgressState(it, state) }
+                    actionKey?.let { progressUseCase.setProgressState(it, state) }
                     if (state.error != null) hasError = true
                 }
             }
-            actionKey?.let { prog.removeProgress(it) }
+            actionKey?.let { progressUseCase.removeProgress(it) }
             if (!hasError) {
-                refreshPath?.let { nav.setCurrentPath(it) }
-                nav.refresh()
+                refreshPath?.let { fileNavigatorUseCase.navigateTo(it) }
+                fileNavigatorUseCase.refresh()
                 myNoti.completedNotification(
                     "",
                     completionMessage ?: context.getString(R.string.noti_complete),

@@ -42,7 +42,7 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
         return context.dataStore.data.first()[DATASTORE_SORT_BY] ?: BY_DEFAULT
     }
 
-    val sortBy: Flow<String> = context.dataStore.data.map {
+    override val sortBy: Flow<String> = context.dataStore.data.map {
         it[DATASTORE_SORT_BY] ?: BY_DEFAULT
     }
 

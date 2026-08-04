@@ -7,7 +7,7 @@ import java.io.File
 
 /** Converts raw storage File list into display models and updates StorageRepository. */
 class GetStorageListUseCase(private val storageRepo: StorageVolumeRepository) {
-    operator fun invoke(storages: List<File>) {
+    fun execute(storages: List<File>) {
         val list = storages.map { file ->
             val storageSize = file.totalSpace
             val freeSize = file.freeSpace

@@ -5,10 +5,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.StorageHolderItem
-import com.todokanai.composepracticenew.repository.RemoteStorageRepository
-import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.independent.exit_td
-import com.todokanai.composepracticenew.usecase.AddRemoteStorageUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
+import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -19,9 +19,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class StorageViewModel @Inject constructor(
-    private val storageRepo: StorageVolumeRepository,
-    private val remoteStorageRepo: RemoteStorageRepository,
-    private val addRemoteStorageUseCase: AddRemoteStorageUseCase
+    private val storageVolumeUseCase: StorageVolumeUseCase,
+    private val remoteStorageUseCase: RemoteStorageUseCase,
+    private val fileNavigatorUseCase: FileNavigatorUseCase
 ) : ViewModel() {
 
     /** 스토리지 선택 화면에 필요한 UI 상태를 담는 클래스. */
@@ -31,8 +31,8 @@ class StorageViewModel @Inject constructor(
     )
 
     val uiState: StateFlow<UiState> = combine(
-        storageRepo.storageList,
-        remoteStorageRepo.getAll()
+        storageVolumeUseCase.storageList,
+        remoteStorageUseCase.getAll()
     ) { storageList, remoteList ->
         UiState(storageList = storageList, remoteStorageList = remoteList)
     }.stateIn(
@@ -49,9 +49,16 @@ class StorageViewModel @Inject constructor(
     }
 
     /** 원격 스토리지를 추가한다. */
-    fun addRemoteStorage(name: String, address: String, id: String, password: String) {
+    fun addRemoteStorage(name: String, address: String, port: Int, id: String, password: String) {
         viewModelScope.launch {
-            addRemoteStorageUseCase(name, address, id, password)
+            remoteStorageUseCase.add(name, address, port, id, password)
+        }
+    }
+
+    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. */
+    fun navigateToRemote(item: RemoteStorageItem) {
+        viewModelScope.launch {
+            fileNavigatorUseCase.navigateToRemote(item)
         }
     }
 

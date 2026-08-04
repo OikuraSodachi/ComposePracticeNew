@@ -1,22 +1,23 @@
 package com.todokanai.composepracticenew.di
 
-import android.content.Context
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortModeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
-import com.todokanai.composepracticenew.usecase.AddRemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
-import com.todokanai.composepracticenew.tools.fileaction.OpenAction
 import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
-import com.todokanai.composepracticenew.usecase.UpdateSortModeUseCase
+import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
+import com.todokanai.composepracticenew.usecase.SortModeUseCase
+import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
@@ -30,15 +31,8 @@ object UseCaseModule {
         NavigateBackUseCase(nav)
 
     @Provides @Singleton
-    fun provideOpenFileUseCase(
-        nav: FileNavigatorRepository,
-        @ApplicationContext context: Context
-    ) = OpenFileUseCase(nav) { file -> OpenAction().openFile(context, file) }
-
-    @Provides @Singleton
-    fun provideUpdateSortModeUseCase(
-        sortModeRepo: SortModeRepository
-    ) = UpdateSortModeUseCase(sortModeRepo)
+    fun provideOpenFileUseCase(nav: FileNavigatorRepository) =
+        OpenFileUseCase(nav) { _ -> } // stub — not yet implemented
 
     @Provides @Singleton
     fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
@@ -49,6 +43,22 @@ object UseCaseModule {
         FileActionUseCase(repo)
 
     @Provides @Singleton
-    fun provideAddRemoteStorageUseCase(repo: RemoteStorageRepository) =
-        AddRemoteStorageUseCase(repo)
+    fun provideFileNavigatorUseCase(nav: FileNavigatorRepository) =
+        FileNavigatorUseCase(nav)
+
+    @Provides @Singleton
+    fun provideRemoteStorageUseCase(repo: RemoteStorageRepository) =
+        RemoteStorageUseCase(repo)
+
+    @Provides @Singleton
+    fun provideStorageVolumeUseCase(repo: StorageVolumeRepository) =
+        StorageVolumeUseCase(repo)
+
+    @Provides @Singleton
+    fun provideSortModeUseCase(repo: SortModeRepository) =
+        SortModeUseCase(repo)
+
+    @Provides @Singleton
+    fun provideProgressUseCase(repo: ProgressRepository) =
+        ProgressUseCase(repo)
 }
