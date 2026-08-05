@@ -4,4 +4,5 @@ package com.todokanai.composepracticenew.navigation
 object NavDestinations {
     const val STORAGE = "storage"
     const val FILE_LIST = "fileList"
+    const val REMOTE_FILE_LIST = "remoteFileList"
 }
