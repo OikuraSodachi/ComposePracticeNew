@@ -83,11 +83,11 @@ class FileListViewModel @Inject constructor(
 
     fun updateCurrentPath(file: File) {
         viewModelScope.launch {
-            fileNavigatorUseCase.navigateTo(file)
+            fileNavigatorUseCase.setPath(file.absolutePath)
         }
     }
 
-    fun onItemClick(selected: File, selectMode: Int) {
+    fun onItemClick(selected: FileHolderItem, selectMode: Int) {
         viewModelScope.launch {
             when (selectMode) {
                 DEFAULT_MODE -> openFileUseCase.open(selected)

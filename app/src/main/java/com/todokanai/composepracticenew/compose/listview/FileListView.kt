@@ -14,7 +14,6 @@ import androidx.compose.ui.Modifier
 import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.myobjects.Constants
-import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -22,10 +21,10 @@ fun FileListView(
     modifier: Modifier,
     fileHolderItemList: List<FileHolderItem>,
     selectMode: Int,
-    onItemClick: (File) -> Unit,
+    onItemClick: (FileHolderItem) -> Unit,
     onItemLongClick: () -> Unit,
-    addToList: (File) -> Unit,
-    removeFromList: (File) -> Unit,
+    addToList: (FileHolderItem) -> Unit,
+    removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit
 ) {
     LazyColumn(
@@ -34,7 +33,6 @@ fun FileListView(
     ) {
         items(fileHolderItemList.size) { index ->
             val fileHolderItem = fileHolderItemList[index]
-            val file = fileHolderItem.file
 
             var isSelected by remember { mutableStateOf(false) }
 
@@ -45,20 +43,20 @@ fun FileListView(
                             if (selectMode == Constants.MULTI_SELECT_MODE) {
                                 if (isSelected) {
                                     isSelected = false
-                                    removeFromList(file)
+                                    removeFromList(fileHolderItem)
                                 } else {
                                     isSelected = true
-                                    addToList(file)
+                                    addToList(fileHolderItem)
                                 }
                             } else {
-                                onItemClick(file)
+                                onItemClick(fileHolderItem)
                             }
                         },
                         onLongClick = {
                             if (selectMode == Constants.DEFAULT_MODE) {
                                 clearList()
                                 isSelected = true
-                                addToList(file)
+                                addToList(fileHolderItem)
                                 onItemLongClick()
                             }
                         }

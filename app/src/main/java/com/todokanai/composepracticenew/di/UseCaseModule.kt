@@ -1,10 +1,9 @@
 package com.todokanai.composepracticenew.di
 
+import com.todokanai.composepracticenew.repository.LocalDataRepository
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
-import com.todokanai.composepracticenew.repository.RemoteStorageRepository
-import com.todokanai.composepracticenew.repository.SortModeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -47,7 +46,7 @@ object UseCaseModule {
         FileNavigatorUseCase(nav)
 
     @Provides @Singleton
-    fun provideRemoteStorageUseCase(repo: RemoteStorageRepository) =
+    fun provideRemoteStorageUseCase(repo: LocalDataRepository) =
         RemoteStorageUseCase(repo)
 
     @Provides @Singleton
@@ -55,7 +54,7 @@ object UseCaseModule {
         StorageVolumeUseCase(repo)
 
     @Provides @Singleton
-    fun provideSortModeUseCase(repo: SortModeRepository) =
+    fun provideSortModeUseCase(repo: LocalDataRepository) =
         SortModeUseCase(repo)
 
     @Provides @Singleton

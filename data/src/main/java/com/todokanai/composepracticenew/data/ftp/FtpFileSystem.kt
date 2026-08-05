@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import android.util.Log
-import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -22,18 +21,18 @@ class FtpFileSystem @Inject constructor() {
      * 이미 연결된 경우 기존 연결을 해제 후 재연결한다.
      * @return 로그인 성공 여부
      */
-    suspend fun connect(item: RemoteStorageItem): Boolean = withContext(Dispatchers.IO) {
-        val server = item.address.removePrefix("ftp://")
-        Log.d(TAG, "connect: server=$server userId=${item.userId}")
+    suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean = withContext(Dispatchers.IO) {
+        val server = address.removePrefix("ftp://")
+        Log.d(TAG, "connect: server=$server userId=$userId")
         runCatching {
             if (client.isConnected) {
                 runCatching { client.logout() }
                 runCatching { client.disconnect() }
             }
             client.connectTimeout = 10_000
-            client.connect(server, item.port)
+            client.connect(server, port)
             client.soTimeout = 15_000
-            val loggedIn = client.login(item.userId, item.password)
+            val loggedIn = client.login(userId, password)
             if (loggedIn) {
                 client.enterLocalPassiveMode()
                 connectedServer = server
@@ -50,9 +49,9 @@ class FtpFileSystem @Inject constructor() {
         }.getOrDefault(false)
     }
 
-    /** item의 서버 주소로부터 FTP 루트 경로 문자열을 생성한다. */
-    fun buildRootPath(item: RemoteStorageItem): String =
-        "ftp://${item.address.removePrefix("ftp://")}"
+    /** 서버 주소로부터 FTP 루트 경로 문자열을 생성한다. */
+    fun buildRootPath(address: String): String =
+        "ftp://${address.removePrefix("ftp://")}"
 
     /** path가 FTP 경로인지 여부를 반환한다. */
     fun isRemotePath(path: String): Boolean = path.startsWith("ftp://")

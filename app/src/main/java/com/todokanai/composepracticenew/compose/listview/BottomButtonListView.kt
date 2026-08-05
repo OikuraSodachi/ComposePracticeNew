@@ -14,8 +14,8 @@ import com.todokanai.composepracticenew.compose.dialog.InfoDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
 import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
-import java.io.File
 
 @Composable
 fun BottomButtonListView(
@@ -23,7 +23,7 @@ fun BottomButtonListView(
     selectMode: Int,
     onSelectModeChange: (Int) -> Unit,
     onClearSelection: () -> Unit,
-    selectedList: List<File>,
+    selectedList: List<FileHolderItem>,
     viewModel: BottomButtonsViewModel = hiltViewModel()
 ) {
     var zipDialog by remember { mutableStateOf(false) }

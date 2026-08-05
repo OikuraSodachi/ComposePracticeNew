@@ -1,22 +1,20 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.StorageHolderItem
+import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
-import java.io.File
 
-/** Converts raw storage File list into display models and updates StorageRepository. */
+/** Converts raw storage volume info into display models and updates StorageRepository. */
 class GetStorageListUseCase(private val storageRepo: StorageVolumeRepository) {
-    fun execute(storages: List<File>) {
-        val list = storages.map { file ->
-            val storageSize = file.totalSpace
-            val freeSize = file.freeSpace
-            val progress = ((storageSize.toDouble() - freeSize.toDouble()) / storageSize.toDouble()).toFloat()
+    fun execute(storages: List<StorageVolumeInfo>) {
+        val list = storages.map { info ->
+            val progress = if (info.totalSpace == 0L) 0f
+                else ((info.totalSpace - info.freeSpace).toDouble() / info.totalSpace.toDouble()).toFloat()
             StorageHolderItem(
-                storage = file,
-                absolutePath = file.absolutePath,
-                used = readableFileSize_td(storageSize - freeSize),
-                total = readableFileSize_td(storageSize),
+                absolutePath = info.path,
+                used = readableFileSize_td(info.totalSpace - info.freeSpace),
+                total = readableFileSize_td(info.totalSpace),
                 progress = progress
             )
         }

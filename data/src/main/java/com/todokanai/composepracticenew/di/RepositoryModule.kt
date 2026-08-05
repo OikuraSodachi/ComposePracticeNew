@@ -1,15 +1,13 @@
 package com.todokanai.composepracticenew.di
 
-import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
+import com.todokanai.composepracticenew.repository.LocalDataRepository
+import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.ProgressTracker
-import com.todokanai.composepracticenew.repository.RemoteStorageRepository
-import com.todokanai.composepracticenew.repository.RemoteStorageRepositoryImpl
-import com.todokanai.composepracticenew.repository.SortModeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepositoryImpl
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import dagger.Binds
@@ -25,16 +23,13 @@ abstract class RepositoryModule {
     abstract fun bindFileNavigatorRepository(impl: FileExplorerRepositoryImpl): FileNavigatorRepository
 
     @Binds
-    abstract fun bindSortModeRepository(impl: DataStoreRepository): SortModeRepository
+    abstract fun bindLocalDataRepository(impl: LocalDataRepositoryImpl): LocalDataRepository
 
     @Binds
     abstract fun bindStorageRepository(impl: StorageVolumeRepositoryImpl): StorageVolumeRepository
 
     @Binds
     abstract fun bindFileActionRepository(impl: FileActionRepositoryImpl): FileActionRepository
-
-    @Binds
-    abstract fun bindRemoteStorageRepository(impl: RemoteStorageRepositoryImpl): RemoteStorageRepository
 
     @Binds
     abstract fun bindProgressRepository(impl: ProgressTracker): ProgressRepository

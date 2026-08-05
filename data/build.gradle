@@ -34,4 +34,5 @@ dependencies {
     implementation libs.androidx.core.ktx
 
     implementation 'commons-net:commons-net:3.10.0'
+    implementation libs.zip4j
 }

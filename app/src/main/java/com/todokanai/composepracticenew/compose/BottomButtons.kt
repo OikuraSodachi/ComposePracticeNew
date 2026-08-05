@@ -15,7 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
-import java.io.File
+import com.todokanai.composepracticenew.model.FileHolderItem
 
 @Composable
 fun BottomButtons(
@@ -28,7 +28,7 @@ fun BottomButtons(
     unzipHere:()->Unit,
     rename:()->Unit,
     info:()->Unit,
-    selectedList:List<File>
+    selectedList: List<FileHolderItem>
 ) {
     val strMove = stringResource(R.string.btn_move)
     val strCopy = stringResource(R.string.btn_copy)
@@ -70,13 +70,13 @@ fun BottomButtons(
         ) {
             val expanded = remember {mutableStateOf(false)}
 
-            fun contents(selectedList: List<File>) : List<Pair<String,()->Unit>> {
+            fun contents(selectedList: List<FileHolderItem>) : List<Pair<String,()->Unit>> {
                 val result = mutableListOf(Pair(strZip) { zip() }, Pair(strInfo) { info() })
                 if(selectedList.size ==1) {
                     val selected = selectedList.first()
                     result.add(Pair(strRename) { rename() })
 
-                    if(selected.extension == "zip"){
+                    if(selected.name.substringAfterLast('.', "") == "zip"){
                         result.add(Pair(strUnzip) { unzip() })
                         result.add(Pair(strUnzipHere) { unzipHere() })
                     }

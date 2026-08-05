@@ -18,6 +18,7 @@ import androidx.constraintlayout.compose.ConstraintLayout
 import androidx.constraintlayout.compose.Dimension
 import androidx.compose.ui.res.painterResource
 import androidx.core.net.toUri
+import java.io.File
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.data.R as DataR
@@ -33,9 +34,10 @@ fun FileHolder(
 
 
 
+    val extension = file.name.substringAfterLast('.', "")
     val icon = when {
-        file.file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)
-        file.file.extension == "pdf" -> painterResource(DataR.drawable.ic_pdf)
+        file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)
+        extension == "pdf" -> painterResource(DataR.drawable.ic_pdf)
         else -> painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
     }
 
@@ -59,8 +61,8 @@ fun FileHolder(
                 .width(50.dp)
                 .fillMaxHeight()
                 .padding(5.dp),
-            isAsyncImage = (file.file.extension == "jpg"),
-            data = file.file.toUri(),
+            isAsyncImage = (extension == "jpg"),
+            data = File(file.path).toUri(),
             icon = icon
         )
 

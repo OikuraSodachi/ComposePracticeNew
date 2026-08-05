@@ -17,16 +17,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
-import java.io.File
 
 @Composable
 fun FileListFrag(
     modifier: Modifier,
     viewModel: FileListViewModel
 ) {
-    var selectedList by remember { mutableStateOf<List<File>>(emptyList()) }
+    var selectedList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
     var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
