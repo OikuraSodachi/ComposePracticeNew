@@ -1,5 +1,8 @@
 package com.todokanai.composepracticenew.di
 
+import com.todokanai.composepracticenew.data.DataConverter
+import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
+import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
 import com.todokanai.composepracticenew.repository.LocalDataRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileActionRepository
@@ -12,16 +15,15 @@ import com.todokanai.composepracticenew.repository.StorageVolumeRepositoryImpl
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 
 /** Binds domain repository interfaces to their data-layer implementations. */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
-    @Binds
-    abstract fun bindFileNavigatorRepository(impl: FileExplorerRepositoryImpl): FileNavigatorRepository
-
     @Binds
     abstract fun bindLocalDataRepository(impl: LocalDataRepositoryImpl): LocalDataRepository
 
@@ -33,4 +35,20 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindProgressRepository(impl: ProgressTracker): ProgressRepository
+
+    companion object {
+        @Provides @Singleton
+        fun provideLocalFileNavigatorRepository(
+            converter: DataConverter,
+            dsRepo: DataStoreRepository,
+            ftpFileSystem: FtpFileSystem
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, ftpFileSystem)
+
+        @Provides @Singleton @RemoteNavigator
+        fun provideRemoteFileNavigatorRepository(
+            converter: DataConverter,
+            dsRepo: DataStoreRepository,
+            ftpFileSystem: FtpFileSystem
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, ftpFileSystem)
+    }
 }

@@ -11,6 +11,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
@@ -19,6 +20,7 @@ import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 @Composable
 fun RemoteFileListFrag(
     modifier: Modifier,
+    onSwitchToLocal: () -> Unit = {},
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -47,6 +49,12 @@ fun RemoteFileListFrag(
                 clearList = {}
             )
         }
+
+        StorageSwitchBar(
+            isRemote = true,
+            onSwitchToLocal = onSwitchToLocal,
+            onSwitchToRemote = {}
+        )
     }
 
     println("recomposition: RemoteFileListFrag")

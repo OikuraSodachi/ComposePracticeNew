@@ -22,8 +22,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Holds and manages the active directory navigation state (path, breadcrumb, file list). */
-@Singleton
-class FileExplorerRepositoryImpl @Inject constructor(
+class FileExplorerRepositoryImpl(
     private val converter: DataConverter,
     private val dsRepo: DataStoreRepository,
     private val ftpFileSystem: FtpFileSystem

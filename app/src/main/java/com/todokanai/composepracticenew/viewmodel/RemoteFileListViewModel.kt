@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -15,7 +16,7 @@ import javax.inject.Inject
 /** 원격 파일 목록 화면의 UI 상태와 네비게이션을 관리하는 ViewModel. 파일 조작 기능은 제공하지 않는다. */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
-    private val fileNavigatorUseCase: FileNavigatorUseCase
+    @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase
 ) : ViewModel() {
 
     /** 원격 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */

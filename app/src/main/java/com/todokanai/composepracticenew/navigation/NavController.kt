@@ -77,7 +77,14 @@ fun AppNavHost(
                     activity = activity,
                     navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
                 )
-                FileListFrag(modifier = Modifier)
+                FileListFrag(
+                    modifier = Modifier,
+                    onSwitchToRemote = {
+                        navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
+                            popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                        }
+                    }
+                )
             }
 
             if (showProgress) {
@@ -106,7 +113,14 @@ fun AppNavHost(
                     activity = activity,
                     navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
                 )
-                RemoteFileListFrag(modifier = Modifier)
+                RemoteFileListFrag(
+                    modifier = Modifier,
+                    onSwitchToLocal = {
+                        if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
+                            navController.navigate(NavDestinations.FILE_LIST)
+                        }
+                    }
+                )
             }
         }
     }
