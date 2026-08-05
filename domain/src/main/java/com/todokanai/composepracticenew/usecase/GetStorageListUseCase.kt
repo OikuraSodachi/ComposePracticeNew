@@ -9,7 +9,8 @@ import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 class GetStorageListUseCase(private val storageRepo: StorageVolumeRepository) {
     fun execute(storages: List<StorageVolumeInfo>) {
         val list = storages.map { info ->
-            val progress = ((info.totalSpace.toDouble() - info.freeSpace.toDouble()) / info.totalSpace.toDouble()).toFloat()
+            val progress = if (info.totalSpace == 0L) 0f
+                else ((info.totalSpace - info.freeSpace).toDouble() / info.totalSpace.toDouble()).toFloat()
             StorageHolderItem(
                 absolutePath = info.path,
                 used = readableFileSize_td(info.totalSpace - info.freeSpace),
