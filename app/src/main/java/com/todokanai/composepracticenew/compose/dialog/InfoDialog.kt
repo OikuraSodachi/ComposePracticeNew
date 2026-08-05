@@ -11,19 +11,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.tools.independent.getTotalSize_td
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
-import java.io.File
 
 
 @Composable
 fun InfoDialog(
-    files:List<File>,
-    onCancel:()->Unit
-){
-    val list = files.toTypedArray()
-    val selectedNumber = stringResource(R.string.dialog_info_selected_count, list.size)
-    val sizeText : String = readableFileSize_td( getTotalSize_td(list))
+    files: List<FileHolderItem>,
+    onCancel: () -> Unit
+) {
+    val selectedNumber = stringResource(R.string.dialog_info_selected_count, files.size)
+    val sizeText: String = readableFileSize_td(files.sumOf { it.sizeBytes })
 
     AlertDialog(
         onDismissRequest = {onCancel()},

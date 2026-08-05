@@ -29,7 +29,7 @@ class DataConverter @Inject constructor() {
         } else {
             readableFileSize_td(this.length())
         }
-        return FileHolderItem(this.absolutePath, this.isDirectory, this.name, size, lastModified)
+        return FileHolderItem(this.absolutePath, this.isDirectory, this.name, size, lastModified, this.totalSize())
     }
 
     fun fileHolderItemList(files: List<FileEntry>, sortBy: String): List<FileHolderItem> {

@@ -6,5 +6,6 @@ data class FileHolderItem(
     val isDirectory: Boolean,
     val name: String,
     val size: String,
-    val lastModified: String
+    val lastModified: String,
+    val sizeBytes: Long = 0L
 )
