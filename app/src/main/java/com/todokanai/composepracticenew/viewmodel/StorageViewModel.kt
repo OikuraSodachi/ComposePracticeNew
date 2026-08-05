@@ -55,6 +55,20 @@ class StorageViewModel @Inject constructor(
         }
     }
 
+    /** 기존 원격 스토리지 접속 정보를 수정한다. */
+    fun updateRemoteStorage(item: RemoteStorageItem) {
+        viewModelScope.launch {
+            remoteStorageUseCase.update(item)
+        }
+    }
+
+    /** 원격 스토리지 접속 정보를 삭제한다. */
+    fun deleteRemoteStorage(item: RemoteStorageItem) {
+        viewModelScope.launch {
+            remoteStorageUseCase.delete(item)
+        }
+    }
+
     /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. */
     fun setPath(item: RemoteStorageItem) {
         viewModelScope.launch {
