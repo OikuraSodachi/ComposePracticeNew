@@ -42,8 +42,14 @@ class DataConverter @Inject constructor() {
             BY_DEFAULT -> files.sortedWith(compareBy({ it.isFile }, { it.name }))
             BY_NAME_ASCENDING -> files.sortedBy { it.name }
             BY_NAME_DESCENDING -> files.sortedByDescending { it.name }
-            BY_SIZE_ASCENDING -> files.sortedBy { it.totalSize() }
-            BY_SIZE_DESCENDING -> files.sortedByDescending { it.totalSize() }
+            BY_SIZE_ASCENDING -> {
+                val sizes = files.associateWith { it.totalSize() }
+                files.sortedBy { sizes[it] }
+            }
+            BY_SIZE_DESCENDING -> {
+                val sizes = files.associateWith { it.totalSize() }
+                files.sortedByDescending { sizes[it] }
+            }
             BY_TYPE_ASCENDING -> files.sortedBy { it.extension }
             BY_TYPE_DESCENDING -> files.sortedByDescending { it.extension }
             BY_DATE_ASCENDING -> files.sortedBy { it.lastModified() }

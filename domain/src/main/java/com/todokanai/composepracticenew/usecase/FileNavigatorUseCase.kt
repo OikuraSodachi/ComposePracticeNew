@@ -12,7 +12,7 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     val dirTree: Flow<List<FileEntry>> = nav.dirTree
     val currentPath: StateFlow<String?> = nav.currentPath
 
-    suspend fun setPath(path: String) = nav.setLocalPath(path)
+    suspend fun setPath(path: String) = nav.navigate(path)
     suspend fun setPath(item: RemoteStorageItem) {
         val connected = nav.connectRemote(item.address, item.port, item.userId, item.password)
         if (connected) nav.setRemotePath("ftp://${item.address.removePrefix("ftp://")}")
