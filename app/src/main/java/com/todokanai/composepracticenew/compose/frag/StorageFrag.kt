@@ -31,11 +31,22 @@ fun StorageFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     var showAddRemoteStorageDialog by remember { mutableStateOf(false) }
+    var editingItem by remember { mutableStateOf<com.todokanai.composepracticenew.model.RemoteStorageItem?>(null) }
 
     if (showAddRemoteStorageDialog) {
         AddRemoteStorageDialog(
             onConfirm = { name, address, port, id, password -> viewModel.addRemoteStorage(name, address, port, id, password) },
             onCancel = { showAddRemoteStorageDialog = false }
+        )
+    }
+
+    editingItem?.let { target ->
+        AddRemoteStorageDialog(
+            initialValue = target,
+            onConfirm = { name, address, port, id, password ->
+                viewModel.updateRemoteStorage(target.copy(name = name, address = address, port = port, userId = id, password = password))
+            },
+            onCancel = { editingItem = null }
         )
     }
 
@@ -67,7 +78,9 @@ fun StorageFrag(
                         viewModel.setPath(remote)
                         exitStorageFrag()
                     },
-                    item = remote
+                    item = remote,
+                    onEdit = { editingItem = remote },
+                    onDelete = { viewModel.deleteRemoteStorage(remote) }
                 )
             }
         }

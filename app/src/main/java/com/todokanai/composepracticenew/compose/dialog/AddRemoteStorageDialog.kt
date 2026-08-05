@@ -21,18 +21,20 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.model.RemoteStorageItem
 
-/** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호)를 입력받아 추가하는 다이얼로그. */
+/** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호)를 입력받아 추가하거나 수정하는 다이얼로그. */
 @Composable
 fun AddRemoteStorageDialog(
     onConfirm: (name: String, address: String, port: Int, id: String, password: String) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    initialValue: RemoteStorageItem? = null
 ) {
-    var name by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var port by remember { mutableStateOf("") }
-    var id by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf(initialValue?.name ?: "") }
+    var address by remember { mutableStateOf(initialValue?.address ?: "") }
+    var port by remember { mutableStateOf(initialValue?.port?.toString() ?: "") }
+    var id by remember { mutableStateOf(initialValue?.userId ?: "") }
+    var password by remember { mutableStateOf(initialValue?.password ?: "") }
 
     AlertDialog(
         onDismissRequest = onCancel,
