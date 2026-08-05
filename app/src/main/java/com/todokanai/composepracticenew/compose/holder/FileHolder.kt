@@ -34,7 +34,7 @@ fun FileHolder(
 
 
 
-    val extension = file.path.substringAfterLast('.', "")
+    val extension = file.name.substringAfterLast('.', "")
     val icon = when {
         file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)
         extension == "pdf" -> painterResource(DataR.drawable.ic_pdf)
