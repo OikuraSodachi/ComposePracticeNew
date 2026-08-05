@@ -33,12 +33,12 @@ class BottomButtonsViewModel @Inject constructor(
 ) : ViewModel() {
 
     fun confirm(selectedList: List<File>, selectMode: Int) {
-        val currentPath = fileNavigatorUseCase.currentPath.value?.let { File(it) } ?: return
+        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchAction(ACTION_KEY_COPY, currentPath) {
                 fileActionUseCase.copyAction(
                     targetFiles = selectedList.map { it.absolutePath },
-                    targetPath = currentPath.absolutePath
+                    targetPath = currentPath
                 )
             }
             CONFIRM_MODE_MOVE -> launchAction(
@@ -47,14 +47,14 @@ class BottomButtonsViewModel @Inject constructor(
                 targetList = selectedList,
                 completionMessage = context.getString(R.string.noti_move_complete)
             ) { file ->
-                fileActionUseCase.moveFile(file.absolutePath, currentPath.absolutePath)
+                fileActionUseCase.moveFile(file.absolutePath, currentPath)
             }
         }
     }
 
     fun zip(selectedList: List<File>, name: String) {
         val parent = selectedList.firstOrNull()?.parent ?: return
-        launchAction(ACTION_KEY_ZIP, selectedList.first().parentFile) {
+        launchAction(ACTION_KEY_ZIP, parent) {
             fileActionUseCase.zipAction(
                 targetFiles = selectedList.map { it.absolutePath },
                 zipFile = "$parent/$name.zip"
@@ -63,13 +63,13 @@ class BottomButtonsViewModel @Inject constructor(
     }
 
     fun rename(file: File, name: String) {
-        launchAction(actionKey = null, refreshPath = file.parentFile) {
+        launchAction(actionKey = null, refreshPath = file.parent) {
             fileActionUseCase.renameFile(file.absolutePath, name)
         }
     }
 
     fun delete(selectedList: List<File>) {
-        val refreshPath = selectedList.firstOrNull()?.parentFile ?: return
+        val refreshPath = selectedList.firstOrNull()?.parent ?: return
         CoroutineScope(Dispatchers.IO).launch {
             var hasError = false
             selectedList.forEach { file ->
@@ -81,14 +81,14 @@ class BottomButtonsViewModel @Inject constructor(
             }
             progressUseCase.removeProgress(ACTION_KEY_DELETE)
             if (!hasError) {
-                fileNavigatorUseCase.setPath(refreshPath.absolutePath)
+                fileNavigatorUseCase.setPath(refreshPath)
                 fileNavigatorUseCase.refresh()
                 myNoti.completedNotification("", context.getString(R.string.noti_delete_complete), ACTION_KEY_DELETE)
             }
         }
     }
 
-    private fun launchAction(actionKey: Int?, refreshPath: File?, flowProvider: () -> Flow<ProgressState>) {
+    private fun launchAction(actionKey: Int?, refreshPath: String?, flowProvider: () -> Flow<ProgressState>) {
         CoroutineScope(Dispatchers.IO).launch {
             var hasError = false
             flowProvider().collect { state ->
@@ -97,7 +97,7 @@ class BottomButtonsViewModel @Inject constructor(
             }
             actionKey?.let { progressUseCase.removeProgress(it) }
             if (!hasError) {
-                refreshPath?.let { fileNavigatorUseCase.setPath(it.absolutePath) }
+                refreshPath?.let { fileNavigatorUseCase.setPath(it) }
                 fileNavigatorUseCase.refresh()
                 myNoti.completedNotification("", context.getString(R.string.noti_complete), actionKey)
             }
@@ -106,7 +106,7 @@ class BottomButtonsViewModel @Inject constructor(
 
     private fun launchAction(
         actionKey: Int?,
-        refreshPath: File?,
+        refreshPath: String?,
         targetList: List<File>,
         completionMessage: String? = null,
         flowProvider: (File) -> Flow<ProgressState>
@@ -121,7 +121,7 @@ class BottomButtonsViewModel @Inject constructor(
             }
             actionKey?.let { progressUseCase.removeProgress(it) }
             if (!hasError) {
-                refreshPath?.let { fileNavigatorUseCase.setPath(it.absolutePath) }
+                refreshPath?.let { fileNavigatorUseCase.setPath(it) }
                 fileNavigatorUseCase.refresh()
                 myNoti.completedNotification(
                     "",
