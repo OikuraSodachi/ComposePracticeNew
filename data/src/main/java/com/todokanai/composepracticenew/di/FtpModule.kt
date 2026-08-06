@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.di
 
 import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
 import com.todokanai.composepracticenew.repository.FtpClientRepository
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -12,17 +13,19 @@ import javax.inject.Singleton
 /** FTPClient, FtpFileSystem, FtpClientRepository 인스턴스를 싱글톤으로 제공한다. */
 @Module
 @InstallIn(SingletonComponent::class)
-object FtpModule {
+abstract class FtpModule {
 
-    @Provides
+    @Binds
     @Singleton
-    fun provideFtpClient(): FTPClient = FTPClient()
+    abstract fun bindFtpClientRepository(impl: FtpFileSystem): FtpClientRepository
 
-    @Provides
-    @Singleton
-    fun provideFtpFileSystem(client: FTPClient): FtpFileSystem = FtpFileSystem(client)
+    companion object {
+        @Provides
+        @Singleton
+        fun provideFtpClient(): FTPClient = FTPClient()
 
-    @Provides
-    @Singleton
-    fun provideFtpClientRepository(impl: FtpFileSystem): FtpClientRepository = impl
+        @Provides
+        @Singleton
+        fun provideFtpFileSystem(client: FTPClient): FtpFileSystem = FtpFileSystem(client)
+    }
 }
