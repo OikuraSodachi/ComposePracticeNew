@@ -29,8 +29,8 @@ class FtpFileSystem(
                     runCatching { client.disconnect() }
                 }
                 client.connectTimeout = 10_000
-                client.connect(server, port)
                 client.soTimeout = 15_000
+                client.connect(server, port)
                 val loggedIn = client.login(userId, password)
                 if (loggedIn) {
                     client.enterLocalPassiveMode()
