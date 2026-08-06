@@ -39,7 +39,7 @@ fun StorageFrag(
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
     var showAddRemoteStorageDialog by remember { mutableStateOf(false) }
-    var editingItem by remember { mutableStateOf<com.todokanai.composepracticenew.model.RemoteStorageItem?>(null) }
+    var editingItem by remember { mutableStateOf<com.todokanai.composepracticenew.ui.model.RemoteStorageItem?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.connectionFailed.collect {

@@ -2,8 +2,8 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.ProgressStateEntity
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toEntity
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
@@ -41,7 +41,7 @@ class FileListViewModel @Inject constructor(
     )
 
     val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
-        .map { UiState(it) }
+        .map { list -> UiState(list.map { FileHolderItem.from(it) }) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -90,9 +90,9 @@ class FileListViewModel @Inject constructor(
     fun onItemClick(selected: FileHolderItem, selectMode: Int) {
         viewModelScope.launch {
             when (selectMode) {
-                DEFAULT_MODE -> openFileUseCase.open(selected)
+                DEFAULT_MODE -> openFileUseCase.open(selected.toDomain())
                 MULTI_SELECT_MODE -> { }
-                else -> if (selected.isDirectory) openFileUseCase.open(selected)
+                else -> if (selected.isDirectory) openFileUseCase.open(selected.toDomain())
             }
         }
     }

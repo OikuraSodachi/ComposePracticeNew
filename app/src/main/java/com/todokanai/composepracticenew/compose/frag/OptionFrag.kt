@@ -29,15 +29,15 @@ import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.viewmodel.OptionViewModel
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
 
 @Composable
 fun OptionFrag(
     modifier: Modifier,
     activity: Activity,
     navigateToStorage: () -> Unit,
-    dirTree: List<FileEntry>,
-    onDirClick: (FileEntry) -> Unit,
+    dirTree: List<DirectoryItem>,
+    onDirClick: (DirectoryItem) -> Unit,
     viewModel: OptionViewModel = hiltViewModel(),
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()

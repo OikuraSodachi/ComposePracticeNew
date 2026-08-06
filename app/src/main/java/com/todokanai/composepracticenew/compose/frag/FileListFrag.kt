@@ -19,7 +19,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 

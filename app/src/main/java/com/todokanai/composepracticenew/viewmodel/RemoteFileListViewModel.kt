@@ -3,9 +3,9 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.fileexplorer.FileEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -26,7 +26,7 @@ class RemoteFileListViewModel @Inject constructor(
     )
 
     val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
-        .map { UiState(it) }
+        .map { list -> UiState(list.map { FileHolderItem.from(it) }) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -34,7 +34,8 @@ class RemoteFileListViewModel @Inject constructor(
         )
 
     /** 원격 경로 breadcrumb 목록. */
-    val dirTree: StateFlow<List<FileEntry>> = fileNavigatorUseCase.dirTree
+    val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
+        .map { list -> list.map { DirectoryItem.from(it) } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -42,7 +43,7 @@ class RemoteFileListViewModel @Inject constructor(
         )
 
     /** breadcrumb 항목 클릭 시 해당 경로로 이동한다. */
-    fun navigateToDir(entry: FileEntry) {
+    fun navigateToDir(entry: DirectoryItem) {
         viewModelScope.launch { fileNavigatorUseCase.setPath(entry.path) }
     }
 

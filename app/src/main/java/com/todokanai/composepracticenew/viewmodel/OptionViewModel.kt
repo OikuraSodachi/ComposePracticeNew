@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.model.StorageHolderItem
+import com.todokanai.composepracticenew.ui.model.StorageHolderItem
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
@@ -33,7 +33,7 @@ class OptionViewModel @Inject constructor(
         storageVolumeUseCase.storageList,
         sortModeUseCase.sortBy
     ) { storageList, sortMode ->
-        UiState(storageList, sortMode)
+        UiState(storageList.map { StorageHolderItem.from(it) }, sortMode)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),

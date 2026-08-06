@@ -4,8 +4,8 @@ import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
-import com.todokanai.composepracticenew.model.RemoteStorageItem
-import com.todokanai.composepracticenew.model.StorageHolderItem
+import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
+import com.todokanai.composepracticenew.ui.model.StorageHolderItem
 import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
@@ -52,7 +52,10 @@ class StorageViewModel @Inject constructor(
         storageVolumeUseCase.storageList,
         remoteStorageUseCase.getAll()
     ) { storageList, remoteList ->
-        UiState(storageList = storageList, remoteStorageList = remoteList)
+        UiState(
+            storageList = storageList.map { StorageHolderItem.from(it) },
+            remoteStorageList = remoteList.map { RemoteStorageItem.from(it) }
+        )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -76,14 +79,14 @@ class StorageViewModel @Inject constructor(
     /** 기존 원격 스토리지 접속 정보를 수정한다. */
     fun updateRemoteStorage(item: RemoteStorageItem) {
         viewModelScope.launch {
-            remoteStorageUseCase.update(item)
+            remoteStorageUseCase.update(item.toDomain())
         }
     }
 
     /** 원격 스토리지 접속 정보를 삭제한다. */
     fun deleteRemoteStorage(item: RemoteStorageItem) {
         viewModelScope.launch {
-            remoteStorageUseCase.delete(item)
+            remoteStorageUseCase.delete(item.toDomain())
         }
     }
 
@@ -92,7 +95,7 @@ class StorageViewModel @Inject constructor(
         viewModelScope.launch {
             _isConnecting.value = true
             try {
-                val connected = remoteFileNavigatorUseCase.setPath(item)
+                val connected = remoteFileNavigatorUseCase.setPath(item.toDomain())
                 if (connected) _connectionSucceeded.tryEmit(Unit) else _connectionFailed.tryEmit(Unit)
             } finally {
                 _isConnecting.value = false
