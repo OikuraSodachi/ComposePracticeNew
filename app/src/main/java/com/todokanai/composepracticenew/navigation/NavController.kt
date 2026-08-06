@@ -104,7 +104,7 @@ fun AppNavHost(
         }
         composable(NavDestinations.REMOTE_FILE_LIST) {
             BackHandler {
-                mViewModel.onBackPressed { navController.popBackStack() }
+                navController.popBackStack()
             }
 
             Column(modifier = Modifier) {
@@ -117,7 +117,9 @@ fun AppNavHost(
                     modifier = Modifier,
                     onSwitchToLocal = {
                         if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
-                            navController.navigate(NavDestinations.FILE_LIST)
+                            navController.navigate(NavDestinations.FILE_LIST) {
+                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                            }
                         }
                     }
                 )
