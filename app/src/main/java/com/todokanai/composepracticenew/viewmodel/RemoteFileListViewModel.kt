@@ -35,7 +35,7 @@ class RemoteFileListViewModel @Inject constructor(
 
     /** 원격 경로 breadcrumb 목록. */
     val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
-        .map { list -> list.map { DirectoryItem.from(it) } }
+        .map { list -> list.map { DirectoryItem(name = it.name, path = it.path) } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

@@ -23,7 +23,7 @@ class DirectoryViewModel @Inject constructor(
     )
 
     val uiState: StateFlow<UiState> = fileNavigatorUseCase.dirTree
-        .map { list -> UiState(list.map { DirectoryItem.from(it) }) }
+        .map { list -> UiState(list.map { DirectoryItem(name = it.name, path = it.path) }) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
