@@ -17,6 +17,7 @@ class FtpFileSystem(
 
     private val mutex = Mutex()
     private var connectedServer: String? = null
+    private var isLoggedIn = false
 
     /** FTP 서버에 연결하고 로그인한다. RemoteStorageItem 클릭 시 호출된다. */
     override suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean = mutex.withLock {
@@ -27,11 +28,13 @@ class FtpFileSystem(
                 if (client.isConnected) {
                     runCatching { client.logout() }
                     runCatching { client.disconnect() }
+                    isLoggedIn = false
                 }
                 client.connectTimeout = 10_000
                 client.soTimeout = 15_000
                 client.connect(server, port)
                 val loggedIn = client.login(userId, password)
+                isLoggedIn = loggedIn
                 if (loggedIn) {
                     client.enterLocalPassiveMode()
                     connectedServer = server
@@ -55,8 +58,8 @@ class FtpFileSystem(
     /** 연결된 FTPClient로 경로의 파일 목록을 반환한다. 미연결 또는 실패 시 빈 목록을 반환한다. */
     override suspend fun listFiles(path: String): List<FileEntry> = mutex.withLock {
         withContext(Dispatchers.IO) {
-            if (!client.isConnected) {
-                Log.w(TAG, "listFiles: 연결되지 않음 path=$path")
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "listFiles: 미연결 또는 미인증 path=$path")
                 return@withContext emptyList()
             }
             val ftpPath = extractFtpPath(path)
