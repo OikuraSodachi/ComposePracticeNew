@@ -48,7 +48,6 @@ class RemoteFileListViewModel @Inject constructor(
 
     /** 항목 클릭 시 디렉터리이면 해당 경로로 이동하고, 파일이면 아무 동작도 하지 않는다. */
     fun onItemClick(item: FileHolderItem) {
-        println("isDirectory: ${item.isDirectory}")
         if (item.isDirectory) {
             viewModelScope.launch {
                 fileNavigatorUseCase.setPath(item.path)

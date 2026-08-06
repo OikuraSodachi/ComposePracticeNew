@@ -87,9 +87,12 @@ class StorageViewModel @Inject constructor(
     fun setPath(item: RemoteStorageItem, onConnected: () -> Unit) {
         viewModelScope.launch {
             _isConnecting.value = true
-            val connected = remoteFileNavigatorUseCase.setPath(item)
-            _isConnecting.value = false
-            if (connected) onConnected() else _connectionFailed.tryEmit(Unit)
+            try {
+                val connected = remoteFileNavigatorUseCase.setPath(item)
+                if (connected) onConnected() else _connectionFailed.tryEmit(Unit)
+            } finally {
+                _isConnecting.value = false
+            }
         }
     }
 

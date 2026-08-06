@@ -49,7 +49,6 @@ fun AppNavHost(
         composable(NavDestinations.FILE_LIST) {
             val directoryViewModel: DirectoryViewModel = hiltViewModel()
             val dirUiState by directoryViewModel.uiState.collectAsStateWithLifecycle()
-            val progressFlow = remember { viewModel.progressMap }
             val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
             val isProgressActive = progressMap.isNotEmpty()
             var userDismissed by remember { mutableStateOf(false) }
@@ -101,7 +100,7 @@ fun AppNavHost(
             }
 
             LaunchedEffect(Unit) {
-                progressFlow.collect { map ->
+                viewModel.progressMap.collect { map ->
                     map.forEach { (actionKey, state) ->
                         viewModel.progressNoti(actionKey, state)
                     }

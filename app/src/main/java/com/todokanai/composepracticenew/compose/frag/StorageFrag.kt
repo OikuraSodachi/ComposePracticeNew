@@ -105,5 +105,4 @@ fun StorageFrag(
         }
     }
 
-    println("Recomposition: StorageFrag")
 }

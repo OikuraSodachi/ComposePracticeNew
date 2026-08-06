@@ -57,5 +57,4 @@ fun RemoteFileListFrag(
         )
     }
 
-    println("recomposition: RemoteFileListFrag")
 }
