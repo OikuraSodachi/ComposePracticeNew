@@ -3,12 +3,13 @@ package com.todokanai.composepracticenew.di
 import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
-import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
+import com.todokanai.composepracticenew.repository.FtpClientRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
+import com.todokanai.composepracticenew.repository.LocalFileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.ProgressTracker
@@ -41,10 +42,9 @@ abstract class RepositoryModule {
         @Provides @Singleton
         fun provideLocalFileNavigatorRepository(
             converter: DataConverter,
-            dsRepo: DataStoreRepository,
-            ftpFileSystem: FtpFileSystem
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(
-            converter, dsRepo, ftpFileSystem,
+            dsRepo: DataStoreRepository
+        ): FileNavigatorRepository = LocalFileExplorerRepositoryImpl(
+            converter, dsRepo,
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
@@ -52,7 +52,7 @@ abstract class RepositoryModule {
         fun provideRemoteFileNavigatorRepository(
             converter: DataConverter,
             dsRepo: DataStoreRepository,
-            ftpFileSystem: FtpFileSystem
+            ftpFileSystem: FtpClientRepository
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, ftpFileSystem)
     }
 }

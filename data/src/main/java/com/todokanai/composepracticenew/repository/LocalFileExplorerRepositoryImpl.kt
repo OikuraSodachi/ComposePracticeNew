@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.model.FileHolderItem
-import com.todokanai.composepracticenew.repository.FtpClientRepository
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
@@ -17,14 +16,11 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
 
-/** Holds and manages the active directory navigation state (path, breadcrumb, file list). */
-class FileExplorerRepositoryImpl(
+/** 로컬 파일 시스템만 탐색하는 FileNavigatorRepository 구현체. FTP 의존성이 없다. */
+class LocalFileExplorerRepositoryImpl(
     private val converter: DataConverter,
     private val dsRepo: DataStoreRepository,
-    private val ftpFileSystem: FtpClientRepository,
     private val initialPath: String? = null
 ) : StorageRepository(), FileNavigatorRepository {
 
@@ -45,53 +41,36 @@ class FileExplorerRepositoryImpl(
                 initialValue = emptyList()
             )
 
-    override fun refresh() {
-        _refreshTrigger.value = System.currentTimeMillis()
-    }
-
     init {
         initialPath?.let { navigateTo(it) }
     }
 
-    override fun getParent(path: String): String? {
-        if (!ftpFileSystem.isRemotePath(path)) return super.getParent(path)
-        val withoutScheme = path.removePrefix("ftp://")
-        return if (!withoutScheme.contains('/')) null
-               else "ftp://" + withoutScheme.substringBeforeLast('/')
+    override fun refresh() {
+        _refreshTrigger.value = System.currentTimeMillis()
     }
 
-    override suspend fun listFiles(path: String): List<FileEntry> {
-        val isRemote = ftpFileSystem.isRemotePath(path)
-        return if (isRemote) {
-            ftpFileSystem.listFiles(path)
-        } else {
-            File(path).listFiles()?.map { file ->
-                FileEntry(
-                    name = file.name,
-                    path = file.absolutePath,
-                    isDirectory = file.isDirectory,
-                    size = file.length(),
-                    lastModified = file.lastModified()
-                )
-            } ?: emptyList()
-        }
-    }
+    override suspend fun listFiles(path: String): List<FileEntry> =
+        File(path).listFiles()?.map { file ->
+            FileEntry(
+                name = file.name,
+                path = file.absolutePath,
+                isDirectory = file.isDirectory,
+                size = file.length(),
+                lastModified = file.lastModified()
+            )
+        } ?: emptyList()
 
     override fun getParentPath(path: String): String? = getParent(path)
 
-    override suspend fun navigate(path: String) {
-        if (ftpFileSystem.isRemotePath(path)) setRemotePath(path)
-        else setLocalPath(path)
-    }
+    override suspend fun navigate(path: String) = setLocalPath(path)
 
     override suspend fun setLocalPath(path: String) {
         if (File(path).listFiles() != null) navigateTo(path)
     }
 
-    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String): Boolean =
-        ftpFileSystem.connect(address, port, userId, password)
+    // stub — not yet implemented
+    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String): Boolean = false
 
-    override suspend fun setRemotePath(address: String) {
-        navigateTo("ftp://${address.removePrefix("ftp://")}")
-    }
+    // stub — not yet implemented
+    override suspend fun setRemotePath(path: String) {}
 }
