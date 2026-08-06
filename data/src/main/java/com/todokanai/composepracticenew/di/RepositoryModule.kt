@@ -3,7 +3,7 @@ package com.todokanai.composepracticenew.di
 import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
-import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
+import com.todokanai.composepracticenew.repository.FtpClientRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileActionRepository
@@ -42,7 +42,7 @@ abstract class RepositoryModule {
         fun provideLocalFileNavigatorRepository(
             converter: DataConverter,
             dsRepo: DataStoreRepository,
-            ftpFileSystem: FtpFileSystem
+            ftpFileSystem: FtpClientRepository
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(
             converter, dsRepo, ftpFileSystem,
             initialPath = Environment.getExternalStorageDirectory().absolutePath
@@ -52,7 +52,7 @@ abstract class RepositoryModule {
         fun provideRemoteFileNavigatorRepository(
             converter: DataConverter,
             dsRepo: DataStoreRepository,
-            ftpFileSystem: FtpFileSystem
+            ftpFileSystem: FtpClientRepository
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, ftpFileSystem)
     }
 }

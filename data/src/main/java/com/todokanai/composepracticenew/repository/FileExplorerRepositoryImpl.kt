@@ -2,8 +2,8 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
-import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.repository.FtpClientRepository
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
@@ -24,7 +24,7 @@ import javax.inject.Singleton
 class FileExplorerRepositoryImpl(
     private val converter: DataConverter,
     private val dsRepo: DataStoreRepository,
-    private val ftpFileSystem: FtpFileSystem,
+    private val ftpFileSystem: FtpClientRepository,
     private val initialPath: String? = null
 ) : StorageRepository(), FileNavigatorRepository {
 
