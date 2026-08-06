@@ -11,8 +11,13 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -30,6 +35,14 @@ class StorageViewModel @Inject constructor(
         val storageList: List<StorageHolderItem> = emptyList(),
         val remoteStorageList: List<RemoteStorageItem> = emptyList()
     )
+
+    private val _isConnecting = MutableStateFlow(false)
+    /** FTP 연결 진행 중 여부. */
+    val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
+
+    private val _connectionFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** FTP 연결 실패 이벤트. */
+    val connectionFailed: SharedFlow<Unit> = _connectionFailed.asSharedFlow()
 
     val uiState: StateFlow<UiState> = combine(
         storageVolumeUseCase.storageList,
@@ -70,10 +83,13 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. */
-    fun setPath(item: RemoteStorageItem) {
+    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 onConnected를 호출한다. */
+    fun setPath(item: RemoteStorageItem, onConnected: () -> Unit) {
         viewModelScope.launch {
-            remoteFileNavigatorUseCase.setPath(item)
+            _isConnecting.value = true
+            val connected = remoteFileNavigatorUseCase.setPath(item)
+            _isConnecting.value = false
+            if (connected) onConnected() else _connectionFailed.tryEmit(Unit)
         }
     }
 
