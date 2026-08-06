@@ -31,5 +31,5 @@ fun DirectoryHolder(
         )
     }
 
-    println("Recomposition: DirectoryHolder - ${pathName.name}")
+
 }

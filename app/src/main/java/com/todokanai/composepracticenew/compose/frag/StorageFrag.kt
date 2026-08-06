@@ -24,6 +24,7 @@ import com.todokanai.composepracticenew.compose.activity.MainActivity
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
+import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import java.io.File
 
@@ -39,7 +40,7 @@ fun StorageFrag(
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
     var showAddRemoteStorageDialog by remember { mutableStateOf(false) }
-    var editingItem by remember { mutableStateOf<com.todokanai.composepracticenew.ui.model.RemoteStorageItem?>(null) }
+    var editingItem by remember { mutableStateOf<RemoteStorageItem?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.connectionFailed.collect {
@@ -82,8 +83,7 @@ fun StorageFrag(
                 modifier = modifier
                     .fillMaxSize()
             ) {
-                items(uiState.value.storageList.size) {
-                    val storage = uiState.value.storageList[it]
+                items(uiState.value.storageList, key = { it.absolutePath }) { storage ->
                     StorageHolder(
                         modifier = Modifier
                             .clickable {
