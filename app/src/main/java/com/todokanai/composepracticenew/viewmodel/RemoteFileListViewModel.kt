@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.fileexplorer.FileEntry
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -32,12 +33,32 @@ class RemoteFileListViewModel @Inject constructor(
             initialValue = UiState()
         )
 
+    /** 원격 경로 breadcrumb 목록. */
+    val dirTree: StateFlow<List<FileEntry>> = fileNavigatorUseCase.dirTree
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    /** breadcrumb 항목 클릭 시 해당 경로로 이동한다. */
+    fun navigateToDir(entry: FileEntry) {
+        viewModelScope.launch { fileNavigatorUseCase.setPath(entry.path) }
+    }
+
     /** 항목 클릭 시 디렉터리이면 해당 경로로 이동하고, 파일이면 아무 동작도 하지 않는다. */
     fun onItemClick(item: FileHolderItem) {
         if (item.isDirectory) {
             viewModelScope.launch {
                 fileNavigatorUseCase.setPath(item.path)
             }
+        }
+    }
+
+    /** 상위 디렉터리로 이동한다. 루트이면 toStorageFrag를 호출한다. */
+    fun onBackPressed(toStorageFrag: () -> Unit) {
+        viewModelScope.launch {
+            fileNavigatorUseCase.navigateBack(toStorageFrag)
         }
     }
 }

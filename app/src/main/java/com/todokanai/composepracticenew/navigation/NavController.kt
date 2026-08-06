@@ -20,8 +20,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.compose.presets.dialog.ProgressDialog
+import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
+import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
 
 /** 앱 전체 navigation graph를 정의하고 각 destination을 composable에 연결한다. */
@@ -45,7 +47,8 @@ fun AppNavHost(
             )
         }
         composable(NavDestinations.FILE_LIST) {
-            val progressFlow = remember { viewModel.progressMap }
+            val directoryViewModel: DirectoryViewModel = hiltViewModel()
+            val dirUiState by directoryViewModel.uiState.collectAsStateWithLifecycle()
             val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
             val isProgressActive = progressMap.isNotEmpty()
             var userDismissed by remember { mutableStateOf(false) }
@@ -75,7 +78,9 @@ fun AppNavHost(
                 OptionFrag(
                     modifier = Modifier,
                     activity = activity,
-                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
+                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
+                    dirTree = dirUiState.dirTree,
+                    onDirClick = { directoryViewModel.updateCurrentPath(it) }
                 )
                 FileListFrag(
                     modifier = Modifier,
@@ -95,7 +100,7 @@ fun AppNavHost(
             }
 
             LaunchedEffect(Unit) {
-                progressFlow.collect { map ->
+                viewModel.progressMap.collect { map ->
                     map.forEach { (actionKey, state) ->
                         viewModel.progressNoti(actionKey, state)
                     }
@@ -103,15 +108,19 @@ fun AppNavHost(
             }
         }
         composable(NavDestinations.REMOTE_FILE_LIST) {
+            val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
+            val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
             BackHandler {
-                navController.popBackStack()
+                remoteViewModel.onBackPressed { navController.popBackStack() }
             }
 
             Column(modifier = Modifier) {
                 OptionFrag(
                     modifier = Modifier,
                     activity = activity,
-                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
+                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
+                    dirTree = remoteDirTree,
+                    onDirClick = { remoteViewModel.navigateToDir(it) }
                 )
                 RemoteFileListFrag(
                     modifier = Modifier,

@@ -28,19 +28,19 @@ import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 import com.todokanai.composepracticenew.viewmodel.OptionViewModel
+import com.todokanai.fileexplorer.FileEntry
 
 @Composable
 fun OptionFrag(
     modifier: Modifier,
     activity: Activity,
     navigateToStorage: () -> Unit,
+    dirTree: List<FileEntry>,
+    onDirClick: (FileEntry) -> Unit,
     viewModel: OptionViewModel = hiltViewModel(),
-    directoryViewModel: DirectoryViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-    val dirUiState = directoryViewModel.uiState.collectAsStateWithLifecycle()
 
     var showEditTextDialog by remember { mutableStateOf(false) }
     if (showEditTextDialog) {
@@ -106,11 +106,11 @@ fun OptionFrag(
                 .fillMaxWidth()
                 .height(30.dp)
         ) {
-            items(dirUiState.value.dirTree.size) {
-                val item = dirUiState.value.dirTree[it]
+            items(dirTree.size) {
+                val item = dirTree[it]
                 DirectoryHolder(
                     modifier = Modifier
-                        .clickable { directoryViewModel.updateCurrentPath(item) },
+                        .clickable { onDirClick(item) },
                     pathName = item
                 )
             }

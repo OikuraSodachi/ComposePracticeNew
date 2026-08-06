@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.repository
 
-import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
@@ -25,10 +24,10 @@ import javax.inject.Singleton
 class FileExplorerRepositoryImpl(
     private val converter: DataConverter,
     private val dsRepo: DataStoreRepository,
-    private val ftpFileSystem: FtpFileSystem
+    private val ftpFileSystem: FtpFileSystem,
+    private val initialPath: String? = null
 ) : StorageRepository(), FileNavigatorRepository {
 
-    private val defaultStorage = Environment.getExternalStorageDirectory()
     private val _refreshTrigger = MutableStateFlow(0L)
 
     @Suppress("OPT_IN_USAGE")
@@ -51,7 +50,7 @@ class FileExplorerRepositoryImpl(
     }
 
     init {
-        navigateTo(defaultStorage.absolutePath)
+        initialPath?.let { navigateTo(it) }
     }
 
     override fun getParent(path: String): String? =

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.di
 
+import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.ftp.FtpFileSystem
@@ -42,7 +43,10 @@ abstract class RepositoryModule {
             converter: DataConverter,
             dsRepo: DataStoreRepository,
             ftpFileSystem: FtpFileSystem
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, ftpFileSystem)
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(
+            converter, dsRepo, ftpFileSystem,
+            initialPath = Environment.getExternalStorageDirectory().absolutePath
+        )
 
         @Provides @Singleton @RemoteNavigator
         fun provideRemoteFileNavigatorRepository(
