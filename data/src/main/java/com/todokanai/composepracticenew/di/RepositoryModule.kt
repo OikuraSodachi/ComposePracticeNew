@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
+import com.todokanai.composepracticenew.repository.LocalFileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.ProgressTracker
@@ -41,10 +42,9 @@ abstract class RepositoryModule {
         @Provides @Singleton
         fun provideLocalFileNavigatorRepository(
             converter: DataConverter,
-            dsRepo: DataStoreRepository,
-            ftpFileSystem: FtpClientRepository
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(
-            converter, dsRepo, ftpFileSystem,
+            dsRepo: DataStoreRepository
+        ): FileNavigatorRepository = LocalFileExplorerRepositoryImpl(
+            converter, dsRepo,
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
