@@ -18,7 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
 /** 원격 스토리지 목록의 각 항목을 이름·주소·수정·삭제 버튼과 함께 표시하는 composable. */
 @Composable

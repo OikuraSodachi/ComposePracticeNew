@@ -14,7 +14,7 @@ import com.todokanai.composepracticenew.compose.dialog.InfoDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
 
 @Composable

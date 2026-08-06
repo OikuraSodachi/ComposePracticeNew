@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 
 

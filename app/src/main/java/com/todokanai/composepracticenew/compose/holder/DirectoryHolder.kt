@@ -10,12 +10,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
 
 @Composable
 fun DirectoryHolder(
     modifier: Modifier,
-    pathName: FileEntry
+    pathName: DirectoryItem
 ) {
     Row(
         modifier = modifier
@@ -31,5 +31,5 @@ fun DirectoryHolder(
         )
     }
 
-    println("Recomposition: DirectoryHolder - ${pathName.name}")
+
 }

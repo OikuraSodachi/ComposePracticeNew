@@ -15,7 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
 @Composable
 fun BottomButtons(

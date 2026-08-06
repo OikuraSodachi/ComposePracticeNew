@@ -12,7 +12,7 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
 import com.todokanai.composepracticenew.tools.MyNotification
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase

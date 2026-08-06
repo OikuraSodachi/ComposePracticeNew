@@ -21,7 +21,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
 /** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호)를 입력받아 추가하거나 수정하는 다이얼로그. */
 @Composable

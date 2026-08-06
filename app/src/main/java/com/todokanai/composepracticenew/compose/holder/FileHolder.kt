@@ -20,7 +20,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.core.net.toUri
 import java.io.File
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.data.R as DataR
 
 
