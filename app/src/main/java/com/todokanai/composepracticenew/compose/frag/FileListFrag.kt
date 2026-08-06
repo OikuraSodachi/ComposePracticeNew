@@ -14,7 +14,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.model.FileHolderItem
@@ -24,7 +26,8 @@ import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 @Composable
 fun FileListFrag(
     modifier: Modifier,
-    viewModel: FileListViewModel
+    onSwitchToRemote: () -> Unit = {},
+    viewModel: FileListViewModel = hiltViewModel()
 ) {
     var selectedList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
     var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
@@ -67,6 +70,12 @@ fun FileListFrag(
             onSelectModeChange = { selectMode = it },
             onClearSelection = { selectedList = emptyList() },
             selectedList = selectedList
+        )
+
+        StorageSwitchBar(
+            isRemote = false,
+            onSwitchToLocal = {},
+            onSwitchToRemote = onSwitchToRemote
         )
     }
 

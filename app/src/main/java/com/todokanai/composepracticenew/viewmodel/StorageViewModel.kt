@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import android.app.Activity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.StorageHolderItem
 import com.todokanai.composepracticenew.tools.independent.exit_td
@@ -21,7 +22,7 @@ import javax.inject.Inject
 class StorageViewModel @Inject constructor(
     private val storageVolumeUseCase: StorageVolumeUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
-    private val fileNavigatorUseCase: FileNavigatorUseCase
+    @RemoteNavigator private val remoteFileNavigatorUseCase: FileNavigatorUseCase
 ) : ViewModel() {
 
     /** 스토리지 선택 화면에 필요한 UI 상태를 담는 클래스. */
@@ -72,7 +73,7 @@ class StorageViewModel @Inject constructor(
     /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. */
     fun setPath(item: RemoteStorageItem) {
         viewModelScope.launch {
-            fileNavigatorUseCase.setPath(item)
+            remoteFileNavigatorUseCase.setPath(item)
         }
     }
 

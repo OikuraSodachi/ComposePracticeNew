@@ -37,6 +37,8 @@
 
     <!-- File list -->
     <string name="empty_directory">Empty Directory</string>
+    <string name="tab_local">로컬</string>
+    <string name="tab_remote">원격</string>
 
     <!-- Progress dialog -->
     <string name="progress_dialog_title">작업 중&#8230;</string>

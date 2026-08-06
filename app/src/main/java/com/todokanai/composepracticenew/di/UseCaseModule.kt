@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
+import com.todokanai.composepracticenew.di.RemoteNavigator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -43,6 +44,10 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideFileNavigatorUseCase(nav: FileNavigatorRepository) =
+        FileNavigatorUseCase(nav)
+
+    @Provides @Singleton @RemoteNavigator
+    fun provideRemoteFileNavigatorUseCase(@RemoteNavigator nav: FileNavigatorRepository) =
         FileNavigatorUseCase(nav)
 
     @Provides @Singleton

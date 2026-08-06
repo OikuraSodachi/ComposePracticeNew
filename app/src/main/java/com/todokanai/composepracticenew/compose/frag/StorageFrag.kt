@@ -26,6 +26,7 @@ fun StorageFrag(
     modifier: Modifier,
     activity: MainActivity,
     exitStorageFrag: () -> Unit,
+    exitToRemoteFileFrag: () -> Unit,
     setInitialPath: (File) -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {
@@ -76,7 +77,7 @@ fun StorageFrag(
                 RemoteStorageHolder(
                     modifier = Modifier.clickable {
                         viewModel.setPath(remote)
-                        exitStorageFrag()
+                        exitToRemoteFileFrag()
                     },
                     item = remote,
                     onEdit = { editingItem = remote },

@@ -16,6 +16,8 @@ import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.compose.activity.MainActivity
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.OptionFrag
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.compose.presets.dialog.ProgressDialog
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
@@ -26,10 +28,11 @@ import com.todokanai.composepracticenew.viewmodel.MainViewModel
 @Composable
 fun AppNavHost(
     activity: MainActivity,
-    viewModel: FileListViewModel,
     mViewModel: MainViewModel
 ) {
     val navController = rememberNavController()
+    // activity-scoped: handleProgressIntent(MainActivity)와 동일 인스턴스를 공유하기 위해 activity를 owner로 지정
+    val viewModel: FileListViewModel = hiltViewModel(viewModelStoreOwner = activity)
 
     NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
         composable(NavDestinations.STORAGE) {
@@ -37,6 +40,7 @@ fun AppNavHost(
                 modifier = Modifier,
                 activity = activity,
                 exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
+                exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
                 setInitialPath = { viewModel.updateCurrentPath(it) }
             )
         }
@@ -73,7 +77,14 @@ fun AppNavHost(
                     activity = activity,
                     navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
                 )
-                FileListFrag(modifier = Modifier, viewModel = viewModel)
+                FileListFrag(
+                    modifier = Modifier,
+                    onSwitchToRemote = {
+                        navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
+                            popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                        }
+                    }
+                )
             }
 
             if (showProgress) {
@@ -89,6 +100,29 @@ fun AppNavHost(
                         viewModel.progressNoti(actionKey, state)
                     }
                 }
+            }
+        }
+        composable(NavDestinations.REMOTE_FILE_LIST) {
+            BackHandler {
+                navController.popBackStack()
+            }
+
+            Column(modifier = Modifier) {
+                OptionFrag(
+                    modifier = Modifier,
+                    activity = activity,
+                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
+                )
+                RemoteFileListFrag(
+                    modifier = Modifier,
+                    onSwitchToLocal = {
+                        if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
+                            navController.navigate(NavDestinations.FILE_LIST) {
+                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                            }
+                        }
+                    }
+                )
             }
         }
     }

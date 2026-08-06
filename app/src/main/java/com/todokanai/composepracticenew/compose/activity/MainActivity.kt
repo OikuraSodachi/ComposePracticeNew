@@ -31,7 +31,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             HomeScreen(
                 activity = this,
-                viewModel = fViewModel,
                 mViewModel = mViewModel
             )
         }
@@ -61,7 +60,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun HomeScreen(
     activity: MainActivity,
-    viewModel: FileListViewModel,
     mViewModel: MainViewModel
 ) {
     ComposePracticeTheme {
@@ -71,7 +69,6 @@ private fun HomeScreen(
         ) {
             AppNavHost(
                 activity = activity,
-                viewModel = viewModel,
                 mViewModel = mViewModel
             )
         }
