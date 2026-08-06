@@ -53,9 +53,12 @@ class FileExplorerRepositoryImpl(
         initialPath?.let { navigateTo(it) }
     }
 
-    override fun getParent(path: String): String? =
-        if (ftpFileSystem.isRemotePath(path)) ftpFileSystem.getParent(path)
-        else super.getParent(path)
+    override fun getParent(path: String): String? {
+        if (!ftpFileSystem.isRemotePath(path)) return super.getParent(path)
+        val withoutScheme = path.removePrefix("ftp://")
+        return if (!withoutScheme.contains('/')) null
+               else "ftp://" + withoutScheme.substringBeforeLast('/')
+    }
 
     override suspend fun listFiles(path: String): List<FileEntry> {
         val isRemote = ftpFileSystem.isRemotePath(path)
@@ -88,7 +91,7 @@ class FileExplorerRepositoryImpl(
     override suspend fun connectRemote(address: String, port: Int, userId: String, password: String): Boolean =
         ftpFileSystem.connect(address, port, userId, password)
 
-    override suspend fun setRemotePath(path: String) {
-        navigateTo(path)
+    override suspend fun setRemotePath(address: String) {
+        navigateTo("ftp://${address.removePrefix("ftp://")}")
     }
 }

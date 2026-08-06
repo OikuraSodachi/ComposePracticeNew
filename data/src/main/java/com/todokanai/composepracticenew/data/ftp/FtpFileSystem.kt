@@ -44,22 +44,8 @@ class FtpFileSystem(
         }.getOrDefault(false)
     }
 
-    /** 서버 주소로부터 FTP 루트 경로 문자열을 생성한다. */
-    override fun buildRootPath(address: String): String =
-        "ftp://${address.removePrefix("ftp://")}"
-
     /** path가 FTP 경로인지 여부를 반환한다. */
     override fun isRemotePath(path: String): Boolean = path.startsWith("ftp://")
-
-    /**
-     * FTP 경로의 부모 경로를 반환한다.
-     * 서버 루트(ftp://server)에서는 null을 반환한다.
-     */
-    override fun getParent(path: String): String? {
-        val withoutScheme = path.removePrefix("ftp://")
-        if (!withoutScheme.contains('/')) return null
-        return "ftp://" + withoutScheme.substringBeforeLast('/')
-    }
 
     /** 연결된 FTPClient로 경로의 파일 목록을 반환한다. 미연결 또는 실패 시 빈 목록을 반환한다. */
     override suspend fun listFiles(path: String): List<FileEntry> = withContext(Dispatchers.IO) {

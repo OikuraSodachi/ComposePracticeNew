@@ -7,6 +7,4 @@ interface FtpClientRepository {
     suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean
     suspend fun listFiles(path: String): List<FileEntry>
     fun isRemotePath(path: String): Boolean
-    fun getParent(path: String): String?
-    fun buildRootPath(address: String): String
 }
