@@ -47,6 +47,12 @@ fun StorageFrag(
         }
     }
 
+    LaunchedEffect(Unit) {
+        viewModel.connectionSucceeded.collect {
+            exitToRemoteFileFrag()
+        }
+    }
+
     if (showAddRemoteStorageDialog) {
         AddRemoteStorageDialog(
             onConfirm = { name, address, port, id, password -> viewModel.addRemoteStorage(name, address, port, id, password) },
@@ -90,7 +96,7 @@ fun StorageFrag(
                 items(uiState.value.remoteStorageList, key = { it.id }) { remote ->
                     RemoteStorageHolder(
                         modifier = Modifier.clickable {
-                            viewModel.setPath(remote) { exitToRemoteFileFrag() }
+                            viewModel.setPath(remote)
                         },
                         item = remote,
                         onEdit = { editingItem = remote },

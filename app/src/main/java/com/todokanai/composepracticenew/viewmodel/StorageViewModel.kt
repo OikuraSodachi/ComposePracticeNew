@@ -44,6 +44,10 @@ class StorageViewModel @Inject constructor(
     /** FTP 연결 실패 이벤트. */
     val connectionFailed: SharedFlow<Unit> = _connectionFailed.asSharedFlow()
 
+    private val _connectionSucceeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** FTP 연결 성공 이벤트. */
+    val connectionSucceeded: SharedFlow<Unit> = _connectionSucceeded.asSharedFlow()
+
     val uiState: StateFlow<UiState> = combine(
         storageVolumeUseCase.storageList,
         remoteStorageUseCase.getAll()
@@ -83,13 +87,13 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 onConnected를 호출한다. */
-    fun setPath(item: RemoteStorageItem, onConnected: () -> Unit) {
+    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 connectionSucceeded를 emit한다. */
+    fun setPath(item: RemoteStorageItem) {
         viewModelScope.launch {
             _isConnecting.value = true
             try {
                 val connected = remoteFileNavigatorUseCase.setPath(item)
-                if (connected) onConnected() else _connectionFailed.tryEmit(Unit)
+                if (connected) _connectionSucceeded.tryEmit(Unit) else _connectionFailed.tryEmit(Unit)
             } finally {
                 _isConnecting.value = false
             }
