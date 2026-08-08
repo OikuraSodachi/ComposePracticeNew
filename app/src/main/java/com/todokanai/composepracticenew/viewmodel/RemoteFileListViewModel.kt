@@ -62,4 +62,19 @@ class RemoteFileListViewModel @Inject constructor(
             fileNavigatorUseCase.navigateBack(toStorageFrag)
         }
     }
+
+    /** item의 원격 파일을 로컬 다운로드 경로로 저장한다. */
+    fun onDownload(item: FileHolderItem) {} // stub — not yet implemented
+
+    /** localPath의 파일을 remotePath 디렉토리에 업로드한다. */
+    fun onUpload(localPath: String, remotePath: String) {} // stub — not yet implemented
+
+    /** item을 newName으로 이름 변경한다. */
+    fun onRename(item: FileHolderItem, newName: String) {} // stub — not yet implemented
+
+    /** item을 삭제한다. */
+    fun onDelete(item: FileHolderItem) {} // stub — not yet implemented
+
+    /** remotePath 아래에 dirName 이름의 새 디렉토리를 생성한다. */
+    fun onMakeDirectory(remotePath: String, dirName: String) {} // stub — not yet implemented
 }

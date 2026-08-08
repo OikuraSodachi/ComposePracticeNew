@@ -31,8 +31,8 @@ class FtpFileSystem(
                     isLoggedIn = false
                 }
                 client.connectTimeout = 10_000
-                client.soTimeout = 15_000
                 client.connect(server, port)
+                client.soTimeout = 15_000
                 val loggedIn = client.login(userId, password)
                 isLoggedIn = loggedIn
                 if (loggedIn) {

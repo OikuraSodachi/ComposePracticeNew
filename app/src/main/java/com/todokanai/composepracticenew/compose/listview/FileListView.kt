@@ -22,7 +22,7 @@ fun FileListView(
     fileHolderItemList: List<FileHolderItem>,
     selectMode: Int,
     onItemClick: (FileHolderItem) -> Unit,
-    onItemLongClick: () -> Unit,
+    onItemLongClick: (FileHolderItem) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit
@@ -57,7 +57,7 @@ fun FileListView(
                                 clearList()
                                 isSelected = true
                                 addToList(fileHolderItem)
-                                onItemLongClick()
+                                onItemLongClick(fileHolderItem)
                             }
                         }
                     ),
