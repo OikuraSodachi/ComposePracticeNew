@@ -1,39 +1,37 @@
 package com.todokanai.composepracticenew.compose.holder
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.Dimension
-import androidx.compose.ui.res.painterResource
 import androidx.core.net.toUri
-import java.io.File
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import java.io.File
 import com.todokanai.composepracticenew.data.R as DataR
 
-
-/** modifier.background 처리를 FileListView로 옮길것 ( FileHolder에서 myobjects.Constants 의존성 제거하기 ) */
+/** 파일 목록의 개별 항목을 표시하는 컴포저블. modifier.background 처리는 FileListView에서 담당 예정. */
 @Composable
 fun FileHolder(
     modifier: Modifier,
     file: FileHolderItem,
-    isSelected:Boolean
+    isSelected: Boolean
 ) {
-
-
-
     val extension = file.name.substringAfterLast('.', "")
     val icon = when {
         file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)
@@ -41,23 +39,15 @@ fun FileHolder(
         else -> painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
     }
 
-    ConstraintLayout(
+    Row(
         modifier = modifier
-//            .background(if (isSelected && selectMode.value == Constants.MULTI_SELECT_MODE) Color.LightGray else Color.Transparent)
             .background(if (isSelected) Color.LightGray else Color.Transparent)
             .fillMaxWidth()
-            .height(60.dp)
+            .height(60.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        val (fileImage) = createRefs()
-        val (fileName) = createRefs()
-        val (fileDate) = createRefs()
-        val (fileSize) = createRefs()
-
         ImageHolder(
             modifier = Modifier
-                .constrainAs(fileImage) {
-                    start.linkTo(parent.start)
-                }
                 .width(50.dp)
                 .fillMaxHeight()
                 .padding(5.dp),
@@ -66,52 +56,38 @@ fun FileHolder(
             icon = icon
         )
 
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = file.name,
+                fontSize = 18.sp,
+                maxLines = 1,
+                fontWeight = FontWeight.Bold,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 4.dp, top = 4.dp, end = 4.dp)
+            )
+            Text(
+                text = file.lastModified,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, end = 4.dp)
+            )
+        }
+
         Text(
-            file.size,
+            text = file.size,
             fontSize = 15.sp,
             maxLines = 1,
             modifier = Modifier
-                .constrainAs(fileSize) {
-                    end.linkTo(parent.end)
-                    bottom.linkTo(parent.bottom)
-                }
-                .wrapContentWidth()
-                .padding(4.dp)
-        )
-
-        Text(
-            file.name,
-            fontSize = 18.sp,
-            maxLines = 1,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier
-                .constrainAs(fileName) {
-                    start.linkTo(fileImage.end)
-                    end.linkTo(fileSize.start)
-                    top.linkTo(parent.top)
-                    width = Dimension.fillToConstraints
-                }
-                .height(30.dp)
-                .padding(4.dp)
-        )
-
-        Text(
-            file.lastModified,
-            fontSize = 15.sp,
-            maxLines = 1,
-            modifier = Modifier
-                .constrainAs(fileDate) {
-                    start.linkTo(fileImage.end)
-                    end.linkTo(fileSize.start)
-                    bottom.linkTo(parent.bottom)
-                    top.linkTo(fileName.bottom)
-                    width = Dimension.fillToConstraints
-                    height = Dimension.fillToConstraints
-                }
+                .align(Alignment.Bottom)
                 .padding(4.dp)
         )
     }
-
 
     println("Recomposition: FileHolder - ${file.name}")
 }
