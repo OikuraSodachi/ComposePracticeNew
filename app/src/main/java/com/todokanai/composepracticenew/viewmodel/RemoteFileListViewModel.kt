@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** 원격 파일 목록 화면의 UI 상태와 네비게이션을 관리하는 ViewModel. 파일 조작 기능은 제공하지 않는다. */
+/** 원격 파일 목록 화면의 UI 상태, 네비게이션, 파일 조작(다운로드·업로드·이름변경·삭제·새폴더)을 관리하는 ViewModel. */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase
@@ -62,4 +62,19 @@ class RemoteFileListViewModel @Inject constructor(
             fileNavigatorUseCase.navigateBack(toStorageFrag)
         }
     }
+
+    /** item의 원격 파일을 로컬 다운로드 경로로 저장한다. */
+    fun onDownload(item: FileHolderItem) {} // stub — not yet implemented
+
+    /** localPath의 파일을 현재 원격 경로에 업로드한다. */
+    fun onUpload(localPath: String) {} // stub — not yet implemented
+
+    /** item을 newName으로 이름 변경한다. */
+    fun onRename(item: FileHolderItem, newName: String) {} // stub — not yet implemented
+
+    /** item을 삭제한다. */
+    fun onDelete(item: FileHolderItem) {} // stub — not yet implemented
+
+    /** 현재 원격 경로 아래에 dirName 이름의 새 디렉토리를 생성한다. */
+    fun onMakeDirectory(dirName: String) {} // stub — not yet implemented
 }

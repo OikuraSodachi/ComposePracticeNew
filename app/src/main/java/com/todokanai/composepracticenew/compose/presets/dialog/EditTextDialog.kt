@@ -16,6 +16,7 @@ fun EditTextDialog(
     modifier: Modifier,
     title: String,
     defaultText:String,
+    initialText: String = "",
     cancelText: String? = null,
     confirmText: String? = null,
     onConfirm: (String) -> Unit,
@@ -23,7 +24,7 @@ fun EditTextDialog(
 ) {
     val resolvedCancelText = cancelText ?: stringResource(R.string.btn_cancel)
     val resolvedConfirmText = confirmText ?: stringResource(R.string.btn_confirm)
-    var text by remember { mutableStateOf("") }
+    var text by remember { mutableStateOf(initialText) }
     AlertDialog(
         modifier = modifier,
         onDismissRequest = onCancel,
@@ -42,7 +43,8 @@ fun EditTextDialog(
                 onClick = {
                     onConfirm(text)
                     onCancel()
-                }
+                },
+                enabled = text.isNotBlank()
             ) {
                 Text(text = resolvedConfirmText)
             }
