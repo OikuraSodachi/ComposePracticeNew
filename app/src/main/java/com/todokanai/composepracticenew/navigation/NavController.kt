@@ -5,8 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -19,6 +22,8 @@ import com.todokanai.composepracticenew.compose.frag.OptionFrag
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
+import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.compose.presets.dialog.ProgressDialog
 import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
@@ -35,6 +40,15 @@ fun AppNavHost(
     val navController = rememberNavController()
     // activity-scoped: handleProgressIntent(MainActivity)와 동일 인스턴스를 공유하기 위해 activity를 owner로 지정
     val viewModel: FileListViewModel = hiltViewModel(viewModelStoreOwner = activity)
+
+    var localSelectMode by rememberSaveable { mutableStateOf(Constants.DEFAULT_MODE) }
+    val localSelectedList = rememberSaveable(
+        saver = listSaver(save = { it.toList() }, restore = { mutableStateListOf(*it.toTypedArray()) })
+    ) { mutableStateListOf<FileHolderItem>() }
+    var remoteSelectMode by rememberSaveable { mutableStateOf(Constants.DEFAULT_MODE) }
+    val remoteSelectedList = rememberSaveable(
+        saver = listSaver(save = { it.toList() }, restore = { mutableStateListOf(*it.toTypedArray()) })
+    ) { mutableStateListOf<FileHolderItem>() }
 
     NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
         composable(NavDestinations.STORAGE) {
@@ -84,6 +98,12 @@ fun AppNavHost(
                 )
                 FileListFrag(
                     modifier = Modifier,
+                    selectMode = localSelectMode,
+                    selectedList = localSelectedList,
+                    onSelectModeChange = { localSelectMode = it },
+                    addToList = { localSelectedList.add(it) },
+                    removeFromList = { localSelectedList.remove(it) },
+                    clearList = { localSelectedList.clear() },
                     onSwitchToRemote = {
                         navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                             popUpTo(NavDestinations.STORAGE) { inclusive = false }
@@ -124,6 +144,12 @@ fun AppNavHost(
                 )
                 RemoteFileListFrag(
                     modifier = Modifier,
+                    selectMode = remoteSelectMode,
+                    selectedList = remoteSelectedList,
+                    onSelectModeChange = { remoteSelectMode = it },
+                    addToList = { remoteSelectedList.add(it) },
+                    removeFromList = { remoteSelectedList.remove(it) },
+                    clearList = { remoteSelectedList.clear() },
                     onSwitchToLocal = {
                         if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                             navController.navigate(NavDestinations.FILE_LIST) {

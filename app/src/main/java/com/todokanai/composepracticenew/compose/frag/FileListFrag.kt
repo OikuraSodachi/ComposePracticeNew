@@ -7,10 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,16 +22,20 @@ import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 @Composable
 fun FileListFrag(
     modifier: Modifier,
+    selectMode: Int,
+    selectedList: List<FileHolderItem>,
+    onSelectModeChange: (Int) -> Unit,
+    addToList: (FileHolderItem) -> Unit,
+    removeFromList: (FileHolderItem) -> Unit,
+    clearList: () -> Unit,
     onSwitchToRemote: () -> Unit = {},
     viewModel: FileListViewModel = hiltViewModel()
 ) {
-    var selectedList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
-    var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
     BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
-        selectMode = Constants.DEFAULT_MODE
-        selectedList = emptyList()
+        onSelectModeChange(Constants.DEFAULT_MODE)
+        clearList()
     }
 
     Column(
@@ -57,18 +57,18 @@ fun FileListFrag(
                 fileHolderItemList = uiState.value.fileHolderItemList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
-                onItemLongClick = { selectMode = Constants.MULTI_SELECT_MODE },
-                addToList = { selectedList = selectedList + it },
-                removeFromList = { selectedList = selectedList - it },
-                clearList = { selectedList = emptyList() }
+                onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
+                addToList = addToList,
+                removeFromList = removeFromList,
+                clearList = clearList
             )
         }
 
         BottomButtonListView(
             modifier = Modifier,
             selectMode = selectMode,
-            onSelectModeChange = { selectMode = it },
-            onClearSelection = { selectedList = emptyList() },
+            onSelectModeChange = onSelectModeChange,
+            onClearSelection = clearList,
             selectedList = selectedList
         )
 

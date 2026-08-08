@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.compose.frag
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,43 +35,23 @@ import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 @Composable
 fun RemoteFileListFrag(
     modifier: Modifier,
+    selectMode: Int,
+    selectedList: List<FileHolderItem>,
+    onSelectModeChange: (Int) -> Unit,
+    addToList: (FileHolderItem) -> Unit,
+    removeFromList: (FileHolderItem) -> Unit,
+    clearList: () -> Unit,
     onSwitchToLocal: () -> Unit = {},
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
-    var contextItem by remember { mutableStateOf<FileHolderItem?>(null) }
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
     var newFolderInput by remember { mutableStateOf<String?>(null) }
 
-    // 항목 길게 누르기 컨텍스트 메뉴
-    contextItem?.let { item ->
-        AlertDialog(
-            onDismissRequest = { contextItem = null },
-            title = { Text(item.name) },
-            text = {
-                Column {
-                    if (!item.isDirectory) {
-                        TextButton(onClick = {
-                            viewModel.onDownload(item)
-                            contextItem = null
-                        }) { Text("다운로드") }
-                    }
-                    TextButton(onClick = {
-                        renameTarget = item
-                        contextItem = null
-                    }) { Text("이름 변경") }
-                    TextButton(onClick = {
-                        viewModel.onDelete(item)
-                        contextItem = null
-                    }) { Text("삭제") }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { contextItem = null }) { Text("취소") }
-            }
-        )
+    BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
+        onSelectModeChange(Constants.DEFAULT_MODE)
+        clearList()
     }
 
     // 이름 변경 다이얼로그
@@ -126,27 +107,61 @@ fun RemoteFileListFrag(
             FileListView(
                 modifier = Modifier.weight(1f),
                 fileHolderItemList = uiState.value.fileHolderItemList,
-                selectMode = Constants.DEFAULT_MODE,
+                selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
-                onItemLongClick = { contextItem = it },
-                addToList = {},
-                removeFromList = {},
-                clearList = {}
+                onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
+                addToList = addToList,
+                removeFromList = removeFromList,
+                clearList = clearList
             )
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(onClick = { viewModel.onUpload("") }) {
-                Text("업로드")
+        when (selectMode) {
+            Constants.DEFAULT_MODE -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { viewModel.onUpload("") }) {
+                    Text("업로드")
+                }
+                TextButton(onClick = { newFolderInput = "" }) {
+                    Text("새 폴더")
+                }
             }
-            TextButton(onClick = { newFolderInput = "" }) {
-                Text("새 폴더")
+            Constants.MULTI_SELECT_MODE -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = {
+                    selectedList.forEach { viewModel.onDownload(it) }
+                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    clearList()
+                }) {
+                    Text("다운로드")
+                }
+                TextButton(onClick = {
+                    selectedList.forEach { viewModel.onDelete(it) }
+                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    clearList()
+                }) {
+                    Text("삭제")
+                }
+                TextButton(
+                    enabled = selectedList.size == 1,
+                    onClick = {
+                        renameTarget = selectedList.first()
+                        onSelectModeChange(Constants.DEFAULT_MODE)
+                        clearList()
+                    }
+                ) {
+                    Text("이름 변경")
+                }
             }
         }
 
