@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
@@ -41,9 +42,7 @@ fun RemoteFileListFrag(
 
     var contextItem by remember { mutableStateOf<FileHolderItem?>(null) }
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
-    var showNewFolderDialog by remember { mutableStateOf(false) }
-    var renameInput by remember { mutableStateOf("") }
-    var newFolderInput by remember { mutableStateOf("") }
+    var newFolderInput by remember { mutableStateOf<String?>(null) }
 
     val currentPath = dirTree.value.lastOrNull()?.path ?: ""
 
@@ -62,7 +61,6 @@ fun RemoteFileListFrag(
                     }
                     TextButton(onClick = {
                         renameTarget = item
-                        renameInput = item.name
                         contextItem = null
                     }) { Text("이름 변경") }
                     TextButton(onClick = {
@@ -80,51 +78,40 @@ fun RemoteFileListFrag(
 
     // 이름 변경 다이얼로그
     renameTarget?.let { target ->
-        AlertDialog(
-            onDismissRequest = { renameTarget = null },
-            title = { Text("이름 변경") },
-            text = {
-                OutlinedTextField(
-                    value = renameInput,
-                    onValueChange = { renameInput = it },
-                    singleLine = true,
-                    label = { Text("새 이름") }
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.onRename(target, renameInput)
-                    renameTarget = null
-                }) { Text("확인") }
-            },
-            dismissButton = {
-                TextButton(onClick = { renameTarget = null }) { Text("취소") }
-            }
+        EditTextDialog(
+            modifier = Modifier,
+            title = "이름 변경",
+            defaultText = target.name,
+            initialText = target.name,
+            onConfirm = { newName -> viewModel.onRename(target, newName) },
+            onCancel = { renameTarget = null }
         )
     }
 
     // 새 폴더 다이얼로그
-    if (showNewFolderDialog) {
+    newFolderInput?.let { folderName ->
         AlertDialog(
-            onDismissRequest = { showNewFolderDialog = false },
+            onDismissRequest = { newFolderInput = null },
             title = { Text("새 폴더") },
             text = {
                 OutlinedTextField(
-                    value = newFolderInput,
+                    value = folderName,
                     onValueChange = { newFolderInput = it },
                     singleLine = true,
                     label = { Text("폴더 이름") }
                 )
             },
             confirmButton = {
-                TextButton(onClick = {
-                    viewModel.onMakeDirectory(currentPath, newFolderInput)
-                    newFolderInput = ""
-                    showNewFolderDialog = false
-                }) { Text("확인") }
+                TextButton(
+                    onClick = {
+                        viewModel.onMakeDirectory(currentPath, folderName)
+                        newFolderInput = null
+                    },
+                    enabled = folderName.isNotBlank()
+                ) { Text("확인") }
             },
             dismissButton = {
-                TextButton(onClick = { showNewFolderDialog = false }) { Text("취소") }
+                TextButton(onClick = { newFolderInput = null }) { Text("취소") }
             }
         )
     }
@@ -161,10 +148,7 @@ fun RemoteFileListFrag(
             TextButton(onClick = { viewModel.onUpload("", currentPath) }) {
                 Text("업로드")
             }
-            TextButton(onClick = {
-                newFolderInput = ""
-                showNewFolderDialog = true
-            }) {
+            TextButton(onClick = { newFolderInput = "" }) {
                 Text("새 폴더")
             }
         }
