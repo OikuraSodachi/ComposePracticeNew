@@ -5,8 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -38,10 +41,14 @@ fun AppNavHost(
     // activity-scoped: handleProgressIntent(MainActivity)와 동일 인스턴스를 공유하기 위해 activity를 owner로 지정
     val viewModel: FileListViewModel = hiltViewModel(viewModelStoreOwner = activity)
 
-    var localSelectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
-    var localSelectedList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
-    var remoteSelectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
-    var remoteSelectedList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
+    var localSelectMode by rememberSaveable { mutableStateOf(Constants.DEFAULT_MODE) }
+    val localSelectedList = rememberSaveable(
+        saver = listSaver(save = { it.toList() }, restore = { mutableStateListOf(*it.toTypedArray()) })
+    ) { mutableStateListOf<FileHolderItem>() }
+    var remoteSelectMode by rememberSaveable { mutableStateOf(Constants.DEFAULT_MODE) }
+    val remoteSelectedList = rememberSaveable(
+        saver = listSaver(save = { it.toList() }, restore = { mutableStateListOf(*it.toTypedArray()) })
+    ) { mutableStateListOf<FileHolderItem>() }
 
     NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
         composable(NavDestinations.STORAGE) {
@@ -94,7 +101,9 @@ fun AppNavHost(
                     selectMode = localSelectMode,
                     selectedList = localSelectedList,
                     onSelectModeChange = { localSelectMode = it },
-                    onSelectedListChange = { localSelectedList = it },
+                    addToList = { localSelectedList.add(it) },
+                    removeFromList = { localSelectedList.remove(it) },
+                    clearList = { localSelectedList.clear() },
                     onSwitchToRemote = {
                         navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                             popUpTo(NavDestinations.STORAGE) { inclusive = false }
@@ -138,7 +147,9 @@ fun AppNavHost(
                     selectMode = remoteSelectMode,
                     selectedList = remoteSelectedList,
                     onSelectModeChange = { remoteSelectMode = it },
-                    onSelectedListChange = { remoteSelectedList = it },
+                    addToList = { remoteSelectedList.add(it) },
+                    removeFromList = { remoteSelectedList.remove(it) },
+                    clearList = { remoteSelectedList.clear() },
                     onSwitchToLocal = {
                         if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                             navController.navigate(NavDestinations.FILE_LIST) {

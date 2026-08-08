@@ -1,8 +1,11 @@
 package com.todokanai.composepracticenew.ui.model
 
+import android.os.Parcelable
 import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolderItem
+import kotlinx.parcelize.Parcelize
 
 /** 파일 목록 UI 표시용 앱 레이어 모델. domain 모듈의 FileHolderItem을 앱 레이어에서 격리한다. */
+@Parcelize
 data class FileHolderItem(
     val path: String,
     val isDirectory: Boolean,
@@ -10,7 +13,7 @@ data class FileHolderItem(
     val size: String,
     val lastModified: String,
     val sizeBytes: Long = 0L
-) {
+) : Parcelable {
     companion object {
         /** domain 모듈의 FileHolderItem을 앱 레이어 모델로 변환한다. */
         fun from(domain: DomainFileHolderItem) = FileHolderItem(

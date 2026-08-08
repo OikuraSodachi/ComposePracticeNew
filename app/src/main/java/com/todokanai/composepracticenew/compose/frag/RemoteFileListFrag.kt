@@ -38,7 +38,9 @@ fun RemoteFileListFrag(
     selectMode: Int,
     selectedList: List<FileHolderItem>,
     onSelectModeChange: (Int) -> Unit,
-    onSelectedListChange: (List<FileHolderItem>) -> Unit,
+    addToList: (FileHolderItem) -> Unit,
+    removeFromList: (FileHolderItem) -> Unit,
+    clearList: () -> Unit,
     onSwitchToLocal: () -> Unit = {},
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
@@ -49,7 +51,7 @@ fun RemoteFileListFrag(
 
     BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
         onSelectModeChange(Constants.DEFAULT_MODE)
-        onSelectedListChange(emptyList())
+        clearList()
     }
 
     // 이름 변경 다이얼로그
@@ -108,9 +110,9 @@ fun RemoteFileListFrag(
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
                 onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
-                addToList = { onSelectedListChange(selectedList + it) },
-                removeFromList = { onSelectedListChange(selectedList - it) },
-                clearList = { onSelectedListChange(emptyList()) }
+                addToList = addToList,
+                removeFromList = removeFromList,
+                clearList = clearList
             )
         }
 
@@ -139,14 +141,14 @@ fun RemoteFileListFrag(
                 TextButton(onClick = {
                     selectedList.forEach { viewModel.onDownload(it) }
                     onSelectModeChange(Constants.DEFAULT_MODE)
-                    onSelectedListChange(emptyList())
+                    clearList()
                 }) {
                     Text("다운로드")
                 }
                 TextButton(onClick = {
                     selectedList.forEach { viewModel.onDelete(it) }
                     onSelectModeChange(Constants.DEFAULT_MODE)
-                    onSelectedListChange(emptyList())
+                    clearList()
                 }) {
                     Text("삭제")
                 }
@@ -155,7 +157,7 @@ fun RemoteFileListFrag(
                     onClick = {
                         renameTarget = selectedList.first()
                         onSelectModeChange(Constants.DEFAULT_MODE)
-                        onSelectedListChange(emptyList())
+                        clearList()
                     }
                 ) {
                     Text("이름 변경")

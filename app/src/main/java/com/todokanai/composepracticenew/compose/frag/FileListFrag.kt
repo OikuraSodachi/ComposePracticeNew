@@ -25,7 +25,9 @@ fun FileListFrag(
     selectMode: Int,
     selectedList: List<FileHolderItem>,
     onSelectModeChange: (Int) -> Unit,
-    onSelectedListChange: (List<FileHolderItem>) -> Unit,
+    addToList: (FileHolderItem) -> Unit,
+    removeFromList: (FileHolderItem) -> Unit,
+    clearList: () -> Unit,
     onSwitchToRemote: () -> Unit = {},
     viewModel: FileListViewModel = hiltViewModel()
 ) {
@@ -33,7 +35,7 @@ fun FileListFrag(
 
     BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
         onSelectModeChange(Constants.DEFAULT_MODE)
-        onSelectedListChange(emptyList())
+        clearList()
     }
 
     Column(
@@ -56,9 +58,9 @@ fun FileListFrag(
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
                 onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
-                addToList = { onSelectedListChange(selectedList + it) },
-                removeFromList = { onSelectedListChange(selectedList - it) },
-                clearList = { onSelectedListChange(emptyList()) }
+                addToList = addToList,
+                removeFromList = removeFromList,
+                clearList = clearList
             )
         }
 
@@ -66,7 +68,7 @@ fun FileListFrag(
             modifier = Modifier,
             selectMode = selectMode,
             onSelectModeChange = onSelectModeChange,
-            onClearSelection = { onSelectedListChange(emptyList()) },
+            onClearSelection = clearList,
             selectedList = selectedList
         )
 
