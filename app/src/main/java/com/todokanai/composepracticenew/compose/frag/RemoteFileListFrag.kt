@@ -35,19 +35,21 @@ import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 @Composable
 fun RemoteFileListFrag(
     modifier: Modifier,
+    selectMode: Int,
+    selectedList: List<FileHolderItem>,
+    onSelectModeChange: (Int) -> Unit,
+    onSelectedListChange: (List<FileHolderItem>) -> Unit,
     onSwitchToLocal: () -> Unit = {},
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
-    var selectedList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
-    var selectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
     var newFolderInput by remember { mutableStateOf<String?>(null) }
 
     BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
-        selectMode = Constants.DEFAULT_MODE
-        selectedList = emptyList()
+        onSelectModeChange(Constants.DEFAULT_MODE)
+        onSelectedListChange(emptyList())
     }
 
     // 이름 변경 다이얼로그
@@ -105,25 +107,59 @@ fun RemoteFileListFrag(
                 fileHolderItemList = uiState.value.fileHolderItemList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
-                onItemLongClick = { selectMode = Constants.MULTI_SELECT_MODE },
-                addToList = { selectedList = selectedList + it },
-                removeFromList = { selectedList = selectedList - it },
-                clearList = { selectedList = emptyList() }
+                onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
+                addToList = { onSelectedListChange(selectedList + it) },
+                removeFromList = { onSelectedListChange(selectedList - it) },
+                clearList = { onSelectedListChange(emptyList()) }
             )
         }
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(onClick = { viewModel.onUpload("") }) {
-                Text("업로드")
+        when (selectMode) {
+            Constants.DEFAULT_MODE -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = { viewModel.onUpload("") }) {
+                    Text("업로드")
+                }
+                TextButton(onClick = { newFolderInput = "" }) {
+                    Text("새 폴더")
+                }
             }
-            TextButton(onClick = { newFolderInput = "" }) {
-                Text("새 폴더")
+            Constants.MULTI_SELECT_MODE -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = {
+                    selectedList.forEach { viewModel.onDownload(it) }
+                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onSelectedListChange(emptyList())
+                }) {
+                    Text("다운로드")
+                }
+                TextButton(onClick = {
+                    selectedList.forEach { viewModel.onDelete(it) }
+                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onSelectedListChange(emptyList())
+                }) {
+                    Text("삭제")
+                }
+                TextButton(
+                    enabled = selectedList.size == 1,
+                    onClick = {
+                        renameTarget = selectedList.first()
+                        onSelectModeChange(Constants.DEFAULT_MODE)
+                        onSelectedListChange(emptyList())
+                    }
+                ) {
+                    Text("이름 변경")
+                }
             }
         }
 
