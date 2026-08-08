@@ -38,13 +38,10 @@ fun RemoteFileListFrag(
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-    val dirTree = viewModel.dirTree.collectAsStateWithLifecycle()
 
     var contextItem by remember { mutableStateOf<FileHolderItem?>(null) }
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
     var newFolderInput by remember { mutableStateOf<String?>(null) }
-
-    val currentPath = dirTree.value.lastOrNull()?.path ?: ""
 
     // 항목 길게 누르기 컨텍스트 메뉴
     contextItem?.let { item ->
@@ -104,7 +101,7 @@ fun RemoteFileListFrag(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.onMakeDirectory(currentPath, folderName)
+                        viewModel.onMakeDirectory(folderName)
                         newFolderInput = null
                     },
                     enabled = folderName.isNotBlank()
@@ -145,7 +142,7 @@ fun RemoteFileListFrag(
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TextButton(onClick = { viewModel.onUpload("", currentPath) }) {
+            TextButton(onClick = { viewModel.onUpload("") }) {
                 Text("업로드")
             }
             TextButton(onClick = { newFolderInput = "" }) {
