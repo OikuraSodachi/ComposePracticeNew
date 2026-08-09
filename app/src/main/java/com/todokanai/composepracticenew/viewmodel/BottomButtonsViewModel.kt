@@ -36,100 +36,89 @@ class BottomButtonsViewModel @Inject constructor(
     fun confirm(selectedList: List<FileHolderItem>, selectMode: Int) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         when (selectMode) {
-            CONFIRM_MODE_COPY -> launchAction(ACTION_KEY_COPY, currentPath) {
-                fileActionUseCase.copyAction(
-                    targetFiles = selectedList.map { it.path },
-                    targetPath = currentPath
+            CONFIRM_MODE_COPY -> CoroutineScope(Dispatchers.IO).launch {
+                launchFlows(
+                    actionKey = ACTION_KEY_COPY,
+                    refreshPath = currentPath,
+                    flows = listOf(
+                        fileActionUseCase.copyAction(
+                            targetFiles = selectedList.map { it.path },
+                            targetPath = currentPath
+                        )
+                    )
                 )
             }
-            CONFIRM_MODE_MOVE -> launchAction(
-                actionKey = ACTION_KEY_MOVE,
-                refreshPath = currentPath,
-                targetList = selectedList,
-                completionMessage = context.getString(R.string.noti_move_complete)
-            ) { item ->
-                fileActionUseCase.moveFile(item.path, currentPath)
+            CONFIRM_MODE_MOVE -> CoroutineScope(Dispatchers.IO).launch {
+                launchFlows(
+                    actionKey = ACTION_KEY_MOVE,
+                    refreshPath = currentPath,
+                    completionMessage = context.getString(R.string.noti_move_complete),
+                    flows = selectedList.map { fileActionUseCase.moveFile(it.path, currentPath) }
+                )
             }
         }
     }
 
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
-        launchAction(ACTION_KEY_ZIP, parent) {
-            fileActionUseCase.zipAction(
-                targetFiles = selectedList.map { it.path },
-                zipFile = "$parent/$name.zip"
+        CoroutineScope(Dispatchers.IO).launch {
+            launchFlows(
+                actionKey = ACTION_KEY_ZIP,
+                refreshPath = parent,
+                flows = listOf(
+                    fileActionUseCase.zipAction(
+                        targetFiles = selectedList.map { it.path },
+                        zipFile = "$parent/$name.zip"
+                    )
+                )
             )
         }
     }
 
     fun rename(item: FileHolderItem, name: String) {
-        launchAction(actionKey = null, refreshPath = File(item.path).parent) {
-            fileActionUseCase.renameFile(item.path, name)
+        CoroutineScope(Dispatchers.IO).launch {
+            launchFlows(
+                actionKey = null,
+                refreshPath = File(item.path).parent,
+                flows = listOf(fileActionUseCase.renameFile(item.path, name))
+            )
         }
     }
 
     fun delete(selectedList: List<FileHolderItem>) {
         val refreshPath = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
         CoroutineScope(Dispatchers.IO).launch {
-            var hasError = false
-            selectedList.forEach { item ->
-                fileActionUseCase.deleteFile(item.path)
-                    .collect { state ->
-                        progressUseCase.setProgressState(ACTION_KEY_DELETE, state)
-                        if (state.error != null) hasError = true
-                    }
-            }
-            progressUseCase.removeProgress(ACTION_KEY_DELETE)
-            if (!hasError) {
-                fileNavigatorUseCase.setPath(refreshPath)
-                fileNavigatorUseCase.refresh()
-                myNoti.completedNotification("", context.getString(R.string.noti_delete_complete), ACTION_KEY_DELETE)
-            }
+            launchFlows(
+                actionKey = ACTION_KEY_DELETE,
+                refreshPath = refreshPath,
+                completionMessage = context.getString(R.string.noti_delete_complete),
+                flows = selectedList.map { fileActionUseCase.deleteFile(it.path) }
+            )
         }
     }
 
-    private fun launchAction(actionKey: Int?, refreshPath: String?, flowProvider: () -> Flow<ProgressState>) {
-        CoroutineScope(Dispatchers.IO).launch {
-            var hasError = false
-            flowProvider().collect { state ->
+    private suspend fun launchFlows(
+        actionKey: Int?,
+        refreshPath: String?,
+        completionMessage: String? = null,
+        flows: List<Flow<ProgressState>>
+    ) {
+        var hasError = false
+        flows.forEach { flow ->
+            flow.collect { state ->
                 actionKey?.let { progressUseCase.setProgressState(it, state) }
                 if (state.error != null) hasError = true
             }
-            actionKey?.let { progressUseCase.removeProgress(it) }
-            if (!hasError) {
-                refreshPath?.let { fileNavigatorUseCase.setPath(it) }
-                fileNavigatorUseCase.refresh()
-                myNoti.completedNotification("", context.getString(R.string.noti_complete), actionKey)
-            }
         }
-    }
-
-    private fun launchAction(
-        actionKey: Int?,
-        refreshPath: String?,
-        targetList: List<FileHolderItem>,
-        completionMessage: String? = null,
-        flowProvider: (FileHolderItem) -> Flow<ProgressState>
-    ) {
-        CoroutineScope(Dispatchers.IO).launch {
-            var hasError = false
-            targetList.forEach { item ->
-                flowProvider(item).collect { state ->
-                    actionKey?.let { progressUseCase.setProgressState(it, state) }
-                    if (state.error != null) hasError = true
-                }
-            }
-            actionKey?.let { progressUseCase.removeProgress(it) }
-            if (!hasError) {
-                refreshPath?.let { fileNavigatorUseCase.setPath(it) }
-                fileNavigatorUseCase.refresh()
-                myNoti.completedNotification(
-                    "",
-                    completionMessage ?: context.getString(R.string.noti_complete),
-                    actionKey
-                )
-            }
+        actionKey?.let { progressUseCase.removeProgress(it) }
+        if (!hasError) {
+            refreshPath?.let { fileNavigatorUseCase.setPath(it) }
+            fileNavigatorUseCase.refresh()
+            myNoti.completedNotification(
+                "",
+                completionMessage ?: context.getString(R.string.noti_complete),
+                actionKey
+            )
         }
     }
 }
