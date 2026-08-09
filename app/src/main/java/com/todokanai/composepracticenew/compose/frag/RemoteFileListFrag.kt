@@ -27,6 +27,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
+import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
@@ -48,6 +49,7 @@ fun RemoteFileListFrag(
 
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
     var newFolderInput by remember { mutableStateOf<String?>(null) }
+    val moreExpanded = remember { mutableStateOf(false) }
 
     BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
         onSelectModeChange(Constants.DEFAULT_MODE)
@@ -127,8 +129,17 @@ fun RemoteFileListFrag(
                 TextButton(onClick = { viewModel.onUpload("") }) {
                     Text("업로드")
                 }
-                TextButton(onClick = { newFolderInput = "" }) {
-                    Text("새 폴더")
+                TextButton(
+                    modifier = Modifier.wrapContentSize(),
+                    onClick = { moreExpanded.value = !moreExpanded.value }
+                ) {
+                    Text(stringResource(R.string.btn_more))
+                    MyDropdownMenu(
+                        contents = listOf(
+                            Pair(stringResource(R.string.btn_create_new_folder), { newFolderInput = "" })
+                        ),
+                        expanded = moreExpanded
+                    )
                 }
             }
             Constants.MULTI_SELECT_MODE -> Row(

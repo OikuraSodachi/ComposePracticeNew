@@ -96,7 +96,12 @@ class StorageViewModel @Inject constructor(
             _isConnecting.value = true
             try {
                 val connected = remoteFileNavigatorUseCase.setPath(item.toDomain())
-                if (connected) _connectionSucceeded.tryEmit(Unit) else _connectionFailed.tryEmit(Unit)
+                if (connected) {
+                    remoteStorageUseCase.saveLastConnectedId(item.id)
+                    _connectionSucceeded.tryEmit(Unit)
+                } else {
+                    _connectionFailed.tryEmit(Unit)
+                }
             } finally {
                 _isConnecting.value = false
             }

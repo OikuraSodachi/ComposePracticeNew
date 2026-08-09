@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,8 +18,21 @@ import javax.inject.Inject
 /** 원격 파일 목록 화면의 UI 상태, 네비게이션, 파일 조작(다운로드·업로드·이름변경·삭제·새폴더)을 관리하는 ViewModel. */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
-    @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase
+    @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
+    private val remoteStorageUseCase: RemoteStorageUseCase
 ) : ViewModel() {
+
+    init {
+        if (fileNavigatorUseCase.currentPath.value == null) {
+            viewModelScope.launch { reconnectLast() }
+        }
+    }
+
+    private suspend fun reconnectLast() {
+        remoteStorageUseCase.getLastConnectedItem()?.let { item ->
+            fileNavigatorUseCase.setPath(item)
+        }
+    }
 
     /** 원격 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
     data class UiState(

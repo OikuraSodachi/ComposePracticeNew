@@ -11,4 +11,9 @@ class RemoteStorageUseCase(private val repo: LocalDataRepository) {
         repo.insert(RemoteStorageItem(name = name, address = address, port = port, userId = userId, password = password))
     suspend fun update(item: RemoteStorageItem) = repo.insert(item)
     suspend fun delete(item: RemoteStorageItem) = repo.delete(item)
+    fun saveLastConnectedId(id: Long?) = repo.setLastRemoteId(id)
+    suspend fun getLastConnectedItem(): RemoteStorageItem? {
+        val id = repo.lastRemoteId() ?: return null
+        return repo.getRemoteById(id)
+    }
 }

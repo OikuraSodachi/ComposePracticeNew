@@ -22,4 +22,7 @@ interface RemoteStorageInfoDao {
 
     @Query("DELETE FROM remote_storage_info")
     suspend fun deleteAll()
+
+    @Query("SELECT * FROM remote_storage_info WHERE id = :id LIMIT 1")
+    suspend fun getById(id: Long): RemoteStorageInfo?
 }

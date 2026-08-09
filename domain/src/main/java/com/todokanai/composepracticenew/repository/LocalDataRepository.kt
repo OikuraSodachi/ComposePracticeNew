@@ -10,4 +10,7 @@ interface LocalDataRepository {
     fun getAll(): Flow<List<RemoteStorageItem>>
     suspend fun insert(item: RemoteStorageItem)
     suspend fun delete(item: RemoteStorageItem)
+    suspend fun lastRemoteId(): Long?
+    fun setLastRemoteId(id: Long?)
+    suspend fun getRemoteById(id: Long): RemoteStorageItem?
 }
