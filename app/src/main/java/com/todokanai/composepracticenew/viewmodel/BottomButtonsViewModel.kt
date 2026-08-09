@@ -95,22 +95,25 @@ class BottomButtonsViewModel @Inject constructor(
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             var hasError = false
-            flows.forEach { flow ->
-                flow.collect { state ->
-                    actionKey?.let { progressUseCase.setProgressState(it, state) }
-                    if (state.error != null) hasError = true
+            try {
+                flows.forEach { flow ->
+                    flow.collect { state ->
+                        actionKey?.let { progressUseCase.setProgressState(it, state) }
+                        if (state.error != null) hasError = true
+                    }
                 }
+            } finally {
+                actionKey?.let { progressUseCase.removeProgress(it) }
             }
-            actionKey?.let { progressUseCase.removeProgress(it) }
             if (!hasError) {
                 refreshPath?.let { fileNavigatorUseCase.setPath(it) }
-                fileNavigatorUseCase.refresh()
                 myNoti.completedNotification(
                     "",
                     completionMessage ?: context.getString(R.string.noti_complete),
                     actionKey
                 )
             }
+            fileNavigatorUseCase.refresh()
         }
     }
 }
