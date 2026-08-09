@@ -97,6 +97,7 @@ class BottomButtonsViewModel @Inject constructor(
             var hasError = false
             try {
                 flows.forEach { flow ->
+                    if (hasError) return@forEach
                     flow.collect { state ->
                         actionKey?.let { progressUseCase.setProgressState(it, state) }
                         if (state.error != null) hasError = true
