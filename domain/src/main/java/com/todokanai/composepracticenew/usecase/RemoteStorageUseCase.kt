@@ -12,6 +12,10 @@ class RemoteStorageUseCase(private val repo: LocalDataRepository) {
     suspend fun update(item: RemoteStorageItem) = repo.insert(item)
     suspend fun delete(item: RemoteStorageItem) = repo.delete(item)
     fun saveLastConnectedId(id: Long?) = repo.setLastRemoteId(id)
+    /** 삭제된 항목이 마지막 연결 서버인 경우 DataStore의 lastRemoteId를 초기화한다. */
+    suspend fun clearLastConnectedIfMatches(id: Long) {
+        if (repo.lastRemoteId() == id) repo.setLastRemoteId(null)
+    }
     suspend fun getLastConnectedItem(): RemoteStorageItem? {
         val id = repo.lastRemoteId() ?: return null
         return repo.getRemoteById(id)

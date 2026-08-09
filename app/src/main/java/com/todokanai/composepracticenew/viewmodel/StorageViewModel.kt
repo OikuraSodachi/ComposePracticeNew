@@ -87,6 +87,7 @@ class StorageViewModel @Inject constructor(
     fun deleteRemoteStorage(item: RemoteStorageItem) {
         viewModelScope.launch {
             remoteStorageUseCase.delete(item.toDomain())
+            remoteStorageUseCase.clearLastConnectedIfMatches(item.id)
         }
     }
 
