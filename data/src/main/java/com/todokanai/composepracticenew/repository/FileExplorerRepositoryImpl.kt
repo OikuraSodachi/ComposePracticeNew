@@ -41,7 +41,7 @@ class FileExplorerRepositoryImpl(
             }
             .stateIn(
                 scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                started = SharingStarted.WhileSubscribed(5_000),
+                started = SharingStarted.Lazily,
                 initialValue = emptyList()
             )
 
