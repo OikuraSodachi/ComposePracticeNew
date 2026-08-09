@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.todokanai.composepracticenew.myobjects.Constants.BY_DEFAULT
@@ -27,6 +28,7 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
         val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "mydatastore")
         val DATASTORE_SORT_BY = stringPreferencesKey("datastore_sort_by")
         val DATASTORE_COPY_OVERWRITE = booleanPreferencesKey("datastore_copy_overwrite")
+        val DATASTORE_LAST_REMOTE_ID = longPreferencesKey("datastore_last_remote_id")
     }
 
     fun saveSortBy(value: String) {
@@ -64,4 +66,16 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
     suspend fun copyOverwrite(): Boolean {
         return context.dataStore.data.first()[DATASTORE_COPY_OVERWRITE] ?: false
     }
+
+    fun saveLastRemoteId(id: Long?) {
+        CoroutineScope(Dispatchers.IO).launch {
+            context.dataStore.edit {
+                if (id != null) it[DATASTORE_LAST_REMOTE_ID] = id
+                else it.remove(DATASTORE_LAST_REMOTE_ID)
+            }
+        }
+    }
+
+    suspend fun lastRemoteId(): Long? =
+        context.dataStore.data.first()[DATASTORE_LAST_REMOTE_ID]
 }

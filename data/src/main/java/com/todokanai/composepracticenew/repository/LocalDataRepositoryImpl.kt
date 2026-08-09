@@ -17,4 +17,7 @@ class LocalDataRepositoryImpl @Inject constructor(
     override fun getAll(): Flow<List<RemoteStorageItem>> = remoteStorage.getAll()
     override suspend fun insert(item: RemoteStorageItem) = remoteStorage.insert(item)
     override suspend fun delete(item: RemoteStorageItem) = remoteStorage.delete(item)
+    override suspend fun lastRemoteId(): Long? = dataStore.lastRemoteId()
+    override fun setLastRemoteId(id: Long?) = dataStore.saveLastRemoteId(id)
+    override suspend fun getRemoteById(id: Long): RemoteStorageItem? = remoteStorage.getById(id)
 }

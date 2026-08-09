@@ -22,6 +22,9 @@ class RemoteStorageRepositoryImpl @Inject constructor(
 
     suspend fun delete(item: RemoteStorageItem) =
         dao.delete(item.toEntity())
+
+    suspend fun getById(id: Long): RemoteStorageItem? =
+        dao.getById(id)?.toItem()
 }
 
 private fun RemoteStorageInfo.toItem() = RemoteStorageItem(
