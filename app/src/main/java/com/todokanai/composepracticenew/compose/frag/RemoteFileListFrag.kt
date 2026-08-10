@@ -2,36 +2,22 @@ package com.todokanai.composepracticenew.compose.frag
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
-import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
-import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
+import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
@@ -51,10 +37,6 @@ fun RemoteFileListFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
-    var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
-    var newFolderInput by remember { mutableStateOf<String?>(null) }
-    val moreExpanded = remember { mutableStateOf(false) }
-
     val context = LocalContext.current
     LaunchedEffect(Unit) {
         viewModel.reconnectFailed.collect {
@@ -65,46 +47,6 @@ fun RemoteFileListFrag(
     BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
         onSelectModeChange(Constants.DEFAULT_MODE)
         clearList()
-    }
-
-    // 이름 변경 다이얼로그
-    renameTarget?.let { target ->
-        EditTextDialog(
-            modifier = Modifier,
-            title = "이름 변경",
-            defaultText = target.name,
-            initialText = target.name,
-            onConfirm = { newName -> viewModel.onRename(target, newName) },
-            onCancel = { renameTarget = null }
-        )
-    }
-
-    // 새 폴더 다이얼로그
-    newFolderInput?.let { folderName ->
-        AlertDialog(
-            onDismissRequest = { newFolderInput = null },
-            title = { Text("새 폴더") },
-            text = {
-                OutlinedTextField(
-                    value = folderName,
-                    onValueChange = { newFolderInput = it },
-                    singleLine = true,
-                    label = { Text("폴더 이름") }
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.onMakeDirectory(folderName)
-                        newFolderInput = null
-                    },
-                    enabled = folderName.isNotBlank()
-                ) { Text("확인") }
-            },
-            dismissButton = {
-                TextButton(onClick = { newFolderInput = null }) { Text("취소") }
-            }
-        )
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -129,65 +71,13 @@ fun RemoteFileListFrag(
             )
         }
 
-        when (selectMode) {
-            Constants.DEFAULT_MODE -> Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = { viewModel.onUpload("") }) {
-                    Text("업로드")
-                }
-                Box {
-                    TextButton(
-                        modifier = Modifier.wrapContentSize(),
-                        onClick = { moreExpanded.value = !moreExpanded.value }
-                    ) {
-                        Text(stringResource(R.string.btn_more))
-                    }
-                    MyDropdownMenu(
-                        contents = listOf(
-                            Pair(stringResource(R.string.btn_create_new_folder), { newFolderInput = "" })
-                        ),
-                        expanded = moreExpanded
-                    )
-                }
-            }
-            Constants.MULTI_SELECT_MODE -> Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = {
-                    selectedList.forEach { viewModel.onDownload(it) }
-                    onSelectModeChange(Constants.DEFAULT_MODE)
-                    clearList()
-                }) {
-                    Text("다운로드")
-                }
-                TextButton(onClick = {
-                    selectedList.forEach { viewModel.onDelete(it) }
-                    onSelectModeChange(Constants.DEFAULT_MODE)
-                    clearList()
-                }) {
-                    Text("삭제")
-                }
-                TextButton(
-                    enabled = selectedList.size == 1,
-                    onClick = {
-                        renameTarget = selectedList.first()
-                        onSelectModeChange(Constants.DEFAULT_MODE)
-                        clearList()
-                    }
-                ) {
-                    Text("이름 변경")
-                }
-            }
-        }
+        RemoteBottomButtonListView(
+            modifier = Modifier,
+            selectMode = selectMode,
+            onSelectModeChange = onSelectModeChange,
+            onClearSelection = clearList,
+            selectedList = selectedList
+        )
 
         StorageSwitchBar(
             isRemote = true,
