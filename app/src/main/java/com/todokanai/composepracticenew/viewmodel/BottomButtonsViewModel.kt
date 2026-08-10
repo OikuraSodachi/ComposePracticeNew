@@ -38,7 +38,6 @@ class BottomButtonsViewModel @Inject constructor(
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchFlows(
                 actionKey = ACTION_KEY_COPY,
-                refreshPath = currentPath,
                 flows = listOf(
                     fileActionUseCase.copyAction(
                         targetFiles = selectedList.map { it.path },
@@ -48,7 +47,6 @@ class BottomButtonsViewModel @Inject constructor(
             )
             CONFIRM_MODE_MOVE -> launchFlows(
                 actionKey = ACTION_KEY_MOVE,
-                refreshPath = currentPath,
                 completionMessage = context.getString(R.string.noti_move_complete),
                 flows = selectedList.map { fileActionUseCase.moveFile(it.path, currentPath) }
             )
@@ -59,7 +57,6 @@ class BottomButtonsViewModel @Inject constructor(
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
         launchFlows(
             actionKey = ACTION_KEY_ZIP,
-            refreshPath = parent,
             flows = listOf(
                 fileActionUseCase.zipAction(
                     targetFiles = selectedList.map { it.path },
@@ -72,16 +69,13 @@ class BottomButtonsViewModel @Inject constructor(
     fun rename(item: FileHolderItem, name: String) {
         launchFlows(
             actionKey = null,
-            refreshPath = File(item.path).parent,
             flows = listOf(fileActionUseCase.renameFile(item.path, name))
         )
     }
 
     fun delete(selectedList: List<FileHolderItem>) {
-        val refreshPath = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
         launchFlows(
             actionKey = ACTION_KEY_DELETE,
-            refreshPath = refreshPath,
             completionMessage = context.getString(R.string.noti_delete_complete),
             flows = selectedList.map { fileActionUseCase.deleteFile(it.path) }
         )
@@ -89,7 +83,6 @@ class BottomButtonsViewModel @Inject constructor(
 
     private fun launchFlows(
         actionKey: Int?,
-        refreshPath: String?,
         completionMessage: String? = null,
         flows: List<Flow<ProgressState>>
     ) {
@@ -107,7 +100,6 @@ class BottomButtonsViewModel @Inject constructor(
                 actionKey?.let { progressUseCase.removeProgress(it) }
             }
             if (!hasError) {
-                refreshPath?.let { fileNavigatorUseCase.setPath(it) }
                 myNoti.completedNotification(
                     "",
                     completionMessage ?: context.getString(R.string.noti_complete),
