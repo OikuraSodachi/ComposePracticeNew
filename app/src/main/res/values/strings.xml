@@ -59,6 +59,9 @@
     <string name="dialog_info_size">Size</string>
     <string name="dialog_info_selected_count">%d 개</string>
 
+    <!-- FTP Foreground Service -->
+    <string name="ftp_notification_channel_name">FTP 연결</string>
+
     <!-- Notifications -->
     <string name="noti_move_complete">이동 완료</string>
     <string name="noti_delete_complete">삭제 완료</string>

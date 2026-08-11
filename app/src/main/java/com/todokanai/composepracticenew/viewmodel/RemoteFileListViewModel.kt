@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
+import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -22,7 +23,8 @@ import javax.inject.Inject
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
-    private val remoteStorageUseCase: RemoteStorageUseCase
+    private val remoteStorageUseCase: RemoteStorageUseCase,
+    private val ftpServiceController: FtpServiceController
 ) : ViewModel() {
 
     private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -38,7 +40,9 @@ class RemoteFileListViewModel @Inject constructor(
     private suspend fun reconnectLast() {
         remoteStorageUseCase.getLastConnectedItem()?.let { item ->
             val connected = fileNavigatorUseCase.setPath(item)
-            if (!connected) {
+            if (connected) {
+                ftpServiceController.start(item.name)
+            } else {
                 _reconnectFailed.tryEmit(Unit)
             }
         }
