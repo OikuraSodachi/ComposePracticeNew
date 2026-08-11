@@ -10,6 +10,7 @@ import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
+import com.todokanai.composepracticenew.service.FtpServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +28,8 @@ import javax.inject.Inject
 class StorageViewModel @Inject constructor(
     private val storageVolumeUseCase: StorageVolumeUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
-    @RemoteNavigator private val remoteFileNavigatorUseCase: FileNavigatorUseCase
+    @RemoteNavigator private val remoteFileNavigatorUseCase: FileNavigatorUseCase,
+    private val ftpServiceController: FtpServiceController
 ) : ViewModel() {
 
     /** 스토리지 선택 화면에 필요한 UI 상태를 담는 클래스. */
@@ -91,7 +93,7 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 connectionSucceeded를 emit한다. */
+    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 ForegroundService를 시작하고 connectionSucceeded를 emit한다. */
     fun setPath(item: RemoteStorageItem) {
         viewModelScope.launch {
             _isConnecting.value = true
@@ -99,6 +101,7 @@ class StorageViewModel @Inject constructor(
                 val connected = remoteFileNavigatorUseCase.setPath(item.toDomain())
                 if (connected) {
                     remoteStorageUseCase.saveLastConnectedId(item.id)
+                    ftpServiceController.start(item.name)
                     _connectionSucceeded.tryEmit(Unit)
                 } else {
                     _connectionFailed.tryEmit(Unit)
