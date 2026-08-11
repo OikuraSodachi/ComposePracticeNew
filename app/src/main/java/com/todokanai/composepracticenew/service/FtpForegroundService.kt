@@ -82,7 +82,7 @@ class FtpForegroundService : Service() {
             .build()
 
     private fun updateNotification(connected: Boolean) {
-        val text = if (connected) "연결됨" else "연결 끊김"
+        val text = if (connected) getString(R.string.ftp_notification_connected) else getString(R.string.ftp_notification_disconnected)
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(text)

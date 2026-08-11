@@ -55,9 +55,9 @@ class FtpConnectionState @Inject constructor() {
                         isLoggedIn = false
                         _isConnected.value = false
                     }
-                    client.connectTimeout = 10_000
+                    client.connectTimeout = CONNECT_TIMEOUT_MS
                     client.connect(server, port)
-                    client.soTimeout = 15_000
+                    client.soTimeout = SO_TIMEOUT_MS
                     val loggedIn = client.login(userId, password)
                     isLoggedIn = loggedIn
                     if (loggedIn) {
@@ -134,6 +134,8 @@ class FtpConnectionState @Inject constructor() {
     }
 
     companion object {
+        private const val CONNECT_TIMEOUT_MS = 10_000
+        private const val SO_TIMEOUT_MS = 15_000
         private const val TAG = "FtpConnectionState"
     }
 }

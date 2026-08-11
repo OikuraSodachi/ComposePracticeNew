@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.application
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.service.FtpForegroundService
 import dagger.hilt.android.HiltAndroidApp
 
@@ -17,7 +18,7 @@ class MyApplication : Application() {
     private fun createNotificationChannels() {
         val channel = NotificationChannel(
             FtpForegroundService.CHANNEL_ID,
-            "FTP 연결",
+            getString(R.string.ftp_notification_channel_name),
             NotificationManager.IMPORTANCE_LOW
         )
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
