@@ -10,15 +10,14 @@ import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
+import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
 import com.todokanai.composepracticenew.service.FtpServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -29,7 +28,8 @@ class StorageViewModel @Inject constructor(
     private val storageVolumeUseCase: StorageVolumeUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
     @RemoteNavigator private val remoteFileNavigatorUseCase: FileNavigatorUseCase,
-    private val ftpServiceController: FtpServiceController
+    private val ftpServiceController: FtpServiceController,
+    private val connectionState: FtpConnectionState
 ) : ViewModel() {
 
     /** 스토리지 선택 화면에 필요한 UI 상태를 담는 클래스. */
@@ -38,9 +38,8 @@ class StorageViewModel @Inject constructor(
         val remoteStorageList: List<RemoteStorageItem> = emptyList()
     )
 
-    private val _isConnecting = MutableStateFlow(false)
     /** FTP 연결 진행 중 여부. */
-    val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
+    val isConnecting: StateFlow<Boolean> = connectionState.isConnecting
 
     private val _connectionFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** FTP 연결 실패 이벤트. */
@@ -96,18 +95,13 @@ class StorageViewModel @Inject constructor(
     /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 ForegroundService를 시작하고 connectionSucceeded를 emit한다. */
     fun setPath(item: RemoteStorageItem) {
         viewModelScope.launch {
-            _isConnecting.value = true
-            try {
-                val connected = remoteFileNavigatorUseCase.setPath(item.toDomain())
-                if (connected) {
-                    remoteStorageUseCase.saveLastConnectedId(item.id)
-                    ftpServiceController.start(item.name)
-                    _connectionSucceeded.tryEmit(Unit)
-                } else {
-                    _connectionFailed.tryEmit(Unit)
-                }
-            } finally {
-                _isConnecting.value = false
+            val connected = remoteFileNavigatorUseCase.setPath(item.toDomain())
+            if (connected) {
+                remoteStorageUseCase.saveLastConnectedId(item.id)
+                ftpServiceController.start(item.name)
+                _connectionSucceeded.tryEmit(Unit)
+            } else {
+                _connectionFailed.tryEmit(Unit)
             }
         }
     }
