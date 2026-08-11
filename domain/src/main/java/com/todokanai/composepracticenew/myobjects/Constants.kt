@@ -10,12 +10,15 @@ object Constants {
     const val CONFIRM_MODE_MOVE : Int = 13
     const val CONFIRM_MODE_UNZIP : Int = 14
     const val CONFIRM_MODE_UNZIP_HERE : Int = 15
+    const val CONFIRM_MODE_DOWNLOAD : Int = 16
+    const val CONFIRM_MODE_UPLOAD : Int = 17
 
     const val ACTION_KEY_COPY : Int = 20
     const val ACTION_KEY_MOVE : Int = 21
     const val ACTION_KEY_DELETE : Int = 22
     const val ACTION_KEY_ZIP : Int = 23
     const val ACTION_KEY_UNZIP : Int = 24
+    const val ACTION_KEY_DOWNLOAD : Int = 25
 
     const val BY_DEFAULT : String ="BY_DEFAULT"
     const val BY_NAME_ASCENDING : String = "BY_NAME_ASCENDING"

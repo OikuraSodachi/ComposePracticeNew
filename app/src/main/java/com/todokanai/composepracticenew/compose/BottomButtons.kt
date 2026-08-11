@@ -28,6 +28,7 @@ fun BottomButtons(
     unzipHere:()->Unit,
     rename:()->Unit,
     info:()->Unit,
+    upload:()->Unit,
     selectedList: List<FileHolderItem>
 ) {
     val strMove = stringResource(R.string.btn_move)
@@ -36,6 +37,7 @@ fun BottomButtons(
     val strMore = stringResource(R.string.btn_more)
     val strZip = stringResource(R.string.btn_zip)
     val strInfo = stringResource(R.string.btn_info)
+    val strUpload = stringResource(R.string.btn_upload)
     val strRename = stringResource(R.string.btn_rename)
     val strUnzip = stringResource(R.string.btn_unzip)
     val strUnzipHere = stringResource(R.string.btn_unzip_here)
@@ -71,7 +73,7 @@ fun BottomButtons(
             val expanded = remember {mutableStateOf(false)}
 
             fun contents(selectedList: List<FileHolderItem>) : List<Pair<String,()->Unit>> {
-                val result = mutableListOf(Pair(strZip) { zip() }, Pair(strInfo) { info() })
+                val result = mutableListOf(Pair(strZip) { zip() }, Pair(strInfo) { info() }, Pair(strUpload) { upload() })
                 if(selectedList.size ==1) {
                     val selected = selectedList.first()
                     result.add(Pair(strRename) { rename() })

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import android.app.Activity
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
@@ -106,5 +107,5 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    fun exit(activity: Activity) = exit_td(activity)
+    fun exit(activity: Activity, serviceIntent: Intent? = null) = exit_td(activity, serviceIntent)
 }

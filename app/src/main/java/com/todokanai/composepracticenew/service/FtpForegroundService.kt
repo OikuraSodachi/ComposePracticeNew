@@ -32,13 +32,13 @@ class FtpForegroundService : Service() {
     }
 
     /**
-     * START_STICKY 반환 — 시스템이 서비스를 종료한 경우 인텐트 없이 재시작된다.
+     * START_NOT_STICKY 반환 — 프로세스 종료 시 시스템이 서비스를 재시작하지 않는다.
      * intent의 EXTRA_SERVER_LABEL을 읽어 Foreground 알림을 시작한다.
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val label = intent?.getStringExtra(EXTRA_SERVER_LABEL).orEmpty()
         ServiceCompat.startForeground(this, NOTIFICATION_ID, buildForegroundNotification(label), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent): IBinder? = null

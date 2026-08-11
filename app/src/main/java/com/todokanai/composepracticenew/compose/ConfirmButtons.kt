@@ -13,8 +13,10 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
+import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP
+import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UPLOAD
 
 @Composable
 fun ConfirmButtons(
@@ -47,6 +49,12 @@ fun ConfirmButtons(
                 }
                 CONFIRM_MODE_UNZIP ->{
                     Text(stringResource(R.string.btn_unzip))
+                }
+                CONFIRM_MODE_DOWNLOAD -> {
+                    Text(stringResource(R.string.btn_download))
+                }
+                CONFIRM_MODE_UPLOAD -> {
+                    Text(stringResource(R.string.btn_upload_confirm))
                 }
             }
         }

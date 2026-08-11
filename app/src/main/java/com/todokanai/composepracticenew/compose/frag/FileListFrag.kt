@@ -29,6 +29,8 @@ fun FileListFrag(
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit,
     onSwitchToRemote: () -> Unit = {},
+    onConfirmDownload: () -> Unit = {},
+    onEnterUploadMode: () -> Unit = {},
     viewModel: FileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -69,7 +71,9 @@ fun FileListFrag(
             selectMode = selectMode,
             onSelectModeChange = onSelectModeChange,
             onClearSelection = clearList,
-            selectedList = selectedList
+            selectedList = selectedList,
+            onConfirmDownload = onConfirmDownload,
+            onEnterUploadMode = onEnterUploadMode
         )
 
         StorageSwitchBar(

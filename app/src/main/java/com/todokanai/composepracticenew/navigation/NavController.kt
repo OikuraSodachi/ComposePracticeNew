@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.compose.activity.MainActivity
+import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.OptionFrag
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -50,6 +51,9 @@ fun AppNavHost(
         saver = listSaver(save = { it.toList() }, restore = { mutableStateListOf(*it.toTypedArray()) })
     ) { mutableStateListOf<FileHolderItem>() }
 
+    var downloadPendingList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
+    var uploadPendingList by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
+
     NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
         composable(NavDestinations.STORAGE) {
             StorageFrag(
@@ -67,6 +71,8 @@ fun AppNavHost(
             val isProgressActive = progressMap.isNotEmpty()
             var userDismissed by remember { mutableStateOf(false) }
             val showProgressDialogForKey by viewModel.showProgressDialogForKey.collectAsStateWithLifecycle()
+            var showDownloadConflictDialog by remember { mutableStateOf(false) }
+            var conflictDownloadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
 
             // 새 작업이 시작될 때 dismiss 상태 초기화
             LaunchedEffect(isProgressActive) {
@@ -108,6 +114,28 @@ fun AppNavHost(
                         navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                             popUpTo(NavDestinations.STORAGE) { inclusive = false }
                         }
+                    },
+                    onConfirmDownload = {
+                        val currentLocalFiles = viewModel.uiState.value.fileHolderItemList
+                        val conflicts = downloadPendingList.filter { remote ->
+                            currentLocalFiles.any { local -> local.name == remote.name }
+                        }
+                        if (conflicts.isEmpty()) {
+                            // stub: 실제 다운로드 로직은 FtpRepository.download() 구현 시 연결
+                            downloadPendingList = emptyList()
+                        } else {
+                            conflictDownloadFiles = conflicts
+                            showDownloadConflictDialog = true
+                        }
+                    },
+                    onEnterUploadMode = {
+                        uploadPendingList = localSelectedList.toList()
+                        remoteSelectMode = Constants.CONFIRM_MODE_UPLOAD
+                        localSelectMode = Constants.DEFAULT_MODE
+                        localSelectedList.clear()
+                        navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
+                            popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                        }
                     }
                 )
             }
@@ -116,6 +144,24 @@ fun AppNavHost(
                 ProgressDialog(
                     progressMap = activeProgressMap,
                     onDismissRequest = { userDismissed = true }
+                )
+            }
+
+            if (showDownloadConflictDialog) {
+                FileConflictDialog(
+                    conflictingFiles = conflictDownloadFiles,
+                    totalCount = downloadPendingList.size,
+                    onOverwrite = {
+                        // stub: 덮어쓰기로 다운로드 진행 — FtpRepository.download() 구현 시 연결
+                        downloadPendingList = emptyList()
+                        showDownloadConflictDialog = false
+                    },
+                    onSkip = {
+                        // stub: 충돌 제외한 파일만 다운로드 — FtpRepository.download() 구현 시 연결
+                        downloadPendingList = emptyList()
+                        showDownloadConflictDialog = false
+                    },
+                    onCancel = { showDownloadConflictDialog = false }
                 )
             }
 
@@ -130,6 +176,8 @@ fun AppNavHost(
         composable(NavDestinations.REMOTE_FILE_LIST) {
             val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
             val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
+            var showUploadConflictDialog by remember { mutableStateOf(false) }
+            var conflictUploadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
             BackHandler {
                 remoteViewModel.onBackPressed { navController.popBackStack() }
             }
@@ -156,7 +204,48 @@ fun AppNavHost(
                                 popUpTo(NavDestinations.STORAGE) { inclusive = false }
                             }
                         }
+                    },
+                    onEnterDownloadMode = { items ->
+                        downloadPendingList = items
+                        localSelectMode = Constants.CONFIRM_MODE_DOWNLOAD
+                        remoteSelectMode = Constants.DEFAULT_MODE
+                        remoteSelectedList.clear()
+                        if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
+                            navController.navigate(NavDestinations.FILE_LIST) {
+                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                            }
+                        }
+                    },
+                    onConfirmUpload = { currentRemoteFiles ->
+                        val conflicts = uploadPendingList.filter { local ->
+                            currentRemoteFiles.any { it.name == local.name }
+                        }
+                        if (conflicts.isEmpty()) {
+                            // stub: 실제 업로드 로직은 FtpRepository.upload() 구현 시 연결
+                            uploadPendingList = emptyList()
+                        } else {
+                            conflictUploadFiles = conflicts
+                            showUploadConflictDialog = true
+                        }
                     }
+                )
+            }
+
+            if (showUploadConflictDialog) {
+                FileConflictDialog(
+                    conflictingFiles = conflictUploadFiles,
+                    totalCount = uploadPendingList.size,
+                    onOverwrite = {
+                        // stub: 덮어쓰기로 업로드 진행 — FtpRepository.upload() 구현 시 연결
+                        uploadPendingList = emptyList()
+                        showUploadConflictDialog = false
+                    },
+                    onSkip = {
+                        // stub: 충돌 제외한 파일만 업로드 — FtpRepository.upload() 구현 시 연결
+                        uploadPendingList = emptyList()
+                        showUploadConflictDialog = false
+                    },
+                    onCancel = { showUploadConflictDialog = false }
                 )
             }
         }
