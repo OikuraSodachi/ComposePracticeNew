@@ -4,9 +4,11 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
 import dagger.hilt.android.AndroidEntryPoint
@@ -49,7 +51,7 @@ class FtpForegroundService : Service() {
      */
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val label = intent?.getStringExtra(EXTRA_SERVER_LABEL).orEmpty()
-        startForeground(NOTIFICATION_ID, buildForegroundNotification(label))
+        ServiceCompat.startForeground(this, NOTIFICATION_ID, buildForegroundNotification(label), ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         return START_STICKY
     }
 
