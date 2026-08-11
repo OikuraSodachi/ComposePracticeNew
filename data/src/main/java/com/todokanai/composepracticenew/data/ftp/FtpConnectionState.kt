@@ -66,6 +66,7 @@ class FtpConnectionState @Inject constructor() {
                         _isConnected.value = true
                         Log.d(TAG, "connect: success server=$server")
                     } else {
+                        runCatching { client.disconnect() }
                         Log.e(TAG, "connect: 로그인 실패 server=$server")
                     }
                     loggedIn
@@ -88,12 +89,17 @@ class FtpConnectionState @Inject constructor() {
     suspend fun disconnect() = mutex.withLock {
         withContext(Dispatchers.IO) {
             if (!client.isConnected) return@withContext
-            runCatching { client.logout() }
-            runCatching { client.disconnect() }
-            isLoggedIn = false
-            connectedServer = null
-            _isConnected.value = false
-            Log.d(TAG, "disconnect: 완료")
+            _isConnecting.value = true
+            try {
+                runCatching { client.logout() }
+                runCatching { client.disconnect() }
+                isLoggedIn = false
+                connectedServer = null
+                _isConnected.value = false
+                Log.d(TAG, "disconnect: 완료")
+            } finally {
+                _isConnecting.value = false
+            }
         }
     }
 
