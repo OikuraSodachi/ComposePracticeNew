@@ -38,6 +38,20 @@ fun BottomButtonListView(
     var conflictFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
     var pendingSelectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
 
+    val onConfirmWithConflictCheck: () -> Unit = {
+        val conflicts = viewModel.getConflicts(selectedList, selectMode)
+        if (conflicts.isEmpty()) {
+            viewModel.confirm(selectedList, selectMode)
+            onSelectModeChange(Constants.DEFAULT_MODE)
+            onClearSelection()
+        } else {
+            conflictFiles = conflicts
+            pendingSelectMode = selectMode
+            showConflictDialog = true
+        }
+    }
+    val onCancel: () -> Unit = { onSelectModeChange(Constants.DEFAULT_MODE) }
+
     when (selectMode) {
         Constants.MULTI_SELECT_MODE -> {
             BottomButtons(
@@ -61,58 +75,25 @@ fun BottomButtonListView(
         Constants.CONFIRM_MODE_MOVE -> {
             ConfirmButtons(
                 modifier = modifier,
-                confirm = {
-                    val conflicts = viewModel.getConflicts(selectedList, selectMode)
-                    if (conflicts.isEmpty()) {
-                        viewModel.confirm(selectedList, selectMode)
-                        onSelectModeChange(Constants.DEFAULT_MODE)
-                        onClearSelection()
-                    } else {
-                        conflictFiles = conflicts
-                        pendingSelectMode = selectMode
-                        showConflictDialog = true
-                    }
-                },
-                cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
+                confirm = onConfirmWithConflictCheck,
+                cancel = onCancel,
                 mode = Constants.CONFIRM_MODE_MOVE
             )
         }
         Constants.CONFIRM_MODE_COPY -> {
             ConfirmButtons(
                 modifier = modifier,
-                confirm = {
-                    val conflicts = viewModel.getConflicts(selectedList, selectMode)
-                    if (conflicts.isEmpty()) {
-                        viewModel.confirm(selectedList, selectMode)
-                        onSelectModeChange(Constants.DEFAULT_MODE)
-                        onClearSelection()
-                    } else {
-                        conflictFiles = conflicts
-                        pendingSelectMode = selectMode
-                        showConflictDialog = true
-                    }
-                },
-                cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
+                confirm = onConfirmWithConflictCheck,
+                cancel = onCancel,
                 mode = Constants.CONFIRM_MODE_COPY
             )
         }
         Constants.CONFIRM_MODE_UNZIP, Constants.CONFIRM_MODE_UNZIP_HERE -> {
             ConfirmButtons(
                 modifier = modifier,
-                confirm = {
-                    val conflicts = viewModel.getConflicts(selectedList, selectMode)
-                    if (conflicts.isEmpty()) {
-                        viewModel.confirm(selectedList, selectMode)
-                        onSelectModeChange(Constants.DEFAULT_MODE)
-                        onClearSelection()
-                    } else {
-                        conflictFiles = conflicts
-                        pendingSelectMode = selectMode
-                        showConflictDialog = true
-                    }
-                },
-                cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
-                mode = Constants.CONFIRM_MODE_UNZIP
+                confirm = onConfirmWithConflictCheck,
+                cancel = onCancel,
+                mode = selectMode
             )
         }
         CONFIRM_MODE_DOWNLOAD -> {
