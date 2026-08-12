@@ -25,6 +25,9 @@
     <string name="btn_unzip">Unzip</string>
     <string name="btn_unzip_here">Unzip Here</string>
     <string name="btn_download">여기에 다운로드</string>
+    <string name="btn_remote_download">다운로드</string>
+    <string name="btn_remote_delete">삭제</string>
+    <string name="btn_remote_rename">이름 변경</string>
     <string name="btn_upload">업로드</string>
     <string name="btn_upload_confirm">여기에 업로드</string>
     <string name="btn_cancel">Cancel</string>
