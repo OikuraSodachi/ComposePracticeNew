@@ -116,10 +116,7 @@ fun AppNavHost(
                         }
                     },
                     onConfirmDownload = {
-                        val currentLocalFiles = viewModel.uiState.value.fileHolderItemList
-                        val conflicts = downloadPendingList.filter { remote ->
-                            currentLocalFiles.any { local -> local.name == remote.name }
-                        }
+                        val conflicts = viewModel.getDownloadConflicts(downloadPendingList)
                         if (conflicts.isEmpty()) {
                             // stub: 실제 다운로드 로직은 FtpRepository.download() 구현 시 연결
                             downloadPendingList = emptyList()
@@ -216,10 +213,8 @@ fun AppNavHost(
                             }
                         }
                     },
-                    onConfirmUpload = { currentRemoteFiles ->
-                        val conflicts = uploadPendingList.filter { local ->
-                            currentRemoteFiles.any { it.name == local.name }
-                        }
+                    onConfirmUpload = {
+                        val conflicts = remoteViewModel.getUploadConflicts(uploadPendingList)
                         if (conflicts.isEmpty()) {
                             // stub: 실제 업로드 로직은 FtpRepository.upload() 구현 시 연결
                             uploadPendingList = emptyList()

@@ -81,6 +81,12 @@ class FileListViewModel @Inject constructor(
         }
     }
 
+    /** pendingList 중 현재 로컬 디렉터리에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
+    fun getDownloadConflicts(pendingList: List<FileHolderItem>): List<FileHolderItem> {
+        val localFiles = uiState.value.fileHolderItemList
+        return pendingList.filter { remote -> localFiles.any { local -> local.name == remote.name } }
+    }
+
     fun updateCurrentPath(file: File) {
         viewModelScope.launch {
             fileNavigatorUseCase.setPath(file.absolutePath)

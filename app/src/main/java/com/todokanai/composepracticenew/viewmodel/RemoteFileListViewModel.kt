@@ -91,6 +91,12 @@ class RemoteFileListViewModel @Inject constructor(
         }
     }
 
+    /** pendingList 중 현재 원격 디렉터리에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
+    fun getUploadConflicts(pendingList: List<FileHolderItem>): List<FileHolderItem> {
+        val remoteFiles = uiState.value.fileHolderItemList
+        return pendingList.filter { local -> remoteFiles.any { remote -> remote.name == local.name } }
+    }
+
     /** item의 원격 파일을 로컬 다운로드 경로로 저장한다. */
     fun onDownload(item: FileHolderItem) {} // stub — not yet implemented
 

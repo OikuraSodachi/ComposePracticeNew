@@ -34,7 +34,7 @@ fun RemoteFileListFrag(
     clearList: () -> Unit,
     onSwitchToLocal: () -> Unit = {},
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
-    onConfirmUpload: (List<FileHolderItem>) -> Unit = {},
+    onConfirmUpload: () -> Unit = {},
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -80,7 +80,7 @@ fun RemoteFileListFrag(
             onClearSelection = clearList,
             selectedList = selectedList,
             onEnterDownloadMode = onEnterDownloadMode,
-            onConfirmUpload = { onConfirmUpload(uiState.value.fileHolderItemList) }
+            onConfirmUpload = onConfirmUpload
         )
 
         StorageSwitchBar(
