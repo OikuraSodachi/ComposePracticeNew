@@ -24,6 +24,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             root.walkTopDown().filter { f -> !f.isDirectory }.map { root to it }.toList()
         }
         val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
+        checkDiskSpace(totalBytes, File(zipFile).parentFile ?: File(zipFile))
+            ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
@@ -68,6 +70,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val roots = targetFiles.map(::File)
         val allFiles = roots.flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
         val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+        checkDiskSpace(totalBytes, File(targetPath))
+            ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
@@ -129,6 +133,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val src = File(targetFile)
         val allFiles = src.walkTopDown().filter { !it.isDirectory }.toList()
         val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+        checkDiskSpace(totalBytes, File(targetPath))
+            ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
         val dest = File(targetPath, src.name)
 
@@ -154,6 +160,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         ZipFile(zipFile).use { zf ->
             val entries = zf.entries().toList()
             val totalBytes = entries.sumOf { it.size }.coerceAtLeast(1)
+            checkDiskSpace(totalBytes, File(destPath))
+                ?.let { emit(ProgressState(error = it)); return@flow }
             val totalFileCount = entries.count { !it.isDirectory }
             val root = if (unzipHere) {
                 File(destPath)
@@ -203,6 +211,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             emit(ProgressState(error = "폴더 생성 실패: $name"))
         }
     }.flowOn(Dispatchers.IO)
+
+    /** [dest] 파티션의 여유 공간이 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
+    private fun checkDiskSpace(needed: Long, dest: File): String? {
+        val free = dest.freeSpace
+        return if (free < needed)
+            "디스크 공간 부족: 필요 ${needed / 1024 / 1024} MB, 여유 ${free / 1024 / 1024} MB"
+        else null
+    }
 
     /** [file]의 정규화 경로가 [root] 하위에 있는지 확인한다. Zip Slip 방지용. */
     private fun isUnderRoot(file: File, root: File): Boolean {
