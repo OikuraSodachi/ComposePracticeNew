@@ -49,6 +49,7 @@
         <service
             android:name=".service.FtpForegroundService"
             android:foregroundServiceType="dataSync"
+            android:stopWithTask="true"
             android:exported="false" />
     </application>
 

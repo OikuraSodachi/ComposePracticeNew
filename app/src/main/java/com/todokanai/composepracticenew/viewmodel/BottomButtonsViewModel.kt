@@ -11,6 +11,8 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
+import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP
+import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP_HERE
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
@@ -32,6 +34,20 @@ class BottomButtonsViewModel @Inject constructor(
     private val progressUseCase: ProgressUseCase,
     private val myNoti: MyNotification
 ) : ViewModel() {
+
+    /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
+    fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
+        val currentPath = fileNavigatorUseCase.currentPath.value ?: return emptyList()
+        return when (selectMode) {
+            CONFIRM_MODE_COPY, CONFIRM_MODE_MOVE -> selectedList.filter { item ->
+                File(currentPath, File(item.path).name).exists()
+            }
+            CONFIRM_MODE_UNZIP, CONFIRM_MODE_UNZIP_HERE -> selectedList.filter { item ->
+                File(currentPath, File(item.path).nameWithoutExtension).exists()
+            }
+            else -> emptyList()
+        }
+    }
 
     fun confirm(selectedList: List<FileHolderItem>, selectMode: Int) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return

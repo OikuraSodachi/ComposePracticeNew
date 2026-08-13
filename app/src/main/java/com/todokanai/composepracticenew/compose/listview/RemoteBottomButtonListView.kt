@@ -13,8 +13,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -28,14 +31,20 @@ fun RemoteBottomButtonListView(
     onSelectModeChange: (Int) -> Unit,
     onClearSelection: () -> Unit,
     selectedList: List<FileHolderItem>,
+    onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
+    onConfirmUpload: () -> Unit = {},
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
 
+    val strRemoteDownload = stringResource(R.string.btn_remote_download)
+    val strRemoteDelete = stringResource(R.string.btn_remote_delete)
+    val strRemoteRename = stringResource(R.string.btn_remote_rename)
+
     renameTarget?.let { target ->
         EditTextDialog(
             modifier = Modifier,
-            title = "이름 변경",
+            title = strRemoteRename,
             defaultText = target.name,
             initialText = target.name,
             onConfirm = { newName -> viewModel.onRename(target, newName) },
@@ -43,38 +52,52 @@ fun RemoteBottomButtonListView(
         )
     }
 
-    if (selectMode == Constants.MULTI_SELECT_MODE) {
-        Row(
-            modifier = modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            TextButton(onClick = {
-                selectedList.forEach { viewModel.onDownload(it) }
-                onSelectModeChange(Constants.DEFAULT_MODE)
-                onClearSelection()
-            }) {
-                Text("다운로드")
-            }
-            TextButton(onClick = {
-                selectedList.forEach { viewModel.onDelete(it) }
-                onSelectModeChange(Constants.DEFAULT_MODE)
-                onClearSelection()
-            }) {
-                Text("삭제")
-            }
-            TextButton(
-                enabled = selectedList.size == 1,
-                onClick = {
-                    renameTarget = selectedList.first()
+    when (selectMode) {
+        Constants.MULTI_SELECT_MODE -> {
+            Row(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = {
+                    onEnterDownloadMode(selectedList.toList())
                     onSelectModeChange(Constants.DEFAULT_MODE)
                     onClearSelection()
+                }) {
+                    Text(strRemoteDownload)
                 }
-            ) {
-                Text("이름 변경")
+                TextButton(onClick = {
+                    selectedList.forEach { viewModel.onDelete(it) }
+                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onClearSelection()
+                }) {
+                    Text(strRemoteDelete)
+                }
+                TextButton(
+                    enabled = selectedList.size == 1,
+                    onClick = {
+                        renameTarget = selectedList.first()
+                        onSelectModeChange(Constants.DEFAULT_MODE)
+                        onClearSelection()
+                    }
+                ) {
+                    Text(strRemoteRename)
+                }
             }
+        }
+        Constants.CONFIRM_MODE_UPLOAD -> {
+            ConfirmButtons(
+                modifier = modifier,
+                confirm = {
+                    onConfirmUpload()
+                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onClearSelection()
+                },
+                cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
+                mode = Constants.CONFIRM_MODE_UPLOAD
+            )
         }
     }
 }
