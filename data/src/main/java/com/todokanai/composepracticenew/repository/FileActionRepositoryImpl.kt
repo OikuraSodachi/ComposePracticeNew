@@ -166,6 +166,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
             entries.forEach { entry ->
                 val target = root.resolve(entry.name)
+                if (!isUnderRoot(target, root)) return@forEach
                 if (entry.isDirectory) {
                     target.mkdirs()
                 } else {
@@ -202,6 +203,12 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             emit(ProgressState(error = "폴더 생성 실패: $name"))
         }
     }.flowOn(Dispatchers.IO)
+
+    /** [file]의 정규화 경로가 [root] 하위에 있는지 확인한다. Zip Slip 방지용. */
+    private fun isUnderRoot(file: File, root: File): Boolean {
+        val rootCanonical = root.canonicalPath + File.separator
+        return file.canonicalFile.path.startsWith(rootCanonical)
+    }
 
     /** 버퍼 단위로 [input]을 읽어 [output]에 쓰면서 진행률이 바뀔 때만 [onProgress]를 호출한다. */
     private suspend fun pumpBytes(
