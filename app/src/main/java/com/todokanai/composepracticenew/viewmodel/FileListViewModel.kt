@@ -13,7 +13,6 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
 import com.todokanai.composepracticenew.tools.MyNotification
-import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
@@ -33,8 +32,7 @@ class FileListViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val progressUseCase: ProgressUseCase,
     private val myNoti: MyNotification,
-    private val openFileUseCase: OpenFileUseCase,
-    private val fileActionUseCase: FileActionUseCase
+    private val openFileUseCase: OpenFileUseCase
 ) : ViewModel() {
 
     /** 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
@@ -105,22 +103,4 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-
-    /** 폴더 생성 실패 시 표시할 오류 메시지. null이면 표시 없음. */
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
-    /** 오류 메시지를 소비한 뒤 초기화한다. */
-    fun clearError() { _errorMessage.value = null }
-
-    /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
-    fun makeDirectory(name: String) {
-        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
-        viewModelScope.launch {
-            fileActionUseCase.makeDirectory(currentPath, name).collect { state ->
-                state.error?.let { _errorMessage.value = it }
-            }
-            fileNavigatorUseCase.refresh()
-        }
-    }
 }
