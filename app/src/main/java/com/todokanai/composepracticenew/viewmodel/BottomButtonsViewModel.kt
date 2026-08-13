@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicInteger
 import java.io.File
 import javax.inject.Inject
 
@@ -54,7 +55,7 @@ class BottomButtonsViewModel @Inject constructor(
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchFlows(
-                actionKey = ACTION_KEY_COPY,
+                actionType = ACTION_KEY_COPY,
                 flows = listOf(
                     fileActionUseCase.copyAction(
                         targetFiles = selectedList.map { it.path },
@@ -63,16 +64,16 @@ class BottomButtonsViewModel @Inject constructor(
                 )
             )
             CONFIRM_MODE_MOVE -> launchFlows(
-                actionKey = ACTION_KEY_MOVE,
+                actionType = ACTION_KEY_MOVE,
                 completionMessage = context.getString(R.string.noti_move_complete),
                 flows = selectedList.map { fileActionUseCase.moveFile(it.path, currentPath) }
             )
             CONFIRM_MODE_UNZIP -> launchFlows(
-                actionKey = ACTION_KEY_UNZIP,
+                actionType = ACTION_KEY_UNZIP,
                 flows = selectedList.map { fileActionUseCase.unzipAction(it.path, currentPath, unzipHere = false) }
             )
             CONFIRM_MODE_UNZIP_HERE -> launchFlows(
-                actionKey = ACTION_KEY_UNZIP,
+                actionType = ACTION_KEY_UNZIP,
                 flows = selectedList.map { fileActionUseCase.unzipAction(it.path, currentPath, unzipHere = true) }
             )
         }
@@ -81,7 +82,7 @@ class BottomButtonsViewModel @Inject constructor(
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
         launchFlows(
-            actionKey = ACTION_KEY_ZIP,
+            actionType = ACTION_KEY_ZIP,
             flows = listOf(
                 fileActionUseCase.zipAction(
                     targetFiles = selectedList.map { it.path },
@@ -93,43 +94,48 @@ class BottomButtonsViewModel @Inject constructor(
 
     fun rename(item: FileHolderItem, name: String) {
         launchFlows(
-            actionKey = null,
+            actionType = null,
             flows = listOf(fileActionUseCase.renameFile(item.path, name))
         )
     }
 
     fun delete(selectedList: List<FileHolderItem>) {
         launchFlows(
-            actionKey = ACTION_KEY_DELETE,
+            actionType = ACTION_KEY_DELETE,
             completionMessage = context.getString(R.string.noti_delete_complete),
             flows = selectedList.map { fileActionUseCase.deleteFile(it.path) }
         )
     }
 
 
+    private val instanceCounter = AtomicInteger(0)
+
     private fun launchFlows(
-        actionKey: Int?,
+        actionType: Int?,
         completionMessage: String? = null,
         flows: List<Flow<ProgressState>>
     ) {
+        val instanceId = instanceCounter.incrementAndGet()
         CoroutineScope(Dispatchers.IO).launch {
             var hasError = false
             try {
                 flows.forEach { flow ->
                     if (hasError) return@forEach
                     flow.collect { state ->
-                        actionKey?.let { progressUseCase.setProgressState(it, state) }
+                        if (actionType != null) {
+                            progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
+                        }
                         if (state.error != null) hasError = true
                     }
                 }
             } finally {
-                actionKey?.let { progressUseCase.removeProgress(it) }
+                if (actionType != null) progressUseCase.removeProgress(instanceId)
             }
             if (!hasError) {
                 myNoti.completedNotification(
                     "",
                     completionMessage ?: context.getString(R.string.noti_complete),
-                    actionKey
+                    actionType
                 )
             }
             fileNavigatorUseCase.refresh()

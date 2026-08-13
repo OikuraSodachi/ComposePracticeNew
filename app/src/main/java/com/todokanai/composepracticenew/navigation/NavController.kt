@@ -164,8 +164,8 @@ fun AppNavHost(
 
             LaunchedEffect(Unit) {
                 viewModel.progressMap.collect { map ->
-                    map.forEach { (actionKey, state) ->
-                        viewModel.progressNoti(actionKey, state)
+                    map.forEach { (_, state) ->
+                        state.actionKey?.let { viewModel.progressNoti(it, state) }
                     }
                 }
             }
