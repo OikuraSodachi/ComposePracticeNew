@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
+import com.todokanai.composepracticenew.compose.presets.dialog.BooleanDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -41,6 +42,17 @@ fun OptionFrag(
     viewModel: OptionViewModel = hiltViewModel(),
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+
+    errorMessage?.let { msg ->
+        BooleanDialog(
+            modifier = Modifier,
+            title = stringResource(R.string.dialog_error_title),
+            message = msg,
+            onConfirm = { viewModel.clearError() },
+            onCancel = { viewModel.clearError() }
+        )
+    }
 
     var showEditTextDialog by remember { mutableStateOf(false) }
     if (showEditTextDialog) {

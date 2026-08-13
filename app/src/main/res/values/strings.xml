@@ -81,6 +81,8 @@
     <string name="noti_delete_complete">삭제 완료</string>
     <string name="noti_complete">완료</string>
 
+    <string name="dialog_error_title">오류</string>
+
     <!-- Toast / Errors -->
     <string name="toast_storage_permission">Storage permission is required, please allow from settings</string>
     <string name="toast_cannot_open_file">Cannot open the file</string>
