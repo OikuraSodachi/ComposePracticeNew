@@ -9,6 +9,7 @@ import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -27,6 +28,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         var writtenBytes = 0L
         var prevProgress = -1
         var fileIndex = 0
+        emit(ProgressState(progress = 0))
 
         ZipOutputStream(File(zipFile).outputStream()).use { zos ->
             allFiles.forEach { (root, sFile) ->
@@ -52,6 +54,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 zos.closeEntry()
             }
         }
+        emit(ProgressState(
+            progress = 100,
+            totalBytes = totalBytes,
+            writtenBytes = totalBytes,
+            listSize = totalFileCount,
+            currentIndex = totalFileCount
+        ))
     }.flowOn(Dispatchers.IO)
 
     override fun copyAction(targetFiles: List<String>, targetPath: String): Flow<ProgressState> = flow {
@@ -138,6 +147,60 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
         src.deleteRecursively()
         emit(ProgressState(progress = 100))
+    }.flowOn(Dispatchers.IO)
+
+    override fun unzipAction(zipFile: String, destPath: String, unzipHere: Boolean): Flow<ProgressState> = flow {
+        emit(ProgressState(progress = 0))
+        ZipFile(zipFile).use { zf ->
+            val entries = zf.entries().toList()
+            val totalBytes = entries.sumOf { it.size }.coerceAtLeast(1)
+            val totalFileCount = entries.count { !it.isDirectory }
+            val root = if (unzipHere) {
+                File(destPath)
+            } else {
+                File(destPath, File(zipFile).nameWithoutExtension).also { it.mkdirs() }
+            }
+            var writtenBytes = 0L
+            var prevProgress = -1
+            var fileIndex = 0
+
+            entries.forEach { entry ->
+                val target = root.resolve(entry.name)
+                if (entry.isDirectory) {
+                    target.mkdirs()
+                } else {
+                    target.parentFile?.mkdirs()
+                    fileIndex++
+                    zf.getInputStream(entry).use { input ->
+                        target.outputStream().use { output ->
+                            val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
+                                emit(ProgressState(
+                                    progress = progress,
+                                    totalBytes = totalBytes,
+                                    writtenBytes = written,
+                                    listSize = totalFileCount,
+                                    currentIndex = fileIndex,
+                                    currentFileName = entry.name,
+                                    currentFileBytes = entry.size
+                                ))
+                            }
+                            writtenBytes = wb
+                            prevProgress = pp
+                        }
+                    }
+                }
+            }
+        }
+        emit(ProgressState(progress = 100))
+    }.flowOn(Dispatchers.IO)
+
+    override fun makeDirectory(parentPath: String, name: String): Flow<ProgressState> = flow {
+        val dir = File(parentPath, name)
+        if (dir.mkdir()) {
+            emit(ProgressState(progress = 100))
+        } else {
+            emit(ProgressState(error = "폴더 생성 실패: $name"))
+        }
     }.flowOn(Dispatchers.IO)
 
     /** 버퍼 단위로 [input]을 읽어 [output]에 쓰면서 진행률이 바뀔 때만 [onProgress]를 호출한다. */

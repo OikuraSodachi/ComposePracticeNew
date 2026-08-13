@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
@@ -66,6 +67,14 @@ class BottomButtonsViewModel @Inject constructor(
                 completionMessage = context.getString(R.string.noti_move_complete),
                 flows = selectedList.map { fileActionUseCase.moveFile(it.path, currentPath) }
             )
+            CONFIRM_MODE_UNZIP -> launchFlows(
+                actionKey = ACTION_KEY_UNZIP,
+                flows = selectedList.map { fileActionUseCase.unzipAction(it.path, currentPath, unzipHere = false) }
+            )
+            CONFIRM_MODE_UNZIP_HERE -> launchFlows(
+                actionKey = ACTION_KEY_UNZIP,
+                flows = selectedList.map { fileActionUseCase.unzipAction(it.path, currentPath, unzipHere = true) }
+            )
         }
     }
 
@@ -96,6 +105,7 @@ class BottomButtonsViewModel @Inject constructor(
             flows = selectedList.map { fileActionUseCase.deleteFile(it.path) }
         )
     }
+
 
     private fun launchFlows(
         actionKey: Int?,

@@ -20,4 +20,11 @@ interface FileActionRepository {
 
     // Moves the file at [targetFile] into the directory at [targetPath], emitting progress.
     fun moveFile(targetFile: String, targetPath: String): Flow<ProgressState>
+
+    // Extracts the zip file at [zipFile] into [destPath], emitting progress.
+    // If [unzipHere] is true, extracts directly into [destPath] without creating a subfolder.
+    fun unzipAction(zipFile: String, destPath: String, unzipHere: Boolean = false): Flow<ProgressState>
+
+    // Creates a new directory named [name] under [parentPath], emitting progress.
+    fun makeDirectory(parentPath: String, name: String): Flow<ProgressState>
 }
