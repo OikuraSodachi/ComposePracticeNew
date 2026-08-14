@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import com.todokanai.composepracticenew.R
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
@@ -21,16 +22,15 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
-import java.util.concurrent.atomic.AtomicInteger
 import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 class BottomButtonsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
+    @ApplicationScope private val appScope: CoroutineScope,
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val fileActionUseCase: FileActionUseCase,
     private val progressUseCase: ProgressUseCase,
@@ -108,15 +108,13 @@ class BottomButtonsViewModel @Inject constructor(
     }
 
 
-    private val instanceCounter = AtomicInteger(0)
-
     private fun launchFlows(
         actionType: Int?,
         completionMessage: String? = null,
         flows: List<Flow<ProgressState>>
     ) {
-        val instanceId = instanceCounter.incrementAndGet()
-        CoroutineScope(Dispatchers.IO).launch {
+        val instanceId = progressUseCase.nextInstanceId()
+        appScope.launch {
             var hasError = false
             try {
                 flows.forEach { flow ->
