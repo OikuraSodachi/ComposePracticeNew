@@ -175,6 +175,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
     override fun unzipAction(zipFile: String, destPath: String, unzipHere: Boolean): Flow<ProgressState> = flow {
         emit(ProgressState(progress = 0))
+        var skippedEntries = 0
         ZipFile(zipFile).use { zf ->
             val entries = zf.entries().toList()
             val totalBytes = entries.sumOf { it.size }.coerceAtLeast(1)
@@ -192,7 +193,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
             entries.forEach { entry ->
                 val target = root.resolve(entry.name)
-                if (!isUnderRoot(target, root)) return@forEach
+                if (!isUnderRoot(target, root)) { skippedEntries++; return@forEach }
                 if (entry.isDirectory) {
                     target.mkdirs()
                 } else {
@@ -218,7 +219,11 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 }
             }
         }
-        emit(ProgressState(progress = 100))
+        if (skippedEntries > 0) {
+            emit(ProgressState(error = "경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀"))
+        } else {
+            emit(ProgressState(progress = 100))
+        }
     }.flowOn(Dispatchers.IO)
 
     override fun makeDirectory(parentPath: String, name: String): Flow<ProgressState> = flow {
