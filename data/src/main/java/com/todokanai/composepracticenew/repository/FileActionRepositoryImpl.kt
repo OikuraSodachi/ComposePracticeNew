@@ -141,13 +141,19 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
             emit(ProgressState(progress = 100))
         } else {
-            val allFiles = src.walkTopDown().filter { !it.isDirectory }.toList()
-            val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
-            checkDiskSpace(totalBytes, File(targetPath))
+            val destDir = File(targetPath)
+            if (destDir.freeSpace == 0L) {
+                emit(ProgressState(error = "디스크 공간 부족: 여유 공간 없음"))
+                return@flow
+            }
+            val entries = src.walkTopDown().onEnter { it != dest }.toList()
+            val fileEntries = entries.filter { !it.isDirectory }
+            val totalBytes = fileEntries.sumOf { it.length() }.coerceAtLeast(1)
+            val totalFileCount = fileEntries.size
+            checkDiskSpace(totalBytes, destDir)
                 ?.let { emit(ProgressState(error = it)); return@flow }
-            val totalFileCount = allFiles.size
 
-            copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90) { srcFile, written, progress, idx ->
+            copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90, entries = entries) { srcFile, written, progress, idx ->
                 emit(ProgressState(
                     progress = progress,
                     totalBytes = totalBytes,
@@ -277,12 +283,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         prevProgress: Int,
         fileIndex: Int,
         progressScale: Int = 100,
+        entries: List<File>? = null,
         onProgress: suspend (src: File, written: Long, progress: Int, fileIndex: Int) -> Unit
     ): Triple<Long, Int, Int> {
         var wb = writtenBytes
         var pp = prevProgress
         var fi = fileIndex
-        root.walkTopDown().onEnter { it != dest }.forEach { src ->
+        val walk = entries?.asSequence() ?: root.walkTopDown().onEnter { it != dest }
+        walk.forEach { src ->
             val target = dest.toPath().resolve(root.toPath().relativize(src.toPath())).toFile()
             if (src.isDirectory) {
                 target.mkdirs()
