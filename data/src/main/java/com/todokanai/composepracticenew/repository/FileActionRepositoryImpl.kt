@@ -151,8 +151,11 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             ))
         }
 
-        src.deleteRecursively()
-        emit(ProgressState(progress = 100))
+        if (!src.deleteRecursively()) {
+            emit(ProgressState(error = "원본 삭제 실패: ${src.name}"))
+        } else {
+            emit(ProgressState(progress = 100))
+        }
     }.flowOn(Dispatchers.IO)
 
     override fun unzipAction(zipFile: String, destPath: String, unzipHere: Boolean): Flow<ProgressState> = flow {
