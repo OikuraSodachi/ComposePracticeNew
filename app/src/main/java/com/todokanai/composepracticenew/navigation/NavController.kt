@@ -162,13 +162,6 @@ fun AppNavHost(
                 )
             }
 
-            LaunchedEffect(Unit) {
-                viewModel.progressMap.collect { map ->
-                    map.forEach { (_, state) ->
-                        state.actionKey?.let { viewModel.progressNoti(it, state) }
-                    }
-                }
-            }
         }
         composable(NavDestinations.REMOTE_FILE_LIST) {
             val remoteViewModel: RemoteFileListViewModel = hiltViewModel()

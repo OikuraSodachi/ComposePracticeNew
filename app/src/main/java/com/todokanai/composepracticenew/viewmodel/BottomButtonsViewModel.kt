@@ -122,6 +122,7 @@ class BottomButtonsViewModel @Inject constructor(
                     flow.collect { state ->
                         if (actionType != null) {
                             progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
+                            sendProgressNoti(actionType, state)
                         }
                         if (state.error != null) hasError = true
                     }
@@ -137,6 +138,19 @@ class BottomButtonsViewModel @Inject constructor(
                 )
             }
             fileNavigatorUseCase.refresh()
+        }
+    }
+
+    private fun sendProgressNoti(actionType: Int, state: ProgressState) {
+        when (actionType) {
+            ACTION_KEY_COPY -> myNoti.copyProgressNoti(state.progress ?: return)
+            ACTION_KEY_DELETE -> myNoti.deleteProgressNoti(
+                state.currentIndex ?: return,
+                state.listSize ?: return
+            )
+            ACTION_KEY_MOVE -> myNoti.moveProgressNoti(state.progress ?: return)
+            ACTION_KEY_ZIP -> myNoti.zipProgressNoti(state.progress ?: return)
+            ACTION_KEY_UNZIP -> myNoti.unzipProgressNoti(state.progress ?: return)
         }
     }
 }
