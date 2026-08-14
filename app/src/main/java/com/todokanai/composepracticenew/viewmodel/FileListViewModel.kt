@@ -5,11 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ProgressStateEntity
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toEntity
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
 import com.todokanai.composepracticenew.tools.MyNotification
@@ -69,18 +64,6 @@ class FileListViewModel @Inject constructor(
         _showProgressDialogForKey.value = null
     }
 
-    fun progressNoti(actionKey: Int, progressState: ProgressStateEntity) {
-        when (actionKey) {
-            ACTION_KEY_COPY -> myNoti.copyProgressNoti(progressState.progress)
-            ACTION_KEY_DELETE -> progressState.currentIndex?.let { index ->
-                progressState.listSize?.let { size -> myNoti.deleteProgressNoti(index, size) }
-            }
-            ACTION_KEY_MOVE -> myNoti.moveProgressNoti(progressState.progress)
-            ACTION_KEY_ZIP -> myNoti.zipProgressNoti(progressState.progress)
-            ACTION_KEY_UNZIP -> myNoti.unzipProgressNoti(progressState.progress)
-        }
-    }
-
     /** pendingList 중 현재 로컬 디렉터리에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
     fun getDownloadConflicts(pendingList: List<FileHolderItem>): List<FileHolderItem> {
         val localFiles = uiState.value.fileHolderItemList
@@ -102,4 +85,5 @@ class FileListViewModel @Inject constructor(
             }
         }
     }
+
 }

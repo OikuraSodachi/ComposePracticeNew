@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.tools.independent.getPhysicalStorage_td
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -8,7 +9,10 @@ import kotlinx.coroutines.flow.flowOn
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -23,10 +27,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             root.walkTopDown().filter { f -> !f.isDirectory }.map { root to it }.toList()
         }
         val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
+        checkDiskSpace(totalBytes, File(zipFile).parentFile ?: File(zipFile))
+            ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
         var fileIndex = 0
+        emit(ProgressState(progress = 0))
 
         ZipOutputStream(File(zipFile).outputStream()).use { zos ->
             allFiles.forEach { (root, sFile) ->
@@ -52,6 +59,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 zos.closeEntry()
             }
         }
+        emit(ProgressState(
+            progress = 100,
+            totalBytes = totalBytes,
+            writtenBytes = totalBytes,
+            listSize = totalFileCount,
+            currentIndex = totalFileCount
+        ))
     }.flowOn(Dispatchers.IO)
 
     override fun copyAction(targetFiles: List<String>, targetPath: String): Flow<ProgressState> = flow {
@@ -59,6 +73,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val roots = targetFiles.map(::File)
         val allFiles = roots.flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
         val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+        checkDiskSpace(totalBytes, File(targetPath))
+            ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
@@ -118,27 +134,122 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     override fun moveFile(targetFile: String, targetPath: String): Flow<ProgressState> = flow {
         emit(ProgressState(progress = 0))
         val src = File(targetFile)
-        val allFiles = src.walkTopDown().filter { !it.isDirectory }.toList()
-        val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
-        val totalFileCount = allFiles.size
         val dest = File(targetPath, src.name)
 
-        // copy phase: 0–90%
-        copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90) { srcFile, written, progress, idx ->
-            emit(ProgressState(
-                progress = progress,
-                totalBytes = totalBytes,
-                writtenBytes = written,
-                listSize = totalFileCount,
-                currentIndex = idx,
-                currentFileName = srcFile.name,
-                currentFileBytes = srcFile.length()
-            ))
-        }
+        if (getPhysicalStorage_td(src) == getPhysicalStorage_td(File(targetPath))) {
+            // 동일 파티션: rename syscall로 원자적 이동, 추가 공간 불필요
+            Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            emit(ProgressState(progress = 100))
+        } else {
+            val destDir = File(targetPath)
+            if (destDir.freeSpace == 0L) {
+                emit(ProgressState(error = "디스크 공간 부족: 여유 공간 없음"))
+                return@flow
+            }
+            val entries = src.walkTopDown().onEnter { it != dest }.toList()
+            val fileEntries = entries.filter { !it.isDirectory }
+            val totalBytes = fileEntries.sumOf { it.length() }.coerceAtLeast(1)
+            val totalFileCount = fileEntries.size
+            checkDiskSpace(totalBytes, destDir)
+                ?.let { emit(ProgressState(error = it)); return@flow }
 
-        src.deleteRecursively()
-        emit(ProgressState(progress = 100))
+            copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90, entries = entries) { srcFile, written, progress, idx ->
+                emit(ProgressState(
+                    progress = progress,
+                    totalBytes = totalBytes,
+                    writtenBytes = written,
+                    listSize = totalFileCount,
+                    currentIndex = idx,
+                    currentFileName = srcFile.name,
+                    currentFileBytes = srcFile.length()
+                ))
+            }
+
+            if (!src.deleteRecursively()) {
+                emit(ProgressState(error = "원본 삭제 실패: ${src.name}"))
+            } else {
+                emit(ProgressState(progress = 100))
+            }
+        }
     }.flowOn(Dispatchers.IO)
+
+    override fun unzipAction(zipFile: String, destPath: String, unzipHere: Boolean): Flow<ProgressState> = flow {
+        emit(ProgressState(progress = 0))
+        var skippedEntries = 0
+        ZipFile(zipFile).use { zf ->
+            val entries = zf.entries().toList()
+            val totalBytes = entries.sumOf { it.size }.coerceAtLeast(1)
+            checkDiskSpace(totalBytes, File(destPath))
+                ?.let { emit(ProgressState(error = it)); return@flow }
+            val totalFileCount = entries.count { !it.isDirectory }
+            val root = if (unzipHere) {
+                File(destPath)
+            } else {
+                File(destPath, File(zipFile).nameWithoutExtension).also { it.mkdirs() }
+            }
+            var writtenBytes = 0L
+            var prevProgress = -1
+            var fileIndex = 0
+
+            entries.forEach { entry ->
+                val target = root.resolve(entry.name)
+                if (!isUnderRoot(target, root)) { skippedEntries++; return@forEach }
+                if (entry.isDirectory) {
+                    target.mkdirs()
+                } else {
+                    target.parentFile?.mkdirs()
+                    fileIndex++
+                    zf.getInputStream(entry).use { input ->
+                        target.outputStream().use { output ->
+                            val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
+                                emit(ProgressState(
+                                    progress = progress,
+                                    totalBytes = totalBytes,
+                                    writtenBytes = written,
+                                    listSize = totalFileCount,
+                                    currentIndex = fileIndex,
+                                    currentFileName = entry.name,
+                                    currentFileBytes = entry.size
+                                ))
+                            }
+                            writtenBytes = wb
+                            prevProgress = pp
+                        }
+                    }
+                }
+            }
+        }
+        if (skippedEntries > 0) {
+            emit(ProgressState(error = "경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀"))
+        } else {
+            emit(ProgressState(progress = 100))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    override fun makeDirectory(parentPath: String, name: String): Flow<ProgressState> = flow {
+        val dir = File(parentPath, name)
+        if (dir.mkdir()) {
+            emit(ProgressState(progress = 100))
+        } else {
+            emit(ProgressState(error = "폴더 생성 실패: $name"))
+        }
+    }.flowOn(Dispatchers.IO)
+
+    /** [dest] 파티션의 여유 공간이 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
+    private fun checkDiskSpace(needed: Long, dest: File): String? {
+        val free = dest.freeSpace
+        return if (free < needed)
+            "디스크 공간 부족: 필요 ${needed / 1024} KB, 여유 ${free / 1024} KB"
+        else null
+    }
+
+    /** [file]의 정규화 경로가 [root] 하위에 있는지 확인한다. Zip Slip 방지용. */
+    private fun isUnderRoot(file: File, root: File): Boolean {
+        val rootPath = root.canonicalPath.let {
+            if (it.endsWith(File.separator)) it else it + File.separator
+        }
+        return file.canonicalFile.path.startsWith(rootPath)
+    }
 
     /** 버퍼 단위로 [input]을 읽어 [output]에 쓰면서 진행률이 바뀔 때만 [onProgress]를 호출한다. */
     private suspend fun pumpBytes(
@@ -177,12 +288,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         prevProgress: Int,
         fileIndex: Int,
         progressScale: Int = 100,
+        entries: List<File>? = null,
         onProgress: suspend (src: File, written: Long, progress: Int, fileIndex: Int) -> Unit
     ): Triple<Long, Int, Int> {
         var wb = writtenBytes
         var pp = prevProgress
         var fi = fileIndex
-        root.walkTopDown().onEnter { it != dest }.forEach { src ->
+        val walk = entries?.asSequence() ?: root.walkTopDown().onEnter { it != dest }
+        walk.forEach { src ->
             val target = dest.toPath().resolve(root.toPath().relativize(src.toPath())).toFile()
             if (src.isDirectory) {
                 target.mkdirs()

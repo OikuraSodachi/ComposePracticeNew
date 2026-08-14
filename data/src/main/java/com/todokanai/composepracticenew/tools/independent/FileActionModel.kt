@@ -26,7 +26,7 @@ fun getFilenameForPath_td(path: String): String =
 
 /** 안드로이드에서만 적용 가능 */
 fun getPhysicalStorage_td(file: File): String {
-    val path = file.absolutePath
+    val path = file.canonicalFile.absolutePath
     val firstSlashIndex = path.indexOf('/')
     val secondSlashIndex = path.indexOf('/', startIndex = firstSlashIndex + 1)
     val thirdSlashIndex = path.indexOf('/', startIndex = secondSlashIndex + 1)

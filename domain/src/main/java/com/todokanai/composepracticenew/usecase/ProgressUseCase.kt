@@ -3,10 +3,16 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.flow.StateFlow
+import java.util.concurrent.atomic.AtomicInteger
 
 /** 진행 중인 파일 작업의 progress 상태를 읽고 업데이트하는 UseCase. */
 class ProgressUseCase(private val repo: ProgressRepository) {
+    private val instanceCounter = AtomicInteger(0)
+
     val progressMap: StateFlow<Map<Int, ProgressState>> = repo.progressMap
+
+    /** 작업 인스턴스마다 전역적으로 고유한 ID를 발급한다. */
+    fun nextInstanceId(): Int = instanceCounter.incrementAndGet()
     fun setProgressState(actionKey: Int, state: ProgressState) = repo.setProgressState(actionKey, state)
     fun removeProgress(actionKey: Int) = repo.removeProgress(actionKey)
 }
