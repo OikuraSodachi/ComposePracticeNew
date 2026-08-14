@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.tools.independent.getPhysicalStorage_td
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -8,6 +9,8 @@ import kotlinx.coroutines.flow.flowOn
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
@@ -131,30 +134,36 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     override fun moveFile(targetFile: String, targetPath: String): Flow<ProgressState> = flow {
         emit(ProgressState(progress = 0))
         val src = File(targetFile)
-        val allFiles = src.walkTopDown().filter { !it.isDirectory }.toList()
-        val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
-        checkDiskSpace(totalBytes, File(targetPath))
-            ?.let { emit(ProgressState(error = it)); return@flow }
-        val totalFileCount = allFiles.size
         val dest = File(targetPath, src.name)
 
-        // copy phase: 0–90%
-        copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90) { srcFile, written, progress, idx ->
-            emit(ProgressState(
-                progress = progress,
-                totalBytes = totalBytes,
-                writtenBytes = written,
-                listSize = totalFileCount,
-                currentIndex = idx,
-                currentFileName = srcFile.name,
-                currentFileBytes = srcFile.length()
-            ))
-        }
-
-        if (!src.deleteRecursively()) {
-            emit(ProgressState(error = "원본 삭제 실패: ${src.name}"))
-        } else {
+        if (getPhysicalStorage_td(src) == getPhysicalStorage_td(File(targetPath))) {
+            // 동일 파티션: rename syscall로 원자적 이동, 추가 공간 불필요
+            Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
             emit(ProgressState(progress = 100))
+        } else {
+            val allFiles = src.walkTopDown().filter { !it.isDirectory }.toList()
+            val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+            checkDiskSpace(totalBytes, File(targetPath))
+                ?.let { emit(ProgressState(error = it)); return@flow }
+            val totalFileCount = allFiles.size
+
+            copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90) { srcFile, written, progress, idx ->
+                emit(ProgressState(
+                    progress = progress,
+                    totalBytes = totalBytes,
+                    writtenBytes = written,
+                    listSize = totalFileCount,
+                    currentIndex = idx,
+                    currentFileName = srcFile.name,
+                    currentFileBytes = srcFile.length()
+                ))
+            }
+
+            if (!src.deleteRecursively()) {
+                emit(ProgressState(error = "원본 삭제 실패: ${src.name}"))
+            } else {
+                emit(ProgressState(progress = 100))
+            }
         }
     }.flowOn(Dispatchers.IO)
 
