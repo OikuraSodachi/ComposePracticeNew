@@ -228,7 +228,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     private fun checkDiskSpace(needed: Long, dest: File): String? {
         val free = dest.freeSpace
         return if (free < needed)
-            "디스크 공간 부족: 필요 ${needed / 1024 / 1024} MB, 여유 ${free / 1024 / 1024} MB"
+            "디스크 공간 부족: 필요 ${needed / 1024} KB, 여유 ${free / 1024} KB"
         else null
     }
 
