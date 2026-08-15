@@ -174,7 +174,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 runCatching {
                     Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 }.onFailure { e ->
-                    emit(ProgressState(error = "이동 실패: ${root.name} — ${e.message}"))
+                    emit(ProgressState(error = "이동 실패: ${root.name} — ${e.message} (${i}개 항목은 이미 이동됨)"))
                     return@flow
                 }
                 writtenBytes += leafSizes[i]
@@ -192,7 +192,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 prevProgress = pp
                 fileIndex = fi
                 if (!root.deleteRecursively()) {
-                    emit(ProgressState(error = "원본 삭제 실패: ${root.name}"))
+                    emit(ProgressState(error = "원본 삭제 실패: ${root.name} (${i}개 항목은 이미 이동됨)"))
                     return@flow
                 }
             }
