@@ -151,7 +151,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
         val leafSizes = treeEntries.map { list -> list.filter { !it.isDirectory }.sumOf { it.length() } }
         val leafCounts = treeEntries.map { list -> list.count { !it.isDirectory } }
-        val totalBytes = calcTotalBytes(leafSizes)
+        val totalBytes = sumBytesOrOne(leafSizes)
         val totalFileCount = leafCounts.sum()
 
         val crossBytes = roots.indices
@@ -213,7 +213,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 totalFileCount += entries.count { !it.isDirectory }
             }
         }
-        val totalBytes = calcTotalBytes(byteSizes)
+        val totalBytes = sumBytesOrOne(byteSizes)
         checkDiskSpace(totalBytes, File(destPath))?.let { emit(ProgressState(error = it)); return@flow }
 
         var writtenBytes = 0L
@@ -264,7 +264,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }.flowOn(Dispatchers.IO)
 
     /** 바이트 크기 목록의 합을 반환한다. 합이 0이면 1을 반환해 0 나눗셈을 방지한다. */
-    private fun calcTotalBytes(sizes: List<Long>) = sizes.sum().coerceAtLeast(1)
+    private fun sumBytesOrOne(sizes: List<Long>) = sizes.sum().coerceAtLeast(1)
 
     /** [dest] 파티션의 여유 공간이 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
     private fun checkDiskSpace(needed: Long, dest: File): String? {
