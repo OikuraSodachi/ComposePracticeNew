@@ -23,10 +23,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
     override fun zipAction(targetFiles: List<String>, zipFile: String): Flow<ProgressState> = flow {
         val roots = targetFiles.map(::File)
+        var totalBytesAcc = 0L
         val allFiles = roots.flatMap { root ->
-            root.walkTopDown().filter { f -> !f.isDirectory }.map { root to it }.toList()
+            root.walkTopDown().filter { f -> !f.isDirectory }
+                .onEach { totalBytesAcc += it.length() }
+                .map { root to it }
+                .toList()
         }
-        val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
+        val totalBytes = totalBytesAcc.coerceAtLeast(1)
         checkDiskSpace(totalBytes, File(zipFile).parentFile ?: File(zipFile))
             ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
@@ -71,8 +75,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     override fun copyAction(targetFiles: List<String>, targetPath: String): Flow<ProgressState> = flow {
         emit(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
-        val allFiles = roots.flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
-        val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+        var totalBytesAcc = 0L
+        val allFiles = roots.flatMap { root ->
+            root.walkTopDown().filter { f -> !f.isDirectory }
+                .onEach { totalBytesAcc += it.length() }
+                .toList()
+        }
+        val totalBytes = totalBytesAcc.coerceAtLeast(1)
         checkDiskSpace(totalBytes, File(targetPath))
             ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
@@ -142,7 +151,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
         val leafSizes = treeEntries.map { list -> list.filter { !it.isDirectory }.sumOf { it.length() } }
         val leafCounts = treeEntries.map { list -> list.count { !it.isDirectory } }
-        val totalBytes = leafSizes.sum().coerceAtLeast(1)
+        val totalBytes = sumBytesOrOne(leafSizes)
         val totalFileCount = leafCounts.sum()
 
         val crossBytes = roots.indices
@@ -161,7 +170,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             val dest = File(targetPath, root.name)
             if (getPhysicalStorage_td(root) == getPhysicalStorage_td(destDir)) {
                 // 동일 파티션: rename syscall로 원자적 이동
-                Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패 시 error emit
+                runCatching {
+                    Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }.onFailure { e ->
+                    emit(ProgressState(error = "이동 실패: ${root.name} — ${e.message} (${i}개 항목은 이미 이동됨)"))
+                    return@flow
+                }
                 writtenBytes += leafSizes[i]
                 fileIndex += leafCounts[i]
                 val progress = (writtenBytes * 100 / totalBytes).toInt()
@@ -177,7 +192,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 prevProgress = pp
                 fileIndex = fi
                 if (!root.deleteRecursively()) {
-                    emit(ProgressState(error = "원본 삭제 실패: ${root.name}"))
+                    emit(ProgressState(error = "원본 삭제 실패: ${root.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다 (앞선 ${i}개 항목은 이동 완료)"))
                     return@flow
                 }
             }
@@ -189,16 +204,16 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         emit(ProgressState(progress = 0))
 
         // 전체 zip 파일의 압축 해제 용량 합산
-        var totalBytes = 0L
+        val byteSizes = mutableListOf<Long>()
         var totalFileCount = 0
         zipFiles.forEach { path ->
             ZipFile(path).use { zf ->
                 val entries = zf.entries().toList()
-                totalBytes += entries.sumOf { it.size }
+                byteSizes += entries.sumOf { it.size }
                 totalFileCount += entries.count { !it.isDirectory }
             }
         }
-        totalBytes = totalBytes.coerceAtLeast(1)
+        val totalBytes = sumBytesOrOne(byteSizes)
         checkDiskSpace(totalBytes, File(destPath))?.let { emit(ProgressState(error = it)); return@flow }
 
         var writtenBytes = 0L
@@ -247,6 +262,9 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             emit(ProgressState(error = "폴더 생성 실패: $name"))
         }
     }.flowOn(Dispatchers.IO)
+
+    /** 바이트 크기 목록의 합을 반환한다. 합이 0이면 1을 반환해 0 나눗셈을 방지한다. */
+    private fun sumBytesOrOne(sizes: List<Long>) = sizes.sum().coerceAtLeast(1)
 
     /** [dest] 파티션의 여유 공간이 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
     private fun checkDiskSpace(needed: Long, dest: File): String? {

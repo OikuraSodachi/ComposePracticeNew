@@ -14,7 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /** FTP 연결을 Foreground Service로 유지한다. 연결 중에는 상태 알림을 표시하여 시스템이 프로세스를 종료하지 않도록 보장한다. */
@@ -43,9 +43,9 @@ class FtpForegroundService : Service() {
 
     override fun onBind(intent: Intent): IBinder? = null
 
-    /** FTP 연결을 해제한 뒤 serviceScope를 취소한다. stopService() 경로에서도 소켓 누수가 없도록 보장한다. */
+    /** FTP 연결을 해제한 뒤 serviceScope를 취소한다. disconnect()는 best-effort로 실행되며, 프로세스 종료 타이밍에 따라 완료가 보장되지 않을 수 있다. */
     override fun onDestroy() {
-        runBlocking { connectionState.disconnect() }
+        CoroutineScope(Dispatchers.IO).launch { connectionState.disconnect() }
         serviceScope.cancel()
         super.onDestroy()
     }
