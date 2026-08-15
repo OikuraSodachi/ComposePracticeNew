@@ -35,7 +35,7 @@ fun FileConflictDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onOverwrite(); onCancel() }) {
+            Button(onClick = onOverwrite) {
                 Text(stringResource(R.string.btn_overwrite))
             }
         },
@@ -45,7 +45,7 @@ fun FileConflictDialog(
                     Text(stringResource(R.string.btn_cancel))
                 }
                 if (conflictingFiles.size < totalCount) {
-                    TextButton(onClick = { onSkip(); onCancel() }) {
+                    TextButton(onClick = onSkip) {
                         Text(stringResource(R.string.btn_skip_conflicts))
                     }
                 }

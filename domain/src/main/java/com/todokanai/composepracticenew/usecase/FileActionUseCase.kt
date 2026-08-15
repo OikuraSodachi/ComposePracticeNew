@@ -40,11 +40,11 @@ class FileActionUseCase(private val repository: FileActionRepository) {
         repository.deleteFile(targetFile)
             .catch { e -> emit(ProgressState(error = e.message ?: "삭제 중 오류가 발생했습니다.")) }
 
-    // @param zipFile absolutePath of zip file to extract
+    // @param zipFiles absolutePaths of zip files to extract
     // @param destPath absolutePath of destination directory
     // @param unzipHere true이면 [destPath]에 직접 해제, false이면 zip 파일명 하위 폴더 생성 후 해제
-    fun unzipAction(zipFile: String, destPath: String, unzipHere: Boolean = false): Flow<ProgressState> =
-        repository.unzipAction(zipFile, destPath, unzipHere)
+    fun unzipAction(zipFiles: List<String>, destPath: String, unzipHere: Boolean = false): Flow<ProgressState> =
+        repository.unzipAction(zipFiles, destPath, unzipHere)
             .catch { e -> emit(ProgressState(error = e.message ?: "압축 해제 중 오류가 발생했습니다.")) }
 
     // @param parentPath absolutePath (or URI) of the parent directory
@@ -53,15 +53,16 @@ class FileActionUseCase(private val repository: FileActionRepository) {
         repository.makeDirectory(parentPath, name)
             .catch { e -> emit(ProgressState(error = e.message ?: "폴더 생성 중 오류가 발생했습니다.")) }
 
-    // @param targetFile absolutePath (or URI) of file to move
+    // @param targetFiles absolutePaths (or URIs) of files to move
     // @param targetPath absolutePath (or URI) of destination directory
-    fun moveFile(targetFile: String, targetPath: String): Flow<ProgressState> {
-        // copyRecursively 기반 구현이므로 copy와 동일한 동일 경로 검사 적용
-        val srcName = targetFile.substringAfterLast('/')
-        if ("$targetPath/$srcName" == targetFile) {
-            return flowOf(ProgressState(error = "이동 실패: 출발지와 목적지가 동일합니다. ($targetFile)"))
+    fun moveFile(targetFiles: List<String>, targetPath: String): Flow<ProgressState> {
+        for (srcPath in targetFiles) {
+            val srcName = srcPath.substringAfterLast('/')
+            if ("$targetPath/$srcName" == srcPath) {
+                return flowOf(ProgressState(error = "이동 실패: 출발지와 목적지가 동일합니다. ($srcPath)"))
+            }
         }
-        return repository.moveFile(targetFile, targetPath)
+        return repository.moveFile(targetFiles, targetPath)
             .catch { e -> emit(ProgressState(error = e.message ?: "이동 중 오류가 발생했습니다.")) }
     }
 }

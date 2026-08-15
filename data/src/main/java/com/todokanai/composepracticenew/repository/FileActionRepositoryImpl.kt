@@ -131,89 +131,102 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun moveFile(targetFile: String, targetPath: String): Flow<ProgressState> = flow {
+    override fun moveFile(targetFiles: List<String>, targetPath: String): Flow<ProgressState> = flow {
         emit(ProgressState(progress = 0))
-        val src = File(targetFile)
-        val dest = File(targetPath, src.name)
+        val roots = targetFiles.map(::File)
+        val destDir = File(targetPath)
 
-        if (getPhysicalStorage_td(src) == getPhysicalStorage_td(File(targetPath))) {
-            // 동일 파티션: rename syscall로 원자적 이동, 추가 공간 불필요
-            Files.move(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            emit(ProgressState(progress = 100))
-        } else {
-            val destDir = File(targetPath)
-            if (destDir.freeSpace == 0L) {
-                emit(ProgressState(error = "디스크 공간 부족: 여유 공간 없음"))
-                return@flow
-            }
-            val entries = src.walkTopDown().onEnter { it != dest }.toList()
-            val fileEntries = entries.filter { !it.isDirectory }
-            val totalBytes = fileEntries.sumOf { it.length() }.coerceAtLeast(1)
-            val totalFileCount = fileEntries.size
-            checkDiskSpace(totalBytes, destDir)
-                ?.let { emit(ProgressState(error = it)); return@flow }
+        // 이동 전에 모든 트리를 미리 탐색해 크기를 확보 (rename 후에는 원본이 사라지므로)
+        val treeEntries = roots.map { root ->
+            root.walkTopDown().onEnter { it != File(targetPath, root.name) }.toList()
+        }
+        val leafSizes = treeEntries.map { list -> list.filter { !it.isDirectory }.sumOf { it.length() } }
+        val leafCounts = treeEntries.map { list -> list.count { !it.isDirectory } }
+        val totalBytes = leafSizes.sum().coerceAtLeast(1)
+        val totalFileCount = leafCounts.sum()
 
-            copyTree(src, dest, totalBytes, totalFileCount, 0L, -1, 0, progressScale = 90, entries = entries) { srcFile, written, progress, idx ->
-                emit(ProgressState(
-                    progress = progress,
-                    totalBytes = totalBytes,
-                    writtenBytes = written,
-                    listSize = totalFileCount,
-                    currentIndex = idx,
-                    currentFileName = srcFile.name,
-                    currentFileBytes = srcFile.length()
-                ))
-            }
+        val crossBytes = roots.indices
+            .filter { getPhysicalStorage_td(roots[it]) != getPhysicalStorage_td(destDir) }
+            .sumOf { leafSizes[it] }
+        if (crossBytes > 0) {
+            if (destDir.freeSpace == 0L) { emit(ProgressState(error = "디스크 공간 부족: 여유 공간 없음")); return@flow }
+            checkDiskSpace(crossBytes, destDir)?.let { emit(ProgressState(error = it)); return@flow }
+        }
 
-            if (!src.deleteRecursively()) {
-                emit(ProgressState(error = "원본 삭제 실패: ${src.name}"))
+        var writtenBytes = 0L
+        var prevProgress = -1
+        var fileIndex = 0
+
+        roots.forEachIndexed { i, root ->
+            val dest = File(targetPath, root.name)
+            if (getPhysicalStorage_td(root) == getPhysicalStorage_td(destDir)) {
+                // 동일 파티션: rename syscall로 원자적 이동
+                Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                writtenBytes += leafSizes[i]
+                fileIndex += leafCounts[i]
+                val progress = (writtenBytes * 100 / totalBytes).toInt()
+                if (progress != prevProgress) {
+                    emit(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = writtenBytes, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = root.name))
+                    prevProgress = progress
+                }
             } else {
-                emit(ProgressState(progress = 100))
+                val (wb, pp, fi) = copyTree(root, dest, totalBytes, totalFileCount, writtenBytes, prevProgress, fileIndex, entries = treeEntries[i]) { srcFile, written, progress, idx ->
+                    emit(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = idx, currentFileName = srcFile.name, currentFileBytes = srcFile.length()))
+                }
+                writtenBytes = wb
+                prevProgress = pp
+                fileIndex = fi
+                if (!root.deleteRecursively()) {
+                    emit(ProgressState(error = "원본 삭제 실패: ${root.name}"))
+                    return@flow
+                }
             }
         }
+        emit(ProgressState(progress = 100, totalBytes = totalBytes, writtenBytes = totalBytes, listSize = totalFileCount, currentIndex = totalFileCount))
     }.flowOn(Dispatchers.IO)
 
-    override fun unzipAction(zipFile: String, destPath: String, unzipHere: Boolean): Flow<ProgressState> = flow {
+    override fun unzipAction(zipFiles: List<String>, destPath: String, unzipHere: Boolean): Flow<ProgressState> = flow {
         emit(ProgressState(progress = 0))
-        var skippedEntries = 0
-        ZipFile(zipFile).use { zf ->
-            val entries = zf.entries().toList()
-            val totalBytes = entries.sumOf { it.size }.coerceAtLeast(1)
-            checkDiskSpace(totalBytes, File(destPath))
-                ?.let { emit(ProgressState(error = it)); return@flow }
-            val totalFileCount = entries.count { !it.isDirectory }
-            val root = if (unzipHere) {
-                File(destPath)
-            } else {
-                File(destPath, File(zipFile).nameWithoutExtension).also { it.mkdirs() }
-            }
-            var writtenBytes = 0L
-            var prevProgress = -1
-            var fileIndex = 0
 
-            entries.forEach { entry ->
-                val target = root.resolve(entry.name)
-                if (!isUnderRoot(target, root)) { skippedEntries++; return@forEach }
-                if (entry.isDirectory) {
-                    target.mkdirs()
-                } else {
-                    target.parentFile?.mkdirs()
-                    fileIndex++
-                    zf.getInputStream(entry).use { input ->
-                        target.outputStream().use { output ->
-                            val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
-                                emit(ProgressState(
-                                    progress = progress,
-                                    totalBytes = totalBytes,
-                                    writtenBytes = written,
-                                    listSize = totalFileCount,
-                                    currentIndex = fileIndex,
-                                    currentFileName = entry.name,
-                                    currentFileBytes = entry.size
-                                ))
+        // 전체 zip 파일의 압축 해제 용량 합산
+        var totalBytes = 0L
+        var totalFileCount = 0
+        zipFiles.forEach { path ->
+            ZipFile(path).use { zf ->
+                val entries = zf.entries().toList()
+                totalBytes += entries.sumOf { it.size }
+                totalFileCount += entries.count { !it.isDirectory }
+            }
+        }
+        totalBytes = totalBytes.coerceAtLeast(1)
+        checkDiskSpace(totalBytes, File(destPath))?.let { emit(ProgressState(error = it)); return@flow }
+
+        var writtenBytes = 0L
+        var prevProgress = -1
+        var fileIndex = 0
+        var skippedEntries = 0
+
+        zipFiles.forEach { zipFilePath ->
+            ZipFile(zipFilePath).use { zf ->
+                val entries = zf.entries().toList()
+                val root = if (unzipHere) File(destPath)
+                           else File(destPath, File(zipFilePath).nameWithoutExtension).also { it.mkdirs() }
+                entries.forEach { entry ->
+                    val target = root.resolve(entry.name)
+                    if (!isUnderRoot(target, root)) { skippedEntries++; return@forEach }
+                    if (entry.isDirectory) {
+                        target.mkdirs()
+                    } else {
+                        target.parentFile?.mkdirs()
+                        fileIndex++
+                        zf.getInputStream(entry).use { input ->
+                            target.outputStream().use { output ->
+                                val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
+                                    emit(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = entry.name, currentFileBytes = entry.size))
+                                }
+                                writtenBytes = wb
+                                prevProgress = pp
                             }
-                            writtenBytes = wb
-                            prevProgress = pp
                         }
                     }
                 }

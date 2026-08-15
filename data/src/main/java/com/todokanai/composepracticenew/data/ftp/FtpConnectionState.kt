@@ -22,7 +22,11 @@ import javax.inject.Singleton
 class FtpConnectionState @Inject constructor() {
 
     private val client = FTPClient()
-    private val mutex = Mutex()
+    /** isLoggedIn, connectedServer, _isConnected, _isConnecting 갱신을 직렬화한다. */
+    private val stateMutex = Mutex()
+    /** connect/listFiles FTP 명령을 직렬화한다. disconnect는 이 lock을 우회해 진행 중 I/O를 즉시 중단한다. */
+    private val ioMutex = Mutex()
+
     private var connectedServer: String? = null
     private var isLoggedIn = false
 
@@ -42,28 +46,32 @@ class FtpConnectionState @Inject constructor() {
      * @param password FTP 로그인 비밀번호
      * @return 연결 및 로그인 성공 시 true
      */
-    suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean =
-        mutex.withLock {
+    suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean {
+        stateMutex.withLock { _isConnecting.value = true }
+        return ioMutex.withLock {
             withContext(Dispatchers.IO) {
-                _isConnecting.value = true
                 try {
                     val server = address.removePrefix("ftp://")
                     Log.d(TAG, "connect: server=$server userId=$userId")
                     if (client.isConnected) {
                         runCatching { client.logout() }
                         runCatching { client.disconnect() }
-                        isLoggedIn = false
-                        _isConnected.value = false
+                        stateMutex.withLock {
+                            isLoggedIn = false
+                            _isConnected.value = false
+                        }
                     }
                     client.connectTimeout = CONNECT_TIMEOUT_MS
                     client.connect(server, port)
                     client.soTimeout = SO_TIMEOUT_MS
                     val loggedIn = client.login(userId, password)
-                    isLoggedIn = loggedIn
                     if (loggedIn) {
                         client.enterLocalPassiveMode()
-                        connectedServer = server
-                        _isConnected.value = true
+                        stateMutex.withLock {
+                            connectedServer = server
+                            isLoggedIn = true
+                            _isConnected.value = true
+                        }
                         Log.d(TAG, "connect: success server=$server")
                     } else {
                         runCatching { client.disconnect() }
@@ -77,29 +85,28 @@ class FtpConnectionState @Inject constructor() {
                     Log.e(TAG, "connect: ${e::class.simpleName} msg=${e.message}")
                     false
                 } finally {
-                    _isConnecting.value = false
+                    stateMutex.withLock { _isConnecting.value = false }
                 }
             }
         }
+    }
 
     /**
      * 현재 연결을 로그아웃 후 해제한다. isConnected를 false로 갱신한다.
+     * ioMutex를 우회해 소켓을 즉시 닫으므로 진행 중인 listFiles가 IOException으로 중단된다.
      * 이미 미연결 상태이면 아무 동작도 하지 않는다.
      */
-    suspend fun disconnect() = mutex.withLock {
-        withContext(Dispatchers.IO) {
-            if (!client.isConnected) return@withContext
-            _isConnecting.value = true
-            try {
-                runCatching { client.logout() }
-                runCatching { client.disconnect() }
-                isLoggedIn = false
-                connectedServer = null
-                _isConnected.value = false
-                Log.d(TAG, "disconnect: 완료")
-            } finally {
-                _isConnecting.value = false
-            }
+    suspend fun disconnect() = withContext(Dispatchers.IO) {
+        if (!client.isConnected) return@withContext
+        stateMutex.withLock { _isConnecting.value = true }
+        runCatching { client.logout() }
+        runCatching { client.disconnect() }
+        stateMutex.withLock {
+            isLoggedIn = false
+            connectedServer = null
+            _isConnected.value = false
+            _isConnecting.value = false
+            Log.d(TAG, "disconnect: 완료")
         }
     }
 
@@ -107,29 +114,34 @@ class FtpConnectionState @Inject constructor() {
      * 주어진 원격 경로의 파일 목록을 반환한다. 미연결 시 빈 목록을 반환한다.
      * @param path ftp://server/path 형식의 절대 경로
      */
-    suspend fun listFiles(path: String): List<FileEntry> = mutex.withLock {
-        withContext(Dispatchers.IO) {
+    suspend fun listFiles(path: String): List<FileEntry> {
+        val ftpPath = stateMutex.withLock {
             if (!client.isConnected || !isLoggedIn) {
                 Log.w(TAG, "listFiles: 미연결 또는 미인증 path=$path")
-                return@withContext emptyList()
+                return emptyList()
             }
-            val ftpPath = extractFtpPath(path)
-            Log.d(TAG, "listFiles: server=$connectedServer ftpPath=$ftpPath")
-            runCatching {
-                client.listFiles(ftpPath)
-                    ?.filter { it.name != "." && it.name != ".." }
-                    ?.map { file ->
-                        FileEntry(
-                            name = file.name,
-                            path = path.trimEnd('/') + "/" + file.name,
-                            isDirectory = file.isDirectory,
-                            size = file.size,
-                            lastModified = file.timestamp?.timeInMillis ?: 0L
-                        )
-                    } ?: emptyList()
-            }.onFailure { e ->
-                Log.e(TAG, "listFiles: ${e::class.simpleName} path=$path msg=${e.message}")
-            }.getOrDefault(emptyList())
+            extractFtpPath(path).also {
+                Log.d(TAG, "listFiles: server=$connectedServer ftpPath=$it")
+            }
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.listFiles(ftpPath)
+                        ?.filter { it.name != "." && it.name != ".." }
+                        ?.map { file ->
+                            FileEntry(
+                                name = file.name,
+                                path = path.trimEnd('/') + "/" + file.name,
+                                isDirectory = file.isDirectory,
+                                size = file.size,
+                                lastModified = file.timestamp?.timeInMillis ?: 0L
+                            )
+                        } ?: emptyList()
+                }.onFailure { e ->
+                    Log.e(TAG, "listFiles: ${e::class.simpleName} path=$path msg=${e.message}")
+                }.getOrDefault(emptyList())
+            }
         }
     }
 
