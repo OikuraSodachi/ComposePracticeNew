@@ -192,7 +192,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 prevProgress = pp
                 fileIndex = fi
                 if (!root.deleteRecursively()) {
-                    emit(ProgressState(error = "원본 삭제 실패: ${root.name} (${i}개 항목은 이미 이동됨)"))
+                    emit(ProgressState(error = "원본 삭제 실패: ${root.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다 (앞선 ${i}개 항목은 이동 완료)"))
                     return@flow
                 }
             }
