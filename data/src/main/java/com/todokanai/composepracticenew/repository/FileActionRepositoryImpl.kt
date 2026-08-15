@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.tools.independent.getPhysicalStorage_td
+import android.system.Os
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -30,6 +30,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 .map { root to it }
                 .toList()
         }
+        if (allFiles.isEmpty()) { emit(ProgressState(error = "압축할 파일이 없습니다.")); return@flow }
         val totalBytes = totalBytesAcc.coerceAtLeast(1)
         checkDiskSpace(totalBytes, File(zipFile).parentFile ?: File(zipFile))
             ?.let { emit(ProgressState(error = it)); return@flow }
@@ -155,7 +156,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val totalFileCount = leafCounts.sum()
 
         val crossBytes = roots.indices
-            .filter { getPhysicalStorage_td(roots[it]) != getPhysicalStorage_td(destDir) }
+            .filter { !isSamePartition(roots[it], destDir) }
             .sumOf { leafSizes[it] }
         if (crossBytes > 0) {
             if (destDir.freeSpace == 0L) { emit(ProgressState(error = "디스크 공간 부족: 여유 공간 없음")); return@flow }
@@ -168,7 +169,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
         roots.forEachIndexed { i, root ->
             val dest = File(targetPath, root.name)
-            if (getPhysicalStorage_td(root) == getPhysicalStorage_td(destDir)) {
+            if (isSamePartition(root, destDir)) {
                 // 동일 파티션: rename syscall로 원자적 이동
                 // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패 시 error emit
                 runCatching {
@@ -262,6 +263,11 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             emit(ProgressState(error = "폴더 생성 실패: $name"))
         }
     }.flowOn(Dispatchers.IO)
+
+    /** 두 파일이 동일한 파티션에 있는지 OS 레벨 디바이스 ID로 판별한다. 판별 실패 시 false를 반환해 copy+delete 경로를 선택한다. */
+    private fun isSamePartition(a: File, b: File): Boolean = runCatching {
+        Os.stat(a.canonicalPath).st_dev == Os.stat(b.canonicalPath).st_dev
+    }.getOrDefault(false)
 
     /** 바이트 크기 목록의 합을 반환한다. 합이 0이면 1을 반환해 0 나눗셈을 방지한다. */
     private fun sumBytesOrOne(sizes: List<Long>) = sizes.sum().coerceAtLeast(1)

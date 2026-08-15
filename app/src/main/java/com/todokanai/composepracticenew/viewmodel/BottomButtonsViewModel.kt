@@ -51,14 +51,16 @@ class BottomButtonsViewModel @Inject constructor(
         }
     }
 
-    fun confirm(selectedList: List<FileHolderItem>, selectMode: Int) {
+    fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
+        val conflictPaths = skipFiles.map { it.path }.toSet()
+        val targets = if (conflictPaths.isEmpty()) selectedList else selectedList.filterNot { it.path in conflictPaths }
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchFlows(
                 actionType = ACTION_KEY_COPY,
                 flows = listOf(
                     fileActionUseCase.copyAction(
-                        targetFiles = selectedList.map { it.path },
+                        targetFiles = targets.map { it.path },
                         targetPath = currentPath
                     )
                 )
@@ -66,15 +68,15 @@ class BottomButtonsViewModel @Inject constructor(
             CONFIRM_MODE_MOVE -> launchFlows(
                 actionType = ACTION_KEY_MOVE,
                 completionMessage = context.getString(R.string.noti_move_complete),
-                flows = listOf(fileActionUseCase.moveFile(selectedList.map { it.path }, currentPath))
+                flows = listOf(fileActionUseCase.moveFile(targets.map { it.path }, currentPath))
             )
             CONFIRM_MODE_UNZIP -> launchFlows(
                 actionType = ACTION_KEY_UNZIP,
-                flows = listOf(fileActionUseCase.unzipAction(selectedList.map { it.path }, currentPath, unzipHere = false))
+                flows = listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = false))
             )
             CONFIRM_MODE_UNZIP_HERE -> launchFlows(
                 actionType = ACTION_KEY_UNZIP,
-                flows = listOf(fileActionUseCase.unzipAction(selectedList.map { it.path }, currentPath, unzipHere = true))
+                flows = listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = true))
             )
         }
     }
