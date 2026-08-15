@@ -66,15 +66,15 @@ class BottomButtonsViewModel @Inject constructor(
             CONFIRM_MODE_MOVE -> launchFlows(
                 actionType = ACTION_KEY_MOVE,
                 completionMessage = context.getString(R.string.noti_move_complete),
-                flows = selectedList.map { fileActionUseCase.moveFile(it.path, currentPath) }
+                flows = listOf(fileActionUseCase.moveFile(selectedList.map { it.path }, currentPath))
             )
             CONFIRM_MODE_UNZIP -> launchFlows(
                 actionType = ACTION_KEY_UNZIP,
-                flows = selectedList.map { fileActionUseCase.unzipAction(it.path, currentPath, unzipHere = false) }
+                flows = listOf(fileActionUseCase.unzipAction(selectedList.map { it.path }, currentPath, unzipHere = false))
             )
             CONFIRM_MODE_UNZIP_HERE -> launchFlows(
                 actionType = ACTION_KEY_UNZIP,
-                flows = selectedList.map { fileActionUseCase.unzipAction(it.path, currentPath, unzipHere = true) }
+                flows = listOf(fileActionUseCase.unzipAction(selectedList.map { it.path }, currentPath, unzipHere = true))
             )
         }
     }
