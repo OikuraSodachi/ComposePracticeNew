@@ -26,7 +26,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val allFiles = roots.flatMap { root ->
             root.walkTopDown().filter { f -> !f.isDirectory }.map { root to it }.toList()
         }
-        val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
+        val totalBytes = calcTotalBytes(allFiles.map { it.second })
         checkDiskSpace(totalBytes, File(zipFile).parentFile ?: File(zipFile))
             ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
@@ -72,7 +72,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         emit(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         val allFiles = roots.flatMap { it.walkTopDown().filter { f -> !f.isDirectory }.toList() }
-        val totalBytes = allFiles.sumOf { it.length() }.coerceAtLeast(1)
+        val totalBytes = calcTotalBytes(allFiles)
         checkDiskSpace(totalBytes, File(targetPath))
             ?.let { emit(ProgressState(error = it)); return@flow }
         val totalFileCount = allFiles.size
@@ -161,7 +161,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             val dest = File(targetPath, root.name)
             if (getPhysicalStorage_td(root) == getPhysicalStorage_td(destDir)) {
                 // 동일 파티션: rename syscall로 원자적 이동
-                Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패 시 error emit
+                runCatching {
+                    Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                }.onFailure { e ->
+                    emit(ProgressState(error = "이동 실패: ${root.name} — ${e.message}"))
+                    return@flow
+                }
                 writtenBytes += leafSizes[i]
                 fileIndex += leafCounts[i]
                 val progress = (writtenBytes * 100 / totalBytes).toInt()
@@ -247,6 +253,9 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             emit(ProgressState(error = "폴더 생성 실패: $name"))
         }
     }.flowOn(Dispatchers.IO)
+
+    /** 파일 목록의 전체 바이트 합을 반환한다. 합이 0이면 1을 반환해 0 나눗셈을 방지한다. */
+    private fun calcTotalBytes(files: List<File>) = files.sumOf { it.length() }.coerceAtLeast(1)
 
     /** [dest] 파티션의 여유 공간이 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
     private fun checkDiskSpace(needed: Long, dest: File): String? {
