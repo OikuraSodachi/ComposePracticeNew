@@ -43,7 +43,7 @@ class FileListViewModel @Inject constructor(
             initialValue = UiState()
         )
 
-    /** 동시에 진행 중인 파일 작업들의 progress 상태. actionKey를 키로 사용한다. */
+    /** 동시에 진행 중인 파일 작업들의 progress 상태. 작업 인스턴스 ID(instanceId)를 키로 사용한다. */
     val progressMap: StateFlow<Map<Int, ProgressStateEntity>> = progressUseCase.progressMap
         .map { map -> map.mapValues { (_, state) -> state.toEntity() } }
         .stateIn(

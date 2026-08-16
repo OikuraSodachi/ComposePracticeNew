@@ -29,7 +29,7 @@ class FtpServiceController @Inject constructor(
 
     /**
      * FtpForegroundService에 중단 명령을 전송한다.
-     * 실제 FTP 해제는 서비스 내부 disconnectAndStop()이 담당한다.
+     * 실제 FTP 해제는 서비스 onDestroy에서 connectionState.disconnect()가 담당한다.
      */
     fun stop() {
         context.stopService(Intent(context, FtpForegroundService::class.java))
