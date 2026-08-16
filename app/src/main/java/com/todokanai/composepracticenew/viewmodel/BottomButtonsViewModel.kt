@@ -51,6 +51,7 @@ class BottomButtonsViewModel @Inject constructor(
         }
     }
 
+    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 selectMode에 맞는 파일 작업을 실행한다. @param skipFiles 충돌로 건너뛸 파일 목록 */
     fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         val conflictPaths = skipFiles.map { it.path }.toSet()
