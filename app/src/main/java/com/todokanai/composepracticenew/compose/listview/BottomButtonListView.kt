@@ -153,7 +153,7 @@ fun BottomButtonListView(
                 showConflictDialog = false
             },
             onSkip = {
-                viewModel.confirm(selectedList.filterNot { it in conflictFiles }, pendingSelectMode)
+                viewModel.confirm(selectedList, pendingSelectMode, skipFiles = conflictFiles)
                 onSelectModeChange(Constants.DEFAULT_MODE)
                 onClearSelection()
                 showConflictDialog = false

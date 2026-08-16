@@ -51,14 +51,18 @@ class BottomButtonsViewModel @Inject constructor(
         }
     }
 
-    fun confirm(selectedList: List<FileHolderItem>, selectMode: Int) {
+    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 selectMode에 맞는 파일 작업을 실행한다. @param skipFiles 충돌로 건너뛸 파일 목록 */
+    fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
+        val conflictPaths = skipFiles.map { it.path }.toSet()
+        val targets = selectedList.filterNot { it.path in conflictPaths }
+        if (targets.isEmpty()) return
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchFlows(
                 actionType = ACTION_KEY_COPY,
                 flows = listOf(
                     fileActionUseCase.copyAction(
-                        targetFiles = selectedList.map { it.path },
+                        targetFiles = targets.map { it.path },
                         targetPath = currentPath
                     )
                 )
@@ -66,15 +70,15 @@ class BottomButtonsViewModel @Inject constructor(
             CONFIRM_MODE_MOVE -> launchFlows(
                 actionType = ACTION_KEY_MOVE,
                 completionMessage = context.getString(R.string.noti_move_complete),
-                flows = listOf(fileActionUseCase.moveFile(selectedList.map { it.path }, currentPath))
+                flows = listOf(fileActionUseCase.moveFile(targets.map { it.path }, currentPath))
             )
             CONFIRM_MODE_UNZIP -> launchFlows(
                 actionType = ACTION_KEY_UNZIP,
-                flows = listOf(fileActionUseCase.unzipAction(selectedList.map { it.path }, currentPath, unzipHere = false))
+                flows = listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = false))
             )
             CONFIRM_MODE_UNZIP_HERE -> launchFlows(
                 actionType = ACTION_KEY_UNZIP,
-                flows = listOf(fileActionUseCase.unzipAction(selectedList.map { it.path }, currentPath, unzipHere = true))
+                flows = listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = true))
             )
         }
     }

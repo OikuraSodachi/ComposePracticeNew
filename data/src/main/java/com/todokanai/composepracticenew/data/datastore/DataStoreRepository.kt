@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.data.datastore
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -27,7 +26,6 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
     companion object {
         val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "mydatastore")
         val DATASTORE_SORT_BY = stringPreferencesKey("datastore_sort_by")
-        val DATASTORE_COPY_OVERWRITE = booleanPreferencesKey("datastore_copy_overwrite")
         val DATASTORE_LAST_REMOTE_ID = longPreferencesKey("datastore_last_remote_id")
     }
 
@@ -54,18 +52,6 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
         started = SharingStarted.WhileSubscribed(0),
         initialValue = BY_DEFAULT
     )
-
-    fun saveCopyOverwrite(value: Boolean) {
-        CoroutineScope(Dispatchers.IO).launch {
-            context.dataStore.edit {
-                it[DATASTORE_COPY_OVERWRITE] = value
-            }
-        }
-    }
-
-    suspend fun copyOverwrite(): Boolean {
-        return context.dataStore.data.first()[DATASTORE_COPY_OVERWRITE] ?: false
-    }
 
     fun saveLastRemoteId(id: Long?) {
         CoroutineScope(Dispatchers.IO).launch {
