@@ -69,7 +69,7 @@ Individual operation classes (`CopyAction`, `MoveAction`, `DeleteAction`, `Renam
 ### Data Layer
 
 - **Room** (`data/room/`): `MyDatabase` + `UserDao` / `User` entity. Provided as a singleton via `di/DatabaseModule`.
-- **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `copyOverwrite` (boolean) preferences. Injected via Hilt `@ApplicationContext`.
+- **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `lastRemoteId` (long) preferences. Injected via Hilt `@ApplicationContext`.
 - **`DataConverter`**: Transforms raw `File` arrays into `FileHolderItem` / `StorageHolderItem` display models, applying the current sort order.
 
 ### `MyApplication`

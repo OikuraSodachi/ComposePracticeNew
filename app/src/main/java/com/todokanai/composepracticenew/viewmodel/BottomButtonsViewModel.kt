@@ -55,6 +55,7 @@ class BottomButtonsViewModel @Inject constructor(
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         val conflictPaths = skipFiles.map { it.path }.toSet()
         val targets = if (conflictPaths.isEmpty()) selectedList else selectedList.filterNot { it.path in conflictPaths }
+        if (targets.isEmpty()) return
         when (selectMode) {
             CONFIRM_MODE_COPY -> launchFlows(
                 actionType = ACTION_KEY_COPY,
