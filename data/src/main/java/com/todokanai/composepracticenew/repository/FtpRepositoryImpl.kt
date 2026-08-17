@@ -4,6 +4,7 @@ import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -12,6 +13,9 @@ import javax.inject.Singleton
 class FtpRepositoryImpl @Inject constructor(
     private val connectionState: FtpConnectionState
 ) : FtpRepository {
+
+    /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */
+    override val isConnecting: StateFlow<Boolean> = connectionState.isConnecting
 
     /**
      * address, port, userId, password로 FTP 서버에 연결한다.

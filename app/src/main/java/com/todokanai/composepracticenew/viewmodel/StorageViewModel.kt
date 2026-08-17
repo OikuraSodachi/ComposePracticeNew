@@ -9,9 +9,9 @@ import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
 import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
-import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
 import com.todokanai.composepracticenew.service.FtpServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -30,7 +30,7 @@ class StorageViewModel @Inject constructor(
     private val remoteStorageUseCase: RemoteStorageUseCase,
     @RemoteNavigator private val remoteFileNavigatorUseCase: FileNavigatorUseCase,
     private val ftpServiceController: FtpServiceController,
-    private val connectionState: FtpConnectionState
+    private val ftpUseCase: FtpUseCase
 ) : ViewModel() {
 
     /** 스토리지 선택 화면에 필요한 UI 상태를 담는 클래스. */
@@ -40,7 +40,7 @@ class StorageViewModel @Inject constructor(
     )
 
     /** FTP 연결 진행 중 여부. */
-    val isConnecting: StateFlow<Boolean> = connectionState.isConnecting
+    val isConnecting: StateFlow<Boolean> = ftpUseCase.isConnecting
 
     private val _connectionFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** FTP 연결 실패 이벤트. */

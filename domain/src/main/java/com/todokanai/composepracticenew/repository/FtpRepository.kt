@@ -3,11 +3,15 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 /** FTP 서버와의 연결, 탐색, 파일 전송, 파일 조작 작업의 전체 계약. */
 interface FtpRepository {
 
     // region Connection
+
+    /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */
+    val isConnecting: StateFlow<Boolean>
 
     /** address, port, userId, password로 FTP 서버에 연결한다. 성공 여부를 반환한다. */
     suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean

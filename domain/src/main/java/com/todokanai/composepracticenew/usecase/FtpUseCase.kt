@@ -3,10 +3,17 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.FtpRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 
-/** FTP 파일 전송(다운로드·업로드) 작업을 도메인 계층에서 조율하는 UseCase. */
+/** FTP 연결 상태 조회·해제 및 파일 전송(다운로드·업로드) 작업을 도메인 계층에서 조율하는 UseCase. */
 class FtpUseCase(private val repo: FtpRepository) {
+
+    /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */
+    val isConnecting: StateFlow<Boolean> = repo.isConnecting
+
+    /** FTP 서버 연결을 해제한다. */
+    suspend fun disconnect() = repo.disconnect()
 
     /**
      * remotePath의 파일을 localDestPath로 다운로드한다.
