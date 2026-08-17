@@ -5,8 +5,10 @@ import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
+import com.todokanai.composepracticenew.repository.FtpRepository
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
@@ -65,4 +67,8 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideProgressUseCase(repo: ProgressRepository) =
         ProgressUseCase(repo)
+
+    @Provides @Singleton
+    fun provideFtpUseCase(repo: FtpRepository) =
+        FtpUseCase(repo)
 }

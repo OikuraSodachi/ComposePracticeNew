@@ -3,9 +3,13 @@ package com.todokanai.composepracticenew.data.ftp
 import android.util.Log
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
+import com.todokanai.composepracticenew.model.ProgressState
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -144,6 +148,28 @@ class FtpConnectionState @Inject constructor() {
             }
         }
     }
+
+    /**
+     * remotePath의 파일을 localPath에 스트리밍 다운로드한다.
+     * FTPClient.retrieveFileStream()으로 원격 파일을 읽어 localPath에 쓰며 진행률을 방출한다.
+     * 미연결 시 error ProgressState를 방출하고 종료한다.
+     * @param remotePath ftp://server/path 형식의 원격 파일 절대 경로
+     * @param localPath 저장할 로컬 파일의 절대 경로
+     */
+    fun download(remotePath: String, localPath: String): Flow<ProgressState> = flow {
+        // stub — not yet implemented
+    }.flowOn(Dispatchers.IO)
+
+    /**
+     * localPath의 파일을 remotePath에 스트리밍 업로드한다.
+     * FTPClient.storeFileStream()에 로컬 파일 스트림을 펌핑하며 진행률을 방출한다.
+     * 미연결 시 error ProgressState를 방출하고 종료한다.
+     * @param localPath 업로드할 로컬 파일의 절대 경로
+     * @param remotePath 저장될 원격 파일의 절대 경로 (ftp://server/path 형식)
+     */
+    fun upload(localPath: String, remotePath: String): Flow<ProgressState> = flow {
+        // stub — not yet implemented
+    }.flowOn(Dispatchers.IO)
 
     private fun extractFtpPath(path: String): String {
         val withoutScheme = path.removePrefix("ftp://")

@@ -2,13 +2,16 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -24,7 +27,9 @@ import javax.inject.Inject
 class RemoteFileListViewModel @Inject constructor(
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
-    private val ftpServiceController: FtpServiceController
+    private val ftpServiceController: FtpServiceController,
+    private val ftpUseCase: FtpUseCase,
+    @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
     private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -97,18 +102,39 @@ class RemoteFileListViewModel @Inject constructor(
         return pendingList.filter { local -> remoteFiles.any { remote -> remote.name == local.name } }
     }
 
-    /** item의 원격 파일을 로컬 다운로드 경로로 저장한다. */
-    fun onDownload(item: FileHolderItem) {} // stub — not yet implemented
+    /**
+     * item의 원격 파일을 localDestPath로 다운로드한다.
+     * appScope에서 ftpUseCase.download()를 collect해 ProgressState를 처리한다.
+     * @param item 다운로드할 원격 파일 항목
+     * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
+     */
+    fun onDownload(item: FileHolderItem, localDestPath: String) {} // stub — not yet implemented
 
-    /** localPath의 파일을 현재 원격 경로에 업로드한다. */
+    /**
+     * localPath의 파일을 현재 원격 경로에 업로드한다.
+     * currentPath를 remoteDestPath로 사용해 appScope에서 ftpUseCase.upload()를 collect한다.
+     * @param localPath 업로드할 로컬 파일의 절대 경로
+     */
     fun onUpload(localPath: String) {} // stub — not yet implemented
 
-    /** item을 newName으로 이름 변경한다. */
+    /**
+     * item을 newName으로 이름 변경한다.
+     * ftpUseCase를 통해 FtpRepository.rename()을 호출하고 성공 시 목록을 갱신한다.
+     * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
+     */
     fun onRename(item: FileHolderItem, newName: String) {} // stub — not yet implemented
 
-    /** item을 삭제한다. */
+    /**
+     * item을 원격 서버에서 삭제한다.
+     * 파일이면 FtpRepository.deleteFile(), 디렉터리이면 FtpRepository.removeDirectory()를 호출한다.
+     * @param item 삭제할 원격 파일 또는 디렉터리 항목
+     */
     fun onDelete(item: FileHolderItem) {} // stub — not yet implemented
 
-    /** 현재 원격 경로 아래에 dirName 이름의 새 디렉토리를 생성한다. */
+    /**
+     * 현재 원격 경로 아래에 dirName 이름의 새 디렉터리를 생성한다.
+     * FtpRepository.makeDirectory()를 호출하고 성공 시 목록을 갱신한다.
+     * @param dirName 생성할 디렉터리 이름
+     */
     fun onMakeDirectory(dirName: String) {} // stub — not yet implemented
 }

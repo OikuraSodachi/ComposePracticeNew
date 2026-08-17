@@ -9,6 +9,8 @@ import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
+import com.todokanai.composepracticenew.repository.FtpRepository
+import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
 import com.todokanai.composepracticenew.repository.LocalFileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -37,6 +39,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindProgressRepository(impl: ProgressTracker): ProgressRepository
+
+    @Binds
+    abstract fun bindFtpRepository(impl: FtpRepositoryImpl): FtpRepository
 
     companion object {
         @Provides @Singleton
