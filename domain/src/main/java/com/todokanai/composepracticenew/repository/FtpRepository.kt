@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.Flow
 
 /** FTP 서버와의 연결, 탐색, 파일 전송, 파일 조작 작업의 전체 계약. */
@@ -10,10 +9,7 @@ interface FtpRepository {
 
     // region Connection
 
-    /** RemoteStorageItem의 접속 정보를 사용해 FTP 서버에 연결하고 로그인한다. 성공 여부를 반환한다. */
-    suspend fun connect(item: RemoteStorageItem): Boolean
-
-    /** address, port, userId, password로 FTP 서버에 직접 연결한다. 성공 여부를 반환한다. */
+    /** address, port, userId, password로 FTP 서버에 연결한다. 성공 여부를 반환한다. */
     suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean
 
     /** FTP 서버와의 연결을 종료한다. */

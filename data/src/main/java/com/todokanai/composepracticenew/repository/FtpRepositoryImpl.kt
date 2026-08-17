@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,14 +14,7 @@ class FtpRepositoryImpl @Inject constructor(
 ) : FtpRepository {
 
     /**
-     * RemoteStorageItem의 접속 정보로 FTP 서버에 연결한다.
-     * @param item 접속할 원격 스토리지의 호스트·포트·인증 정보
-     */
-    override suspend fun connect(item: RemoteStorageItem): Boolean =
-        connectionState.connect(item.address, item.port, item.userId, item.password)
-
-    /**
-     * 원시 파라미터로 FTP 서버에 연결한다.
+     * address, port, userId, password로 FTP 서버에 연결한다.
      * @param address 호스트 주소, @param port 포트 번호, @param userId 사용자 ID, @param password 비밀번호
      */
     override suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean =
