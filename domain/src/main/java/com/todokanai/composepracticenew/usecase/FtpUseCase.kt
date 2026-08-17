@@ -21,7 +21,7 @@ class FtpUseCase(private val repo: FtpRepository) {
      * @param remotePath 다운로드할 원격 파일의 절대 경로
      * @param localDestPath 저장할 로컬 디렉터리 또는 파일의 절대 경로
      */
-    fun download(remotePath: String, localDestPath: String): Flow<ProgressState> = flow {
+    fun download(remotePath: String, localDestPath: String): Flow<ProgressState> = flow<ProgressState> {
         // stub — not yet implemented
     }
 
@@ -31,7 +31,7 @@ class FtpUseCase(private val repo: FtpRepository) {
      * @param localPath 업로드할 로컬 파일의 절대 경로
      * @param remoteDestPath 저장될 원격 디렉터리의 절대 경로
      */
-    fun upload(localPath: String, remoteDestPath: String): Flow<ProgressState> = flow {
+    fun upload(localPath: String, remoteDestPath: String): Flow<ProgressState> = flow<ProgressState> {
         // stub — not yet implemented
     }
 }
