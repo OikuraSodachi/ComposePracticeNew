@@ -20,7 +20,7 @@ import javax.inject.Singleton
 
 /**
  * FTPClient 인스턴스를 단일 @Singleton으로 소유하며 연결 상태를 StateFlow로 노출한다.
- * FtpFileSystem과 FtpForegroundService가 공유하는 공통 상태 허브.
+ * FtpRepositoryImpl과 FtpForegroundService가 공유하는 공통 상태 허브.
  */
 @Singleton
 class FtpConnectionState @Inject constructor() {
@@ -156,7 +156,7 @@ class FtpConnectionState @Inject constructor() {
      * @param remotePath ftp://server/path 형식의 원격 파일 절대 경로
      * @param localPath 저장할 로컬 파일의 절대 경로
      */
-    fun download(remotePath: String, localPath: String): Flow<ProgressState> = flow {
+    fun download(remotePath: String, localPath: String): Flow<ProgressState> = flow<ProgressState> {
         // stub — not yet implemented
     }.flowOn(Dispatchers.IO)
 
@@ -167,7 +167,7 @@ class FtpConnectionState @Inject constructor() {
      * @param localPath 업로드할 로컬 파일의 절대 경로
      * @param remotePath 저장될 원격 파일의 절대 경로 (ftp://server/path 형식)
      */
-    fun upload(localPath: String, remotePath: String): Flow<ProgressState> = flow {
+    fun upload(localPath: String, remotePath: String): Flow<ProgressState> = flow<ProgressState> {
         // stub — not yet implemented
     }.flowOn(Dispatchers.IO)
 

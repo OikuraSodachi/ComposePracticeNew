@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.ProgressState
@@ -21,8 +22,18 @@ class FtpRepositoryImpl @Inject constructor(
     override suspend fun connect(item: RemoteStorageItem): Boolean =
         connectionState.connect(item.address, item.port, item.userId, item.password)
 
+    /**
+     * 원시 파라미터로 FTP 서버에 연결한다.
+     * @param address 호스트 주소, @param port 포트 번호, @param userId 사용자 ID, @param password 비밀번호
+     */
+    override suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean =
+        connectionState.connect(address, port, userId, password)
+
     /** FTP 서버 연결을 로그아웃 후 해제한다. */
-    override suspend fun disconnect() = connectionState.disconnect()
+    override suspend fun disconnect() { connectionState.disconnect() }
+
+    /** path가 "ftp://" 스킴으로 시작하는 원격 경로인지 판별한다. */
+    override fun isRemotePath(path: String): Boolean = path.startsWith("ftp://")
 
     /**
      * 현재 FTP 작업 디렉터리의 절대 경로를 반환한다.
@@ -46,6 +57,13 @@ class FtpRepositoryImpl @Inject constructor(
      */
     override suspend fun listFiles(path: String): List<FileHolderItem> =
         emptyList() // stub — not yet implemented
+
+    /**
+     * path 디렉터리의 파일·하위 디렉터리 목록을 FileEntry 리스트로 반환한다.
+     * @param path 목록을 조회할 원격 디렉터리의 절대 경로
+     */
+    override suspend fun listFileEntries(path: String): List<FileEntry> =
+        connectionState.listFiles(path)
 
     /**
      * remotePath의 파일을 localPath로 다운로드한다.
