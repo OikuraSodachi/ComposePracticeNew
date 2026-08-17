@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.fileexplorer.FileEntry
-import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.Flow
@@ -34,11 +33,8 @@ interface FtpRepository {
 
     // region Listing
 
-    /** path 디렉토리의 파일 및 하위 디렉토리 목록을 FileHolderItem 리스트로 반환한다. */
-    suspend fun listFiles(path: String): List<FileHolderItem>
-
     /** path 디렉토리의 파일 및 하위 디렉토리 목록을 FileEntry 리스트로 반환한다. */
-    suspend fun listFileEntries(path: String): List<FileEntry>
+    suspend fun listFiles(path: String): List<FileEntry>
 
     // endregion
 

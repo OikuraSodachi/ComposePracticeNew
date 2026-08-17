@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
-import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.Flow
@@ -51,18 +50,10 @@ class FtpRepositoryImpl @Inject constructor(
         false // stub — not yet implemented
 
     /**
-     * path 디렉터리의 파일·하위 디렉터리 목록을 FileHolderItem 리스트로 반환한다.
-     * FtpConnectionState.listFiles()로 얻은 FileEntry를 도메인 모델로 변환한다.
-     * @param path 목록을 조회할 원격 디렉터리의 절대 경로
-     */
-    override suspend fun listFiles(path: String): List<FileHolderItem> =
-        emptyList() // stub — not yet implemented
-
-    /**
      * path 디렉터리의 파일·하위 디렉터리 목록을 FileEntry 리스트로 반환한다.
      * @param path 목록을 조회할 원격 디렉터리의 절대 경로
      */
-    override suspend fun listFileEntries(path: String): List<FileEntry> =
+    override suspend fun listFiles(path: String): List<FileEntry> =
         connectionState.listFiles(path)
 
     /**

@@ -63,7 +63,7 @@ class FileExplorerRepositoryImpl(
     override suspend fun listFiles(path: String): List<FileEntry> {
         val isRemote = ftpFileSystem.isRemotePath(path)
         return if (isRemote) {
-            ftpFileSystem.listFileEntries(path)
+            ftpFileSystem.listFiles(path)
         } else {
             File(path).listFiles()?.map { file ->
                 FileEntry(
