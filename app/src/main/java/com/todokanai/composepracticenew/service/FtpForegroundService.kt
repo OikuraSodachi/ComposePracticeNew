@@ -8,7 +8,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
+import com.todokanai.composepracticenew.usecase.FtpUseCase
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +22,7 @@ import javax.inject.Inject
 class FtpForegroundService : Service() {
 
     @Inject
-    lateinit var connectionState: FtpConnectionState
+    lateinit var ftpUseCase: FtpUseCase
 
     private lateinit var serviceScope: CoroutineScope
 
@@ -45,7 +45,7 @@ class FtpForegroundService : Service() {
 
     /** FTP 연결을 해제한 뒤 serviceScope를 취소한다. disconnect()는 best-effort로 실행되며, 프로세스 종료 타이밍에 따라 완료가 보장되지 않을 수 있다. */
     override fun onDestroy() {
-        CoroutineScope(Dispatchers.IO).launch { connectionState.disconnect() }
+        CoroutineScope(Dispatchers.IO).launch { ftpUseCase.disconnect() }
         serviceScope.cancel()
         super.onDestroy()
     }
