@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import android.util.Log
 import com.todokanai.fileexplorer.FileEntry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
@@ -13,7 +14,9 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
+import java.io.File
 import java.net.UnknownHostException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -71,6 +74,7 @@ class FtpConnectionState @Inject constructor() {
                     val loggedIn = client.login(userId, password)
                     if (loggedIn) {
                         client.enterLocalPassiveMode()
+                        client.setFileType(FTP.BINARY_FILE_TYPE)
                         stateMutex.withLock {
                             connectedServer = server
                             isLoggedIn = true
@@ -157,7 +161,47 @@ class FtpConnectionState @Inject constructor() {
      * @param localPath 저장할 로컬 파일의 절대 경로
      */
     fun download(remotePath: String, localPath: String): Flow<ProgressState> = flow<ProgressState> {
-        // stub — not yet implemented
+        val (connected, ftpPath) = stateMutex.withLock {
+            (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
+        }
+        if (!connected) {
+            emit(ProgressState(error = "Not connected"))
+            return@flow
+        }
+        ioMutex.withLock {
+            val localFile = File(localPath)
+            localFile.parentFile?.mkdirs()
+            val totalBytes = runCatching { client.mlistFile(ftpPath)?.size ?: -1L }.getOrDefault(-1L)
+            val inputStream = client.retrieveFileStream(ftpPath)
+            if (inputStream == null) {
+                emit(ProgressState(error = "retrieveFileStream 실패: ${client.replyString.trim()}"))
+                return@withLock
+            }
+            var transferFailed = false
+            try {
+                val buffer = ByteArray(BUFFER_SIZE)
+                var writtenBytes = 0L
+                localFile.outputStream().use { output ->
+                    var bytesRead: Int
+                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        writtenBytes += bytesRead
+                        emit(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                    }
+                }
+            } catch (e: CancellationException) {
+                runCatching { localFile.delete() }
+                throw e
+            } catch (e: Exception) {
+                transferFailed = true
+                Log.e(TAG, "download: ${e::class.simpleName} path=$remotePath msg=${e.message}")
+                emit(ProgressState(error = e.message ?: "download 실패"))
+            } finally {
+                runCatching { inputStream.close() }
+                val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
+                if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
+            }
+        }
     }.flowOn(Dispatchers.IO)
 
     /**
@@ -168,8 +212,238 @@ class FtpConnectionState @Inject constructor() {
      * @param remotePath 저장될 원격 파일의 절대 경로 (ftp://server/path 형식)
      */
     fun upload(localPath: String, remotePath: String): Flow<ProgressState> = flow<ProgressState> {
-        // stub — not yet implemented
+        val (connected, ftpPath) = stateMutex.withLock {
+            (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
+        }
+        if (!connected) {
+            emit(ProgressState(error = "Not connected"))
+            return@flow
+        }
+        ioMutex.withLock {
+            val localFile = File(localPath)
+            val totalBytes = localFile.length()
+            val outputStream = client.storeFileStream(ftpPath)
+            if (outputStream == null) {
+                emit(ProgressState(error = "storeFileStream 실패: ${client.replyString.trim()}"))
+                return@withLock
+            }
+            var transferFailed = false
+            try {
+                val buffer = ByteArray(BUFFER_SIZE)
+                var writtenBytes = 0L
+                localFile.inputStream().use { input ->
+                    var bytesRead: Int
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        outputStream.write(buffer, 0, bytesRead)
+                        writtenBytes += bytesRead
+                        emit(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                transferFailed = true
+                Log.e(TAG, "upload: ${e::class.simpleName} path=$remotePath msg=${e.message}")
+                emit(ProgressState(error = e.message ?: "upload 실패"))
+            } finally {
+                runCatching { outputStream.close() }
+                val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
+                if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
+            }
+        }
     }.flowOn(Dispatchers.IO)
+
+    /** 현재 FTP 작업 디렉터리의 절대 경로를 반환한다. 미연결 시 빈 문자열을 반환한다. */
+    suspend fun getWorkingDirectory(): String {
+        stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "getWorkingDirectory: 미연결 또는 미인증")
+                return ""
+            }
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.printWorkingDirectory() ?: ""
+                }.onFailure { e ->
+                    Log.e(TAG, "getWorkingDirectory: ${e::class.simpleName} msg=${e.message}")
+                }.getOrDefault("")
+            }
+        }
+    }
+
+    /**
+     * path로 FTP 작업 디렉터리를 변경한다. 미연결 시 false를 반환한다.
+     * @param path 이동할 원격 디렉터리의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun changeDirectory(path: String): Boolean {
+        val ftpPath = stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "changeDirectory: 미연결 또는 미인증 path=$path")
+                return false
+            }
+            extractFtpPath(path)
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.changeWorkingDirectory(ftpPath)
+                }.onFailure { e ->
+                    Log.e(TAG, "changeDirectory: ${e::class.simpleName} path=$path msg=${e.message}")
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    /**
+     * fromPath를 toPath로 이름 변경 또는 이동한다. 미연결 시 false를 반환한다.
+     * @param fromPath 원본 경로 (ftp://server/path 형식)
+     * @param toPath 변경할 경로 (ftp://server/path 형식)
+     */
+    suspend fun rename(fromPath: String, toPath: String): Boolean {
+        var fromFtpPath = ""
+        var toFtpPath = ""
+        stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "rename: 미연결 또는 미인증 from=$fromPath")
+                return false
+            }
+            fromFtpPath = extractFtpPath(fromPath)
+            toFtpPath = extractFtpPath(toPath)
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.rename(fromFtpPath, toFtpPath)
+                }.onFailure { e ->
+                    Log.e(TAG, "rename: ${e::class.simpleName} from=$fromPath msg=${e.message}")
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    /**
+     * path의 파일을 원격 서버에서 삭제한다. 미연결 시 false를 반환한다.
+     * @param path 삭제할 원격 파일의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun deleteFile(path: String): Boolean {
+        val ftpPath = stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "deleteFile: 미연결 또는 미인증 path=$path")
+                return false
+            }
+            extractFtpPath(path)
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.deleteFile(ftpPath)
+                }.onFailure { e ->
+                    Log.e(TAG, "deleteFile: ${e::class.simpleName} path=$path msg=${e.message}")
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    /**
+     * path에 새 원격 디렉터리를 생성한다. 미연결 시 false를 반환한다.
+     * @param path 생성할 디렉터리의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun makeDirectory(path: String): Boolean {
+        val ftpPath = stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "makeDirectory: 미연결 또는 미인증 path=$path")
+                return false
+            }
+            extractFtpPath(path)
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.makeDirectory(ftpPath)
+                }.onFailure { e ->
+                    Log.e(TAG, "makeDirectory: ${e::class.simpleName} path=$path msg=${e.message}")
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    /**
+     * path의 빈 디렉터리를 원격 서버에서 삭제한다. 미연결 시 false를 반환한다.
+     * @param path 삭제할 빈 디렉터리의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun removeDirectory(path: String): Boolean {
+        val ftpPath = stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "removeDirectory: 미연결 또는 미인증 path=$path")
+                return false
+            }
+            extractFtpPath(path)
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.removeDirectory(ftpPath)
+                }.onFailure { e ->
+                    Log.e(TAG, "removeDirectory: ${e::class.simpleName} path=$path msg=${e.message}")
+                }.getOrDefault(false)
+            }
+        }
+    }
+
+    /**
+     * path 파일의 크기를 바이트 단위로 반환한다. 조회 실패 또는 미연결 시 -1을 반환한다.
+     * @param path 크기를 조회할 원격 파일의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun getFileSize(path: String): Long {
+        val ftpPath = stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "getFileSize: 미연결 또는 미인증 path=$path")
+                return -1L
+            }
+            extractFtpPath(path)
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.mlistFile(ftpPath)?.size ?: -1L
+                }.onFailure { e ->
+                    Log.e(TAG, "getFileSize: ${e::class.simpleName} path=$path msg=${e.message}")
+                }.getOrDefault(-1L)
+            }
+        }
+    }
+
+    /**
+     * path 파일의 최종 수정 시각을 FTP MDTM 형식 문자열로 반환한다. 조회 실패 또는 미연결 시 빈 문자열을 반환한다.
+     * @param path 수정 시각을 조회할 원격 파일의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun getModificationTime(path: String): String {
+        val ftpPath = stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) {
+                Log.w(TAG, "getModificationTime: 미연결 또는 미인증 path=$path")
+                return ""
+            }
+            extractFtpPath(path)
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.getModificationTime(ftpPath) ?: ""
+                }.onFailure { e ->
+                    Log.e(TAG, "getModificationTime: ${e::class.simpleName} path=$path msg=${e.message}")
+                }.getOrDefault("")
+            }
+        }
+    }
+
+    private fun buildProgressState(totalBytes: Long, writtenBytes: Long, fileName: String) = ProgressState(
+        totalBytes = totalBytes,
+        writtenBytes = writtenBytes,
+        progress = if (totalBytes > 0) (writtenBytes * 100 / totalBytes).toInt() else null,
+        progressFloat = if (totalBytes > 0) writtenBytes.toFloat() / totalBytes else null,
+        currentFileName = fileName
+    )
 
     private fun extractFtpPath(path: String): String {
         val withoutScheme = path.removePrefix("ftp://")
@@ -180,6 +454,7 @@ class FtpConnectionState @Inject constructor() {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val SO_TIMEOUT_MS = 15_000
+        private const val BUFFER_SIZE = 8 * 1024
         private const val TAG = "FtpConnectionState"
     }
 }
