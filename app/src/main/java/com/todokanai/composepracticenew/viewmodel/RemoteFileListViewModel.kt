@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
+import com.todokanai.composepracticenew.model.ProgressStateEntity
+import com.todokanai.composepracticenew.model.toEntity
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -35,6 +37,10 @@ class RemoteFileListViewModel @Inject constructor(
     private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 자동 재연결 실패 이벤트. */
     val reconnectFailed: SharedFlow<Unit> = _reconnectFailed.asSharedFlow()
+
+    private val _transferProgress = MutableSharedFlow<ProgressStateEntity>(extraBufferCapacity = 1)
+    /** 다운로드·업로드 진행 상태 이벤트. */
+    val transferProgress: SharedFlow<ProgressStateEntity> = _transferProgress.asSharedFlow()
 
     init {
         if (fileNavigatorUseCase.currentPath.value == null) {
@@ -108,33 +114,60 @@ class RemoteFileListViewModel @Inject constructor(
      * @param item 다운로드할 원격 파일 항목
      * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
      */
-    fun onDownload(item: FileHolderItem, localDestPath: String) {} // stub — not yet implemented
+    fun onDownload(item: FileHolderItem, localDestPath: String) {
+        appScope.launch {
+            ftpUseCase.download(item.path, localDestPath).collect { _transferProgress.emit(it.toEntity()) }
+        }
+    }
 
     /**
      * localPath의 파일을 현재 원격 경로에 업로드한다.
      * currentPath를 remoteDestPath로 사용해 appScope에서 ftpUseCase.upload()를 collect한다.
      * @param localPath 업로드할 로컬 파일의 절대 경로
      */
-    fun onUpload(localPath: String) {} // stub — not yet implemented
+    fun onUpload(localPath: String) {
+        val remotePath = fileNavigatorUseCase.currentPath.value ?: return
+        appScope.launch {
+            ftpUseCase.upload(localPath, remotePath).collect { _transferProgress.emit(it.toEntity()) }
+        }
+    }
 
     /**
      * item을 newName으로 이름 변경한다.
      * ftpUseCase를 통해 FtpRepository.rename()을 호출하고 성공 시 목록을 갱신한다.
      * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
      */
-    fun onRename(item: FileHolderItem, newName: String) {} // stub — not yet implemented
+    fun onRename(item: FileHolderItem, newName: String) {
+        val toPath = "${item.path.substringBeforeLast("/")}/$newName"
+        viewModelScope.launch {
+            val success = ftpUseCase.rename(item.path, toPath)
+            if (success) fileNavigatorUseCase.refresh()
+        }
+    }
 
     /**
      * item을 원격 서버에서 삭제한다.
      * 파일이면 FtpRepository.deleteFile(), 디렉터리이면 FtpRepository.removeDirectory()를 호출한다.
      * @param item 삭제할 원격 파일 또는 디렉터리 항목
      */
-    fun onDelete(item: FileHolderItem) {} // stub — not yet implemented
+    fun onDelete(item: FileHolderItem) {
+        viewModelScope.launch {
+            val success = if (item.isDirectory) ftpUseCase.removeDirectory(item.path)
+                          else ftpUseCase.deleteFile(item.path)
+            if (success) fileNavigatorUseCase.refresh()
+        }
+    }
 
     /**
      * 현재 원격 경로 아래에 dirName 이름의 새 디렉터리를 생성한다.
      * FtpRepository.makeDirectory()를 호출하고 성공 시 목록을 갱신한다.
      * @param dirName 생성할 디렉터리 이름
      */
-    fun onMakeDirectory(dirName: String) {} // stub — not yet implemented
+    fun onMakeDirectory(dirName: String) {
+        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
+        viewModelScope.launch {
+            val success = ftpUseCase.makeDirectory("$currentPath/$dirName")
+            if (success) fileNavigatorUseCase.refresh()
+        }
+    }
 }
