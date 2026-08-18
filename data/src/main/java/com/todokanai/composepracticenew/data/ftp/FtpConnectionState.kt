@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import android.util.Log
 import com.todokanai.fileexplorer.FileEntry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import java.io.File
 import java.net.UnknownHostException
@@ -72,6 +74,7 @@ class FtpConnectionState @Inject constructor() {
                     val loggedIn = client.login(userId, password)
                     if (loggedIn) {
                         client.enterLocalPassiveMode()
+                        client.setFileType(FTP.BINARY_FILE_TYPE)
                         stateMutex.withLock {
                             connectedServer = server
                             isLoggedIn = true
@@ -174,6 +177,7 @@ class FtpConnectionState @Inject constructor() {
                 emit(ProgressState(error = "retrieveFileStream 실패: ${client.replyString.trim()}"))
                 return@withLock
             }
+            var transferFailed = false
             try {
                 val buffer = ByteArray(BUFFER_SIZE)
                 var writtenBytes = 0L
@@ -182,21 +186,20 @@ class FtpConnectionState @Inject constructor() {
                     while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                         output.write(buffer, 0, bytesRead)
                         writtenBytes += bytesRead
-                        emit(ProgressState(
-                            totalBytes = totalBytes,
-                            writtenBytes = writtenBytes,
-                            progress = if (totalBytes > 0) (writtenBytes * 100 / totalBytes).toInt() else null,
-                            progressFloat = if (totalBytes > 0) writtenBytes.toFloat() / totalBytes else null,
-                            currentFileName = localFile.name
-                        ))
+                        emit(buildProgressState(totalBytes, writtenBytes, localFile.name))
                     }
                 }
+            } catch (e: CancellationException) {
+                runCatching { localFile.delete() }
+                throw e
             } catch (e: Exception) {
+                transferFailed = true
                 Log.e(TAG, "download: ${e::class.simpleName} path=$remotePath msg=${e.message}")
                 emit(ProgressState(error = e.message ?: "download 실패"))
             } finally {
                 runCatching { inputStream.close() }
-                runCatching { client.completePendingCommand() }
+                val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
+                if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -224,6 +227,7 @@ class FtpConnectionState @Inject constructor() {
                 emit(ProgressState(error = "storeFileStream 실패: ${client.replyString.trim()}"))
                 return@withLock
             }
+            var transferFailed = false
             try {
                 val buffer = ByteArray(BUFFER_SIZE)
                 var writtenBytes = 0L
@@ -232,21 +236,19 @@ class FtpConnectionState @Inject constructor() {
                     while (input.read(buffer).also { bytesRead = it } != -1) {
                         outputStream.write(buffer, 0, bytesRead)
                         writtenBytes += bytesRead
-                        emit(ProgressState(
-                            totalBytes = totalBytes,
-                            writtenBytes = writtenBytes,
-                            progress = if (totalBytes > 0) (writtenBytes * 100 / totalBytes).toInt() else null,
-                            progressFloat = if (totalBytes > 0) writtenBytes.toFloat() / totalBytes else null,
-                            currentFileName = localFile.name
-                        ))
+                        emit(buildProgressState(totalBytes, writtenBytes, localFile.name))
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
+                transferFailed = true
                 Log.e(TAG, "upload: ${e::class.simpleName} path=$remotePath msg=${e.message}")
                 emit(ProgressState(error = e.message ?: "upload 실패"))
             } finally {
                 runCatching { outputStream.close() }
-                runCatching { client.completePendingCommand() }
+                val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
+                if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
             }
         }
     }.flowOn(Dispatchers.IO)
@@ -434,6 +436,14 @@ class FtpConnectionState @Inject constructor() {
             }
         }
     }
+
+    private fun buildProgressState(totalBytes: Long, writtenBytes: Long, fileName: String) = ProgressState(
+        totalBytes = totalBytes,
+        writtenBytes = writtenBytes,
+        progress = if (totalBytes > 0) (writtenBytes * 100 / totalBytes).toInt() else null,
+        progressFloat = if (totalBytes > 0) writtenBytes.toFloat() / totalBytes else null,
+        currentFileName = fileName
+    )
 
     private fun extractFtpPath(path: String): String {
         val withoutScheme = path.removePrefix("ftp://")

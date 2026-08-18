@@ -16,9 +16,8 @@ class FtpUseCase(private val repo: FtpRepository) {
 
     /**
      * remotePath의 파일을 localDestPath로 다운로드한다.
-     * 원격 파일 크기를 먼저 조회해 로컬 여유 공간을 검증한 뒤 FtpRepository.download()를 호출한다.
      * @param remotePath 다운로드할 원격 파일의 절대 경로
-     * @param localDestPath 저장할 로컬 디렉터리 또는 파일의 절대 경로
+     * @param localDestPath 저장할 로컬 파일의 절대 경로 (디렉터리 경로 불가)
      */
     fun download(remotePath: String, localDestPath: String): Flow<ProgressState> =
         repo.download(remotePath, localDestPath)
