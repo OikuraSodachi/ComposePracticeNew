@@ -30,4 +30,27 @@ class FtpUseCase(private val repo: FtpRepository) {
      */
     fun upload(localPath: String, remoteDestPath: String): Flow<ProgressState> =
         repo.upload(localPath, remoteDestPath)
+
+    /** path 파일을 같은 디렉터리 내에서 newName으로 이름 변경한다. 성공 여부를 반환한다. */
+    suspend fun rename(path: String, newName: String): Boolean {
+        val toPath = "${path.substringBeforeLast("/")}/$newName"
+        return repo.rename(path, toPath)
+    }
+
+    /** path의 파일을 삭제한다. 성공 여부를 반환한다. */
+    suspend fun deleteFile(path: String): Boolean = repo.deleteFile(path)
+
+    /** path의 빈 디렉터리를 삭제한다. 성공 여부를 반환한다. */
+    suspend fun removeDirectory(path: String): Boolean = repo.removeDirectory(path)
+
+    /** path를 삭제한다. isDirectory에 따라 removeDirectory 또는 deleteFile을 호출한다. 성공 여부를 반환한다. */
+    suspend fun delete(path: String, isDirectory: Boolean): Boolean =
+        if (isDirectory) repo.removeDirectory(path) else repo.deleteFile(path)
+
+    /** path에 새 디렉터리를 생성한다. 성공 여부를 반환한다. */
+    suspend fun makeDirectory(path: String): Boolean = repo.makeDirectory(path)
+
+    /** parentPath 아래에 dirName 이름의 디렉터리를 생성한다. 성공 여부를 반환한다. */
+    suspend fun makeDirectory(parentPath: String, dirName: String): Boolean =
+        repo.makeDirectory("$parentPath/$dirName")
 }
