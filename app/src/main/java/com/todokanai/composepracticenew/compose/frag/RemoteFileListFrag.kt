@@ -64,6 +64,7 @@ fun RemoteFileListFrag(
             FileListView(
                 modifier = Modifier.weight(1f),
                 fileHolderItemList = uiState.value.fileHolderItemList,
+                selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
                 onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },

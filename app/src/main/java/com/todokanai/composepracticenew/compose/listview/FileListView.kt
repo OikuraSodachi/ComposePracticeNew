@@ -6,10 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -20,6 +16,7 @@ import com.todokanai.composepracticenew.myobjects.Constants
 fun FileListView(
     modifier: Modifier,
     fileHolderItemList: List<FileHolderItem>,
+    selectedList: List<FileHolderItem>,
     selectMode: Int,
     onItemClick: (FileHolderItem) -> Unit,
     onItemLongClick: (FileHolderItem) -> Unit,
@@ -33,7 +30,7 @@ fun FileListView(
     ) {
         items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
 
-            var isSelected by remember(selectMode) { mutableStateOf(false) }
+            val isSelected = fileHolderItem in selectedList
 
             FileHolder(
                 modifier = Modifier
@@ -41,10 +38,8 @@ fun FileListView(
                         onClick = {
                             if (selectMode == Constants.MULTI_SELECT_MODE) {
                                 if (isSelected) {
-                                    isSelected = false
                                     removeFromList(fileHolderItem)
                                 } else {
-                                    isSelected = true
                                     addToList(fileHolderItem)
                                 }
                             } else {
@@ -54,7 +49,6 @@ fun FileListView(
                         onLongClick = {
                             if (selectMode == Constants.DEFAULT_MODE) {
                                 clearList()
-                                isSelected = true
                                 addToList(fileHolderItem)
                                 onItemLongClick(fileHolderItem)
                             }

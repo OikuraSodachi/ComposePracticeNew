@@ -57,6 +57,7 @@ fun FileListFrag(
                 modifier = Modifier
                     .weight(1f),
                 fileHolderItemList = uiState.value.fileHolderItemList,
+                selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
                 onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
