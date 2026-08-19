@@ -37,12 +37,6 @@ class FtpUseCase(private val repo: FtpRepository) {
         return repo.rename(path, toPath)
     }
 
-    /** path의 파일을 삭제한다. 성공 여부를 반환한다. */
-    suspend fun deleteFile(path: String): Boolean = repo.deleteFile(path)
-
-    /** path의 빈 디렉터리를 삭제한다. 성공 여부를 반환한다. */
-    suspend fun removeDirectory(path: String): Boolean = repo.removeDirectory(path)
-
     /** path를 삭제한다. isDirectory에 따라 removeDirectory 또는 deleteFile을 호출한다. 성공 여부를 반환한다. */
     suspend fun delete(path: String, isDirectory: Boolean): Boolean =
         if (isDirectory) repo.removeDirectory(path) else repo.deleteFile(path)
