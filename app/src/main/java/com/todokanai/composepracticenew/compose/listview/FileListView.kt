@@ -4,8 +4,8 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,10 +31,9 @@ fun FileListView(
         modifier = modifier
             .fillMaxWidth()
     ) {
-        items(fileHolderItemList.size) { index ->
-            val fileHolderItem = fileHolderItemList[index]
+        items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
 
-            var isSelected by remember { mutableStateOf(false) }
+            var isSelected by remember(selectMode) { mutableStateOf(false) }
 
             FileHolder(
                 modifier = Modifier
@@ -64,12 +63,6 @@ fun FileListView(
                 file = fileHolderItem,
                 isSelected = isSelected
             )
-
-            LaunchedEffect(selectMode) {
-                if (selectMode != Constants.MULTI_SELECT_MODE) {
-                    isSelected = false
-                }
-            }
         }
     }
 }
