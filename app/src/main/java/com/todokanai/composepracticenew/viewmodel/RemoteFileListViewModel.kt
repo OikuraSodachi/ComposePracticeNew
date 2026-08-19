@@ -151,6 +151,7 @@ class RemoteFileListViewModel @Inject constructor(
         appScope.launch {
             val success = ftpUseCase.rename(item.path, newName)
             if (success) fileNavigatorUseCase.refresh()
+            else _transferProgress.tryEmit(ProgressStateEntity(error = "rename 실패: ${item.name}"))
         }
     }
 
@@ -163,6 +164,7 @@ class RemoteFileListViewModel @Inject constructor(
         appScope.launch {
             val success = ftpUseCase.delete(item.path, item.isDirectory)
             if (success) fileNavigatorUseCase.refresh()
+            else _transferProgress.tryEmit(ProgressStateEntity(error = "삭제 실패: ${item.name}"))
         }
     }
 
@@ -176,6 +178,7 @@ class RemoteFileListViewModel @Inject constructor(
         appScope.launch {
             val success = ftpUseCase.makeDirectory(currentPath, dirName)
             if (success) fileNavigatorUseCase.refresh()
+            else _transferProgress.tryEmit(ProgressStateEntity(error = "디렉터리 생성 실패: $dirName"))
         }
     }
 }
