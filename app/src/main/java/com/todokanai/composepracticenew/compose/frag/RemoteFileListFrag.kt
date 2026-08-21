@@ -45,6 +45,13 @@ fun RemoteFileListFrag(
             Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
         }
     }
+    LaunchedEffect(Unit) {
+        viewModel.transferProgress.collect { state ->
+            if (state.error != null) {
+                Toast.makeText(context, state.error, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
         onSelectModeChange(Constants.DEFAULT_MODE)

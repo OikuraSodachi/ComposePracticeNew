@@ -118,7 +118,7 @@ fun AppNavHost(
                     onConfirmDownload = {
                         val conflicts = viewModel.getDownloadConflicts(downloadPendingList)
                         if (conflicts.isEmpty()) {
-                            // stub: 실제 다운로드 로직은 FtpRepository.download() 구현 시 연결
+                            viewModel.onDownload(downloadPendingList)
                             downloadPendingList = emptyList()
                         } else {
                             conflictDownloadFiles = conflicts
@@ -149,12 +149,13 @@ fun AppNavHost(
                     conflictingFiles = conflictDownloadFiles,
                     totalCount = downloadPendingList.size,
                     onOverwrite = {
-                        // stub: 덮어쓰기로 다운로드 진행 — FtpRepository.download() 구현 시 연결
+                        viewModel.onDownload(downloadPendingList)
                         downloadPendingList = emptyList()
                         showDownloadConflictDialog = false
                     },
                     onSkip = {
-                        // stub: 충돌 제외한 파일만 다운로드 — FtpRepository.download() 구현 시 연결
+                        val skipPaths = conflictDownloadFiles.map { it.path }.toSet()
+                        viewModel.onDownload(downloadPendingList.filter { it.path !in skipPaths })
                         downloadPendingList = emptyList()
                         showDownloadConflictDialog = false
                     },
@@ -166,8 +167,19 @@ fun AppNavHost(
         composable(NavDestinations.REMOTE_FILE_LIST) {
             val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
             val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
+            val remoteProgressMap by remoteViewModel.remoteProgressMap.collectAsStateWithLifecycle()
+            val isRemoteProgressActive = remoteProgressMap.isNotEmpty()
+            var remoteUserDismissed by remember { mutableStateOf(false) }
             var showUploadConflictDialog by remember { mutableStateOf(false) }
             var conflictUploadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
+
+            LaunchedEffect(isRemoteProgressActive) {
+                if (isRemoteProgressActive) remoteUserDismissed = false
+            }
+
+            val activeRemoteProgressMap = remoteProgressMap.filter { (_, state) -> state.progress < 100 }
+            val showRemoteProgress = activeRemoteProgressMap.isNotEmpty() && !remoteUserDismissed
+
             BackHandler {
                 remoteViewModel.onBackPressed { navController.popBackStack() }
             }
@@ -209,7 +221,7 @@ fun AppNavHost(
                     onConfirmUpload = {
                         val conflicts = remoteViewModel.getUploadConflicts(uploadPendingList)
                         if (conflicts.isEmpty()) {
-                            // stub: 실제 업로드 로직은 FtpRepository.upload() 구현 시 연결
+                            uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
                             uploadPendingList = emptyList()
                         } else {
                             conflictUploadFiles = conflicts
@@ -224,16 +236,25 @@ fun AppNavHost(
                     conflictingFiles = conflictUploadFiles,
                     totalCount = uploadPendingList.size,
                     onOverwrite = {
-                        // stub: 덮어쓰기로 업로드 진행 — FtpRepository.upload() 구현 시 연결
+                        uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
                         uploadPendingList = emptyList()
                         showUploadConflictDialog = false
                     },
                     onSkip = {
-                        // stub: 충돌 제외한 파일만 업로드 — FtpRepository.upload() 구현 시 연결
+                        val skipPaths = conflictUploadFiles.map { it.path }.toSet()
+                        uploadPendingList.filter { it.path !in skipPaths }
+                            .forEach { remoteViewModel.onUpload(it.path) }
                         uploadPendingList = emptyList()
                         showUploadConflictDialog = false
                     },
                     onCancel = { showUploadConflictDialog = false }
+                )
+            }
+
+            if (showRemoteProgress) {
+                ProgressDialog(
+                    progressMap = activeRemoteProgressMap,
+                    onDismissRequest = { remoteUserDismissed = true }
                 )
             }
         }

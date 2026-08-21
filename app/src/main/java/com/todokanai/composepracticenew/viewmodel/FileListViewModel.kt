@@ -2,21 +2,30 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.di.ApplicationScope
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ProgressStateEntity
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toEntity
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
+import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -27,7 +36,10 @@ class FileListViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val progressUseCase: ProgressUseCase,
     private val myNoti: MyNotification,
-    private val openFileUseCase: OpenFileUseCase
+    private val openFileUseCase: OpenFileUseCase,
+    private val ftpUseCase: FtpUseCase,
+    private val progressRepository: ProgressRepository,
+    @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
     /** 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
@@ -73,6 +85,27 @@ class FileListViewModel @Inject constructor(
     fun updateCurrentPath(file: File) {
         viewModelScope.launch {
             fileNavigatorUseCase.setPath(file.absolutePath)
+        }
+    }
+
+    /** items를 현재 로컬 경로에 다운로드한다. 진행률은 ProgressTracker를 통해 표시된다. */
+    fun onDownload(items: List<FileHolderItem>) {
+        val localPath = fileNavigatorUseCase.currentPath.value ?: return
+        items.forEach { item -> downloadSingle(ftpUseCase.download(item.path, localPath)) }
+    }
+
+    /**
+     * source Flow를 수집해 ProgressRepository를 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
+     * @param source 수집할 다운로드 진행률 Flow
+     */
+    private fun downloadSingle(source: Flow<ProgressState>) {
+        appScope.launch {
+            source
+                .onCompletion { progressRepository.removeProgress(ACTION_KEY_DOWNLOAD) }
+                .catch { }
+                .collect { state ->
+                    progressRepository.setProgressState(ACTION_KEY_DOWNLOAD, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+                }
         }
     }
 
