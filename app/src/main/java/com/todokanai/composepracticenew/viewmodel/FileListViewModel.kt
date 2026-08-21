@@ -119,9 +119,10 @@ class FileListViewModel @Inject constructor(
                 .onCompletion { progressRepository.removeProgress(instanceId) }
                 .catch { }
                 .collect { state ->
-                    if (state.error != null) {
+                    val error = state.error
+                    if (error != null) {
                         progressRepository.removeProgress(instanceId)
-                        _downloadError.tryEmit(state.error)
+                        _downloadError.tryEmit(error)
                     } else {
                         progressRepository.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
                     }

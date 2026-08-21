@@ -167,9 +167,10 @@ class RemoteFileListViewModel @Inject constructor(
                 }
                 .catch { /* onCompletion이 에러를 처리하므로 Flow 종료만 방지 */ }
                 .collect { state ->
-                    if (state.error != null) {
+                    val error = state.error
+                    if (error != null) {
                         _remoteProgressMap.update { it - instanceId }
-                        _transferProgress.tryEmit(ProgressStateEntity(error = state.error))
+                        _transferProgress.tryEmit(ProgressStateEntity(error = error))
                     } else {
                         val entity = state.toEntity().copy(actionKey = actionKey)
                         _remoteProgressMap.update { it + (instanceId to entity) }
