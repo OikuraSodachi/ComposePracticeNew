@@ -154,8 +154,7 @@ fun AppNavHost(
                         showDownloadConflictDialog = false
                     },
                     onSkip = {
-                        val skipPaths = conflictDownloadFiles.map { it.path }.toSet()
-                        viewModel.onDownload(downloadPendingList.filter { it.path !in skipPaths })
+                        viewModel.onDownloadSkipping(downloadPendingList, conflictDownloadFiles)
                         downloadPendingList = emptyList()
                         showDownloadConflictDialog = false
                     },
@@ -241,9 +240,7 @@ fun AppNavHost(
                         showUploadConflictDialog = false
                     },
                     onSkip = {
-                        val skipPaths = conflictUploadFiles.map { it.path }.toSet()
-                        uploadPendingList.filter { it.path !in skipPaths }
-                            .forEach { remoteViewModel.onUpload(it.path) }
+                        remoteViewModel.onUploadSkipping(uploadPendingList, conflictUploadFiles)
                         uploadPendingList = emptyList()
                         showUploadConflictDialog = false
                     },

@@ -126,6 +126,12 @@ class RemoteFileListViewModel @Inject constructor(
         return pendingList.filter { local -> remoteFiles.any { remote -> remote.name == local.name } }
     }
 
+    /** pending 중 conflicts에 포함된 항목을 제외하고 업로드한다. */
+    fun onUploadSkipping(pending: List<FileHolderItem>, conflicts: List<FileHolderItem>) {
+        val skipPaths = conflicts.map { it.path }.toSet()
+        pending.filter { it.path !in skipPaths }.forEach { onUpload(it.path) }
+    }
+
     /**
      * item의 원격 파일을 localDestPath로 다운로드한다.
      * appScope에서 ftpUseCase.download()를 collect해 ProgressState를 처리한다.

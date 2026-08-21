@@ -94,6 +94,12 @@ class FileListViewModel @Inject constructor(
         items.forEach { item -> downloadSingle(ftpUseCase.download(item.path, localPath)) }
     }
 
+    /** pending 중 conflicts에 포함된 항목을 제외하고 다운로드한다. */
+    fun onDownloadSkipping(pending: List<FileHolderItem>, conflicts: List<FileHolderItem>) {
+        val skipPaths = conflicts.map { it.path }.toSet()
+        onDownload(pending.filter { it.path !in skipPaths })
+    }
+
     /**
      * source Flow를 수집해 ProgressRepository를 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
      * @param source 수집할 다운로드 진행률 Flow
