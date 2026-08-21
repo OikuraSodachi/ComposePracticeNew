@@ -99,7 +99,7 @@ class FileListViewModel @Inject constructor(
     /** items를 현재 로컬 경로에 다운로드한다. 진행률은 ProgressTracker를 통해 표시된다. */
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
-        items.forEach { item -> downloadSingle(ftpUseCase.download(item.path, localPath)) }
+        items.forEach { item -> downloadSingle(item.path.hashCode(), ftpUseCase.download(item.path, localPath)) }
     }
 
     /** pending 중 conflicts에 포함된 항목을 제외하고 다운로드한다. */
@@ -110,19 +110,20 @@ class FileListViewModel @Inject constructor(
 
     /**
      * source Flow를 수집해 ProgressRepository를 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
+     * @param instanceId 진행률 맵에서 이 전송 인스턴스를 식별하는 키
      * @param source 수집할 다운로드 진행률 Flow
      */
-    private fun downloadSingle(source: Flow<ProgressState>) {
+    private fun downloadSingle(instanceId: Int, source: Flow<ProgressState>) {
         appScope.launch {
             source
-                .onCompletion { progressRepository.removeProgress(ACTION_KEY_DOWNLOAD) }
+                .onCompletion { progressRepository.removeProgress(instanceId) }
                 .catch { }
                 .collect { state ->
                     if (state.error != null) {
-                        progressRepository.removeProgress(ACTION_KEY_DOWNLOAD)
+                        progressRepository.removeProgress(instanceId)
                         _downloadError.tryEmit(state.error)
                     } else {
-                        progressRepository.setProgressState(ACTION_KEY_DOWNLOAD, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+                        progressRepository.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
                     }
                 }
         }

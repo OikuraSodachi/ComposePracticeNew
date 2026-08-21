@@ -139,7 +139,7 @@ class RemoteFileListViewModel @Inject constructor(
      * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
      */
     fun onDownload(item: FileHolderItem, localDestPath: String) {
-        collectTransfer(ACTION_KEY_DOWNLOAD, ftpUseCase.download(item.path, localDestPath))
+        collectTransfer(item.path.hashCode(), ACTION_KEY_DOWNLOAD, ftpUseCase.download(item.path, localDestPath))
     }
 
     /**
@@ -149,29 +149,30 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun onUpload(localPath: String) {
         val remotePath = fileNavigatorUseCase.currentPath.value ?: return
-        collectTransfer(ACTION_KEY_UPLOAD, ftpUseCase.upload(localPath, remotePath))
+        collectTransfer(localPath.hashCode(), ACTION_KEY_UPLOAD, ftpUseCase.upload(localPath, remotePath))
     }
 
     /**
      * source Flow를 수집해 remoteProgressMap을 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
-     * @param actionKey 진행률 맵에서 이 작업을 식별하는 키
+     * @param instanceId 진행률 맵에서 이 전송 인스턴스를 식별하는 키
+     * @param actionKey ProgressDialog 라벨 표시에 사용하는 작업 유형 키
      * @param source 수집할 진행률 Flow
      */
-    private fun collectTransfer(actionKey: Int, source: Flow<ProgressState>) {
+    private fun collectTransfer(instanceId: Int, actionKey: Int, source: Flow<ProgressState>) {
         appScope.launch {
             source
                 .onCompletion { cause ->
-                    _remoteProgressMap.update { it - actionKey }
+                    _remoteProgressMap.update { it - instanceId }
                     if (cause != null) _transferProgress.tryEmit(ProgressStateEntity(error = cause.message))
                 }
                 .catch { /* onCompletion이 에러를 처리하므로 Flow 종료만 방지 */ }
                 .collect { state ->
                     if (state.error != null) {
-                        _remoteProgressMap.update { it - actionKey }
+                        _remoteProgressMap.update { it - instanceId }
                         _transferProgress.tryEmit(ProgressStateEntity(error = state.error))
                     } else {
                         val entity = state.toEntity().copy(actionKey = actionKey)
-                        _remoteProgressMap.update { it + (actionKey to entity) }
+                        _remoteProgressMap.update { it + (instanceId to entity) }
                     }
                 }
         }
