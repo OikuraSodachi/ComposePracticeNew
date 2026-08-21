@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.navigation
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import android.widget.Toast
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -12,6 +13,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -65,6 +67,7 @@ fun AppNavHost(
             )
         }
         composable(NavDestinations.FILE_LIST) {
+            val context = LocalContext.current
             val directoryViewModel: DirectoryViewModel = hiltViewModel()
             val dirUiState by directoryViewModel.uiState.collectAsStateWithLifecycle()
             val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
@@ -84,6 +87,12 @@ fun AppNavHost(
                 if (showProgressDialogForKey != null) {
                     userDismissed = false
                     viewModel.onProgressDialogShown()
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                viewModel.downloadError.collect { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             }
 

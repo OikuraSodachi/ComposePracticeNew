@@ -18,10 +18,14 @@ import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
@@ -63,6 +67,10 @@ class FileListViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap()
         )
+
+    private val _downloadError = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    /** 다운로드 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
+    val downloadError: SharedFlow<String> = _downloadError.asSharedFlow()
 
     /** 알림 클릭으로 다이얼로그를 다시 표시해야 할 때 설정되는 actionKey. null이면 신호 없음. */
     private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
@@ -110,7 +118,12 @@ class FileListViewModel @Inject constructor(
                 .onCompletion { progressRepository.removeProgress(ACTION_KEY_DOWNLOAD) }
                 .catch { }
                 .collect { state ->
-                    progressRepository.setProgressState(ACTION_KEY_DOWNLOAD, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+                    if (state.error != null) {
+                        progressRepository.removeProgress(ACTION_KEY_DOWNLOAD)
+                        _downloadError.tryEmit(state.error)
+                    } else {
+                        progressRepository.setProgressState(ACTION_KEY_DOWNLOAD, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+                    }
                 }
         }
     }
