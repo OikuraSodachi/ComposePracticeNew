@@ -26,8 +26,10 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.model.ProgressStateEntity
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 
 /** 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것. */
@@ -114,6 +116,8 @@ private fun actionKeyToLabel(actionKey: Int?) = when (actionKey) {
     ACTION_KEY_DELETE -> stringResource(R.string.progress_deleting)
     ACTION_KEY_ZIP -> stringResource(R.string.progress_zipping)
     ACTION_KEY_UNZIP -> stringResource(R.string.progress_unzipping)
+    ACTION_KEY_DOWNLOAD -> stringResource(R.string.progress_downloading)
+    ACTION_KEY_UPLOAD -> stringResource(R.string.progress_uploading)
     else -> stringResource(R.string.progress_processing)
 }
 

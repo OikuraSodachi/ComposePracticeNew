@@ -19,6 +19,7 @@ object Constants {
     const val ACTION_KEY_ZIP : Int = 23
     const val ACTION_KEY_UNZIP : Int = 24
     const val ACTION_KEY_DOWNLOAD : Int = 25
+    const val ACTION_KEY_UPLOAD : Int = 26
 
     const val BY_DEFAULT : String ="BY_DEFAULT"
     const val BY_NAME_ASCENDING : String = "BY_NAME_ASCENDING"

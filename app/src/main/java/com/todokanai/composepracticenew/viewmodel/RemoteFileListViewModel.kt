@@ -4,8 +4,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ProgressStateEntity
 import com.todokanai.composepracticenew.model.toEntity
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -16,13 +19,18 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -44,8 +52,12 @@ class RemoteFileListViewModel @Inject constructor(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    /** 다운로드·업로드 진행 상태 이벤트. */
+    /** 다운로드·업로드 진행 상태 이벤트. error가 non-null인 경우 실패를 의미한다. */
     val transferProgress: SharedFlow<ProgressStateEntity> = _transferProgress.asSharedFlow()
+
+    private val _remoteProgressMap = MutableStateFlow<Map<Int, ProgressStateEntity>>(emptyMap())
+    /** 진행 중인 원격 전송 작업의 진행률 맵. ProgressDialog 표시에 사용한다. */
+    val remoteProgressMap: StateFlow<Map<Int, ProgressStateEntity>> = _remoteProgressMap.asStateFlow()
 
 
     init {
@@ -114,6 +126,12 @@ class RemoteFileListViewModel @Inject constructor(
         return pendingList.filter { local -> remoteFiles.any { remote -> remote.name == local.name } }
     }
 
+    /** pending 중 conflicts에 포함된 항목을 제외하고 업로드한다. */
+    fun onUploadSkipping(pending: List<FileHolderItem>, conflicts: List<FileHolderItem>) {
+        val skipPaths = conflicts.map { it.path }.toSet()
+        pending.filter { it.path !in skipPaths }.forEach { onUpload(it.path) }
+    }
+
     /**
      * item의 원격 파일을 localDestPath로 다운로드한다.
      * appScope에서 ftpUseCase.download()를 collect해 ProgressState를 처리한다.
@@ -121,11 +139,7 @@ class RemoteFileListViewModel @Inject constructor(
      * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
      */
     fun onDownload(item: FileHolderItem, localDestPath: String) {
-        appScope.launch {
-            ftpUseCase.download(item.path, localDestPath)
-                .catch { e -> _transferProgress.tryEmit(ProgressStateEntity(error = e.message)) }
-                .collect { _transferProgress.tryEmit(it.toEntity()) }
-        }
+        collectTransfer(item.path.hashCode(), ACTION_KEY_DOWNLOAD, ftpUseCase.download(item.path, localDestPath))
     }
 
     /**
@@ -135,10 +149,32 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun onUpload(localPath: String) {
         val remotePath = fileNavigatorUseCase.currentPath.value ?: return
+        collectTransfer(localPath.hashCode(), ACTION_KEY_UPLOAD, ftpUseCase.upload(localPath, remotePath))
+    }
+
+    /**
+     * source Flow를 수집해 remoteProgressMap을 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
+     * @param instanceId 진행률 맵에서 이 전송 인스턴스를 식별하는 키
+     * @param actionKey ProgressDialog 라벨 표시에 사용하는 작업 유형 키
+     * @param source 수집할 진행률 Flow
+     */
+    private fun collectTransfer(instanceId: Int, actionKey: Int, source: Flow<ProgressState>) {
         appScope.launch {
-            ftpUseCase.upload(localPath, remotePath)
-                .catch { e -> _transferProgress.tryEmit(ProgressStateEntity(error = e.message)) }
-                .collect { _transferProgress.tryEmit(it.toEntity()) }
+            source
+                .onCompletion { cause ->
+                    _remoteProgressMap.update { it - instanceId }
+                    if (cause != null) _transferProgress.tryEmit(ProgressStateEntity(error = cause.message))
+                }
+                .catch { /* onCompletion이 에러를 처리하므로 Flow 종료만 방지 */ }
+                .collect { state ->
+                    if (state.error != null) {
+                        _remoteProgressMap.update { it - instanceId }
+                        _transferProgress.tryEmit(ProgressStateEntity(error = state.error))
+                    } else {
+                        val entity = state.toEntity().copy(actionKey = actionKey)
+                        _remoteProgressMap.update { it + (instanceId to entity) }
+                    }
+                }
         }
     }
 

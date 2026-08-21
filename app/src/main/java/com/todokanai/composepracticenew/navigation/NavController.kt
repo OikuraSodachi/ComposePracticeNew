@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.navigation
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
+import android.widget.Toast
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -12,6 +13,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -65,6 +67,7 @@ fun AppNavHost(
             )
         }
         composable(NavDestinations.FILE_LIST) {
+            val context = LocalContext.current
             val directoryViewModel: DirectoryViewModel = hiltViewModel()
             val dirUiState by directoryViewModel.uiState.collectAsStateWithLifecycle()
             val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
@@ -84,6 +87,12 @@ fun AppNavHost(
                 if (showProgressDialogForKey != null) {
                     userDismissed = false
                     viewModel.onProgressDialogShown()
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                viewModel.downloadError.collect { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             }
 
@@ -118,7 +127,7 @@ fun AppNavHost(
                     onConfirmDownload = {
                         val conflicts = viewModel.getDownloadConflicts(downloadPendingList)
                         if (conflicts.isEmpty()) {
-                            // stub: 실제 다운로드 로직은 FtpRepository.download() 구현 시 연결
+                            viewModel.onDownload(downloadPendingList)
                             downloadPendingList = emptyList()
                         } else {
                             conflictDownloadFiles = conflicts
@@ -149,12 +158,12 @@ fun AppNavHost(
                     conflictingFiles = conflictDownloadFiles,
                     totalCount = downloadPendingList.size,
                     onOverwrite = {
-                        // stub: 덮어쓰기로 다운로드 진행 — FtpRepository.download() 구현 시 연결
+                        viewModel.onDownload(downloadPendingList)
                         downloadPendingList = emptyList()
                         showDownloadConflictDialog = false
                     },
                     onSkip = {
-                        // stub: 충돌 제외한 파일만 다운로드 — FtpRepository.download() 구현 시 연결
+                        viewModel.onDownloadSkipping(downloadPendingList, conflictDownloadFiles)
                         downloadPendingList = emptyList()
                         showDownloadConflictDialog = false
                     },
@@ -166,8 +175,19 @@ fun AppNavHost(
         composable(NavDestinations.REMOTE_FILE_LIST) {
             val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
             val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
+            val remoteProgressMap by remoteViewModel.remoteProgressMap.collectAsStateWithLifecycle()
+            val isRemoteProgressActive = remoteProgressMap.isNotEmpty()
+            var remoteUserDismissed by remember { mutableStateOf(false) }
             var showUploadConflictDialog by remember { mutableStateOf(false) }
             var conflictUploadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
+
+            LaunchedEffect(isRemoteProgressActive) {
+                if (isRemoteProgressActive) remoteUserDismissed = false
+            }
+
+            val activeRemoteProgressMap = remoteProgressMap.filter { (_, state) -> state.progress < 100 }
+            val showRemoteProgress = activeRemoteProgressMap.isNotEmpty() && !remoteUserDismissed
+
             BackHandler {
                 remoteViewModel.onBackPressed { navController.popBackStack() }
             }
@@ -209,7 +229,7 @@ fun AppNavHost(
                     onConfirmUpload = {
                         val conflicts = remoteViewModel.getUploadConflicts(uploadPendingList)
                         if (conflicts.isEmpty()) {
-                            // stub: 실제 업로드 로직은 FtpRepository.upload() 구현 시 연결
+                            uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
                             uploadPendingList = emptyList()
                         } else {
                             conflictUploadFiles = conflicts
@@ -224,16 +244,23 @@ fun AppNavHost(
                     conflictingFiles = conflictUploadFiles,
                     totalCount = uploadPendingList.size,
                     onOverwrite = {
-                        // stub: 덮어쓰기로 업로드 진행 — FtpRepository.upload() 구현 시 연결
+                        uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
                         uploadPendingList = emptyList()
                         showUploadConflictDialog = false
                     },
                     onSkip = {
-                        // stub: 충돌 제외한 파일만 업로드 — FtpRepository.upload() 구현 시 연결
+                        remoteViewModel.onUploadSkipping(uploadPendingList, conflictUploadFiles)
                         uploadPendingList = emptyList()
                         showUploadConflictDialog = false
                     },
                     onCancel = { showUploadConflictDialog = false }
+                )
+            }
+
+            if (showRemoteProgress) {
+                ProgressDialog(
+                    progressMap = activeRemoteProgressMap,
+                    onDismissRequest = { remoteUserDismissed = true }
                 )
             }
         }
