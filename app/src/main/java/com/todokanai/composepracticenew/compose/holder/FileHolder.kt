@@ -19,10 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import java.io.File
 import com.todokanai.composepracticenew.data.R as DataR
 
 /** 파일 목록의 개별 항목을 표시하는 컴포저블. modifier.background 처리는 FileListView에서 담당 예정. */
@@ -52,7 +50,7 @@ fun FileHolder(
                 .fillMaxHeight()
                 .padding(5.dp),
             isAsyncImage = (extension == "jpg"),
-            data = File(file.path).toUri(),
+            data = file.data,
             icon = icon
         )
 
@@ -89,5 +87,4 @@ fun FileHolder(
         )
     }
 
-    println("Recomposition: FileHolder - ${file.name}")
 }
