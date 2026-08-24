@@ -72,9 +72,9 @@ class StorageViewModel @Inject constructor(
     }
 
     /** 원격 스토리지를 추가한다. */
-    fun addRemoteStorage(name: String, address: String, port: Int, id: String, password: String) {
+    fun addRemoteStorage(name: String, address: String, port: Int, id: String, password: String, encoding: String) {
         viewModelScope.launch {
-            remoteStorageUseCase.add(name, address, port, id, password)
+            remoteStorageUseCase.add(name, address, port, id, password, encoding)
         }
     }
 

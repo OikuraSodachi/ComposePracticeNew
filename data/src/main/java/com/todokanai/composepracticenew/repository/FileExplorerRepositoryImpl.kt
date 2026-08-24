@@ -88,8 +88,8 @@ class FileExplorerRepositoryImpl(
         if (File(path).listFiles() != null) navigateTo(path)
     }
 
-    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String): Boolean =
-        ftpFileSystem.connect(address, port, userId, password)
+    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String, encoding: String): Boolean =
+        ftpFileSystem.connect(address, port, userId, password, encoding)
 
     override suspend fun setRemotePath(address: String) {
         navigateTo("ftp://${address.removePrefix("ftp://")}")

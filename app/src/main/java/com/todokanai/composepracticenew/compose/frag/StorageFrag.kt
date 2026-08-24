@@ -58,7 +58,9 @@ fun StorageFrag(
 
     if (showAddRemoteStorageDialog) {
         AddRemoteStorageDialog(
-            onConfirm = { name, address, port, id, password -> viewModel.addRemoteStorage(name, address, port, id, password) },
+            onConfirm = { name, address, port, id, password, encoding ->
+                viewModel.addRemoteStorage(name, address, port, id, password, encoding)
+            },
             onCancel = { showAddRemoteStorageDialog = false }
         )
     }
@@ -66,8 +68,8 @@ fun StorageFrag(
     editingItem?.let { target ->
         AddRemoteStorageDialog(
             initialValue = target,
-            onConfirm = { name, address, port, id, password ->
-                viewModel.updateRemoteStorage(target.copy(name = name, address = address, port = port, userId = id, password = password))
+            onConfirm = { name, address, port, id, password, encoding ->
+                viewModel.updateRemoteStorage(target.copy(name = name, address = address, port = port, userId = id, password = password, encoding = encoding))
             },
             onCancel = { editingItem = null }
         )

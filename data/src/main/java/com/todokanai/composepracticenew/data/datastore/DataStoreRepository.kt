@@ -64,4 +64,5 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
 
     suspend fun lastRemoteId(): Long? =
         context.dataStore.data.first()[DATASTORE_LAST_REMOTE_ID]
+
 }

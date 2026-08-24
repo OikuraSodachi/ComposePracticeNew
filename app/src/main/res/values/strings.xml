@@ -14,6 +14,7 @@
     <string name="dialog_add_remote_storage_port_hint">포트 번호</string>
     <string name="dialog_add_remote_storage_id_hint">아이디</string>
     <string name="dialog_add_remote_storage_pw_hint">비밀번호</string>
+    <string name="dialog_add_remote_storage_encoding_label">인코딩</string>
     <string name="btn_exit">Exit</string>
     <string name="btn_move">Move</string>
     <string name="btn_copy">Copy</string>

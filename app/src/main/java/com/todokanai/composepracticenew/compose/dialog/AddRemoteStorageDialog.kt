@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -21,20 +25,25 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
-/** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호)를 입력받아 추가하거나 수정하는 다이얼로그. */
+/** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호, 인코딩)를 입력받아 추가하거나 수정하는 다이얼로그. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRemoteStorageDialog(
-    onConfirm: (name: String, address: String, port: Int, id: String, password: String) -> Unit,
+    onConfirm: (name: String, address: String, port: Int, id: String, password: String, encoding: String) -> Unit,
     onCancel: () -> Unit,
     initialValue: RemoteStorageItem? = null
 ) {
+    val encodingOptions = Constants.FTP_ENCODING_OPTIONS
     var name by remember { mutableStateOf(initialValue?.name ?: "") }
     var address by remember { mutableStateOf(initialValue?.address ?: "") }
-    var port by remember { mutableStateOf(initialValue?.port?.toString() ?: "") }
+    var port by remember { mutableStateOf(initialValue?.port?.toString() ?: "21") }
     var id by remember { mutableStateOf(initialValue?.userId ?: "") }
     var password by remember { mutableStateOf(initialValue?.password ?: "") }
+    var selectedEncoding by remember { mutableStateOf(initialValue?.encoding ?: Constants.FTP_ENCODING_DEFAULT) }
+    var encodingExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onCancel,
@@ -82,12 +91,41 @@ fun AddRemoteStorageDialog(
                     singleLine = true,
                     visualTransformation = PasswordVisualTransformation()
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                ExposedDropdownMenuBox(
+                    expanded = encodingExpanded,
+                    onExpandedChange = { encodingExpanded = it }
+                ) {
+                    TextField(
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        value = selectedEncoding,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.dialog_add_remote_storage_encoding_label)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = encodingExpanded) },
+                        colors = ExposedDropdownMenuDefaults.textFieldColors()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = encodingExpanded,
+                        onDismissRequest = { encodingExpanded = false }
+                    ) {
+                        encodingOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option) },
+                                onClick = {
+                                    selectedEncoding = option
+                                    encodingExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
             Button(
                 onClick = {
-                    onConfirm(name, address, port.toIntOrNull() ?: 0, id, password)
+                    onConfirm(name, address, port.toIntOrNull() ?: 0, id, password, selectedEncoding)
                     onCancel()
                 }
             ) {
@@ -106,7 +144,7 @@ fun AddRemoteStorageDialog(
 @Composable
 private fun AddRemoteStorageDialogPreview() {
     AddRemoteStorageDialog(
-        onConfirm = { _, _, _, _, _ -> },
+        onConfirm = { _, _, _, _, _, _ -> },
         onCancel = {}
     )
 }
