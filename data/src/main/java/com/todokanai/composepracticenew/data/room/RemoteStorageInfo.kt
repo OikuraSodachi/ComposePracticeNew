@@ -13,5 +13,6 @@ data class RemoteStorageInfo(
     @ColumnInfo val address: String,
     @ColumnInfo val port: Int,
     @ColumnInfo val userId: String,
-    @ColumnInfo val password: String
+    @ColumnInfo val password: String,
+    @ColumnInfo val encoding: String = "UTF-8"
 )

@@ -13,8 +13,8 @@ interface FtpRepository {
     /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */
     val isConnecting: StateFlow<Boolean>
 
-    /** address, port, userId, password로 FTP 서버에 연결한다. 성공 여부를 반환한다. */
-    suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean
+    /** address, port, userId, password, encoding으로 FTP 서버에 연결한다. 성공 여부를 반환한다. */
+    suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): Boolean
 
     /** FTP 서버와의 연결을 종료한다. */
     suspend fun disconnect()

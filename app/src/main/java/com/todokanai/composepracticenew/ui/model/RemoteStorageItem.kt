@@ -9,7 +9,8 @@ data class RemoteStorageItem(
     val address: String,
     val port: Int,
     val userId: String,
-    val password: String
+    val password: String,
+    val encoding: String = "UTF-8"
 ) {
     companion object {
         /** domain 모듈의 RemoteStorageItem을 앱 레이어 모델로 변환한다. */
@@ -19,7 +20,8 @@ data class RemoteStorageItem(
             address = domain.address,
             port = domain.port,
             userId = domain.userId,
-            password = domain.password
+            password = domain.password,
+            encoding = domain.encoding
         )
     }
 
@@ -30,6 +32,7 @@ data class RemoteStorageItem(
         address = address,
         port = port,
         userId = userId,
-        password = password
+        password = password,
+        encoding = encoding
     )
 }

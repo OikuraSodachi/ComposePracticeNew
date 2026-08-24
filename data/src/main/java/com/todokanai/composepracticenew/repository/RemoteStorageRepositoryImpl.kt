@@ -33,7 +33,8 @@ private fun RemoteStorageInfo.toItem() = RemoteStorageItem(
     address = address,
     port = port,
     userId = userId,
-    password = password
+    password = password,
+    encoding = encoding
 )
 
 private fun RemoteStorageItem.toEntity() = RemoteStorageInfo(
@@ -42,5 +43,6 @@ private fun RemoteStorageItem.toEntity() = RemoteStorageInfo(
     address = address,
     port = port,
     userId = userId,
-    password = password
+    password = password,
+    encoding = encoding
 )

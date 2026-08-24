@@ -7,5 +7,6 @@ data class RemoteStorageItem(
     val address: String,
     val port: Int,
     val userId: String,
-    val password: String
+    val password: String,
+    val encoding: String = "UTF-8"
 )

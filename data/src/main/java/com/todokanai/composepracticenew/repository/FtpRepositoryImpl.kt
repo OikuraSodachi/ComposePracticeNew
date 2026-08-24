@@ -21,8 +21,8 @@ class FtpRepositoryImpl @Inject constructor(
      * address, port, userId, password로 FTP 서버에 연결한다.
      * @param address 호스트 주소, @param port 포트 번호, @param userId 사용자 ID, @param password 비밀번호
      */
-    override suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean =
-        connectionState.connect(address, port, userId, password)
+    override suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): Boolean =
+        connectionState.connect(address, port, userId, password, encoding)
 
     /** FTP 서버 연결을 로그아웃 후 해제한다. */
     override suspend fun disconnect() { connectionState.disconnect() }

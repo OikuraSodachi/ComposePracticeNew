@@ -15,7 +15,7 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     suspend fun setPath(path: String) = nav.navigate(path)
     /** FTP 서버에 연결하고 루트 경로로 이동한다. 연결 성공 여부를 반환한다. */
     suspend fun setPath(item: RemoteStorageItem): Boolean {
-        val connected = nav.connectRemote(item.address, item.port, item.userId, item.password)
+        val connected = nav.connectRemote(item.address, item.port, item.userId, item.password, item.encoding)
         if (connected) nav.setRemotePath(item.address)
         return connected
     }

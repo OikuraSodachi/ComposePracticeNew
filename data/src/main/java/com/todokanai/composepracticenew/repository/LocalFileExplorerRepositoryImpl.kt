@@ -69,7 +69,7 @@ class LocalFileExplorerRepositoryImpl(
     }
 
     // stub — not yet implemented
-    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String): Boolean = false
+    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String, encoding: String): Boolean = false
 
     // stub — not yet implemented
     override suspend fun setRemotePath(path: String) {}

@@ -17,7 +17,7 @@ interface FileNavigatorRepository {
     /** 주어진 경로의 부모 경로를 반환한다. 루트이면 null을 반환한다. */
     fun getParentPath(path: String): String?
     /** 원격 스토리지 서버에 연결하고 로그인한다. 성공 여부를 반환한다. */
-    suspend fun connectRemote(address: String, port: Int, userId: String, password: String): Boolean
+    suspend fun connectRemote(address: String, port: Int, userId: String, password: String, encoding: String): Boolean
     /** 지정된 원격 경로로 탐색 위치를 이동시킨다. */
     suspend fun setRemotePath(path: String)
 }

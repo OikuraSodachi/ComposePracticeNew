@@ -53,7 +53,7 @@ class FtpConnectionState @Inject constructor() {
      * @param password FTP 로그인 비밀번호
      * @return 연결 및 로그인 성공 시 true
      */
-    suspend fun connect(address: String, port: Int, userId: String, password: String): Boolean {
+    suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): Boolean {
         stateMutex.withLock { _isConnecting.value = true }
         return ioMutex.withLock {
             withContext(Dispatchers.IO) {
@@ -69,6 +69,7 @@ class FtpConnectionState @Inject constructor() {
                         }
                     }
                     client.connectTimeout = CONNECT_TIMEOUT_MS
+                    client.setControlEncoding(encoding)
                     client.connect(server, port)
                     client.soTimeout = SO_TIMEOUT_MS
                     val loggedIn = client.login(userId, password)
