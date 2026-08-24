@@ -35,10 +35,11 @@ fun FileListView(
 
             val isSelected = fileHolderItem in selectedSet
 
-            val onClick = remember(fileHolderItem, isSelected, selectMode) {
+            val onClick = remember(fileHolderItem, selectMode) {
                 {
                     if (selectMode == Constants.MULTI_SELECT_MODE) {
-                        if (isSelected) removeFromList(fileHolderItem) else addToList(fileHolderItem)
+                        if (fileHolderItem in selectedList) removeFromList(fileHolderItem)
+                        else addToList(fileHolderItem)
                     } else {
                         onItemClick(fileHolderItem)
                     }
