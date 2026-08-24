@@ -11,8 +11,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.Constants.EXTRA_ACTION_KEY
@@ -90,6 +92,8 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     fun moveProgressNoti(progress: Int) = progressNoti("Moving", "$progress %", progress, ACTION_KEY_MOVE)
     fun unzipProgressNoti(progress: Int) = progressNoti("Unzipping", "$progress %", progress, ACTION_KEY_UNZIP)
     fun zipProgressNoti(progress: Int) = progressNoti("Zipping", "$progress %", progress, ACTION_KEY_ZIP)
+    fun downloadProgressNoti(progress: Int) = progressNoti("Downloading", "$progress %", progress, ACTION_KEY_DOWNLOAD)
+    fun uploadProgressNoti(progress: Int) = progressNoti("Uploading", "$progress %", progress, ACTION_KEY_UPLOAD)
 
     private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int) {
         notificationManager.createNotificationChannel(channel)
