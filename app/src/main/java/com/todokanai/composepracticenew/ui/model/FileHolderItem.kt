@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.ui.model
 
-import android.net.Uri
 import android.os.Parcelable
 import androidx.compose.runtime.Immutable
 import androidx.core.net.toUri
@@ -18,18 +17,18 @@ data class FileHolderItem(
     val size: String,
     val lastModified: String,
     val sizeBytes: Long = 0L,
-    val data: Uri? = null
+    val data: String? = null
 ) : Parcelable {
     companion object {
         /** domain 모듈의 FileHolderItem을 앱 레이어 모델로 변환한다. */
-        fun from(domain: DomainFileHolderItem) = FileHolderItem(
+        fun from(domain: DomainFileHolderItem, isLocalFile: Boolean = true) = FileHolderItem(
             path = domain.path,
             isDirectory = domain.isDirectory,
             name = domain.name,
             size = domain.size,
             lastModified = domain.lastModified,
             sizeBytes = domain.sizeBytes,
-            data = File(domain.path).toUri()
+            data = if (isLocalFile) File(domain.path).toUri().toString() else null
         )
     }
 

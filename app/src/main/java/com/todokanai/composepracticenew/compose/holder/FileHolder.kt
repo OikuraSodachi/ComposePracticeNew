@@ -11,7 +11,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.core.net.toUri
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
@@ -31,6 +33,7 @@ fun FileHolder(
     isSelected: Boolean
 ) {
     val extension = file.name.substringAfterLast('.', "")
+    val imageData = remember(file.data) { file.data?.toUri() }
     val icon = when {
         file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)
         extension == "pdf" -> painterResource(DataR.drawable.ic_pdf)
@@ -50,7 +53,7 @@ fun FileHolder(
                 .fillMaxHeight()
                 .padding(5.dp),
             isAsyncImage = (extension == "jpg"),
-            data = file.data,
+            data = imageData,
             icon = icon
         )
 
