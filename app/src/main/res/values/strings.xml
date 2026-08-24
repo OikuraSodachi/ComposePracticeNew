@@ -79,6 +79,8 @@
     <!-- Notifications -->
     <string name="noti_move_complete">이동 완료</string>
     <string name="noti_delete_complete">삭제 완료</string>
+    <string name="noti_download_complete">다운로드 완료</string>
+    <string name="noti_upload_complete">업로드 완료</string>
     <string name="noti_complete">완료</string>
 
     <string name="dialog_error_title">오류</string>

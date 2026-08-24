@@ -1,7 +1,9 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.ProgressState
@@ -14,8 +16,10 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
+import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -37,10 +41,12 @@ import javax.inject.Inject
 /** 원격 파일 목록 화면의 UI 상태, 네비게이션, 파일 조작(다운로드·업로드·이름변경·삭제·새폴더)을 관리하는 ViewModel. */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
     private val ftpServiceController: FtpServiceController,
     private val ftpUseCase: FtpUseCase,
+    private val myNoti: MyNotification,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -160,22 +166,42 @@ class RemoteFileListViewModel @Inject constructor(
      */
     private fun collectTransfer(instanceId: Int, actionKey: Int, source: Flow<ProgressState>) {
         appScope.launch {
+            var hasError = false
             source
                 .onCompletion { cause ->
                     _remoteProgressMap.update { it - instanceId }
-                    if (cause != null) _transferProgress.tryEmit(ProgressStateEntity(error = cause.message))
+                    if (cause != null) {
+                        _transferProgress.tryEmit(ProgressStateEntity(error = cause.message))
+                    } else if (!hasError) {
+                        myNoti.completedNotification("", completionMessage(actionKey), actionKey, instanceId)
+                    }
                 }
                 .catch { /* onCompletion이 에러를 처리하므로 Flow 종료만 방지 */ }
                 .collect { state ->
                     val error = state.error
                     if (error != null) {
+                        hasError = true
                         _remoteProgressMap.update { it - instanceId }
                         _transferProgress.tryEmit(ProgressStateEntity(error = error))
                     } else {
                         val entity = state.toEntity().copy(actionKey = actionKey)
                         _remoteProgressMap.update { it + (instanceId to entity) }
+                        state.progress?.let { progress -> sendProgressNoti(actionKey, progress, instanceId) }
                     }
                 }
+        }
+    }
+
+    private fun completionMessage(actionKey: Int): String = when (actionKey) {
+        ACTION_KEY_DOWNLOAD -> context.getString(R.string.noti_download_complete)
+        ACTION_KEY_UPLOAD -> context.getString(R.string.noti_upload_complete)
+        else -> context.getString(R.string.noti_complete)
+    }
+
+    private fun sendProgressNoti(actionKey: Int, progress: Int, notifId: Int) {
+        when (actionKey) {
+            ACTION_KEY_DOWNLOAD -> myNoti.downloadProgressNoti(progress, notifId)
+            ACTION_KEY_UPLOAD -> myNoti.uploadProgressNoti(progress, notifId)
         }
     }
 

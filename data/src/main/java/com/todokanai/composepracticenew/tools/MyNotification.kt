@@ -11,8 +11,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UNZIP
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.myobjects.Constants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.Constants.EXTRA_ACTION_KEY
@@ -90,8 +92,10 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     fun moveProgressNoti(progress: Int) = progressNoti("Moving", "$progress %", progress, ACTION_KEY_MOVE)
     fun unzipProgressNoti(progress: Int) = progressNoti("Unzipping", "$progress %", progress, ACTION_KEY_UNZIP)
     fun zipProgressNoti(progress: Int) = progressNoti("Zipping", "$progress %", progress, ACTION_KEY_ZIP)
+    fun downloadProgressNoti(progress: Int, notifId: Int) = progressNoti("Downloading", "$progress %", progress, ACTION_KEY_DOWNLOAD, notifId)
+    fun uploadProgressNoti(progress: Int, notifId: Int) = progressNoti("Uploading", "$progress %", progress, ACTION_KEY_UPLOAD, notifId)
 
-    private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int) {
+    private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int = actionKey) {
         notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
@@ -105,7 +109,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
                 return
             }
-            notify(actionKey, builder.build())
+            notify(notifId, builder.build())
         }
     }
 
@@ -120,8 +124,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         )
     }
 
-    fun completedNotification(title: String, message: String, actionKey: Int? = null) {
-        val notifId = actionKey ?: 0
+    fun completedNotification(title: String, message: String, actionKey: Int? = null, notifId: Int = actionKey ?: 0) {
         notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
