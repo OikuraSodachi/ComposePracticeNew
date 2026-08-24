@@ -103,6 +103,41 @@ fun AppNavHost(
                 mViewModel.onBackPressed { navController.popBackStack() }
             }
 
+            val onLocalSelectModeChange = remember { { mode: Int -> localSelectMode = mode } }
+            val addToLocalList: (FileHolderItem) -> Unit = remember { { item -> localSelectedList.add(item) } }
+            val removeFromLocalList: (FileHolderItem) -> Unit = remember { { item -> localSelectedList.remove(item) } }
+            val clearLocalList = remember { { localSelectedList.clear() } }
+            val onSwitchToRemote = remember {
+                {
+                    navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
+                        popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                    }
+                }
+            }
+            val onConfirmDownload = remember {
+                {
+                    val conflicts = viewModel.getDownloadConflicts(downloadPendingList)
+                    if (conflicts.isEmpty()) {
+                        viewModel.onDownload(downloadPendingList)
+                        downloadPendingList = emptyList()
+                    } else {
+                        conflictDownloadFiles = conflicts
+                        showDownloadConflictDialog = true
+                    }
+                }
+            }
+            val onEnterUploadMode = remember {
+                {
+                    uploadPendingList = localSelectedList.toList()
+                    remoteSelectMode = Constants.CONFIRM_MODE_UPLOAD
+                    localSelectMode = Constants.DEFAULT_MODE
+                    localSelectedList.clear()
+                    navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
+                        popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                    }
+                }
+            }
+
             Column(modifier = Modifier) {
                 OptionFrag(
                     modifier = Modifier,
@@ -115,34 +150,13 @@ fun AppNavHost(
                     modifier = Modifier,
                     selectMode = localSelectMode,
                     selectedList = localSelectedList,
-                    onSelectModeChange = { localSelectMode = it },
-                    addToList = { localSelectedList.add(it) },
-                    removeFromList = { localSelectedList.remove(it) },
-                    clearList = { localSelectedList.clear() },
-                    onSwitchToRemote = {
-                        navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
-                            popUpTo(NavDestinations.STORAGE) { inclusive = false }
-                        }
-                    },
-                    onConfirmDownload = {
-                        val conflicts = viewModel.getDownloadConflicts(downloadPendingList)
-                        if (conflicts.isEmpty()) {
-                            viewModel.onDownload(downloadPendingList)
-                            downloadPendingList = emptyList()
-                        } else {
-                            conflictDownloadFiles = conflicts
-                            showDownloadConflictDialog = true
-                        }
-                    },
-                    onEnterUploadMode = {
-                        uploadPendingList = localSelectedList.toList()
-                        remoteSelectMode = Constants.CONFIRM_MODE_UPLOAD
-                        localSelectMode = Constants.DEFAULT_MODE
-                        localSelectedList.clear()
-                        navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
-                            popUpTo(NavDestinations.STORAGE) { inclusive = false }
-                        }
-                    }
+                    onSelectModeChange = onLocalSelectModeChange,
+                    addToList = addToLocalList,
+                    removeFromList = removeFromLocalList,
+                    clearList = clearLocalList,
+                    onSwitchToRemote = onSwitchToRemote,
+                    onConfirmDownload = onConfirmDownload,
+                    onEnterUploadMode = onEnterUploadMode
                 )
             }
 
@@ -192,6 +206,45 @@ fun AppNavHost(
                 remoteViewModel.onBackPressed { navController.popBackStack() }
             }
 
+            val onRemoteSelectModeChange = remember { { mode: Int -> remoteSelectMode = mode } }
+            val addToRemoteList: (FileHolderItem) -> Unit = remember { { item -> remoteSelectedList.add(item) } }
+            val removeFromRemoteList: (FileHolderItem) -> Unit = remember { { item -> remoteSelectedList.remove(item) } }
+            val clearRemoteList = remember { { remoteSelectedList.clear() } }
+            val onSwitchToLocal = remember {
+                {
+                    if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
+                        navController.navigate(NavDestinations.FILE_LIST) {
+                            popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                        }
+                    }
+                }
+            }
+            val onEnterDownloadMode = remember {
+                { items: List<FileHolderItem> ->
+                    downloadPendingList = items
+                    localSelectMode = Constants.CONFIRM_MODE_DOWNLOAD
+                    remoteSelectMode = Constants.DEFAULT_MODE
+                    remoteSelectedList.clear()
+                    if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
+                        navController.navigate(NavDestinations.FILE_LIST) {
+                            popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                        }
+                    }
+                }
+            }
+            val onConfirmUpload = remember {
+                {
+                    val conflicts = remoteViewModel.getUploadConflicts(uploadPendingList)
+                    if (conflicts.isEmpty()) {
+                        uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
+                        uploadPendingList = emptyList()
+                    } else {
+                        conflictUploadFiles = conflicts
+                        showUploadConflictDialog = true
+                    }
+                }
+            }
+
             Column(modifier = Modifier) {
                 OptionFrag(
                     modifier = Modifier,
@@ -204,38 +257,13 @@ fun AppNavHost(
                     modifier = Modifier,
                     selectMode = remoteSelectMode,
                     selectedList = remoteSelectedList,
-                    onSelectModeChange = { remoteSelectMode = it },
-                    addToList = { remoteSelectedList.add(it) },
-                    removeFromList = { remoteSelectedList.remove(it) },
-                    clearList = { remoteSelectedList.clear() },
-                    onSwitchToLocal = {
-                        if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
-                            navController.navigate(NavDestinations.FILE_LIST) {
-                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
-                            }
-                        }
-                    },
-                    onEnterDownloadMode = { items ->
-                        downloadPendingList = items
-                        localSelectMode = Constants.CONFIRM_MODE_DOWNLOAD
-                        remoteSelectMode = Constants.DEFAULT_MODE
-                        remoteSelectedList.clear()
-                        if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
-                            navController.navigate(NavDestinations.FILE_LIST) {
-                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
-                            }
-                        }
-                    },
-                    onConfirmUpload = {
-                        val conflicts = remoteViewModel.getUploadConflicts(uploadPendingList)
-                        if (conflicts.isEmpty()) {
-                            uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
-                            uploadPendingList = emptyList()
-                        } else {
-                            conflictUploadFiles = conflicts
-                            showUploadConflictDialog = true
-                        }
-                    }
+                    onSelectModeChange = onRemoteSelectModeChange,
+                    addToList = addToRemoteList,
+                    removeFromList = removeFromRemoteList,
+                    clearList = clearRemoteList,
+                    onSwitchToLocal = onSwitchToLocal,
+                    onEnterDownloadMode = onEnterDownloadMode,
+                    onConfirmUpload = onConfirmUpload
                 )
             }
 

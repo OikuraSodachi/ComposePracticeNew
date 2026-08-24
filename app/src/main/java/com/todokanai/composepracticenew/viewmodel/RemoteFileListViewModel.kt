@@ -89,7 +89,7 @@ class RemoteFileListViewModel @Inject constructor(
     )
 
     val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
-        .map { list -> UiState(list.map { FileHolderItem.from(it) }) }
+        .map { list -> UiState(list.map { FileHolderItem.from(it, isLocalFile = false) }) }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
