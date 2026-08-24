@@ -33,4 +33,7 @@ object Constants {
 
     const val EXTRA_ACTION_KEY = "com.todokanai.composepracticenew.EXTRA_ACTION_KEY"
 
+    const val FTP_ENCODING_DEFAULT = "UTF-8"
+    val FTP_ENCODING_OPTIONS = listOf("UTF-8", "EUC-KR", "ISO-8859-1")
+
 }

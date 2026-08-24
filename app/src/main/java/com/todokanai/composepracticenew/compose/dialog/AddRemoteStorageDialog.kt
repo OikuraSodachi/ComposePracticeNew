@@ -25,6 +25,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
 /** 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호, 인코딩)를 입력받아 추가하거나 수정하는 다이얼로그. */
@@ -35,13 +36,13 @@ fun AddRemoteStorageDialog(
     onCancel: () -> Unit,
     initialValue: RemoteStorageItem? = null
 ) {
-    val encodingOptions = listOf("UTF-8", "EUC-KR", "ISO-8859-1")
+    val encodingOptions = Constants.FTP_ENCODING_OPTIONS
     var name by remember { mutableStateOf(initialValue?.name ?: "") }
     var address by remember { mutableStateOf(initialValue?.address ?: "") }
     var port by remember { mutableStateOf(initialValue?.port?.toString() ?: "") }
     var id by remember { mutableStateOf(initialValue?.userId ?: "") }
     var password by remember { mutableStateOf(initialValue?.password ?: "") }
-    var selectedEncoding by remember { mutableStateOf(initialValue?.encoding ?: "UTF-8") }
+    var selectedEncoding by remember { mutableStateOf(initialValue?.encoding ?: Constants.FTP_ENCODING_DEFAULT) }
     var encodingExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(

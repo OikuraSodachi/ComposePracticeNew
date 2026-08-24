@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.ui.model
 
 import com.todokanai.composepracticenew.model.RemoteStorageItem as DomainRemoteStorageItem
+import com.todokanai.composepracticenew.myobjects.Constants
 
 /** 원격 스토리지 접속 정보를 표현하는 앱 레이어 모델. domain 모듈의 RemoteStorageItem을 앱 레이어에서 격리한다. */
 data class RemoteStorageItem(
@@ -10,7 +11,7 @@ data class RemoteStorageItem(
     val port: Int,
     val userId: String,
     val password: String,
-    val encoding: String = "UTF-8"
+    val encoding: String = Constants.FTP_ENCODING_DEFAULT
 ) {
     companion object {
         /** domain 모듈의 RemoteStorageItem을 앱 레이어 모델로 변환한다. */
