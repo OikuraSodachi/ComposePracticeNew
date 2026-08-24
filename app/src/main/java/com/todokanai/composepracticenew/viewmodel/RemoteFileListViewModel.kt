@@ -173,12 +173,7 @@ class RemoteFileListViewModel @Inject constructor(
                     if (cause != null) {
                         _transferProgress.tryEmit(ProgressStateEntity(error = cause.message))
                     } else if (!hasError) {
-                        val message = when (actionKey) {
-                            ACTION_KEY_DOWNLOAD -> context.getString(R.string.noti_download_complete)
-                            ACTION_KEY_UPLOAD -> context.getString(R.string.noti_upload_complete)
-                            else -> context.getString(R.string.noti_complete)
-                        }
-                        myNoti.completedNotification("", message, actionKey, instanceId)
+                        myNoti.completedNotification("", completionMessage(actionKey), actionKey, instanceId)
                     }
                 }
                 .catch { /* onCompletion이 에러를 처리하므로 Flow 종료만 방지 */ }
@@ -195,6 +190,12 @@ class RemoteFileListViewModel @Inject constructor(
                     }
                 }
         }
+    }
+
+    private fun completionMessage(actionKey: Int): String = when (actionKey) {
+        ACTION_KEY_DOWNLOAD -> context.getString(R.string.noti_download_complete)
+        ACTION_KEY_UPLOAD -> context.getString(R.string.noti_upload_complete)
+        else -> context.getString(R.string.noti_complete)
     }
 
     private fun sendProgressNoti(actionKey: Int, progress: Int, notifId: Int) {
