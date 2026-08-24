@@ -51,6 +51,7 @@ class FtpConnectionState @Inject constructor() {
      * @param port FTP 포트 (기본 21)
      * @param userId FTP 로그인 아이디
      * @param password FTP 로그인 비밀번호
+     * @param encoding 컨트롤 채널 문자 인코딩 (예: UTF-8, EUC-KR)
      * @return 연결 및 로그인 성공 시 true
      */
     suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): Boolean {

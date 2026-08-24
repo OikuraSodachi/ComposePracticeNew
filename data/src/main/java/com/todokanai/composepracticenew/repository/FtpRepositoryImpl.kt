@@ -18,8 +18,8 @@ class FtpRepositoryImpl @Inject constructor(
     override val isConnecting: StateFlow<Boolean> = connectionState.isConnecting
 
     /**
-     * address, port, userId, password로 FTP 서버에 연결한다.
-     * @param address 호스트 주소, @param port 포트 번호, @param userId 사용자 ID, @param password 비밀번호
+     * address, port, userId, password, encoding으로 FTP 서버에 연결한다.
+     * @param address 호스트 주소, @param port 포트 번호, @param userId 사용자 ID, @param password 비밀번호, @param encoding 컨트롤 채널 문자 인코딩
      */
     override suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): Boolean =
         connectionState.connect(address, port, userId, password, encoding)
