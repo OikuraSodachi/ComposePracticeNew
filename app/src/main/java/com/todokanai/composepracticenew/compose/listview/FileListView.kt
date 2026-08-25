@@ -27,7 +27,7 @@ fun FileListView(
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit
 ) {
-    val selectedSet by remember { derivedStateOf { selectedList.toHashSet() } }
+    val selectedPaths by remember { derivedStateOf { selectedList.mapTo(HashSet()) { it.path } } }
 
     LazyColumn(
         modifier = modifier
@@ -35,7 +35,7 @@ fun FileListView(
     ) {
         items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
 
-            val isSelected = fileHolderItem in selectedSet
+            val isSelected = fileHolderItem.path in selectedPaths
 
             val onClick = remember(fileHolderItem, selectMode) {
                 {
