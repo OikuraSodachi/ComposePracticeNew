@@ -90,4 +90,5 @@
     <string name="toast_storage_permission">Storage permission is required, please allow from settings</string>
     <string name="toast_cannot_open_file">Cannot open the file</string>
     <string name="toast_connection_failed">원격 스토리지 연결에 실패했습니다</string>
+    <string name="toast_connection_lost">서버 연결이 끊어졌습니다</string>
 </resources>

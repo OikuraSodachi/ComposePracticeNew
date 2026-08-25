@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.model.FileHolderItem
@@ -35,7 +36,9 @@ class FileExplorerRepositoryImpl(
         combine(currentPath, dsRepo.sortBy, _refreshTrigger) { path, sortMode, _ -> path to sortMode }
             .flatMapLatest { (path, sortMode) ->
                 flow {
+                    Log.d(TAG, "fileList 갱신 — path=$path")
                     val files = path?.let { listFiles(it) } ?: emptyList()
+                    Log.d(TAG, "fileList 결과 — path=$path size=${files.size}")
                     emit(converter.fileHolderItemList(files, sortMode))
                 }
             }
@@ -47,6 +50,10 @@ class FileExplorerRepositoryImpl(
 
     override fun refresh() {
         _refreshTrigger.value = System.currentTimeMillis()
+    }
+
+    companion object {
+        private const val TAG = "FileExplorerRepo"
     }
 
     init {

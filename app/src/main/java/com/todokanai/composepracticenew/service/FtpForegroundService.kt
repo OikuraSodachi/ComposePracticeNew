@@ -5,6 +5,7 @@ import android.app.Service
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.todokanai.composepracticenew.R
@@ -28,6 +29,7 @@ class FtpForegroundService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "서비스 생성")
         serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     }
 
@@ -45,6 +47,7 @@ class FtpForegroundService : Service() {
 
     /** FTP 연결을 해제한 뒤 serviceScope를 취소한다. disconnect()는 best-effort로 실행되며, 프로세스 종료 타이밍에 따라 완료가 보장되지 않을 수 있다. */
     override fun onDestroy() {
+        Log.d(TAG, "서비스 종료 — disconnect 호출")
         CoroutineScope(Dispatchers.IO).launch { ftpUseCase.disconnect() }
         serviceScope.cancel()
         super.onDestroy()
@@ -62,5 +65,6 @@ class FtpForegroundService : Service() {
         const val EXTRA_SERVER_LABEL = "extra_server_label"
         const val NOTIFICATION_ID = 1001
         const val CHANNEL_ID = "ftp_connection"
+        private const val TAG = "FtpForegroundService"
     }
 }

@@ -13,6 +13,9 @@ interface FtpRepository {
     /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */
     val isConnecting: StateFlow<Boolean>
 
+    /** FTP 서버에 연결 및 로그인이 완료된 경우 true를 방출한다. */
+    val isConnected: StateFlow<Boolean>
+
     /** address, port, userId, password, encoding으로 FTP 서버에 연결한다. 성공 여부를 반환한다. */
     suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): Boolean
 
@@ -48,12 +51,13 @@ interface FtpRepository {
     // region Transfer
 
     /**
-     * remotePath의 파일을 localPath로 다운로드한다.
-     * @param remotePath 다운로드할 원격 파일의 절대 경로
-     * @param localPath 저장할 로컬 파일의 절대 경로
+     * remotePath의 파일 또는 디렉터리를 localPath로 다운로드한다.
+     * @param remotePath 다운로드할 원격 파일 또는 디렉터리의 절대 경로
+     * @param localPath 저장할 로컬 파일 또는 디렉터리의 절대 경로
+     * @param isDirectory remotePath가 디렉터리인 경우 true
      * @returns 전송 진행 상태를 방출하는 Flow
      */
-    fun download(remotePath: String, localPath: String): Flow<ProgressState>
+    fun download(remotePath: String, localPath: String, isDirectory: Boolean = false): Flow<ProgressState>
 
     /**
      * localPath의 파일을 remotePath로 업로드한다.

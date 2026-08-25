@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import android.content.Context
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.R
@@ -31,8 +32,10 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onCompletion
+import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -54,6 +57,10 @@ class RemoteFileListViewModel @Inject constructor(
     /** 자동 재연결 실패 이벤트. */
     val reconnectFailed: SharedFlow<Unit> = _reconnectFailed.asSharedFlow()
 
+    private val _connectionLost = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** 서버 측 연결 종료(idle timeout 등)로 FTP 연결이 끊겼을 때 발행된다. */
+    val connectionLost: SharedFlow<Unit> = _connectionLost.asSharedFlow()
+
     private val _transferProgress = MutableSharedFlow<ProgressStateEntity>(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -67,19 +74,39 @@ class RemoteFileListViewModel @Inject constructor(
 
 
     init {
-        if (fileNavigatorUseCase.currentPath.value == null) {
+        val path = fileNavigatorUseCase.currentPath.value
+        Log.d(TAG, "init — currentPath=$path")
+        if (path == null) {
             viewModelScope.launch { reconnectLast() }
         }
+        viewModelScope.launch { observeConnectionLost() }
+    }
+
+    private suspend fun observeConnectionLost() {
+        ftpUseCase.isConnected
+            .scan(Pair(false, false)) { acc, curr -> Pair(acc.second, curr) }
+            .filter { (prev, curr) -> prev && !curr }
+            .collect {
+                Log.w(TAG, "연결 끊김 감지 — 서비스 중지 및 이벤트 발행")
+                ftpServiceController.stop()
+                _connectionLost.tryEmit(Unit)
+            }
     }
 
     private suspend fun reconnectLast() {
-        remoteStorageUseCase.getLastConnectedItem()?.let { item ->
-            val connected = fileNavigatorUseCase.setPath(item)
-            if (connected) {
-                ftpServiceController.start(item.name)
-            } else {
-                _reconnectFailed.tryEmit(Unit)
-            }
+        Log.d(TAG, "reconnectLast 시작")
+        val item = remoteStorageUseCase.getLastConnectedItem()
+        if (item == null) {
+            Log.w(TAG, "reconnectLast — 저장된 서버 없음")
+            return
+        }
+        Log.d(TAG, "reconnectLast — 서버=${item.address}:${item.port}")
+        val connected = fileNavigatorUseCase.setPath(item)
+        Log.d(TAG, "reconnectLast — 결과=$connected")
+        if (connected) {
+            ftpServiceController.start(item.name)
+        } else {
+            _reconnectFailed.tryEmit(Unit)
         }
     }
 
@@ -145,7 +172,7 @@ class RemoteFileListViewModel @Inject constructor(
      * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
      */
     fun onDownload(item: FileHolderItem, localDestPath: String) {
-        collectTransfer(item.path.hashCode(), ACTION_KEY_DOWNLOAD, ftpUseCase.download(item.path, localDestPath))
+        collectTransfer(item.path.hashCode(), ACTION_KEY_DOWNLOAD, ftpUseCase.download(item.path, localDestPath, item.isDirectory))
     }
 
     /**
@@ -190,6 +217,10 @@ class RemoteFileListViewModel @Inject constructor(
                     }
                 }
         }
+    }
+
+    companion object {
+        private const val TAG = "RemoteFileListVM"
     }
 
     private fun completionMessage(actionKey: Int): String = when (actionKey) {

@@ -11,16 +11,20 @@ class FtpUseCase(private val repo: FtpRepository) {
     /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */
     val isConnecting: StateFlow<Boolean> = repo.isConnecting
 
+    /** FTP 서버에 연결 및 로그인이 완료된 경우 true를 방출한다. */
+    val isConnected: StateFlow<Boolean> = repo.isConnected
+
     /** FTP 서버 연결을 해제한다. */
     suspend fun disconnect() = repo.disconnect()
 
     /**
-     * remotePath의 파일을 localDestPath 디렉터리에 다운로드한다.
-     * @param remotePath 다운로드할 원격 파일의 절대 경로
-     * @param localDestPath 저장할 로컬 디렉터리의 절대 경로 — 내부적으로 remotePath의 파일명과 결합하여 파일 경로를 생성한다
+     * remotePath의 파일 또는 디렉터리를 localDestPath 디렉터리에 다운로드한다.
+     * @param remotePath 다운로드할 원격 파일 또는 디렉터리의 절대 경로
+     * @param localDestPath 저장할 로컬 디렉터리의 절대 경로 — 내부적으로 remotePath의 이름과 결합하여 경로를 생성한다
+     * @param isDirectory remotePath가 디렉터리인 경우 true
      */
-    fun download(remotePath: String, localDestPath: String): Flow<ProgressState> =
-        repo.download(remotePath, "$localDestPath/${remotePath.substringAfterLast("/")}")
+    fun download(remotePath: String, localDestPath: String, isDirectory: Boolean = false): Flow<ProgressState> =
+        repo.download(remotePath, "$localDestPath/${remotePath.substringAfterLast("/")}", isDirectory)
 
     /**
      * localPath의 파일을 remoteDestPath 디렉터리에 업로드한다.

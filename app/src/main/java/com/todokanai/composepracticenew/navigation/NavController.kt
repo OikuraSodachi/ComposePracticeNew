@@ -263,7 +263,8 @@ fun AppNavHost(
                     clearList = clearRemoteList,
                     onSwitchToLocal = onSwitchToLocal,
                     onEnterDownloadMode = onEnterDownloadMode,
-                    onConfirmUpload = onConfirmUpload
+                    onConfirmUpload = onConfirmUpload,
+                    onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) }
                 )
             }
 
