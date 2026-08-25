@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.todokanai.composepracticenew.compose.holder.FileHolder
@@ -25,7 +27,7 @@ fun FileListView(
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit
 ) {
-    val selectedSet = remember(selectedList) { selectedList.toHashSet() }
+    val selectedSet by remember { derivedStateOf { selectedList.toHashSet() } }
 
     LazyColumn(
         modifier = modifier
