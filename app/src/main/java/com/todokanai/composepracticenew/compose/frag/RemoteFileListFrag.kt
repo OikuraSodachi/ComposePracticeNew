@@ -35,6 +35,7 @@ fun RemoteFileListFrag(
     onSwitchToLocal: () -> Unit = {},
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
     onConfirmUpload: () -> Unit = {},
+    onConnectionLost: () -> Unit = {},
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -43,6 +44,12 @@ fun RemoteFileListFrag(
     LaunchedEffect(Unit) {
         viewModel.reconnectFailed.collect {
             Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.connectionLost.collect {
+            Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
+            onConnectionLost()
         }
     }
     LaunchedEffect(Unit) {
