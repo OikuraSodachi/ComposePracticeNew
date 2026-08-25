@@ -244,6 +244,9 @@ fun AppNavHost(
                     }
                 }
             }
+            val onRemoteConnectionLost: () -> Unit = remember {
+                { navController.popBackStack(NavDestinations.STORAGE, false) }
+            }
 
             Column(modifier = Modifier) {
                 OptionFrag(
@@ -264,7 +267,7 @@ fun AppNavHost(
                     onSwitchToLocal = onSwitchToLocal,
                     onEnterDownloadMode = onEnterDownloadMode,
                     onConfirmUpload = onConfirmUpload,
-                    onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) }
+                    onConnectionLost = onRemoteConnectionLost
                 )
             }
 
