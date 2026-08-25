@@ -89,7 +89,7 @@ class RemoteFileListViewModel @Inject constructor(
             .collect {
                 Log.w(TAG, "연결 끊김 감지 — 서비스 중지 및 이벤트 발행")
                 ftpServiceController.stop()
-                _connectionLost.tryEmit(Unit)
+                _connectionLost.emit(Unit)
             }
     }
 
