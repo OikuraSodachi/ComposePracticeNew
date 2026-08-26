@@ -128,7 +128,11 @@ class BottomButtonsViewModel @Inject constructor(
                             progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
                             sendProgressNoti(actionType, state)
                         }
-                        if (state.error != null) hasError = true
+                        val error = state.error
+                        if (error != null) {
+                            progressUseCase.emitError(error)
+                            hasError = true
+                        }
                     }
                 }
             } finally {

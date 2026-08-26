@@ -72,6 +72,9 @@ class FileListViewModel @Inject constructor(
     /** 다운로드 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
     val downloadError: SharedFlow<String> = _downloadError.asSharedFlow()
 
+    /** 로컬 파일 작업(복사·이동·압축 등) 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
+    val operationError: SharedFlow<String> = progressUseCase.operationErrors
+
     /** 알림 클릭으로 다이얼로그를 다시 표시해야 할 때 설정되는 actionKey. null이면 신호 없음. */
     private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
     val showProgressDialogForKey: StateFlow<Int?> = _showProgressDialogForKey.asStateFlow()
