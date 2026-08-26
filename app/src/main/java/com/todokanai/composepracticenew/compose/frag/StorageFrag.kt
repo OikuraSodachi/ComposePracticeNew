@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.compose.frag
 
 import android.widget.Toast
 import androidx.compose.foundation.clickable
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -45,14 +46,15 @@ fun StorageFrag(
     var editingItem by remember { mutableStateOf<RemoteStorageItem?>(null) }
 
     LaunchedEffect(Unit) {
-        viewModel.connectionFailed.collect {
-            Toast.makeText(activity, activity.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
+        launch {
+            viewModel.connectionFailed.collect {
+                Toast.makeText(activity, activity.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
+            }
         }
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.connectionSucceeded.collect {
-            exitToRemoteFileFrag()
+        launch {
+            viewModel.connectionSucceeded.collect {
+                exitToRemoteFileFrag()
+            }
         }
     }
 

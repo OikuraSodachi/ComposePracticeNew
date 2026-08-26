@@ -65,5 +65,4 @@ fun StorageHolder(
         }
     }
 
-    println("Recomposition: StorageHolder")
 }

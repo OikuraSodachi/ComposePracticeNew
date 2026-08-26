@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.compose.frag
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,20 +43,22 @@ fun RemoteFileListFrag(
 
     val context = LocalContext.current
     LaunchedEffect(Unit) {
-        viewModel.reconnectFailed.collect {
-            Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
+        launch {
+            viewModel.reconnectFailed.collect {
+                Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
+            }
         }
-    }
-    LaunchedEffect(Unit) {
-        viewModel.connectionLost.collect {
-            Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
-            onConnectionLost()
+        launch {
+            viewModel.connectionLost.collect {
+                Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
+                onConnectionLost()
+            }
         }
-    }
-    LaunchedEffect(Unit) {
-        viewModel.transferProgress.collect { state ->
-            if (state.error != null) {
-                Toast.makeText(context, state.error, Toast.LENGTH_SHORT).show()
+        launch {
+            viewModel.transferProgress.collect { state ->
+                if (state.error != null) {
+                    Toast.makeText(context, state.error, Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

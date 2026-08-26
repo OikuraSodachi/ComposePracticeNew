@@ -17,6 +17,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.compose.activity.MainActivity
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
@@ -85,13 +86,15 @@ fun AppNavHost(
                     }
                 }
                 LaunchedEffect(Unit) {
-                    viewModel.downloadError.collect { message ->
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    launch {
+                        viewModel.downloadError.collect { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
                     }
-                }
-                LaunchedEffect(Unit) {
-                    viewModel.operationError.collect { message ->
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    launch {
+                        viewModel.operationError.collect { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
 

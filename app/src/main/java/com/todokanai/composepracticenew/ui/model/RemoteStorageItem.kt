@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.ui.model
 
+import androidx.compose.runtime.Immutable
 import com.todokanai.composepracticenew.model.RemoteStorageItem as DomainRemoteStorageItem
 import com.todokanai.composepracticenew.myobjects.Constants
 
 /** 원격 스토리지 접속 정보를 표현하는 앱 레이어 모델. domain 모듈의 RemoteStorageItem을 앱 레이어에서 격리한다. */
+@Immutable
 data class RemoteStorageItem(
     val id: Long = 0,
     val name: String,
