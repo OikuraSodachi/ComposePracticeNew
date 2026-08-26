@@ -3,61 +3,20 @@ package com.todokanai.composepracticenew.repository
 import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
-import com.todokanai.composepracticenew.model.FileHolderItem
-import com.todokanai.composepracticenew.repository.FtpRepository
 import com.todokanai.fileexplorer.FileEntry
-import com.todokanai.fileexplorer.StorageRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.stateIn
 import java.io.File
-import javax.inject.Inject
-import javax.inject.Singleton
 
-/** Holds and manages the active directory navigation state (path, breadcrumb, file list). */
+/** 로컬 및 FTP 원격 경로를 모두 탐색할 수 있는 FileNavigatorRepository 구현체. */
 class FileExplorerRepositoryImpl(
-    private val converter: DataConverter,
-    private val dsRepo: DataStoreRepository,
+    converter: DataConverter,
+    dsRepo: DataStoreRepository,
     private val ftpFileSystem: FtpRepository,
-    private val initialPath: String? = null
-) : StorageRepository(), FileNavigatorRepository {
-
-    private val _refreshTrigger = MutableStateFlow(0L)
-
-    @Suppress("OPT_IN_USAGE")
-    override val fileHolderItemList: StateFlow<List<FileHolderItem>> =
-        combine(currentPath, dsRepo.sortBy, _refreshTrigger) { path, sortMode, _ -> path to sortMode }
-            .flatMapLatest { (path, sortMode) ->
-                flow {
-                    Log.d(TAG, "fileList 갱신 — path=$path")
-                    val files = path?.let { listFiles(it) } ?: emptyList()
-                    Log.d(TAG, "fileList 결과 — path=$path size=${files.size}")
-                    emit(converter.fileHolderItemList(files, sortMode))
-                }
-            }
-            .stateIn(
-                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-                started = SharingStarted.Lazily,
-                initialValue = emptyList()
-            )
-
-    override fun refresh() {
-        _refreshTrigger.value = System.currentTimeMillis()
-    }
+    initialPath: String? = null
+) : BaseFileExplorerRepositoryImpl(converter, dsRepo, SharingStarted.Lazily, initialPath) {
 
     companion object {
         private const val TAG = "FileExplorerRepo"
-    }
-
-    init {
-        initialPath?.let { navigateTo(it) }
     }
 
     override fun getParent(path: String): String? {
@@ -68,20 +27,11 @@ class FileExplorerRepositoryImpl(
     }
 
     override suspend fun listFiles(path: String): List<FileEntry> {
-        val isRemote = ftpFileSystem.isRemotePath(path)
-        return if (isRemote) {
-            ftpFileSystem.listFiles(path)
-        } else {
-            File(path).listFiles()?.map { file ->
-                FileEntry(
-                    name = file.name,
-                    path = file.absolutePath,
-                    isDirectory = file.isDirectory,
-                    size = file.length(),
-                    lastModified = file.lastModified()
-                )
-            } ?: emptyList()
-        }
+        Log.d(TAG, "fileList 갱신 — path=$path")
+        val files = if (ftpFileSystem.isRemotePath(path)) ftpFileSystem.listFiles(path)
+                    else localListFiles(path)
+        Log.d(TAG, "fileList 결과 — path=$path size=${files.size}")
+        return files
     }
 
     override fun getParentPath(path: String): String? = getParent(path)
