@@ -95,6 +95,11 @@ fun AppNavHost(
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
             }
+            LaunchedEffect(Unit) {
+                viewModel.operationError.collect { message ->
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+            }
 
             val activeProgressMap = progressMap.filter { (_, state) -> state.progress < 100 }
             val showProgress = activeProgressMap.isNotEmpty() && !userDismissed

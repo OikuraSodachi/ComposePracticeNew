@@ -1,8 +1,12 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ProgressState
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -15,11 +19,18 @@ class ProgressTracker @Inject constructor() : ProgressRepository {
     private val _progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
     override val progressMap: StateFlow<Map<Int, ProgressState>> = _progressMap.asStateFlow()
 
+    private val _operationErrors = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val operationErrors: SharedFlow<String> = _operationErrors.asSharedFlow()
+
     override fun setProgressState(actionKey: Int, state: ProgressState) {
         _progressMap.update { it + (actionKey to state) }
     }
 
     override fun removeProgress(actionKey: Int) {
         _progressMap.update { it - actionKey }
+    }
+
+    override fun emitError(message: String) {
+        _operationErrors.tryEmit(message)
     }
 }
