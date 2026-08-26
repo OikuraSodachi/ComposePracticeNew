@@ -10,7 +10,6 @@ import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
-import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
@@ -42,7 +41,6 @@ class FileListViewModel @Inject constructor(
     private val myNoti: MyNotification,
     private val openFileUseCase: OpenFileUseCase,
     private val ftpUseCase: FtpUseCase,
-    private val progressRepository: ProgressRepository,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -112,22 +110,22 @@ class FileListViewModel @Inject constructor(
     }
 
     /**
-     * source Flow를 수집해 ProgressRepository를 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
+     * source Flow를 수집해 ProgressUseCase를 통해 진행률을 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
      * @param instanceId 진행률 맵에서 이 전송 인스턴스를 식별하는 키
      * @param source 수집할 다운로드 진행률 Flow
      */
     private fun downloadSingle(instanceId: Int, source: Flow<ProgressState>) {
         appScope.launch {
             source
-                .onCompletion { progressRepository.removeProgress(instanceId) }
+                .onCompletion { progressUseCase.removeProgress(instanceId) }
                 .catch { }
                 .collect { state ->
                     val error = state.error
                     if (error != null) {
-                        progressRepository.removeProgress(instanceId)
+                        progressUseCase.removeProgress(instanceId)
                         _downloadError.tryEmit(error)
                     } else {
-                        progressRepository.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+                        progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
                     }
                 }
         }
