@@ -13,7 +13,7 @@ class FileExplorerRepositoryImpl(
     dsRepo: DataStoreRepository,
     private val ftpFileSystem: FtpRepository,
     initialPath: String? = null
-) : BaseFileExplorerRepositoryImpl(converter, dsRepo, SharingStarted.Lazily, initialPath) {
+) : BaseFileExplorerRepository(converter, dsRepo, SharingStarted.Lazily, initialPath) {
 
     companion object {
         private const val TAG = "FileExplorerRepo"

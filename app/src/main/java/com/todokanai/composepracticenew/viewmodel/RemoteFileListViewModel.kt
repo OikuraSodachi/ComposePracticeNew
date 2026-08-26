@@ -8,8 +8,8 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.ProgressStateEntity
-import com.todokanai.composepracticenew.model.toEntity
+import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.service.FtpServiceController
@@ -61,16 +61,16 @@ class RemoteFileListViewModel @Inject constructor(
     /** 서버 측 연결 종료(idle timeout 등)로 FTP 연결이 끊겼을 때 발행된다. */
     val connectionLost: SharedFlow<Unit> = _connectionLost.asSharedFlow()
 
-    private val _transferProgress = MutableSharedFlow<ProgressStateEntity>(
+    private val _transferProgress = MutableSharedFlow<ProgressStateModel>(
         extraBufferCapacity = 64,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     /** 다운로드·업로드 진행 상태 이벤트. error가 non-null인 경우 실패를 의미한다. */
-    val transferProgress: SharedFlow<ProgressStateEntity> = _transferProgress.asSharedFlow()
+    val transferProgress: SharedFlow<ProgressStateModel> = _transferProgress.asSharedFlow()
 
-    private val _remoteProgressMap = MutableStateFlow<Map<Int, ProgressStateEntity>>(emptyMap())
+    private val _remoteProgressMap = MutableStateFlow<Map<Int, ProgressStateModel>>(emptyMap())
     /** 진행 중인 원격 전송 작업의 진행률 맵. ProgressDialog 표시에 사용한다. */
-    val remoteProgressMap: StateFlow<Map<Int, ProgressStateEntity>> = _remoteProgressMap.asStateFlow()
+    val remoteProgressMap: StateFlow<Map<Int, ProgressStateModel>> = _remoteProgressMap.asStateFlow()
 
 
     init {
@@ -198,7 +198,7 @@ class RemoteFileListViewModel @Inject constructor(
                 .onCompletion { cause ->
                     _remoteProgressMap.update { it - instanceId }
                     if (cause != null) {
-                        _transferProgress.tryEmit(ProgressStateEntity(error = cause.message))
+                        _transferProgress.tryEmit(ProgressStateModel(error = cause.message))
                     } else if (!hasError) {
                         myNoti.completedNotification("", completionMessage(actionKey), actionKey, instanceId)
                     }
@@ -209,10 +209,10 @@ class RemoteFileListViewModel @Inject constructor(
                     if (error != null) {
                         hasError = true
                         _remoteProgressMap.update { it - instanceId }
-                        _transferProgress.tryEmit(ProgressStateEntity(error = error))
+                        _transferProgress.tryEmit(ProgressStateModel(error = error))
                     } else {
-                        val entity = state.toEntity().copy(actionKey = actionKey)
-                        _remoteProgressMap.update { it + (instanceId to entity) }
+                        val model = state.toModel().copy(actionKey = actionKey)
+                        _remoteProgressMap.update { it + (instanceId to model) }
                         state.progress?.let { progress -> sendProgressNoti(actionKey, progress, instanceId) }
                     }
                 }
@@ -245,7 +245,7 @@ class RemoteFileListViewModel @Inject constructor(
         appScope.launch {
             val success = ftpUseCase.rename(item.path, newName)
             if (success) fileNavigatorUseCase.refresh()
-            else _transferProgress.tryEmit(ProgressStateEntity(error = "rename 실패: ${item.name}"))
+            else _transferProgress.tryEmit(ProgressStateModel(error = "rename 실패: ${item.name}"))
         }
     }
 
@@ -258,7 +258,7 @@ class RemoteFileListViewModel @Inject constructor(
         appScope.launch {
             val success = ftpUseCase.delete(item.path, item.isDirectory)
             if (success) fileNavigatorUseCase.refresh()
-            else _transferProgress.tryEmit(ProgressStateEntity(error = "삭제 실패: ${item.name}"))
+            else _transferProgress.tryEmit(ProgressStateModel(error = "삭제 실패: ${item.name}"))
         }
     }
 
@@ -272,7 +272,7 @@ class RemoteFileListViewModel @Inject constructor(
         appScope.launch {
             val success = ftpUseCase.makeDirectory(currentPath, dirName)
             if (success) fileNavigatorUseCase.refresh()
-            else _transferProgress.tryEmit(ProgressStateEntity(error = "디렉터리 생성 실패: $dirName"))
+            else _transferProgress.tryEmit(ProgressStateModel(error = "디렉터리 생성 실패: $dirName"))
         }
     }
 }

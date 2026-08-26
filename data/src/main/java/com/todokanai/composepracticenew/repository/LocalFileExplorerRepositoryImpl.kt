@@ -11,7 +11,7 @@ class LocalFileExplorerRepositoryImpl(
     converter: DataConverter,
     dsRepo: DataStoreRepository,
     initialPath: String? = null
-) : BaseFileExplorerRepositoryImpl(converter, dsRepo, SharingStarted.WhileSubscribed(5_000), initialPath) {
+) : BaseFileExplorerRepository(converter, dsRepo, SharingStarted.WhileSubscribed(5_000), initialPath) {
 
     override suspend fun listFiles(path: String): List<FileEntry> = localListFiles(path)
 

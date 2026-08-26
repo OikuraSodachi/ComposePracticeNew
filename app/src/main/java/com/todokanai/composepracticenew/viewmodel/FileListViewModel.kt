@@ -4,9 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.ProgressStateEntity
+import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.model.toEntity
+import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
@@ -60,8 +60,8 @@ class FileListViewModel @Inject constructor(
         )
 
     /** 동시에 진행 중인 파일 작업들의 progress 상태. 작업 인스턴스 ID(instanceId)를 키로 사용한다. */
-    val progressMap: StateFlow<Map<Int, ProgressStateEntity>> = progressUseCase.progressMap
-        .map { map -> map.mapValues { (_, state) -> state.toEntity() } }
+    val progressMap: StateFlow<Map<Int, ProgressStateModel>> = progressUseCase.progressMap
+        .map { map -> map.mapValues { (_, state) -> state.toModel() } }
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
