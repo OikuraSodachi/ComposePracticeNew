@@ -17,8 +17,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 
-/** currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList를 구성하는 공통 Flow 로직을 보유한 기반 구현체. */
-abstract class BaseFileExplorerRepositoryImpl(
+/** currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList를 구성하는 공통 Flow 로직을 보유한 기반 클래스. */
+abstract class BaseFileExplorerRepository(
     private val converter: DataConverter,
     private val dsRepo: DataStoreRepository,
     started: SharingStarted,
