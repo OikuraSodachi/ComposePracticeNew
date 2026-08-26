@@ -5,7 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -99,8 +98,8 @@ fun AppNavHost(
                     }
                 }
 
-                val activeProgressMap by remember { derivedStateOf { progressMap.filter { (_, state) -> state.progress < 100 } } }
-                val showProgress by remember { derivedStateOf { activeProgressMap.isNotEmpty() && !userDismissed } }
+                val activeProgressMap = progressMap.filter { (_, state) -> state.progress < 100 }
+                val showProgress = activeProgressMap.isNotEmpty() && !userDismissed
 
                 BackHandler {
                     mViewModel.onBackPressed { navController.popBackStack() }
@@ -193,8 +192,8 @@ fun AppNavHost(
                     if (isRemoteProgressActive) remoteUserDismissed = false
                 }
 
-                val activeRemoteProgressMap by remember { derivedStateOf { remoteProgressMap.filter { (_, state) -> state.progress < 100 } } }
-                val showRemoteProgress by remember { derivedStateOf { activeRemoteProgressMap.isNotEmpty() && !remoteUserDismissed } }
+                val activeRemoteProgressMap = remoteProgressMap.filter { (_, state) -> state.progress < 100 }
+                val showRemoteProgress = activeRemoteProgressMap.isNotEmpty() && !remoteUserDismissed
 
                 BackHandler {
                     remoteViewModel.onBackPressed { navController.popBackStack() }
