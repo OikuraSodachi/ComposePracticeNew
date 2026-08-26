@@ -39,6 +39,7 @@ fun AppNavHost(
 ) {
     val navController = rememberNavController()
     // activity-scoped: handleProgressIntent(MainActivity)와 동일 인스턴스를 공유하기 위해 activity를 owner로 지정
+    // coordinator는 FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     val viewModel: FileListViewModel = hiltViewModel(viewModelStoreOwner = activity)
 
     NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
