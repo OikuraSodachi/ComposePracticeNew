@@ -1,9 +1,14 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import android.util.Log
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -34,6 +39,8 @@ class FtpConnectionState @Inject constructor() {
     private val stateMutex = Mutex()
     /** connect/listFiles FTP 명령을 직렬화한다. disconnect는 이 lock을 우회해 진행 중 I/O를 즉시 중단한다. */
     private val ioMutex = Mutex()
+    private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var keepAliveJob: Job? = null
 
     private var connectedServer: String? = null
     private var isLoggedIn = false
@@ -61,7 +68,6 @@ class FtpConnectionState @Inject constructor() {
             withContext(Dispatchers.IO) {
                 try {
                     val server = address.removePrefix("ftp://")
-                    Log.d(TAG, "connect: server=$server userId=$userId")
                     if (client.isConnected) {
                         runCatching { client.logout() }
                         runCatching { client.disconnect() }
@@ -83,17 +89,14 @@ class FtpConnectionState @Inject constructor() {
                             isLoggedIn = true
                             _isConnected.value = true
                         }
-                        Log.d(TAG, "connect: success server=$server")
+                        startKeepAlive()
                     } else {
                         runCatching { client.disconnect() }
-                        Log.e(TAG, "connect: 로그인 실패 server=$server")
                     }
                     loggedIn
                 } catch (e: UnknownHostException) {
-                    Log.e(TAG, "connect: 호스트 해석 실패 — 주소를 확인하세요")
                     false
                 } catch (e: Exception) {
-                    Log.e(TAG, "connect: ${e::class.simpleName} msg=${e.message}")
                     false
                 } finally {
                     stateMutex.withLock { _isConnecting.value = false }
@@ -109,6 +112,9 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun disconnect() = withContext(Dispatchers.IO) {
         if (!client.isConnected) return@withContext
+        keepAliveJob?.cancel()
+        keepAliveJob?.join()
+        keepAliveJob = null
         stateMutex.withLock { _isConnecting.value = true }
         runCatching { client.logout() }
         runCatching { client.disconnect() }
@@ -117,7 +123,6 @@ class FtpConnectionState @Inject constructor() {
             connectedServer = null
             _isConnected.value = false
             _isConnecting.value = false
-            Log.d(TAG, "disconnect: 완료")
         }
     }
 
@@ -127,17 +132,12 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun listFiles(path: String): List<FileEntry> {
         val ftpPath = stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "listFiles: 미연결 또는 미인증 path=$path")
-                return emptyList()
-            }
-            extractFtpPath(path).also {
-                Log.d(TAG, "listFiles: server=$connectedServer ftpPath=$it")
-            }
+            if (!client.isConnected || !isLoggedIn) return emptyList()
+            extractFtpPath(path)
         }
         return ioMutex.withLock {
             withContext(Dispatchers.IO) {
-                val result = runCatching {
+                runCatching {
                     client.listFiles(ftpPath)
                         ?.filter { it.name != "." && it.name != ".." }
                         ?.map { file ->
@@ -149,13 +149,9 @@ class FtpConnectionState @Inject constructor() {
                                 lastModified = file.timestamp?.timeInMillis ?: 0L
                             )
                         } ?: emptyList()
-                }.onSuccess { entries ->
-                    Log.d(TAG, "listFiles: 성공 path=$path size=${entries.size}")
                 }.onFailure { e ->
-                    Log.e(TAG, "listFiles: ${e::class.simpleName} path=$path msg=${e.message}")
-                    if (e is FTPConnectionClosedException) markConnectionDropped("listFiles")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(emptyList())
-                result
             }
         }
     }
@@ -203,8 +199,7 @@ class FtpConnectionState @Inject constructor() {
                     throw e
                 } catch (e: Exception) {
                     transferFailed = true
-                    Log.e(TAG, "download: ${e::class.simpleName} path=$remotePath msg=${e.message}")
-                    if (e is FTPConnectionClosedException) markConnectionDropped("download")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                     emit(ProgressState(error = e.message ?: "download 실패"))
                 } finally {
                     runCatching { inputStream.close() }
@@ -265,8 +260,7 @@ class FtpConnectionState @Inject constructor() {
                             throw e
                         } catch (e: Exception) {
                             transferFailed = true
-                            Log.e(TAG, "download dir: ${e::class.simpleName} entry=${entry.path} msg=${e.message}")
-                            if (e is FTPConnectionClosedException) markConnectionDropped("download dir")
+                            if (e is FTPConnectionClosedException) markConnectionDropped()
                             emit(ProgressState(error = e.message ?: "download 실패"))
                         } finally {
                             runCatching { inputStream.close() }
@@ -319,8 +313,7 @@ class FtpConnectionState @Inject constructor() {
                     throw e
                 } catch (e: Exception) {
                     transferFailed = true
-                    Log.e(TAG, "upload: ${e::class.simpleName} path=$remotePath msg=${e.message}")
-                    if (e is FTPConnectionClosedException) markConnectionDropped("upload")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                     emit(ProgressState(error = e.message ?: "upload 실패"))
                 } finally {
                     runCatching { outputStream.close() }
@@ -377,8 +370,7 @@ class FtpConnectionState @Inject constructor() {
                             throw e
                         } catch (e: Exception) {
                             transferFailed = true
-                            Log.e(TAG, "upload dir: ${e::class.simpleName} entry=${entry.path} msg=${e.message}")
-                            if (e is FTPConnectionClosedException) markConnectionDropped("upload dir")
+                            if (e is FTPConnectionClosedException) markConnectionDropped()
                             emit(ProgressState(error = e.message ?: "upload 실패"))
                         } finally {
                             runCatching { outputStream.close() }
@@ -394,17 +386,12 @@ class FtpConnectionState @Inject constructor() {
     /** 현재 FTP 작업 디렉터리의 절대 경로를 반환한다. 미연결 시 빈 문자열을 반환한다. */
     suspend fun getWorkingDirectory(): String {
         stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "getWorkingDirectory: 미연결 또는 미인증")
-                return ""
-            }
+            if (!client.isConnected || !isLoggedIn) return ""
         }
         return ioMutex.withLock {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.printWorkingDirectory() ?: ""
-                }.onFailure { e ->
-                    Log.e(TAG, "getWorkingDirectory: ${e::class.simpleName} msg=${e.message}")
                 }.getOrDefault("")
             }
         }
@@ -416,10 +403,7 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun changeDirectory(path: String): Boolean {
         val ftpPath = stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "changeDirectory: 미연결 또는 미인증 path=$path")
-                return false
-            }
+            if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
         return ioMutex.withLock {
@@ -427,7 +411,7 @@ class FtpConnectionState @Inject constructor() {
                 runCatching {
                     client.changeWorkingDirectory(ftpPath)
                 }.onFailure { e ->
-                    Log.e(TAG, "changeDirectory: ${e::class.simpleName} path=$path msg=${e.message}")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -442,10 +426,7 @@ class FtpConnectionState @Inject constructor() {
         var fromFtpPath = ""
         var toFtpPath = ""
         stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "rename: 미연결 또는 미인증 from=$fromPath")
-                return false
-            }
+            if (!client.isConnected || !isLoggedIn) return false
             fromFtpPath = extractFtpPath(fromPath)
             toFtpPath = extractFtpPath(toPath)
         }
@@ -454,7 +435,7 @@ class FtpConnectionState @Inject constructor() {
                 runCatching {
                     client.rename(fromFtpPath, toFtpPath)
                 }.onFailure { e ->
-                    Log.e(TAG, "rename: ${e::class.simpleName} from=$fromPath msg=${e.message}")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -466,10 +447,7 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun deleteFile(path: String): Boolean {
         val ftpPath = stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "deleteFile: 미연결 또는 미인증 path=$path")
-                return false
-            }
+            if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
         return ioMutex.withLock {
@@ -477,7 +455,7 @@ class FtpConnectionState @Inject constructor() {
                 runCatching {
                     client.deleteFile(ftpPath)
                 }.onFailure { e ->
-                    Log.e(TAG, "deleteFile: ${e::class.simpleName} path=$path msg=${e.message}")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -489,10 +467,7 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun makeDirectory(path: String): Boolean {
         val ftpPath = stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "makeDirectory: 미연결 또는 미인증 path=$path")
-                return false
-            }
+            if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
         return ioMutex.withLock {
@@ -500,7 +475,7 @@ class FtpConnectionState @Inject constructor() {
                 runCatching {
                     client.makeDirectory(ftpPath)
                 }.onFailure { e ->
-                    Log.e(TAG, "makeDirectory: ${e::class.simpleName} path=$path msg=${e.message}")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -512,10 +487,7 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun removeDirectory(path: String): Boolean {
         val ftpPath = stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "removeDirectory: 미연결 또는 미인증 path=$path")
-                return false
-            }
+            if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
         return ioMutex.withLock {
@@ -523,7 +495,7 @@ class FtpConnectionState @Inject constructor() {
                 runCatching {
                     client.removeDirectory(ftpPath)
                 }.onFailure { e ->
-                    Log.e(TAG, "removeDirectory: ${e::class.simpleName} path=$path msg=${e.message}")
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -535,18 +507,13 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun getFileSize(path: String): Long {
         val ftpPath = stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "getFileSize: 미연결 또는 미인증 path=$path")
-                return -1L
-            }
+            if (!client.isConnected || !isLoggedIn) return -1L
             extractFtpPath(path)
         }
         return ioMutex.withLock {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.mlistFile(ftpPath)?.size ?: -1L
-                }.onFailure { e ->
-                    Log.e(TAG, "getFileSize: ${e::class.simpleName} path=$path msg=${e.message}")
                 }.getOrDefault(-1L)
             }
         }
@@ -558,29 +525,39 @@ class FtpConnectionState @Inject constructor() {
      */
     suspend fun getModificationTime(path: String): String {
         val ftpPath = stateMutex.withLock {
-            if (!client.isConnected || !isLoggedIn) {
-                Log.w(TAG, "getModificationTime: 미연결 또는 미인증 path=$path")
-                return ""
-            }
+            if (!client.isConnected || !isLoggedIn) return ""
             extractFtpPath(path)
         }
         return ioMutex.withLock {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.getModificationTime(ftpPath) ?: ""
-                }.onFailure { e ->
-                    Log.e(TAG, "getModificationTime: ${e::class.simpleName} path=$path msg=${e.message}")
                 }.getOrDefault("")
             }
         }
     }
 
+    /** 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다. */
+    private fun startKeepAlive() {
+        keepAliveJob?.cancel()
+        keepAliveJob = keepAliveScope.launch {
+            while (isActive && isConnected.value) {
+                delay(KEEPALIVE_INTERVAL_MS)
+                ioMutex.withLock {
+                    runCatching { client.sendNoOp() }
+                        .onFailure { e ->
+                            if (e is FTPConnectionClosedException) markConnectionDropped()
+                        }
+                }
+            }
+        }
+    }
+
     /** FTP 연결이 서버 측에서 끊긴 경우 isLoggedIn과 _isConnected를 false로 초기화한다. */
-    private suspend fun markConnectionDropped(caller: String) {
+    private suspend fun markConnectionDropped() {
         stateMutex.withLock {
             isLoggedIn = false
             _isConnected.value = false
-            Log.w(TAG, "$caller: 서버 연결 끊김 감지 — 상태 초기화")
         }
     }
 
@@ -615,6 +592,6 @@ class FtpConnectionState @Inject constructor() {
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val SO_TIMEOUT_MS = 15_000
         private const val BUFFER_SIZE = 8 * 1024
-        private const val TAG = "FtpConnectionState"
+        private const val KEEPALIVE_INTERVAL_MS = 30_000L
     }
 }
