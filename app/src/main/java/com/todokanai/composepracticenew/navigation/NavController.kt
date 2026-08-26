@@ -56,7 +56,7 @@ fun AppNavHost(
             route = NavDestinations.FILE_BROWSER_GRAPH
         ) {
             composable(NavDestinations.FILE_LIST) {
-                val graphEntry = remember(navController.currentBackStackEntry) {
+                val graphEntry = remember {
                     navController.getBackStackEntry(NavDestinations.FILE_BROWSER_GRAPH)
                 }
                 val coordinator: FileTransferCoordinatorViewModel = hiltViewModel(graphEntry)
@@ -168,7 +168,7 @@ fun AppNavHost(
             }
 
             composable(NavDestinations.REMOTE_FILE_LIST) {
-                val graphEntry = remember(navController.currentBackStackEntry) {
+                val graphEntry = remember {
                     navController.getBackStackEntry(NavDestinations.FILE_BROWSER_GRAPH)
                 }
                 val coordinator: FileTransferCoordinatorViewModel = hiltViewModel(graphEntry)
