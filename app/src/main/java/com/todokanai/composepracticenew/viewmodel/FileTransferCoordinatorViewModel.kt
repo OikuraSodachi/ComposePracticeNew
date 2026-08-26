@@ -41,10 +41,12 @@ class FileTransferCoordinatorViewModel @Inject constructor() : ViewModel() {
     fun setLocalSelectMode(mode: Int) { _localSelectMode.value = mode }
     fun setRemoteSelectMode(mode: Int) { _remoteSelectMode.value = mode }
 
+    /** 호출부가 토글을 보장해야 한다. 이미 목록에 있는 항목을 다시 추가하면 중복이 발생한다. */
     fun addToLocalList(item: FileHolderItem) { _localSelectedList.update { it + item } }
     fun removeFromLocalList(item: FileHolderItem) { _localSelectedList.update { it - item } }
     fun clearLocalList() { _localSelectedList.value = emptyList() }
 
+    /** 호출부가 토글을 보장해야 한다. 이미 목록에 있는 항목을 다시 추가하면 중복이 발생한다. */
     fun addToRemoteList(item: FileHolderItem) { _remoteSelectedList.update { it + item } }
     fun removeFromRemoteList(item: FileHolderItem) { _remoteSelectedList.update { it - item } }
     fun clearRemoteList() { _remoteSelectedList.value = emptyList() }
