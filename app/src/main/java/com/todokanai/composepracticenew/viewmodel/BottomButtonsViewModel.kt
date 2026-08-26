@@ -124,14 +124,13 @@ class BottomButtonsViewModel @Inject constructor(
                 flows.forEach { flow ->
                     if (hasError) return@forEach
                     flow.collect { state ->
-                        if (actionType != null) {
-                            progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
-                            sendProgressNoti(actionType, state)
-                        }
                         val error = state.error
                         if (error != null) {
                             progressUseCase.emitError(error)
                             hasError = true
+                        } else if (actionType != null) {
+                            progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
+                            sendProgressNoti(actionType, state)
                         }
                     }
                 }
