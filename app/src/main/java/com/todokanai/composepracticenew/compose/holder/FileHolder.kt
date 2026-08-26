@@ -32,7 +32,7 @@ fun FileHolder(
     file: FileHolderItem,
     isSelected: Boolean
 ) {
-    val extension = file.name.substringAfterLast('.', "")
+    val extension = remember(file.name) { file.name.substringAfterLast('.', "") }
     val imageData = remember(file.data) { file.data?.toUri() }
     val icon = when {
         file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)

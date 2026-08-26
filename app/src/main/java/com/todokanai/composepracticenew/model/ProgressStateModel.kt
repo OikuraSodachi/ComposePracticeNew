@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.model
 
+import androidx.compose.runtime.Immutable
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 
 /** app 모듈에서 사용하는 Progress UI 상태. ProgressState를 app 레이어에서 매핑해 사용한다. */
+@Immutable
 data class ProgressStateModel(
     val progress: Int = 0,
     val totalSize: String? = null,
