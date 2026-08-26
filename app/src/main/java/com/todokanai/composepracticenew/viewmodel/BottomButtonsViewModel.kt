@@ -119,15 +119,14 @@ class BottomButtonsViewModel @Inject constructor(
     ) {
         val instanceId = progressUseCase.nextInstanceId()
         appScope.launch {
-            var hasError = false
+            var errorCount = 0
             try {
                 flows.forEach { flow ->
-                    if (hasError) return@forEach
                     flow.collect { state ->
                         val error = state.error
                         if (error != null) {
                             progressUseCase.emitError(error)
-                            hasError = true
+                            errorCount++
                         } else if (actionType != null) {
                             progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
                             sendProgressNoti(actionType, state)
@@ -137,7 +136,7 @@ class BottomButtonsViewModel @Inject constructor(
             } finally {
                 if (actionType != null) progressUseCase.removeProgress(instanceId)
             }
-            if (!hasError) {
+            if (errorCount == 0) {
                 myNoti.completedNotification(
                     "",
                     completionMessage ?: context.getString(R.string.noti_complete),
