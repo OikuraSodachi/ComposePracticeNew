@@ -211,8 +211,8 @@ class RemoteFileListViewModel @Inject constructor(
                         _remoteProgressMap.update { it - instanceId }
                         _transferProgress.tryEmit(ProgressStateModel(error = error))
                     } else {
-                        val entity = state.toModel().copy(actionKey = actionKey)
-                        _remoteProgressMap.update { it + (instanceId to entity) }
+                        val model = state.toModel().copy(actionKey = actionKey)
+                        _remoteProgressMap.update { it + (instanceId to model) }
                         state.progress?.let { progress -> sendProgressNoti(actionKey, progress, instanceId) }
                     }
                 }
