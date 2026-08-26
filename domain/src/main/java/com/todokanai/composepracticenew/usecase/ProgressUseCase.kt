@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.concurrent.atomic.AtomicInteger
 
-/** 진행 중인 파일 작업의 progress 상태를 읽고 업데이트하는 UseCase. */
+/** 진행 중인 파일 작업의 progress 상태를 읽고 업데이트하며, 작업 실패 이벤트를 중계하는 UseCase. */
 class ProgressUseCase(private val repo: ProgressRepository) {
     private val instanceCounter = AtomicInteger(0)
 
