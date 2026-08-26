@@ -113,6 +113,7 @@ class FtpConnectionState @Inject constructor() {
     suspend fun disconnect() = withContext(Dispatchers.IO) {
         if (!client.isConnected) return@withContext
         keepAliveJob?.cancel()
+        keepAliveJob?.join()
         keepAliveJob = null
         stateMutex.withLock { _isConnecting.value = true }
         runCatching { client.logout() }
@@ -409,6 +410,8 @@ class FtpConnectionState @Inject constructor() {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.changeWorkingDirectory(ftpPath)
+                }.onFailure { e ->
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -431,6 +434,8 @@ class FtpConnectionState @Inject constructor() {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.rename(fromFtpPath, toFtpPath)
+                }.onFailure { e ->
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -449,6 +454,8 @@ class FtpConnectionState @Inject constructor() {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.deleteFile(ftpPath)
+                }.onFailure { e ->
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -467,6 +474,8 @@ class FtpConnectionState @Inject constructor() {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.makeDirectory(ftpPath)
+                }.onFailure { e ->
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
@@ -485,6 +494,8 @@ class FtpConnectionState @Inject constructor() {
             withContext(Dispatchers.IO) {
                 runCatching {
                     client.removeDirectory(ftpPath)
+                }.onFailure { e ->
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
                 }.getOrDefault(false)
             }
         }
