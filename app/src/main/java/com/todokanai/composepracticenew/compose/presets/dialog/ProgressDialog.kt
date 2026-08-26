@@ -23,7 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import com.todokanai.composepracticenew.R
 import androidx.compose.ui.unit.dp
-import com.todokanai.composepracticenew.model.ProgressStateEntity
+import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DELETE
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
@@ -35,7 +35,7 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_ZIP
 /** 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것. */
 @Composable
 fun ProgressDialog(
-    progressMap: Map<Int, ProgressStateEntity>,
+    progressMap: Map<Int, ProgressStateModel>,
     onDismissRequest: () -> Unit = {}
 ) {
     AlertDialog(
@@ -56,7 +56,7 @@ fun ProgressDialog(
 }
 
 @Composable
-private fun ProgressItem(state: ProgressStateEntity) {
+private fun ProgressItem(state: ProgressStateModel) {
     val progress = state.progress ?: 0
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
@@ -150,8 +150,8 @@ private fun ProgressDialogPreview() {
     Surface {
         ProgressDialog(
             progressMap = mapOf(
-                ACTION_KEY_COPY to ProgressStateEntity(progress = 42, actionKey = ACTION_KEY_COPY),
-                ACTION_KEY_ZIP to ProgressStateEntity(progress = 75, actionKey = ACTION_KEY_ZIP)
+                ACTION_KEY_COPY to ProgressStateModel(progress = 42, actionKey = ACTION_KEY_COPY),
+                ACTION_KEY_ZIP to ProgressStateModel(progress = 75, actionKey = ACTION_KEY_ZIP)
             )
         )
     }
