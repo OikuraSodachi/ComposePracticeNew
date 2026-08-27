@@ -123,7 +123,7 @@ fun AppNavHost(
                         onEnterUploadMode = {
                             coordinator.enterUploadMode()
                             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
-                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                                popUpTo(NavDestinations.FILE_LIST) { inclusive = true }
                             }
                         }
                     )
@@ -205,7 +205,7 @@ fun AppNavHost(
                             coordinator.enterDownloadMode(items)
                             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                                 navController.navigate(NavDestinations.FILE_LIST) {
-                                    popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                                    popUpTo(NavDestinations.REMOTE_FILE_LIST) { inclusive = true }
                                 }
                             }
                         },
