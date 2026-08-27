@@ -122,8 +122,9 @@ fun AppNavHost(
                         },
                         onEnterUploadMode = {
                             coordinator.enterUploadMode()
-                            navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
-                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                            // FILE_LIST를 유지해 back 시 coordinator(uploadPendingList)가 살아남도록 — download 경로와 대칭
+                            if (!navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, false)) {
+                                navController.navigate(NavDestinations.REMOTE_FILE_LIST)
                             }
                         }
                     )
@@ -205,7 +206,7 @@ fun AppNavHost(
                             coordinator.enterDownloadMode(items)
                             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                                 navController.navigate(NavDestinations.FILE_LIST) {
-                                    popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                                    popUpTo(NavDestinations.REMOTE_FILE_LIST) { inclusive = true }
                                 }
                             }
                         },

@@ -88,9 +88,9 @@ Top-level `_td`-suffixed functions (e.g., `dirTree_td`, `readableFileSize_td`, `
 
 ## Feature Roadmap
 
-### Planned
+### Done
 
-- [ ] I/O 작업 진행상황 조회 — 복사, 압축 등 파일 작업 중 진행률을 UI에 실시간으로 표시
+- [x] I/O 작업 진행상황 조회 — 복사, 압축 등 파일 작업 중 진행률을 UI에 실시간으로 표시
 
 ## Key Conventions
 
