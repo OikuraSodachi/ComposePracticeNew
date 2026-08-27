@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.todokanai.composepracticenew.compose.holder.FileHolder
@@ -27,7 +25,7 @@ fun FileListView(
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit
 ) {
-    val selectedPaths by remember { derivedStateOf { selectedList.mapTo(HashSet()) { it.path } } }
+    val selectedPaths = remember(selectedList) { selectedList.mapTo(HashSet()) { it.path } }
 
     LazyColumn(
         modifier = modifier
@@ -37,10 +35,10 @@ fun FileListView(
 
             val isSelected = fileHolderItem.path in selectedPaths
 
-            val onClick = remember(fileHolderItem, selectMode) {
+            val onClick = remember(fileHolderItem, selectMode, isSelected) {
                 {
                     if (selectMode == Constants.MULTI_SELECT_MODE) {
-                        if (fileHolderItem in selectedList) removeFromList(fileHolderItem)
+                        if (isSelected) removeFromList(fileHolderItem)
                         else addToList(fileHolderItem)
                     } else {
                         onItemClick(fileHolderItem)
