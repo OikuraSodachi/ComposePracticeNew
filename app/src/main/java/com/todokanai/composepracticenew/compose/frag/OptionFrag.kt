@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -118,8 +119,7 @@ fun OptionFrag(
                 .fillMaxWidth()
                 .height(30.dp)
         ) {
-            items(dirTree.size) {
-                val item = dirTree[it]
+            items(dirTree, key = { it.path }) { item ->
                 DirectoryHolder(
                     modifier = Modifier
                         .clickable { onDirClick(item) },
