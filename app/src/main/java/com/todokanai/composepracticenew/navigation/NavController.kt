@@ -65,10 +65,6 @@ fun AppNavHost(
                 val context = LocalContext.current
                 val directoryViewModel: DirectoryViewModel = hiltViewModel()
                 val dirUiState by directoryViewModel.uiState.collectAsStateWithLifecycle()
-                val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
-                val isProgressActive = progressMap.isNotEmpty()
-                var userDismissed by remember { mutableStateOf(false) }
-                val showProgressDialogForKey by viewModel.showProgressDialogForKey.collectAsStateWithLifecycle()
                 var showDownloadConflictDialog by remember { mutableStateOf(false) }
                 var conflictDownloadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
 
@@ -76,15 +72,6 @@ fun AppNavHost(
                 val localSelectedList by coordinator.localSelectedList.collectAsStateWithLifecycle()
                 val downloadPendingList by coordinator.downloadPendingList.collectAsStateWithLifecycle()
 
-                LaunchedEffect(isProgressActive) {
-                    if (isProgressActive) userDismissed = false
-                }
-                LaunchedEffect(showProgressDialogForKey) {
-                    if (showProgressDialogForKey != null) {
-                        userDismissed = false
-                        viewModel.onProgressDialogShown()
-                    }
-                }
                 LaunchedEffect(Unit) {
                     launch {
                         viewModel.downloadError.collect { message ->
@@ -97,9 +84,6 @@ fun AppNavHost(
                         }
                     }
                 }
-
-                val activeProgressMap = progressMap.filter { (_, state) -> state.progress < 100 }
-                val showProgress = activeProgressMap.isNotEmpty() && !userDismissed
 
                 BackHandler {
                     mViewModel.onBackPressed { navController.popBackStack() }
@@ -145,12 +129,7 @@ fun AppNavHost(
                     )
                 }
 
-                if (showProgress) {
-                    ProgressDialog(
-                        progressMap = activeProgressMap,
-                        onDismissRequest = { userDismissed = true }
-                    )
-                }
+                ProgressSection(viewModel = viewModel)
 
                 if (showDownloadConflictDialog) {
                     FileConflictDialog(
@@ -270,5 +249,35 @@ fun AppNavHost(
                 }
             }
         }
+    }
+}
+
+/** progressMap 수집과 ProgressDialog 표시를 담당하는 섹션 — 진행률 업데이트 리컴포즈 범위를 이 composable로 한정한다. */
+@Composable
+private fun ProgressSection(viewModel: FileListViewModel) {
+    val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
+    val isProgressActive = progressMap.isNotEmpty()
+    var userDismissed by remember { mutableStateOf(false) }
+    val showProgressDialogForKey by viewModel.showProgressDialogForKey.collectAsStateWithLifecycle()
+
+    LaunchedEffect(isProgressActive) {
+        if (isProgressActive) userDismissed = false
+    }
+    LaunchedEffect(showProgressDialogForKey) {
+        if (showProgressDialogForKey != null) {
+            userDismissed = false
+            viewModel.onProgressDialogShown()
+        }
+    }
+
+    // progressMap이 키 — 진행률 emit마다 filter 재실행을 방지
+    val activeProgressMap = remember(progressMap) { progressMap.filter { (_, state) -> state.progress < 100 } }
+    val showProgress = activeProgressMap.isNotEmpty() && !userDismissed
+
+    if (showProgress) {
+        ProgressDialog(
+            progressMap = activeProgressMap,
+            onDismissRequest = { userDismissed = true }
+        )
     }
 }
