@@ -170,10 +170,6 @@ class FtpConnectionState @Inject constructor() {
      * @param isDirectory remotePath가 디렉터리인 경우 true
      */
     fun download(remotePath: String, localPath: String, isDirectory: Boolean = false): Flow<ProgressState> = channelFlow {
-        if (!ftpIoJob.isActive) {
-            send(ProgressState(error = "연결이 끊겼습니다"))
-            return@channelFlow
-        }
         launch(ftpIoJob + Dispatchers.IO) {
             val (connected, ftpPath) = stateMutex.withLock {
                 (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
@@ -276,10 +272,6 @@ class FtpConnectionState @Inject constructor() {
      * @param remotePath 저장될 원격 파일 또는 디렉터리의 절대 경로 (ftp://server/path 형식)
      */
     fun upload(localPath: String, remotePath: String): Flow<ProgressState> = channelFlow {
-        if (!ftpIoJob.isActive) {
-            send(ProgressState(error = "연결이 끊겼습니다"))
-            return@channelFlow
-        }
         launch(ftpIoJob + Dispatchers.IO) {
             val (connected, ftpPath) = stateMutex.withLock {
                 (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
