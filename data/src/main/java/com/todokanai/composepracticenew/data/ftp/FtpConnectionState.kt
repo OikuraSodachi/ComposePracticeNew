@@ -238,8 +238,8 @@ class FtpConnectionState @Inject constructor() {
                                 return@withLock
                             }
                             executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localTarget.delete() } }, onSend = { send(it) }, onSuccess = {
-                                // 모든 파일 수신 완료(writtenBytes == totalBytes) 시에만 100% emit
-                                if (writtenBytes >= totalBytes) {
+                                // 마지막 파일(fileIndex == totalCount) ACK 후에만 100% emit — writtenBytes 누적 오차 방지
+                                if (fileIndex == totalCount) {
                                     send(ProgressState(
                                         progress = 100,
                                         progressFloat = 1f,
