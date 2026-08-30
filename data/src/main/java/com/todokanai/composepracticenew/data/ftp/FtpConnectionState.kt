@@ -594,6 +594,7 @@ class FtpConnectionState @Inject constructor() {
                 if (!client.isConnected || !isLoggedIn) return@withContext false
             }
             val allEntries = collectRemoteTree(path)
+            var hasFailure = false
             for (entry in allEntries.reversed()) {
                 val success = if (entry.isDirectory) {
                     ioMutex.withLock {
@@ -612,8 +613,9 @@ class FtpConnectionState @Inject constructor() {
                         }.getOrDefault(false)
                     }
                 }
-                if (!success) return@withContext false
+                if (!success) hasFailure = true
             }
+            if (hasFailure) return@withContext false
             ioMutex.withLock {
                 runCatching {
                     client.removeDirectory(extractFtpPath(path))
