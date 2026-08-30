@@ -233,7 +233,11 @@ class FtpConnectionState @Inject constructor() {
                             localTarget.parentFile?.mkdirs()
                             val inputStream = client.retrieveFileStream(entryFtpPath)
                             if (inputStream == null) {
-                                send(ProgressState(error = "retrieveFileStream 실패: ${client.replyString.trim()} entry=${entry.name}"))
+                                val replyCode = client.replyCode
+                                val replyString = client.replyString.trim()
+                                runCatching { client.completePendingCommand() }
+                                send(ProgressState(error = "retrieveFileStream 실패: $replyString entry=${entry.name}"))
+                                if (replyCode !in 500..599) markConnectionDropped()
                                 return@withLock
                             }
                             var transferFailed = false
@@ -301,7 +305,11 @@ class FtpConnectionState @Inject constructor() {
                     val totalBytes = localFile.length()
                     val outputStream = client.storeFileStream(ftpPath)
                     if (outputStream == null) {
-                        send(ProgressState(error = "storeFileStream 실패: ${client.replyString.trim()}"))
+                        val replyCode = client.replyCode
+                        val replyString = client.replyString.trim()
+                        runCatching { client.completePendingCommand() }
+                        send(ProgressState(error = "storeFileStream 실패: $replyString"))
+                        if (replyCode !in 500..599) markConnectionDropped()
                         return@withLock
                     }
                     var transferFailed = false
@@ -346,7 +354,11 @@ class FtpConnectionState @Inject constructor() {
                         ioMutex.withLock {
                             val outputStream = client.storeFileStream(entryFtpPath)
                             if (outputStream == null) {
-                                send(ProgressState(error = "storeFileStream 실패: ${client.replyString.trim()} entry=${entry.name}"))
+                                val replyCode = client.replyCode
+                                val replyString = client.replyString.trim()
+                                runCatching { client.completePendingCommand() }
+                                send(ProgressState(error = "storeFileStream 실패: $replyString entry=${entry.name}"))
+                                if (replyCode !in 500..599) markConnectionDropped()
                                 return@withLock
                             }
                             var transferFailed = false
