@@ -43,7 +43,7 @@ class FtpConnectionState @Inject constructor() {
     private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var keepAliveJob: Job? = null
     /** 진행 중인 모든 FTP IO 작업의 루트 Job — 연결 끊김 시 취소해 자식 코루틴을 일괄 중단한다. */
-    private var ftpIoJob: CompletableJob = SupervisorJob()
+    @Volatile private var ftpIoJob: CompletableJob = SupervisorJob()
 
     private var connectedServer: String? = null
     private var isLoggedIn = false
