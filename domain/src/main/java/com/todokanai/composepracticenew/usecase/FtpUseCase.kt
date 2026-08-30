@@ -41,9 +41,9 @@ class FtpUseCase(private val repo: FtpRepository) {
         return repo.rename(path, toPath)
     }
 
-    /** path를 삭제한다. isDirectory에 따라 removeDirectory 또는 deleteFile을 호출한다. 성공 여부를 반환한다. */
+    /** path를 삭제한다. isDirectory에 따라 removeDirectoryRecursive 또는 deleteFile을 호출한다. 성공 여부를 반환한다. */
     suspend fun delete(path: String, isDirectory: Boolean): Boolean =
-        if (isDirectory) repo.removeDirectory(path) else repo.deleteFile(path)
+        if (isDirectory) repo.removeDirectoryRecursive(path) else repo.deleteFile(path)
 
     /** path에 새 디렉터리를 생성한다. 성공 여부를 반환한다. */
     suspend fun makeDirectory(path: String): Boolean = repo.makeDirectory(path)

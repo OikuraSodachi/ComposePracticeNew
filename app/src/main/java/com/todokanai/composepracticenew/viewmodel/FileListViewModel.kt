@@ -100,7 +100,7 @@ class FileListViewModel @Inject constructor(
     /** items를 현재 로컬 경로에 다운로드한다. 진행률은 ProgressTracker를 통해 표시된다. */
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
-        items.forEach { item -> downloadSingle(item.path.hashCode(), ftpUseCase.download(item.path, localPath)) }
+        items.forEach { item -> downloadSingle(item.path.hashCode(), ftpUseCase.download(item.path, localPath, item.isDirectory)) }
     }
 
     /** pending 중 conflicts에 포함된 항목을 제외하고 다운로드한다. */

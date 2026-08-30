@@ -561,6 +561,51 @@ class FtpConnectionState @Inject constructor() {
         }
     }
 
+    /**
+     * path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다. 미연결 시 false를 반환한다.
+     * collectRemoteTree로 전체 트리를 수집한 뒤 reversed()로 리프부터 삭제해 RMD 빈 디렉터리 조건을 충족한다.
+     * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun removeDirectoryRecursive(path: String): Boolean {
+        stateMutex.withLock {
+            if (!client.isConnected || !isLoggedIn) return false
+        }
+        val allEntries = collectRemoteTree(path)
+        for (entry in allEntries.reversed()) {
+            val success = if (entry.isDirectory) {
+                ioMutex.withLock {
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            client.removeDirectory(extractFtpPath(entry.path))
+                        }.onFailure { e ->
+                            if (e is FTPConnectionClosedException) markConnectionDropped()
+                        }.getOrDefault(false)
+                    }
+                }
+            } else {
+                ioMutex.withLock {
+                    withContext(Dispatchers.IO) {
+                        runCatching {
+                            client.deleteFile(extractFtpPath(entry.path))
+                        }.onFailure { e ->
+                            if (e is FTPConnectionClosedException) markConnectionDropped()
+                        }.getOrDefault(false)
+                    }
+                }
+            }
+            if (!success) return false
+        }
+        return ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    client.removeDirectory(extractFtpPath(path))
+                }.onFailure { e ->
+                    if (e is FTPConnectionClosedException) markConnectionDropped()
+                }.getOrDefault(false)
+            }
+        }
+    }
+
     /** remoteDirPath 하위의 모든 항목을 깊이 우선으로 평탄화한 목록을 반환한다. 디렉터리는 자신의 자식보다 앞에 온다. */
     private suspend fun collectRemoteTree(remoteDirPath: String): List<FileEntry> {
         val result = mutableListOf<FileEntry>()
