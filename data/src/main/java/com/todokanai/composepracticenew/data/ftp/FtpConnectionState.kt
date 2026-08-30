@@ -2,26 +2,27 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.todokanai.composepracticenew.model.ProgressState
 import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
+import java.io.Closeable
 import java.io.File
 import java.net.UnknownHostException
 import javax.inject.Inject
@@ -184,11 +185,14 @@ class FtpConnectionState @Inject constructor() {
                     val totalBytes = runCatching { client.mlistFile(ftpPath)?.size ?: -1L }.getOrDefault(-1L)
                     val inputStream = client.retrieveFileStream(ftpPath)
                     if (inputStream == null) {
-                        send(ProgressState(error = "retrieveFileStream 실패: ${client.replyString.trim()}"))
+                        val replyCode = client.replyCode
+                        val replyString = client.replyString.trim()
+                        runCatching { client.completePendingCommand() }
+                        send(ProgressState(error = "retrieveFileStream 실패: $replyString"))
+                        if (replyCode !in 500..599) markConnectionDropped()
                         return@withLock
                     }
-                    var transferFailed = false
-                    try {
+                    executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localFile.delete() } }, onSend = { send(it) }) {
                         val buffer = ByteArray(BUFFER_SIZE)
                         var writtenBytes = 0L
                         localFile.outputStream().use { output ->
@@ -199,17 +203,6 @@ class FtpConnectionState @Inject constructor() {
                                 send(buildProgressState(totalBytes, writtenBytes, localFile.name))
                             }
                         }
-                    } catch (e: CancellationException) {
-                        runCatching { localFile.delete() }
-                        throw e
-                    } catch (e: Exception) {
-                        transferFailed = true
-                        if (e is FTPConnectionClosedException) markConnectionDropped()
-                        send(ProgressState(error = e.message ?: "download 실패"))
-                    } finally {
-                        runCatching { inputStream.close() }
-                        val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                        if (!transferFailed && !ok) send(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                     }
                 }
             } else {
@@ -240,8 +233,7 @@ class FtpConnectionState @Inject constructor() {
                                 if (replyCode !in 500..599) markConnectionDropped()
                                 return@withLock
                             }
-                            var transferFailed = false
-                            try {
+                            executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localTarget.delete() } }, onSend = { send(it) }) {
                                 val buffer = ByteArray(BUFFER_SIZE)
                                 localTarget.outputStream().use { output ->
                                     var bytesRead: Int
@@ -264,17 +256,6 @@ class FtpConnectionState @Inject constructor() {
                                         }
                                     }
                                 }
-                            } catch (e: CancellationException) {
-                                runCatching { localTarget.delete() }
-                                throw e
-                            } catch (e: Exception) {
-                                transferFailed = true
-                                if (e is FTPConnectionClosedException) markConnectionDropped()
-                                send(ProgressState(error = e.message ?: "download 실패"))
-                            } finally {
-                                runCatching { inputStream.close() }
-                                val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                                if (!transferFailed && !ok) send(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                             }
                         }
                     }
@@ -312,8 +293,7 @@ class FtpConnectionState @Inject constructor() {
                         if (replyCode !in 500..599) markConnectionDropped()
                         return@withLock
                     }
-                    var transferFailed = false
-                    try {
+                    executeTransfer(outputStream, "upload 실패", onSend = { send(it) }) {
                         val buffer = ByteArray(BUFFER_SIZE)
                         var writtenBytes = 0L
                         localFile.inputStream().use { input ->
@@ -324,16 +304,6 @@ class FtpConnectionState @Inject constructor() {
                                 send(buildProgressState(totalBytes, writtenBytes, localFile.name))
                             }
                         }
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        transferFailed = true
-                        if (e is FTPConnectionClosedException) markConnectionDropped()
-                        send(ProgressState(error = e.message ?: "upload 실패"))
-                    } finally {
-                        runCatching { outputStream.close() }
-                        val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                        if (!transferFailed && !ok) send(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                     }
                 }
             } else {
@@ -361,8 +331,7 @@ class FtpConnectionState @Inject constructor() {
                                 if (replyCode !in 500..599) markConnectionDropped()
                                 return@withLock
                             }
-                            var transferFailed = false
-                            try {
+                            executeTransfer(outputStream, "upload 실패", onSend = { send(it) }) {
                                 val buffer = ByteArray(BUFFER_SIZE)
                                 entry.inputStream().use { input ->
                                     var bytesRead: Int
@@ -385,16 +354,6 @@ class FtpConnectionState @Inject constructor() {
                                         }
                                     }
                                 }
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                transferFailed = true
-                                if (e is FTPConnectionClosedException) markConnectionDropped()
-                                send(ProgressState(error = e.message ?: "upload 실패"))
-                            } finally {
-                                runCatching { outputStream.close() }
-                                val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                                if (!transferFailed && !ok) send(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                             }
                         }
                     }
@@ -408,13 +367,7 @@ class FtpConnectionState @Inject constructor() {
         stateMutex.withLock {
             if (!client.isConnected || !isLoggedIn) return ""
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.printWorkingDirectory() ?: ""
-                }.getOrDefault("")
-            }
-        }
+        return runFtpQuery("") { client.printWorkingDirectory() ?: "" }
     }
 
     /**
@@ -426,15 +379,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.changeWorkingDirectory(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.changeWorkingDirectory(ftpPath) }
     }
 
     /**
@@ -450,15 +395,7 @@ class FtpConnectionState @Inject constructor() {
             fromFtpPath = extractFtpPath(fromPath)
             toFtpPath = extractFtpPath(toPath)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.rename(fromFtpPath, toFtpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.rename(fromFtpPath, toFtpPath) }
     }
 
     /**
@@ -470,15 +407,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.deleteFile(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.deleteFile(ftpPath) }
     }
 
     /**
@@ -490,15 +419,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.makeDirectory(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.makeDirectory(ftpPath) }
     }
 
     /**
@@ -510,15 +431,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.removeDirectory(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.removeDirectory(ftpPath) }
     }
 
     /**
@@ -530,13 +443,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return -1L
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.mlistFile(ftpPath)?.size ?: -1L
-                }.getOrDefault(-1L)
-            }
-        }
+        return runFtpQuery(-1L) { client.mlistFile(ftpPath)?.size ?: -1L }
     }
 
     /**
@@ -548,13 +455,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return ""
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.getModificationTime(ftpPath) ?: ""
-                }.getOrDefault("")
-            }
-        }
+        return runFtpQuery("") { client.getModificationTime(ftpPath) ?: "" }
     }
 
     /** 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다. */
@@ -597,32 +498,14 @@ class FtpConnectionState @Inject constructor() {
             var hasFailure = false
             for (entry in allEntries.reversed()) {
                 val success = if (entry.isDirectory) {
-                    ioMutex.withLock {
-                        runCatching {
-                            client.removeDirectory(extractFtpPath(entry.path))
-                        }.onFailure { e ->
-                            if (e is FTPConnectionClosedException) markConnectionDropped()
-                        }.getOrDefault(false)
-                    }
+                    runFtpBoolean { client.removeDirectory(extractFtpPath(entry.path)) }
                 } else {
-                    ioMutex.withLock {
-                        runCatching {
-                            client.deleteFile(extractFtpPath(entry.path))
-                        }.onFailure { e ->
-                            if (e is FTPConnectionClosedException) markConnectionDropped()
-                        }.getOrDefault(false)
-                    }
+                    runFtpBoolean { client.deleteFile(extractFtpPath(entry.path)) }
                 }
                 if (!success) hasFailure = true
             }
             if (hasFailure) return@withContext false
-            ioMutex.withLock {
-                runCatching {
-                    client.removeDirectory(extractFtpPath(path))
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
+            runFtpBoolean { client.removeDirectory(extractFtpPath(path)) }
         }
 
     /** remoteDirPath 하위의 모든 항목을 깊이 우선으로 평탄화한 목록을 반환한다. 디렉터리는 자신의 자식보다 앞에 온다. */
@@ -636,6 +519,49 @@ class FtpConnectionState @Inject constructor() {
             }
         }
         return result
+    }
+
+    /** ioMutex 확보 후 IO 스레드에서 FTP 명령을 실행하며 접속 끊김 시 markConnectionDropped를 호출한다. */
+    private suspend fun runFtpBoolean(block: () -> Boolean): Boolean =
+        ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching(block)
+                    .onFailure { e -> if (e is FTPConnectionClosedException) markConnectionDropped() }
+                    .getOrDefault(false)
+            }
+        }
+
+    /** ioMutex 확보 후 IO 스레드에서 FTP 조회 명령을 실행한다. 실패 시 default를 반환한다. */
+    private suspend fun <T> runFtpQuery(default: T, block: () -> T): T =
+        ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching(block).getOrDefault(default)
+            }
+        }
+
+    /** FTP 스트림 전송의 오류 처리와 채널 정리를 담당한다. 취소 시 onCancel을 실행하고 CancellationException을 재전파한다. */
+    private suspend fun executeTransfer(
+        stream: Closeable,
+        errorMessage: String,
+        onCancel: () -> Unit = {},
+        onSend: suspend (ProgressState) -> Unit,
+        block: suspend () -> Unit
+    ) {
+        var transferFailed = false
+        try {
+            block()
+        } catch (e: CancellationException) {
+            onCancel()
+            throw e
+        } catch (e: Exception) {
+            transferFailed = true
+            if (e is FTPConnectionClosedException) markConnectionDropped()
+            onSend(ProgressState(error = e.message ?: errorMessage))
+        } finally {
+            runCatching { stream.close() }
+            val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
+            if (!transferFailed && !ok) onSend(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
+        }
     }
 
     private fun buildProgressState(totalBytes: Long, writtenBytes: Long, fileName: String) = ProgressState(
