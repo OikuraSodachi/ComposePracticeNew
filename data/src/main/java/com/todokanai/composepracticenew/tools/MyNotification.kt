@@ -131,6 +131,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setContentTitle(title)
             .setOngoing(false)
             .setContentText(message)
+            .setProgress(0, 0, false)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         with(NotificationManagerCompat.from(context)) {
             if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
@@ -138,5 +139,10 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             }
             notify(notifId, builder.build())
         }
+    }
+
+    /** 지정한 ID의 알림을 취소한다. */
+    fun cancelNotification(notifId: Int) {
+        notificationManager.cancel(notifId)
     }
 }

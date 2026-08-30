@@ -198,9 +198,13 @@ class RemoteFileListViewModel @Inject constructor(
                 .onCompletion { cause ->
                     _remoteProgressMap.update { it - instanceId }
                     if (cause != null) {
+                        myNoti.cancelNotification(instanceId)
                         _transferProgress.tryEmit(ProgressStateModel(error = cause.message))
                     } else if (!hasError) {
                         myNoti.completedNotification("", completionMessage(actionKey), actionKey, instanceId)
+                        if (actionKey == ACTION_KEY_UPLOAD) fileNavigatorUseCase.refresh()
+                    } else {
+                        myNoti.cancelNotification(instanceId)
                     }
                 }
                 .catch { /* onCompletion이 에러를 처리하므로 Flow 종료만 방지 */ }

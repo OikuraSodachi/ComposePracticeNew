@@ -116,12 +116,17 @@ class FileListViewModel @Inject constructor(
      */
     private fun downloadSingle(instanceId: Int, source: Flow<ProgressState>) {
         appScope.launch {
+            var hasError = false
             source
-                .onCompletion { progressUseCase.removeProgress(instanceId) }
+                .onCompletion { cause ->
+                    progressUseCase.removeProgress(instanceId)
+                    if (cause == null && !hasError) fileNavigatorUseCase.refresh()
+                }
                 .catch { }
                 .collect { state ->
                     val error = state.error
                     if (error != null) {
+                        hasError = true
                         progressUseCase.removeProgress(instanceId)
                         _downloadError.tryEmit(error)
                     } else {
