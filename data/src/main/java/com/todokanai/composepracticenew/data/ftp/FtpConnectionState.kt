@@ -2,26 +2,27 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import com.todokanai.composepracticenew.model.ProgressState
 import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
+import java.io.Closeable
 import java.io.File
 import java.net.UnknownHostException
 import javax.inject.Inject
@@ -41,6 +42,8 @@ class FtpConnectionState @Inject constructor() {
     private val ioMutex = Mutex()
     private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var keepAliveJob: Job? = null
+    /** 진행 중인 모든 FTP IO 작업의 루트 Job — 연결 끊김 시 취소해 자식 코루틴을 일괄 중단한다. */
+    @Volatile private var ftpIoJob: CompletableJob = SupervisorJob()
 
     private var connectedServer: String? = null
     private var isLoggedIn = false
@@ -115,15 +118,17 @@ class FtpConnectionState @Inject constructor() {
         keepAliveJob?.cancel()
         keepAliveJob?.join()
         keepAliveJob = null
-        stateMutex.withLock { _isConnecting.value = true }
-        runCatching { client.logout() }
-        runCatching { client.disconnect() }
+        ftpIoJob.cancel()
         stateMutex.withLock {
             isLoggedIn = false
             connectedServer = null
             _isConnected.value = false
-            _isConnecting.value = false
+            _isConnecting.value = true
         }
+        runCatching { client.logout() }
+        runCatching { client.disconnect() }
+        stateMutex.withLock { _isConnecting.value = false }
+        ftpIoJob = SupervisorJob()
     }
 
     /**
@@ -164,114 +169,100 @@ class FtpConnectionState @Inject constructor() {
      * @param localPath 저장할 로컬 파일 또는 디렉터리의 절대 경로
      * @param isDirectory remotePath가 디렉터리인 경우 true
      */
-    fun download(remotePath: String, localPath: String, isDirectory: Boolean = false): Flow<ProgressState> = flow<ProgressState> {
-        val (connected, ftpPath) = stateMutex.withLock {
-            (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
-        }
-        if (!connected) {
-            emit(ProgressState(error = "Not connected"))
-            return@flow
-        }
-        if (!isDirectory) {
-            ioMutex.withLock {
-                val localFile = File(localPath)
-                localFile.parentFile?.mkdirs()
-                val totalBytes = runCatching { client.mlistFile(ftpPath)?.size ?: -1L }.getOrDefault(-1L)
-                val inputStream = client.retrieveFileStream(ftpPath)
-                if (inputStream == null) {
-                    emit(ProgressState(error = "retrieveFileStream 실패: ${client.replyString.trim()}"))
-                    return@withLock
-                }
-                var transferFailed = false
-                try {
-                    val buffer = ByteArray(BUFFER_SIZE)
-                    var writtenBytes = 0L
-                    localFile.outputStream().use { output ->
-                        var bytesRead: Int
-                        while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                            output.write(buffer, 0, bytesRead)
-                            writtenBytes += bytesRead
-                            emit(buildProgressState(totalBytes, writtenBytes, localFile.name))
+    fun download(remotePath: String, localPath: String, isDirectory: Boolean = false): Flow<ProgressState> = channelFlow {
+        launch(ftpIoJob + Dispatchers.IO) {
+            val (connected, ftpPath) = stateMutex.withLock {
+                (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
+            }
+            if (!connected) {
+                send(ProgressState(error = "Not connected"))
+                return@launch
+            }
+            if (!isDirectory) {
+                ioMutex.withLock {
+                    val localFile = File(localPath)
+                    localFile.parentFile?.mkdirs()
+                    val totalBytes = runCatching { client.mlistFile(ftpPath)?.size ?: -1L }.getOrDefault(-1L)
+                    val inputStream = client.retrieveFileStream(ftpPath)
+                    if (inputStream == null) {
+                        val replyCode = client.replyCode
+                        val replyString = client.replyString.trim()
+                        runCatching { client.completePendingCommand() }
+                        send(ProgressState(error = "retrieveFileStream 실패: $replyString"))
+                        if (replyCode !in 500..599) markConnectionDropped()
+                        return@withLock
+                    }
+                    executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localFile.delete() } }, onSend = { send(it) }) {
+                        val buffer = ByteArray(BUFFER_SIZE)
+                        var writtenBytes = 0L
+                        localFile.outputStream().use { output ->
+                            var bytesRead: Int
+                            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                                output.write(buffer, 0, bytesRead)
+                                writtenBytes += bytesRead
+                                send(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                            }
                         }
                     }
-                } catch (e: CancellationException) {
-                    runCatching { localFile.delete() }
-                    throw e
-                } catch (e: Exception) {
-                    transferFailed = true
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                    emit(ProgressState(error = e.message ?: "download 실패"))
-                } finally {
-                    runCatching { inputStream.close() }
-                    val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                    if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                 }
-            }
-        } else {
-            val allEntries = collectRemoteTree(remotePath)
-            val fileEntries = allEntries.filter { !it.isDirectory }
-            val totalBytes = fileEntries.sumOf { it.size }.coerceAtLeast(1)
-            val totalCount = fileEntries.size
-            File(localPath).mkdirs()
-            var writtenBytes = 0L
-            var prevProgress = -1
-            var fileIndex = 0
-            allEntries.forEach { entry ->
-                val relativePath = entry.path.removePrefix(remotePath).trimStart('/')
-                val localTarget = File(localPath, relativePath)
-                if (entry.isDirectory) {
-                    localTarget.mkdirs()
-                } else {
-                    fileIndex++
-                    val entryFtpPath = extractFtpPath(entry.path)
-                    ioMutex.withLock {
-                        localTarget.parentFile?.mkdirs()
-                        val inputStream = client.retrieveFileStream(entryFtpPath)
-                        if (inputStream == null) {
-                            emit(ProgressState(error = "retrieveFileStream 실패: ${client.replyString.trim()} entry=${entry.name}"))
-                            return@withLock
-                        }
-                        var transferFailed = false
-                        try {
-                            val buffer = ByteArray(BUFFER_SIZE)
-                            localTarget.outputStream().use { output ->
-                                var bytesRead: Int
-                                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                                    output.write(buffer, 0, bytesRead)
-                                    writtenBytes += bytesRead
-                                    val progress = (writtenBytes * 100 / totalBytes).toInt()
-                                    if (progress != prevProgress) {
-                                        emit(ProgressState(
-                                            progress = progress,
-                                            progressFloat = writtenBytes.toFloat() / totalBytes,
-                                            totalBytes = totalBytes,
-                                            writtenBytes = writtenBytes,
-                                            listSize = totalCount,
-                                            currentIndex = fileIndex,
-                                            currentFileName = entry.name,
-                                            currentFileBytes = entry.size
-                                        ))
-                                        prevProgress = progress
+            } else {
+                val allEntries = collectRemoteTree(remotePath)
+                val fileEntries = allEntries.filter { !it.isDirectory }
+                val totalBytes = fileEntries.sumOf { it.size }.coerceAtLeast(1)
+                val totalCount = fileEntries.size
+                File(localPath).mkdirs()
+                var writtenBytes = 0L
+                var prevProgress = -1
+                var fileIndex = 0
+                allEntries.forEach { entry ->
+                    val relativePath = entry.path.removePrefix(remotePath).trimStart('/')
+                    val localTarget = File(localPath, relativePath)
+                    if (entry.isDirectory) {
+                        localTarget.mkdirs()
+                    } else {
+                        fileIndex++
+                        val entryFtpPath = extractFtpPath(entry.path)
+                        ioMutex.withLock {
+                            localTarget.parentFile?.mkdirs()
+                            val inputStream = client.retrieveFileStream(entryFtpPath)
+                            if (inputStream == null) {
+                                val replyCode = client.replyCode
+                                val replyString = client.replyString.trim()
+                                runCatching { client.completePendingCommand() }
+                                send(ProgressState(error = "retrieveFileStream 실패: $replyString entry=${entry.name}"))
+                                if (replyCode !in 500..599) markConnectionDropped()
+                                return@withLock
+                            }
+                            executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localTarget.delete() } }, onSend = { send(it) }) {
+                                val buffer = ByteArray(BUFFER_SIZE)
+                                localTarget.outputStream().use { output ->
+                                    var bytesRead: Int
+                                    while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                                        output.write(buffer, 0, bytesRead)
+                                        writtenBytes += bytesRead
+                                        val progress = (writtenBytes * 100 / totalBytes).toInt()
+                                        if (progress != prevProgress) {
+                                            send(ProgressState(
+                                                progress = progress,
+                                                progressFloat = writtenBytes.toFloat() / totalBytes,
+                                                totalBytes = totalBytes,
+                                                writtenBytes = writtenBytes,
+                                                listSize = totalCount,
+                                                currentIndex = fileIndex,
+                                                currentFileName = entry.name,
+                                                currentFileBytes = entry.size
+                                            ))
+                                            prevProgress = progress
+                                        }
                                     }
                                 }
                             }
-                        } catch (e: CancellationException) {
-                            runCatching { localTarget.delete() }
-                            throw e
-                        } catch (e: Exception) {
-                            transferFailed = true
-                            if (e is FTPConnectionClosedException) markConnectionDropped()
-                            emit(ProgressState(error = e.message ?: "download 실패"))
-                        } finally {
-                            runCatching { inputStream.close() }
-                            val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                            if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                         }
                     }
                 }
             }
-        }
-    }.flowOn(Dispatchers.IO)
+        }.join()
+    }
 
     /**
      * localPath의 파일 또는 디렉터리를 remotePath에 스트리밍 업로드한다.
@@ -280,121 +271,103 @@ class FtpConnectionState @Inject constructor() {
      * @param localPath 업로드할 로컬 파일 또는 디렉터리의 절대 경로
      * @param remotePath 저장될 원격 파일 또는 디렉터리의 절대 경로 (ftp://server/path 형식)
      */
-    fun upload(localPath: String, remotePath: String): Flow<ProgressState> = flow<ProgressState> {
-        val (connected, ftpPath) = stateMutex.withLock {
-            (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
-        }
-        if (!connected) {
-            emit(ProgressState(error = "Not connected"))
-            return@flow
-        }
-        val localFile = File(localPath)
-        if (!localFile.isDirectory) {
-            ioMutex.withLock {
-                val totalBytes = localFile.length()
-                val outputStream = client.storeFileStream(ftpPath)
-                if (outputStream == null) {
-                    emit(ProgressState(error = "storeFileStream 실패: ${client.replyString.trim()}"))
-                    return@withLock
-                }
-                var transferFailed = false
-                try {
-                    val buffer = ByteArray(BUFFER_SIZE)
-                    var writtenBytes = 0L
-                    localFile.inputStream().use { input ->
-                        var bytesRead: Int
-                        while (input.read(buffer).also { bytesRead = it } != -1) {
-                            outputStream.write(buffer, 0, bytesRead)
-                            writtenBytes += bytesRead
-                            emit(buildProgressState(totalBytes, writtenBytes, localFile.name))
+    fun upload(localPath: String, remotePath: String): Flow<ProgressState> = channelFlow {
+        launch(ftpIoJob + Dispatchers.IO) {
+            val (connected, ftpPath) = stateMutex.withLock {
+                (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
+            }
+            if (!connected) {
+                send(ProgressState(error = "Not connected"))
+                return@launch
+            }
+            val localFile = File(localPath)
+            if (!localFile.isDirectory) {
+                ioMutex.withLock {
+                    val totalBytes = localFile.length()
+                    val outputStream = client.storeFileStream(ftpPath)
+                    if (outputStream == null) {
+                        val replyCode = client.replyCode
+                        val replyString = client.replyString.trim()
+                        runCatching { client.completePendingCommand() }
+                        send(ProgressState(error = "storeFileStream 실패: $replyString"))
+                        if (replyCode !in 500..599) markConnectionDropped()
+                        return@withLock
+                    }
+                    executeTransfer(outputStream, "upload 실패", onSend = { send(it) }) {
+                        val buffer = ByteArray(BUFFER_SIZE)
+                        var writtenBytes = 0L
+                        localFile.inputStream().use { input ->
+                            var bytesRead: Int
+                            while (input.read(buffer).also { bytesRead = it } != -1) {
+                                outputStream.write(buffer, 0, bytesRead)
+                                writtenBytes += bytesRead
+                                send(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                            }
                         }
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    transferFailed = true
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                    emit(ProgressState(error = e.message ?: "upload 실패"))
-                } finally {
-                    runCatching { outputStream.close() }
-                    val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                    if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                 }
-            }
-        } else {
-            val allEntries = localFile.walkTopDown().toList()
-            val fileEntries = allEntries.filter { it.isFile }
-            val totalBytes = fileEntries.sumOf { it.length() }.coerceAtLeast(1)
-            val totalCount = fileEntries.size
-            var writtenBytes = 0L
-            var prevProgress = -1
-            var fileIndex = 0
-            allEntries.forEach { entry ->
-                val relativePath = localFile.toPath().relativize(entry.toPath()).toString().replace("\\", "/")
-                val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
-                if (entry.isDirectory) {
-                    ioMutex.withLock { runCatching { client.makeDirectory(entryFtpPath) } }
-                } else {
-                    fileIndex++
-                    ioMutex.withLock {
-                        val outputStream = client.storeFileStream(entryFtpPath)
-                        if (outputStream == null) {
-                            emit(ProgressState(error = "storeFileStream 실패: ${client.replyString.trim()} entry=${entry.name}"))
-                            return@withLock
-                        }
-                        var transferFailed = false
-                        try {
-                            val buffer = ByteArray(BUFFER_SIZE)
-                            entry.inputStream().use { input ->
-                                var bytesRead: Int
-                                while (input.read(buffer).also { bytesRead = it } != -1) {
-                                    outputStream.write(buffer, 0, bytesRead)
-                                    writtenBytes += bytesRead
-                                    val progress = (writtenBytes * 100 / totalBytes).toInt()
-                                    if (progress != prevProgress) {
-                                        emit(ProgressState(
-                                            progress = progress,
-                                            progressFloat = writtenBytes.toFloat() / totalBytes,
-                                            totalBytes = totalBytes,
-                                            writtenBytes = writtenBytes,
-                                            listSize = totalCount,
-                                            currentIndex = fileIndex,
-                                            currentFileName = entry.name,
-                                            currentFileBytes = entry.length()
-                                        ))
-                                        prevProgress = progress
+            } else {
+                val allEntries = localFile.walkTopDown().toList()
+                val fileEntries = allEntries.filter { it.isFile }
+                val totalBytes = fileEntries.sumOf { it.length() }.coerceAtLeast(1)
+                val totalCount = fileEntries.size
+                var writtenBytes = 0L
+                var prevProgress = -1
+                var fileIndex = 0
+                allEntries.forEach { entry ->
+                    val relativePath = localFile.toPath().relativize(entry.toPath()).toString().replace("\\", "/")
+                    val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
+                    if (entry.isDirectory) {
+                        ioMutex.withLock { runCatching { client.makeDirectory(entryFtpPath) } }
+                    } else {
+                        fileIndex++
+                        ioMutex.withLock {
+                            val outputStream = client.storeFileStream(entryFtpPath)
+                            if (outputStream == null) {
+                                val replyCode = client.replyCode
+                                val replyString = client.replyString.trim()
+                                runCatching { client.completePendingCommand() }
+                                send(ProgressState(error = "storeFileStream 실패: $replyString entry=${entry.name}"))
+                                if (replyCode !in 500..599) markConnectionDropped()
+                                return@withLock
+                            }
+                            executeTransfer(outputStream, "upload 실패", onSend = { send(it) }) {
+                                val buffer = ByteArray(BUFFER_SIZE)
+                                entry.inputStream().use { input ->
+                                    var bytesRead: Int
+                                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                                        outputStream.write(buffer, 0, bytesRead)
+                                        writtenBytes += bytesRead
+                                        val progress = (writtenBytes * 100 / totalBytes).toInt()
+                                        if (progress != prevProgress) {
+                                            send(ProgressState(
+                                                progress = progress,
+                                                progressFloat = writtenBytes.toFloat() / totalBytes,
+                                                totalBytes = totalBytes,
+                                                writtenBytes = writtenBytes,
+                                                listSize = totalCount,
+                                                currentIndex = fileIndex,
+                                                currentFileName = entry.name,
+                                                currentFileBytes = entry.length()
+                                            ))
+                                            prevProgress = progress
+                                        }
                                     }
                                 }
                             }
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            transferFailed = true
-                            if (e is FTPConnectionClosedException) markConnectionDropped()
-                            emit(ProgressState(error = e.message ?: "upload 실패"))
-                        } finally {
-                            runCatching { outputStream.close() }
-                            val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-                            if (!transferFailed && !ok) emit(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
                         }
                     }
                 }
             }
-        }
-    }.flowOn(Dispatchers.IO)
+        }.join()
+    }
 
     /** 현재 FTP 작업 디렉터리의 절대 경로를 반환한다. 미연결 시 빈 문자열을 반환한다. */
     suspend fun getWorkingDirectory(): String {
         stateMutex.withLock {
             if (!client.isConnected || !isLoggedIn) return ""
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.printWorkingDirectory() ?: ""
-                }.getOrDefault("")
-            }
-        }
+        return runFtpQuery("") { client.printWorkingDirectory() ?: "" }
     }
 
     /**
@@ -406,15 +379,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.changeWorkingDirectory(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.changeWorkingDirectory(ftpPath) }
     }
 
     /**
@@ -430,15 +395,7 @@ class FtpConnectionState @Inject constructor() {
             fromFtpPath = extractFtpPath(fromPath)
             toFtpPath = extractFtpPath(toPath)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.rename(fromFtpPath, toFtpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.rename(fromFtpPath, toFtpPath) }
     }
 
     /**
@@ -450,15 +407,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.deleteFile(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.deleteFile(ftpPath) }
     }
 
     /**
@@ -470,15 +419,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.makeDirectory(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.makeDirectory(ftpPath) }
     }
 
     /**
@@ -490,15 +431,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return false
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.removeDirectory(ftpPath)
-                }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) markConnectionDropped()
-                }.getOrDefault(false)
-            }
-        }
+        return runFtpBoolean { client.removeDirectory(ftpPath) }
     }
 
     /**
@@ -510,13 +443,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return -1L
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.mlistFile(ftpPath)?.size ?: -1L
-                }.getOrDefault(-1L)
-            }
-        }
+        return runFtpQuery(-1L) { client.mlistFile(ftpPath)?.size ?: -1L }
     }
 
     /**
@@ -528,13 +455,7 @@ class FtpConnectionState @Inject constructor() {
             if (!client.isConnected || !isLoggedIn) return ""
             extractFtpPath(path)
         }
-        return ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    client.getModificationTime(ftpPath) ?: ""
-                }.getOrDefault("")
-            }
-        }
+        return runFtpQuery("") { client.getModificationTime(ftpPath) ?: "" }
     }
 
     /** 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다. */
@@ -553,13 +474,39 @@ class FtpConnectionState @Inject constructor() {
         }
     }
 
-    /** FTP 연결이 서버 측에서 끊긴 경우 isLoggedIn과 _isConnected를 false로 초기화한다. */
+    /** FTP 연결이 서버 측에서 끊긴 경우 isLoggedIn과 _isConnected를 false로 초기화하고 ftpIoJob을 취소한다. */
     private suspend fun markConnectionDropped() {
         stateMutex.withLock {
             isLoggedIn = false
             _isConnected.value = false
         }
+        ftpIoJob.cancel()
+        ftpIoJob = SupervisorJob()
     }
+
+    /**
+     * path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다. 미연결 시 false를 반환한다.
+     * collectRemoteTree로 전체 트리를 수집한 뒤 reversed()로 리프부터 삭제해 RMD 빈 디렉터리 조건을 충족한다.
+     * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
+     */
+    suspend fun removeDirectoryRecursive(path: String): Boolean =
+        withContext(ftpIoJob + Dispatchers.IO) {
+            stateMutex.withLock {
+                if (!client.isConnected || !isLoggedIn) return@withContext false
+            }
+            val allEntries = collectRemoteTree(path)
+            var hasFailure = false
+            for (entry in allEntries.reversed()) {
+                val success = if (entry.isDirectory) {
+                    runFtpBoolean { client.removeDirectory(extractFtpPath(entry.path)) }
+                } else {
+                    runFtpBoolean { client.deleteFile(extractFtpPath(entry.path)) }
+                }
+                if (!success) hasFailure = true
+            }
+            if (hasFailure) return@withContext false
+            runFtpBoolean { client.removeDirectory(extractFtpPath(path)) }
+        }
 
     /** remoteDirPath 하위의 모든 항목을 깊이 우선으로 평탄화한 목록을 반환한다. 디렉터리는 자신의 자식보다 앞에 온다. */
     private suspend fun collectRemoteTree(remoteDirPath: String): List<FileEntry> {
@@ -572,6 +519,49 @@ class FtpConnectionState @Inject constructor() {
             }
         }
         return result
+    }
+
+    /** ioMutex 확보 후 IO 스레드에서 FTP 명령을 실행하며 접속 끊김 시 markConnectionDropped를 호출한다. */
+    private suspend fun runFtpBoolean(block: () -> Boolean): Boolean =
+        ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching(block)
+                    .onFailure { e -> if (e is FTPConnectionClosedException) markConnectionDropped() }
+                    .getOrDefault(false)
+            }
+        }
+
+    /** ioMutex 확보 후 IO 스레드에서 FTP 조회 명령을 실행한다. 실패 시 default를 반환한다. */
+    private suspend fun <T> runFtpQuery(default: T, block: () -> T): T =
+        ioMutex.withLock {
+            withContext(Dispatchers.IO) {
+                runCatching(block).getOrDefault(default)
+            }
+        }
+
+    /** FTP 스트림 전송의 오류 처리와 채널 정리를 담당한다. 취소 시 onCancel을 실행하고 CancellationException을 재전파한다. */
+    private suspend fun executeTransfer(
+        stream: Closeable,
+        errorMessage: String,
+        onCancel: () -> Unit = {},
+        onSend: suspend (ProgressState) -> Unit,
+        block: suspend () -> Unit
+    ) {
+        var transferFailed = false
+        try {
+            block()
+        } catch (e: CancellationException) {
+            onCancel()
+            throw e
+        } catch (e: Exception) {
+            transferFailed = true
+            if (e is FTPConnectionClosedException) markConnectionDropped()
+            onSend(ProgressState(error = e.message ?: errorMessage))
+        } finally {
+            runCatching { stream.close() }
+            val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
+            if (!transferFailed && !ok) onSend(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
+        }
     }
 
     private fun buildProgressState(totalBytes: Long, writtenBytes: Long, fileName: String) = ProgressState(

@@ -99,6 +99,12 @@ class FtpRepositoryImpl @Inject constructor(
     override suspend fun removeDirectory(path: String): Boolean = connectionState.removeDirectory(path)
 
     /**
+     * path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다.
+     * @param path 삭제할 디렉터리의 절대 경로
+     */
+    override suspend fun removeDirectoryRecursive(path: String): Boolean = connectionState.removeDirectoryRecursive(path)
+
+    /**
      * path 파일의 크기를 바이트 단위로 반환한다.
      * FTPClient.mlistFile()로 조회하며, 실패 시 -1을 반환한다.
      * @param path 크기를 조회할 원격 파일의 절대 경로

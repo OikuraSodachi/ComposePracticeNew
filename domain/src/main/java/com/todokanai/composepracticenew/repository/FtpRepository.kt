@@ -83,6 +83,9 @@ interface FtpRepository {
     /** path의 빈 디렉토리를 삭제한다. 성공 여부를 반환한다. */
     suspend fun removeDirectory(path: String): Boolean
 
+    /** path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다. 성공 여부를 반환한다. */
+    suspend fun removeDirectoryRecursive(path: String): Boolean
+
     // endregion
 
     // region File Info
