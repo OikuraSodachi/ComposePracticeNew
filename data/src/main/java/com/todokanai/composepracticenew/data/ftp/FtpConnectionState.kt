@@ -119,16 +119,16 @@ class FtpConnectionState @Inject constructor() {
         keepAliveJob?.join()
         keepAliveJob = null
         ftpIoJob.cancel()
-        ftpIoJob = SupervisorJob()
-        stateMutex.withLock { _isConnecting.value = true }
-        runCatching { client.logout() }
-        runCatching { client.disconnect() }
         stateMutex.withLock {
             isLoggedIn = false
             connectedServer = null
             _isConnected.value = false
-            _isConnecting.value = false
+            _isConnecting.value = true
         }
+        runCatching { client.logout() }
+        runCatching { client.disconnect() }
+        stateMutex.withLock { _isConnecting.value = false }
+        ftpIoJob = SupervisorJob()
     }
 
     /**
