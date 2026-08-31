@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
 import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.tools.TransferCoordinator
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
@@ -26,9 +27,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -39,6 +38,7 @@ class FileListViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val progressUseCase: ProgressUseCase,
     private val myNoti: MyNotification,
+    private val transferCoordinator: TransferCoordinator,
     private val openFileUseCase: OpenFileUseCase,
     private val ftpUseCase: FtpUseCase,
     @ApplicationScope private val appScope: CoroutineScope
@@ -115,20 +115,16 @@ class FileListViewModel @Inject constructor(
      * @param source 수집할 다운로드 진행률 Flow
      */
     private fun downloadSingle(instanceId: Int, source: Flow<ProgressState>) {
-        appScope.launch {
-            source
-                .onCompletion { progressUseCase.removeProgress(instanceId) }
-                .catch { }
-                .collect { state ->
-                    val error = state.error
-                    if (error != null) {
-                        progressUseCase.removeProgress(instanceId)
-                        _downloadError.tryEmit(error)
-                    } else {
-                        progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
-                    }
-                }
-        }
+        transferCoordinator.launch(
+            scope = appScope,
+            source = source,
+            onProgress = { state ->
+                progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+            },
+            onRemove = { progressUseCase.removeProgress(instanceId) },
+            onSuccess = { fileNavigatorUseCase.refresh() },
+            onError = { message -> _downloadError.tryEmit(message ?: "") }
+        )
     }
 
     fun onItemClick(selected: FileHolderItem, selectMode: Int) {

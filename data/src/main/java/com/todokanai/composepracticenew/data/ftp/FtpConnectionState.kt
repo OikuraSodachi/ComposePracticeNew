@@ -192,7 +192,10 @@ class FtpConnectionState @Inject constructor() {
                         if (replyCode !in 500..599) markConnectionDropped()
                         return@withLock
                     }
-                    executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localFile.delete() } }, onSend = { send(it) }) {
+                    executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localFile.delete() } }, onSend = { send(it) }, onSuccess = {
+                        // totalBytes > 0 인 경우에만 100% emit — 크기 미확인 시 progress=null이므로 생략
+                        if (totalBytes > 0) send(buildProgressState(totalBytes, totalBytes, localFile.name))
+                    }) {
                         val buffer = ByteArray(BUFFER_SIZE)
                         var writtenBytes = 0L
                         localFile.outputStream().use { output ->
@@ -200,7 +203,8 @@ class FtpConnectionState @Inject constructor() {
                             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                                 output.write(buffer, 0, bytesRead)
                                 writtenBytes += bytesRead
-                                send(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                                // ACK 전 100% 조기 발행 방지 — totalBytes 미확인 시는 항상 emit
+                                if (totalBytes <= 0 || writtenBytes < totalBytes) send(buildProgressState(totalBytes, writtenBytes, localFile.name))
                             }
                         }
                     }
@@ -233,7 +237,21 @@ class FtpConnectionState @Inject constructor() {
                                 if (replyCode !in 500..599) markConnectionDropped()
                                 return@withLock
                             }
-                            executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localTarget.delete() } }, onSend = { send(it) }) {
+                            executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localTarget.delete() } }, onSend = { send(it) }, onSuccess = {
+                                // 마지막 파일(fileIndex == totalCount) ACK 후에만 100% emit — writtenBytes 누적 오차 방지
+                                if (fileIndex == totalCount) {
+                                    send(ProgressState(
+                                        progress = 100,
+                                        progressFloat = 1f,
+                                        totalBytes = totalBytes,
+                                        writtenBytes = totalBytes,
+                                        listSize = totalCount,
+                                        currentIndex = fileIndex,
+                                        currentFileName = entry.name,
+                                        currentFileBytes = entry.size
+                                    ))
+                                }
+                            }) {
                                 val buffer = ByteArray(BUFFER_SIZE)
                                 localTarget.outputStream().use { output ->
                                     var bytesRead: Int
@@ -241,7 +259,8 @@ class FtpConnectionState @Inject constructor() {
                                         output.write(buffer, 0, bytesRead)
                                         writtenBytes += bytesRead
                                         val progress = (writtenBytes * 100 / totalBytes).toInt()
-                                        if (progress != prevProgress) {
+                                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 emit
+                                        if (progress != prevProgress && progress < 100) {
                                             send(ProgressState(
                                                 progress = progress,
                                                 progressFloat = writtenBytes.toFloat() / totalBytes,
@@ -259,6 +278,9 @@ class FtpConnectionState @Inject constructor() {
                             }
                         }
                     }
+                }
+                if (totalCount == 0) {
+                    send(ProgressState(progress = 100, progressFloat = 1f, totalBytes = 1, writtenBytes = 1, listSize = 0, currentIndex = 0))
                 }
             }
         }.join()
@@ -293,7 +315,9 @@ class FtpConnectionState @Inject constructor() {
                         if (replyCode !in 500..599) markConnectionDropped()
                         return@withLock
                     }
-                    executeTransfer(outputStream, "upload 실패", onSend = { send(it) }) {
+                    executeTransfer(outputStream, "upload 실패", onSend = { send(it) }, onSuccess = {
+                        send(buildProgressState(totalBytes, totalBytes, localFile.name))
+                    }) {
                         val buffer = ByteArray(BUFFER_SIZE)
                         var writtenBytes = 0L
                         localFile.inputStream().use { input ->
@@ -301,7 +325,8 @@ class FtpConnectionState @Inject constructor() {
                             while (input.read(buffer).also { bytesRead = it } != -1) {
                                 outputStream.write(buffer, 0, bytesRead)
                                 writtenBytes += bytesRead
-                                send(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                                // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 emit
+                                if (writtenBytes < totalBytes) send(buildProgressState(totalBytes, writtenBytes, localFile.name))
                             }
                         }
                     }
@@ -331,7 +356,21 @@ class FtpConnectionState @Inject constructor() {
                                 if (replyCode !in 500..599) markConnectionDropped()
                                 return@withLock
                             }
-                            executeTransfer(outputStream, "upload 실패", onSend = { send(it) }) {
+                            executeTransfer(outputStream, "upload 실패", onSend = { send(it) }, onSuccess = {
+                                // 마지막 파일 인덱스 기준으로 100% emit — 0바이트 파일 포함 시 바이트 비교 오판 방지
+                                if (fileIndex == totalCount) {
+                                    send(ProgressState(
+                                        progress = 100,
+                                        progressFloat = 1f,
+                                        totalBytes = totalBytes,
+                                        writtenBytes = totalBytes,
+                                        listSize = totalCount,
+                                        currentIndex = fileIndex,
+                                        currentFileName = entry.name,
+                                        currentFileBytes = entry.length()
+                                    ))
+                                }
+                            }) {
                                 val buffer = ByteArray(BUFFER_SIZE)
                                 entry.inputStream().use { input ->
                                     var bytesRead: Int
@@ -339,7 +378,8 @@ class FtpConnectionState @Inject constructor() {
                                         outputStream.write(buffer, 0, bytesRead)
                                         writtenBytes += bytesRead
                                         val progress = (writtenBytes * 100 / totalBytes).toInt()
-                                        if (progress != prevProgress) {
+                                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 emit
+                                        if (progress != prevProgress && progress < 100) {
                                             send(ProgressState(
                                                 progress = progress,
                                                 progressFloat = writtenBytes.toFloat() / totalBytes,
@@ -545,6 +585,7 @@ class FtpConnectionState @Inject constructor() {
         errorMessage: String,
         onCancel: () -> Unit = {},
         onSend: suspend (ProgressState) -> Unit,
+        onSuccess: suspend () -> Unit = {},
         block: suspend () -> Unit
     ) {
         var transferFailed = false
@@ -560,7 +601,11 @@ class FtpConnectionState @Inject constructor() {
         } finally {
             runCatching { stream.close() }
             val ok = runCatching { client.completePendingCommand() }.getOrDefault(false)
-            if (!transferFailed && !ok) onSend(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
+            if (!transferFailed && !ok) {
+                onSend(ProgressState(error = "전송 미완료: ${client.replyString.trim()}"))
+            } else if (!transferFailed) {
+                onSuccess()
+            }
         }
     }
 
