@@ -36,7 +36,7 @@ class TransferCoordinator @Inject constructor() {
                     source.collect { state ->
                         if (state.error != null) {
                             hasError = true
-                            lastError = state.error   // 인밴드 에러 기록
+                            lastError = state.error   // 인밴드 에러 기록 — 다중 에러 발생 시 마지막 1건만 onError로 방출됨 (다건 방출 방식은 보류)
                         } else {
                             runCatching { onProgress(state) } // onProgress 예외는 전송 성공 판정에 영향을 주지 않음
                         }
