@@ -279,6 +279,9 @@ class FtpConnectionState @Inject constructor() {
                         }
                     }
                 }
+                if (totalCount == 0) {
+                    send(ProgressState(progress = 100, progressFloat = 1f, totalBytes = 1, writtenBytes = 1, listSize = 0, currentIndex = 0))
+                }
             }
         }.join()
     }
@@ -354,8 +357,8 @@ class FtpConnectionState @Inject constructor() {
                                 return@withLock
                             }
                             executeTransfer(outputStream, "upload 실패", onSend = { send(it) }, onSuccess = {
-                                // 모든 파일 전송 완료(writtenBytes == totalBytes) 시에만 100% emit
-                                if (writtenBytes >= totalBytes) {
+                                // 마지막 파일 인덱스 기준으로 100% emit — 0바이트 파일 포함 시 바이트 비교 오판 방지
+                                if (fileIndex == totalCount) {
                                     send(ProgressState(
                                         progress = 100,
                                         progressFloat = 1f,

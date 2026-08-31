@@ -30,22 +30,28 @@ class TransferCoordinator @Inject constructor() {
     ) {
         scope.launch {
             var hasError = false
+            var lastError: String? = null
             source
                 .onCompletion { cause ->
                     onRemove()
                     when {
                         cause != null -> onError(cause.message)
-                        !hasError -> onSuccess()
+                        hasError -> onError(lastError)
+                        else -> onSuccess()
                     }
                 }
                 .catch { }
                 .collect { state ->
-                    if (state.error != null) {
+                    runCatching {
+                        if (state.error != null) {
+                            hasError = true
+                            lastError = state.error
+                        } else {
+                            onProgress(state)
+                        }
+                    }.onFailure { e ->
                         hasError = true
-                        onRemove()
-                        onError(state.error)
-                    } else {
-                        onProgress(state)
+                        lastError = e.message
                     }
                 }
         }
