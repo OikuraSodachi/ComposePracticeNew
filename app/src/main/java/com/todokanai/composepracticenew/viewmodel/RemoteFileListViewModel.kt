@@ -18,6 +18,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.tools.TransferCoordinator
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,10 +32,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -50,6 +49,7 @@ class RemoteFileListViewModel @Inject constructor(
     private val ftpServiceController: FtpServiceController,
     private val ftpUseCase: FtpUseCase,
     private val myNoti: MyNotification,
+    private val transferCoordinator: TransferCoordinator,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -192,35 +192,24 @@ class RemoteFileListViewModel @Inject constructor(
      * @param source 수집할 진행률 Flow
      */
     private fun collectTransfer(instanceId: Int, actionKey: Int, source: Flow<ProgressState>) {
-        appScope.launch {
-            var hasError = false
-            source
-                .onCompletion { cause ->
-                    _remoteProgressMap.update { it - instanceId }
-                    if (cause != null) {
-                        myNoti.cancelNotification(instanceId)
-                        _transferProgress.tryEmit(ProgressStateModel(error = cause.message))
-                    } else if (!hasError) {
-                        myNoti.completedNotification("", completionMessage(actionKey), actionKey, instanceId)
-                        if (actionKey == ACTION_KEY_UPLOAD) fileNavigatorUseCase.refresh()
-                    } else {
-                        myNoti.cancelNotification(instanceId)
-                    }
-                }
-                .catch { /* onCompletion이 에러를 처리하므로 Flow 종료만 방지 */ }
-                .collect { state ->
-                    val error = state.error
-                    if (error != null) {
-                        hasError = true
-                        _remoteProgressMap.update { it - instanceId }
-                        _transferProgress.tryEmit(ProgressStateModel(error = error))
-                    } else {
-                        val model = state.toModel().copy(actionKey = actionKey)
-                        _remoteProgressMap.update { it + (instanceId to model) }
-                        state.progress?.let { progress -> sendProgressNoti(actionKey, progress, instanceId) }
-                    }
-                }
-        }
+        transferCoordinator.launch(
+            scope = appScope,
+            source = source,
+            onProgress = { state ->
+                val model = state.toModel().copy(actionKey = actionKey)
+                _remoteProgressMap.update { it + (instanceId to model) }
+                state.progress?.let { progress -> sendProgressNoti(actionKey, progress, instanceId) }
+            },
+            onRemove = { _remoteProgressMap.update { it - instanceId } },
+            onSuccess = {
+                myNoti.completedNotification("", completionMessage(actionKey), actionKey, instanceId)
+                if (actionKey == ACTION_KEY_UPLOAD) fileNavigatorUseCase.refresh()
+            },
+            onError = { message ->
+                myNoti.cancelNotification(instanceId)
+                _transferProgress.tryEmit(ProgressStateModel(error = message))
+            }
+        )
     }
 
     companion object {
