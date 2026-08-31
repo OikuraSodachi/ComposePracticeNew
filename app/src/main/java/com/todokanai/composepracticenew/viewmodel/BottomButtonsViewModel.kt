@@ -16,6 +16,7 @@ import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP
 import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP_HERE
 import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.tools.TransferCoordinator
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -23,7 +24,6 @@ import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
@@ -34,7 +34,8 @@ class BottomButtonsViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val fileActionUseCase: FileActionUseCase,
     private val progressUseCase: ProgressUseCase,
-    private val myNoti: MyNotification
+    private val myNoti: MyNotification,
+    private val coordinator: TransferCoordinator
 ) : ViewModel() {
 
     /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
@@ -118,33 +119,29 @@ class BottomButtonsViewModel @Inject constructor(
         flows: List<Flow<ProgressState>>
     ) {
         val instanceId = progressUseCase.nextInstanceId()
-        appScope.launch {
-            var errorCount = 0
-            try {
-                flows.forEach { flow ->
-                    flow.collect { state ->
-                        val error = state.error
-                        if (error != null) {
-                            progressUseCase.emitError(error)
-                            errorCount++
-                        } else if (actionType != null) {
-                            progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
-                            sendProgressNoti(actionType, state)
-                        }
-                    }
+        coordinator.launch(
+            scope = appScope,
+            sources = flows,
+            onProgress = { state ->
+                if (actionType != null) {
+                    progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
+                    sendProgressNoti(actionType, state)
                 }
-            } finally {
-                if (actionType != null) progressUseCase.removeProgress(instanceId)
-            }
-            if (errorCount == 0) {
+            },
+            onRemove = { if (actionType != null) progressUseCase.removeProgress(instanceId) },
+            onSuccess = {
                 myNoti.completedNotification(
                     "",
                     completionMessage ?: context.getString(R.string.noti_complete),
                     actionType
                 )
+                fileNavigatorUseCase.refresh()
+            },
+            onError = { message ->
+                message?.let { progressUseCase.emitError(it) }
+                fileNavigatorUseCase.refresh()
             }
-            fileNavigatorUseCase.refresh()
-        }
+        )
     }
 
     private fun sendProgressNoti(actionType: Int, state: ProgressState) {
