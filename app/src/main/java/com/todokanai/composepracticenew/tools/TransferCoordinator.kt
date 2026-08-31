@@ -22,38 +22,34 @@ class TransferCoordinator @Inject constructor() {
      */
     fun launch(
         scope: CoroutineScope,
-        source: Flow<ProgressState>,
+        sources: List<Flow<ProgressState>>,
         onProgress: suspend (ProgressState) -> Unit,
         onRemove: suspend () -> Unit,
         onSuccess: suspend () -> Unit = {},
         onError: suspend (message: String?) -> Unit = {}
     ) {
         scope.launch {
-            var hasError = false
-            var lastError: String? = null
-            source
-                .onCompletion { cause ->
-                    onRemove()
-                    when {
-                        cause != null -> onError(cause.message)
-                        hasError -> onError(lastError)
-                        else -> onSuccess()
-                    }
-                }
-                .catch { }
-                .collect { state ->
-                    runCatching {
+            var hasError = false          // 인밴드 에러(state.error) 발생 여부
+            var lastError: String? = null // 마지막으로 기록된 에러 메시지
+            try {
+                for (source in sources) {
+                    source.collect { state ->
                         if (state.error != null) {
                             hasError = true
-                            lastError = state.error
+                            lastError = state.error   // 인밴드 에러 기록
                         } else {
-                            onProgress(state)
+                            runCatching { onProgress(state) } // onProgress 예외는 전송 성공 판정에 영향을 주지 않음
                         }
-                    }.onFailure { e ->
-                        hasError = true
-                        lastError = e.message
                     }
                 }
+                if (hasError) onError(lastError) else onSuccess() // 정상 완료 분기
+            } catch (e: CancellationException) {
+                throw e                   // 취소는 재전파 — 코루틴 취소 메커니즘 보존
+            } catch (e: Exception) {
+                onError(e.message)        // Flow 자체 예외
+            } finally {
+                onRemove()                // 완료·예외·취소 불문하고 progress 항목 제거
+            }
         }
     }
 

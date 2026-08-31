@@ -23,10 +23,7 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.flattenConcat
 import java.io.File
 import javax.inject.Inject
 
@@ -116,7 +113,6 @@ class BottomButtonsViewModel @Inject constructor(
     }
 
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     private fun launchFlows(
         actionType: Int?,
         completionMessage: String? = null,
@@ -125,7 +121,7 @@ class BottomButtonsViewModel @Inject constructor(
         val instanceId = progressUseCase.nextInstanceId()
         coordinator.launch(
             scope = appScope,
-            source = flows.asFlow().flattenConcat(),
+            sources = flows,
             onProgress = { state ->
                 if (actionType != null) {
                     progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
