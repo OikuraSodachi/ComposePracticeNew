@@ -1,10 +1,9 @@
 package com.todokanai.composepracticenew.tools
 
 import com.todokanai.composepracticenew.model.ProgressState
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
-import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton

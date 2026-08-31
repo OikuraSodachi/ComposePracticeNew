@@ -194,7 +194,7 @@ class RemoteFileListViewModel @Inject constructor(
     private fun collectTransfer(instanceId: Int, actionKey: Int, source: Flow<ProgressState>) {
         transferCoordinator.launch(
             scope = appScope,
-            source = source,
+            sources = listOf(source),
             onProgress = { state ->
                 val model = state.toModel().copy(actionKey = actionKey)
                 _remoteProgressMap.update { it + (instanceId to model) }
