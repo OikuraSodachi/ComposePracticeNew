@@ -117,7 +117,7 @@ class FileListViewModel @Inject constructor(
     private fun downloadSingle(instanceId: Int, source: Flow<ProgressState>) {
         transferCoordinator.launch(
             scope = appScope,
-            source = source,
+            sources = listOf(source),
             onProgress = { state ->
                 progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
             },
