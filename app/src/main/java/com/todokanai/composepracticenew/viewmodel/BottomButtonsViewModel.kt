@@ -130,11 +130,9 @@ class BottomButtonsViewModel @Inject constructor(
             },
             onRemove = { if (actionType != null) progressUseCase.removeProgress(instanceId) },
             onSuccess = {
-                myNoti.completedNotification(
-                    "",
-                    completionMessage ?: context.getString(R.string.noti_complete),
-                    actionType
-                )
+                val message = completionMessage ?: context.getString(R.string.noti_complete)
+                myNoti.completedNotification("", message, actionType)
+                progressUseCase.emitCompletion(message)
                 fileNavigatorUseCase.refresh()
             },
             onError = { message ->

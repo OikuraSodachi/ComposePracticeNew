@@ -169,7 +169,7 @@ class FtpConnectionState @Inject constructor() {
      * @param localPath 저장할 로컬 파일 또는 디렉터리의 절대 경로
      * @param isDirectory remotePath가 디렉터리인 경우 true
      */
-    fun download(remotePath: String, localPath: String, isDirectory: Boolean = false): Flow<ProgressState> = channelFlow {
+    fun download(remotePath: String, localPath: String, isDirectory: Boolean = false, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> = channelFlow {
         launch(ftpIoJob + Dispatchers.IO) {
             val (connected, ftpPath) = stateMutex.withLock {
                 (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
@@ -193,8 +193,8 @@ class FtpConnectionState @Inject constructor() {
                         return@withLock
                     }
                     executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localFile.delete() } }, onSend = { send(it) }, onSuccess = {
-                        // totalBytes > 0 인 경우에만 100% emit — 크기 미확인 시 progress=null이므로 생략
-                        if (totalBytes > 0) send(buildProgressState(totalBytes, totalBytes, localFile.name))
+                        // totalBytes > 0 인 경우에만 100% 보고 — 크기 미확인 시 progress=null이므로 생략
+                        if (totalBytes > 0) onProgress(buildProgressState(totalBytes, totalBytes, localFile.name))
                     }) {
                         val buffer = ByteArray(BUFFER_SIZE)
                         var writtenBytes = 0L
@@ -203,8 +203,8 @@ class FtpConnectionState @Inject constructor() {
                             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                                 output.write(buffer, 0, bytesRead)
                                 writtenBytes += bytesRead
-                                // ACK 전 100% 조기 발행 방지 — totalBytes 미확인 시는 항상 emit
-                                if (totalBytes <= 0 || writtenBytes < totalBytes) send(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                                // ACK 전 100% 조기 발행 방지 — totalBytes 미확인 시는 항상 보고
+                                if (totalBytes <= 0 || writtenBytes < totalBytes) onProgress(buildProgressState(totalBytes, writtenBytes, localFile.name))
                             }
                         }
                     }
@@ -238,9 +238,9 @@ class FtpConnectionState @Inject constructor() {
                                 return@withLock
                             }
                             executeTransfer(inputStream, "download 실패", onCancel = { runCatching { localTarget.delete() } }, onSend = { send(it) }, onSuccess = {
-                                // 마지막 파일(fileIndex == totalCount) ACK 후에만 100% emit — writtenBytes 누적 오차 방지
+                                // 마지막 파일(fileIndex == totalCount) ACK 후에만 100% 보고 — writtenBytes 누적 오차 방지
                                 if (fileIndex == totalCount) {
-                                    send(ProgressState(
+                                    onProgress(ProgressState(
                                         progress = 100,
                                         progressFloat = 1f,
                                         totalBytes = totalBytes,
@@ -259,9 +259,9 @@ class FtpConnectionState @Inject constructor() {
                                         output.write(buffer, 0, bytesRead)
                                         writtenBytes += bytesRead
                                         val progress = (writtenBytes * 100 / totalBytes).toInt()
-                                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 emit
+                                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 보고
                                         if (progress != prevProgress && progress < 100) {
-                                            send(ProgressState(
+                                            onProgress(ProgressState(
                                                 progress = progress,
                                                 progressFloat = writtenBytes.toFloat() / totalBytes,
                                                 totalBytes = totalBytes,
@@ -280,7 +280,7 @@ class FtpConnectionState @Inject constructor() {
                     }
                 }
                 if (totalCount == 0) {
-                    send(ProgressState(progress = 100, progressFloat = 1f, totalBytes = 1, writtenBytes = 1, listSize = 0, currentIndex = 0))
+                    onProgress(ProgressState(progress = 100, progressFloat = 1f, totalBytes = 1, writtenBytes = 1, listSize = 0, currentIndex = 0))
                 }
             }
         }.join()
@@ -293,7 +293,7 @@ class FtpConnectionState @Inject constructor() {
      * @param localPath 업로드할 로컬 파일 또는 디렉터리의 절대 경로
      * @param remotePath 저장될 원격 파일 또는 디렉터리의 절대 경로 (ftp://server/path 형식)
      */
-    fun upload(localPath: String, remotePath: String): Flow<ProgressState> = channelFlow {
+    fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> = channelFlow {
         launch(ftpIoJob + Dispatchers.IO) {
             val (connected, ftpPath) = stateMutex.withLock {
                 (client.isConnected && isLoggedIn) to extractFtpPath(remotePath)
@@ -316,7 +316,7 @@ class FtpConnectionState @Inject constructor() {
                         return@withLock
                     }
                     executeTransfer(outputStream, "upload 실패", onSend = { send(it) }, onSuccess = {
-                        send(buildProgressState(totalBytes, totalBytes, localFile.name))
+                        onProgress(buildProgressState(totalBytes, totalBytes, localFile.name))
                     }) {
                         val buffer = ByteArray(BUFFER_SIZE)
                         var writtenBytes = 0L
@@ -325,8 +325,8 @@ class FtpConnectionState @Inject constructor() {
                             while (input.read(buffer).also { bytesRead = it } != -1) {
                                 outputStream.write(buffer, 0, bytesRead)
                                 writtenBytes += bytesRead
-                                // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 emit
-                                if (writtenBytes < totalBytes) send(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                                // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 보고
+                                if (writtenBytes < totalBytes) onProgress(buildProgressState(totalBytes, writtenBytes, localFile.name))
                             }
                         }
                     }
@@ -357,9 +357,9 @@ class FtpConnectionState @Inject constructor() {
                                 return@withLock
                             }
                             executeTransfer(outputStream, "upload 실패", onSend = { send(it) }, onSuccess = {
-                                // 마지막 파일 인덱스 기준으로 100% emit — 0바이트 파일 포함 시 바이트 비교 오판 방지
+                                // 마지막 파일 인덱스 기준으로 100% 보고 — 0바이트 파일 포함 시 바이트 비교 오판 방지
                                 if (fileIndex == totalCount) {
-                                    send(ProgressState(
+                                    onProgress(ProgressState(
                                         progress = 100,
                                         progressFloat = 1f,
                                         totalBytes = totalBytes,
@@ -378,9 +378,9 @@ class FtpConnectionState @Inject constructor() {
                                         outputStream.write(buffer, 0, bytesRead)
                                         writtenBytes += bytesRead
                                         val progress = (writtenBytes * 100 / totalBytes).toInt()
-                                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 emit
+                                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onSuccess에서 보고
                                         if (progress != prevProgress && progress < 100) {
-                                            send(ProgressState(
+                                            onProgress(ProgressState(
                                                 progress = progress,
                                                 progressFloat = writtenBytes.toFloat() / totalBytes,
                                                 totalBytes = totalBytes,

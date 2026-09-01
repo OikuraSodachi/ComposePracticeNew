@@ -22,6 +22,9 @@ class ProgressTracker @Inject constructor() : ProgressRepository {
     private val _operationErrors = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val operationErrors: SharedFlow<String> = _operationErrors.asSharedFlow()
 
+    private val _operationCompletions = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    override val operationCompletions: SharedFlow<String> = _operationCompletions.asSharedFlow()
+
     override fun setProgressState(actionKey: Int, state: ProgressState) {
         _progressMap.update { it + (actionKey to state) }
     }
@@ -32,5 +35,9 @@ class ProgressTracker @Inject constructor() : ProgressRepository {
 
     override fun emitError(message: String) {
         _operationErrors.tryEmit(message)
+    }
+
+    override fun emitCompletion(message: String) {
+        _operationCompletions.tryEmit(message)
     }
 }

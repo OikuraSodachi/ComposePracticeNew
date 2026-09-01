@@ -72,6 +72,8 @@ class FileListViewModel @Inject constructor(
 
     /** 로컬 파일 작업(복사·이동·압축 등) 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
     val operationError: SharedFlow<String> = progressUseCase.operationErrors
+    /** 파일 작업 완료 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
+    val operationCompletion: SharedFlow<String> = progressUseCase.operationCompletions
 
     /** 알림 클릭으로 다이얼로그를 다시 표시해야 할 때 설정되는 actionKey. null이면 신호 없음. */
     private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
@@ -97,10 +99,15 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    /** items를 현재 로컬 경로에 다운로드한다. 진행률은 ProgressTracker를 통해 표시된다. */
+    /** items를 현재 로컬 경로에 다운로드한다. 진행률은 onProgress 콜백을 통해 ProgressTracker에 직접 보고된다. */
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
-        items.forEach { item -> downloadSingle(item.path.hashCode(), ftpUseCase.download(item.path, localPath, item.isDirectory)) }
+        items.forEach { item ->
+            val instanceId = item.path.hashCode()
+            downloadSingle(instanceId, ftpUseCase.download(item.path, localPath, item.isDirectory) { state ->
+                progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+            })
+        }
     }
 
     /** pending 중 conflicts에 포함된 항목을 제외하고 다운로드한다. */
@@ -110,7 +117,7 @@ class FileListViewModel @Inject constructor(
     }
 
     /**
-     * source Flow를 수집해 ProgressUseCase를 통해 진행률을 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
+     * source Flow를 수집해 완료·에러를 처리한다. 진행률은 onProgress 콜백으로 직접 보고된다.
      * @param instanceId 진행률 맵에서 이 전송 인스턴스를 식별하는 키
      * @param source 수집할 다운로드 진행률 Flow
      */
@@ -118,9 +125,7 @@ class FileListViewModel @Inject constructor(
         transferCoordinator.launch(
             scope = appScope,
             sources = listOf(source),
-            onProgress = { state ->
-                progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
-            },
+            onProgress = {},  // progress는 onProgress 콜백으로 직접 보고 — Flow는 error 신호만 방출
             onRemove = { progressUseCase.removeProgress(instanceId) },
             onSuccess = { fileNavigatorUseCase.refresh() },
             onError = { message -> _downloadError.tryEmit(message ?: "") }
