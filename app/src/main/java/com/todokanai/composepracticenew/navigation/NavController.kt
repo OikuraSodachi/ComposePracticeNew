@@ -173,19 +173,19 @@ fun AppNavHost(
                 val remoteSelectedList by coordinator.remoteSelectedList.collectAsStateWithLifecycle()
                 val uploadPendingList by coordinator.uploadPendingList.collectAsStateWithLifecycle()
 
-                val remoteContext = LocalContext.current
+                val context = LocalContext.current
                 LaunchedEffect(isRemoteProgressActive) {
                     if (isRemoteProgressActive) remoteUserDismissed = false
                 }
                 LaunchedEffect(Unit) {
                     launch {
                         viewModel.operationError.collect { message ->
-                            Toast.makeText(remoteContext, message, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
                     launch {
                         viewModel.operationCompletion.collect { message ->
-                            Toast.makeText(remoteContext, message, Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
