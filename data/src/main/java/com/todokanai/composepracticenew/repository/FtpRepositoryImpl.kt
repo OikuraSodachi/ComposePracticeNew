@@ -59,16 +59,16 @@ class FtpRepositoryImpl @Inject constructor(
      * @param localPath 저장할 로컬 파일 또는 디렉터리의 절대 경로
      * @param isDirectory remotePath가 디렉터리인 경우 true
      */
-    override fun download(remotePath: String, localPath: String, isDirectory: Boolean): Flow<ProgressState> =
-        connectionState.download(remotePath, localPath, isDirectory)
+    override fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): Flow<ProgressState> =
+        connectionState.download(remotePath, localPath, isDirectory, onProgress)
 
     /**
      * localPath의 파일을 remotePath로 업로드한다.
      * @param localPath 업로드할 로컬 파일의 절대 경로
      * @param remotePath 저장될 원격 파일의 절대 경로
      */
-    override fun upload(localPath: String, remotePath: String): Flow<ProgressState> =
-        connectionState.upload(localPath, remotePath)
+    override fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> =
+        connectionState.upload(localPath, remotePath, onProgress)
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.

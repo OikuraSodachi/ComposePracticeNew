@@ -24,8 +24,8 @@ class FtpUseCase(private val repo: FtpRepository) {
      * @param localDestPath 저장할 로컬 디렉터리의 절대 경로 — 내부적으로 remotePath의 이름과 결합하여 경로를 생성한다
      * @param isDirectory remotePath가 디렉터리인 경우 true
      */
-    fun download(remotePath: String, localDestPath: String, isDirectory: Boolean = false): Flow<ProgressState> =
-        repo.download(remotePath, "$localDestPath/${remotePath.substringAfterLast("/")}", isDirectory)
+    fun download(remotePath: String, localDestPath: String, isDirectory: Boolean = false, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
+        repo.download(remotePath, "$localDestPath/${remotePath.substringAfterLast("/")}", isDirectory, onProgress)
 
     /**
      * localPath의 파일을 remoteDestPath 디렉터리에 업로드한다.
@@ -33,8 +33,8 @@ class FtpUseCase(private val repo: FtpRepository) {
      * @param localPath 업로드할 로컬 파일의 절대 경로
      * @param remoteDestPath 저장될 원격 디렉터리의 절대 경로 — 내부적으로 localPath의 파일명과 결합하여 파일 경로를 생성한다
      */
-    fun upload(localPath: String, remoteDestPath: String): Flow<ProgressState> =
-        repo.upload(localPath, "$remoteDestPath/${localPath.substringAfterLast("/")}")
+    fun upload(localPath: String, remoteDestPath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
+        repo.upload(localPath, "$remoteDestPath/${localPath.substringAfterLast("/")}", onProgress)
 
     /** path 파일을 같은 디렉터리 내에서 newName으로 이름 변경한다. 성공 여부를 반환한다. */
     suspend fun rename(path: String, newName: String): Boolean {

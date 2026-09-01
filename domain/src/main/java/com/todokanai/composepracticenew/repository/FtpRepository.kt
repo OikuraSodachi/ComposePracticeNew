@@ -57,7 +57,7 @@ interface FtpRepository {
      * @param isDirectory remotePath가 디렉터리인 경우 true
      * @returns 전송 진행 상태를 방출하는 Flow
      */
-    fun download(remotePath: String, localPath: String, isDirectory: Boolean = false): Flow<ProgressState>
+    fun download(remotePath: String, localPath: String, isDirectory: Boolean = false, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState>
 
     /**
      * localPath의 파일을 remotePath로 업로드한다.
@@ -65,7 +65,7 @@ interface FtpRepository {
      * @param remotePath 저장될 원격 파일의 절대 경로
      * @returns 전송 진행 상태를 방출하는 Flow
      */
-    fun upload(localPath: String, remotePath: String): Flow<ProgressState>
+    fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState>
 
     // endregion
 

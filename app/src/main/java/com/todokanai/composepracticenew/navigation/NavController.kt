@@ -83,6 +83,11 @@ fun AppNavHost(
                             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
+                    launch {
+                        viewModel.operationCompletion.collect { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
 
                 BackHandler {
@@ -168,8 +173,21 @@ fun AppNavHost(
                 val remoteSelectedList by coordinator.remoteSelectedList.collectAsStateWithLifecycle()
                 val uploadPendingList by coordinator.uploadPendingList.collectAsStateWithLifecycle()
 
+                val context = LocalContext.current
                 LaunchedEffect(isRemoteProgressActive) {
                     if (isRemoteProgressActive) remoteUserDismissed = false
+                }
+                LaunchedEffect(Unit) {
+                    launch {
+                        viewModel.operationError.collect { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    launch {
+                        viewModel.operationCompletion.collect { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 }
 
                 val activeRemoteProgressMap = remoteProgressMap.filter { (_, state) -> state.progress < 100 }

@@ -21,7 +21,7 @@ import javax.inject.Singleton
 @Singleton
 class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
-    override fun zipAction(targetFiles: List<String>, zipFile: String): Flow<ProgressState> = flow {
+    override fun zipAction(targetFiles: List<String>, zipFile: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
         val allFiles = roots.flatMap { root ->
@@ -38,7 +38,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         var writtenBytes = 0L
         var prevProgress = -1
         var fileIndex = 0
-        emit(ProgressState(progress = 0))
+        onProgress(ProgressState(progress = 0))
 
         ZipOutputStream(File(zipFile).outputStream()).use { zos ->
             allFiles.forEach { (root, sFile) ->
@@ -48,7 +48,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 zos.putNextEntry(ZipEntry(entryName))
                 sFile.inputStream().use { input ->
                     val (wb, pp) = pumpBytes(input, zos, totalBytes, writtenBytes, prevProgress) { written, progress ->
-                        emit(ProgressState(
+                        onProgress(ProgressState(
                             progress = progress,
                             totalBytes = totalBytes,
                             writtenBytes = written,
@@ -64,7 +64,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 zos.closeEntry()
             }
         }
-        emit(ProgressState(
+        onProgress(ProgressState(
             progress = 100,
             totalBytes = totalBytes,
             writtenBytes = totalBytes,
@@ -73,8 +73,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         ))
     }.flowOn(Dispatchers.IO)
 
-    override fun copyAction(targetFiles: List<String>, targetPath: String): Flow<ProgressState> = flow {
-        emit(ProgressState(progress = 0))
+    override fun copyAction(targetFiles: List<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+        onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
         val allFiles = roots.flatMap { root ->
@@ -93,7 +93,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         roots.forEach { root ->
             val dest = File(targetPath, root.name)
             val (wb, pp, fi) = copyTree(root, dest, totalBytes, totalFileCount, writtenBytes, prevProgress, fileIndex) { src, written, progress, idx ->
-                emit(ProgressState(
+                onProgress(ProgressState(
                     progress = progress,
                     totalBytes = totalBytes,
                     writtenBytes = written,
@@ -107,7 +107,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             prevProgress = pp
             fileIndex = fi
         }
-        emit(ProgressState(
+        onProgress(ProgressState(
             progress = 100,
             totalBytes = totalBytes,
             writtenBytes = totalBytes,
@@ -126,13 +126,13 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun deleteFile(targetFile: String): Flow<ProgressState> = flow {
-        emit(ProgressState(progress = 0))
+    override fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow<ProgressState> {
+        onProgress(ProgressState(progress = 0))
         val files = File(targetFile).walkBottomUp().toList()
         val total = files.size.coerceAtLeast(1)
         files.forEachIndexed { index, file ->
             file.delete()
-            emit(ProgressState(
+            onProgress(ProgressState(
                 progress = (index + 1) * 100 / total,
                 listSize = total,
                 currentIndex = index + 1,
@@ -141,8 +141,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun moveFile(targetFiles: List<String>, targetPath: String): Flow<ProgressState> = flow {
-        emit(ProgressState(progress = 0))
+    override fun moveFile(targetFiles: List<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+        onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         val destDir = File(targetPath)
 
@@ -182,12 +182,12 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 fileIndex += leafCounts[i]
                 val progress = (writtenBytes * 100 / totalBytes).toInt()
                 if (progress != prevProgress) {
-                    emit(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = writtenBytes, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = root.name))
+                    onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = writtenBytes, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = root.name))
                     prevProgress = progress
                 }
             } else {
                 val (wb, pp, fi) = copyTree(root, dest, totalBytes, totalFileCount, writtenBytes, prevProgress, fileIndex, entries = treeEntries[i]) { srcFile, written, progress, idx ->
-                    emit(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = idx, currentFileName = srcFile.name, currentFileBytes = srcFile.length()))
+                    onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = idx, currentFileName = srcFile.name, currentFileBytes = srcFile.length()))
                 }
                 writtenBytes = wb
                 prevProgress = pp
@@ -198,11 +198,11 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 }
             }
         }
-        emit(ProgressState(progress = 100, totalBytes = totalBytes, writtenBytes = totalBytes, listSize = totalFileCount, currentIndex = totalFileCount))
+        onProgress(ProgressState(progress = 100, totalBytes = totalBytes, writtenBytes = totalBytes, listSize = totalFileCount, currentIndex = totalFileCount))
     }.flowOn(Dispatchers.IO)
 
-    override fun unzipAction(zipFiles: List<String>, destPath: String, unzipHere: Boolean): Flow<ProgressState> = flow {
-        emit(ProgressState(progress = 0))
+    override fun unzipAction(zipFiles: List<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+        onProgress(ProgressState(progress = 0))
 
         // 전체 zip 파일의 압축 해제 용량 합산
         val byteSizes = mutableListOf<Long>()
@@ -238,7 +238,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                         zf.getInputStream(entry).use { input ->
                             target.outputStream().use { output ->
                                 val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
-                                    emit(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = entry.name, currentFileBytes = entry.size))
+                                    onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = entry.name, currentFileBytes = entry.size))
                                 }
                                 writtenBytes = wb
                                 prevProgress = pp
@@ -251,7 +251,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         if (skippedEntries > 0) {
             emit(ProgressState(error = "경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀"))
         } else {
-            emit(ProgressState(progress = 100))
+            onProgress(ProgressState(progress = 100))
         }
     }.flowOn(Dispatchers.IO)
 
@@ -289,14 +289,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     /** 버퍼 단위로 [input]을 읽어 [output]에 쓰면서 진행률이 바뀔 때만 [onProgress]를 호출한다. */
-    private suspend fun pumpBytes(
+    private fun pumpBytes(
         input: InputStream,
         output: OutputStream,
         totalBytes: Long,
         writtenBytes: Long,
         prevProgress: Int,
         progressScale: Int = 100,
-        onProgress: suspend (written: Long, progress: Int) -> Unit
+        onProgress: (written: Long, progress: Int) -> Unit
     ): Pair<Long, Int> {
         var wb = writtenBytes
         var pp = prevProgress
@@ -316,7 +316,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     /** [root] 트리를 [dest]로 재귀 복사하며 진행률이 바뀔 때만 [onProgress]를 호출한다. */
-    private suspend fun copyTree(
+    private fun copyTree(
         root: File,
         dest: File,
         totalBytes: Long,
@@ -326,7 +326,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         fileIndex: Int,
         progressScale: Int = 100,
         entries: List<File>? = null,
-        onProgress: suspend (src: File, written: Long, progress: Int, fileIndex: Int) -> Unit
+        onProgress: (src: File, written: Long, progress: Int, fileIndex: Int) -> Unit
     ): Triple<Long, Int, Int> {
         var wb = writtenBytes
         var pp = prevProgress

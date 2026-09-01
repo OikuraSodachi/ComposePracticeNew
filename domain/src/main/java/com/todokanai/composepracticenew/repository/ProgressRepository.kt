@@ -9,7 +9,10 @@ interface ProgressRepository {
     val progressMap: StateFlow<Map<Int, ProgressState>>
     /** 파일 작업 실패 시 발생하는 오류 메시지 이벤트. */
     val operationErrors: SharedFlow<String>
+    /** 파일 작업 완료 시 발생하는 완료 메시지 이벤트. */
+    val operationCompletions: SharedFlow<String>
     fun setProgressState(actionKey: Int, state: ProgressState)
     fun removeProgress(actionKey: Int)
     fun emitError(message: String)
+    fun emitCompletion(message: String)
 }

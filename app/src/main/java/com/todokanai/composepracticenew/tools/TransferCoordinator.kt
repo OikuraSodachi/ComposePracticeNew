@@ -13,8 +13,8 @@ import javax.inject.Singleton
 class TransferCoordinator @Inject constructor() {
 
     /**
-     * [source]를 [scope]에서 수집해 진행률·완료·에러를 표준 패턴으로 처리한다.
-     * @param onProgress 정상 진행 중 상태를 받아 progress 저장소를 갱신한다
+     * [sources]를 [scope]에서 순서대로 수집해 완료·에러를 표준 패턴으로 처리한다.
+     * 진행률은 각 IO 작업의 onProgress 콜백으로 직접 보고되므로 Flow는 error 신호만 방출한다.
      * @param onRemove progress 항목을 제거한다 — 에러 발생 시와 완료 시 모두 호출된다
      * @param onSuccess 정상 완료 시 호출된다 — 알림 발송·목록 갱신 등 후처리를 담는다
      * @param onError 인밴드 에러(state.error) 또는 Flow 예외 발생 시 호출된다
@@ -22,7 +22,6 @@ class TransferCoordinator @Inject constructor() {
     fun launch(
         scope: CoroutineScope,
         sources: List<Flow<ProgressState>>,
-        onProgress: suspend (ProgressState) -> Unit,
         onRemove: suspend () -> Unit,
         onSuccess: suspend () -> Unit = {},
         onError: suspend (message: String?) -> Unit = {}
@@ -36,8 +35,6 @@ class TransferCoordinator @Inject constructor() {
                         if (state.error != null) {
                             hasError = true
                             lastError = state.error   // 인밴드 에러 기록 — 다중 에러 발생 시 마지막 1건만 onError로 방출됨 (다건 방출 방식은 보류)
-                        } else {
-                            runCatching { onProgress(state) } // onProgress 예외는 전송 성공 판정에 영향을 주지 않음
                         }
                     }
                 }
