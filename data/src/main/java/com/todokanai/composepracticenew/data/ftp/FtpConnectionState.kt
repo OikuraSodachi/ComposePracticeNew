@@ -626,7 +626,7 @@ class FtpConnectionState @Inject constructor() {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 10_000
         private const val SO_TIMEOUT_MS = 15_000
-        private const val BUFFER_SIZE = 8 * 1024
+        private const val BUFFER_SIZE = 128 * 1024
         private const val KEEPALIVE_INTERVAL_MS = 30_000L
     }
 }
