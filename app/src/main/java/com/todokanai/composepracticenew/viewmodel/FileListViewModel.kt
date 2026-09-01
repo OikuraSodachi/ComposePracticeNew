@@ -125,7 +125,6 @@ class FileListViewModel @Inject constructor(
         transferCoordinator.launch(
             scope = appScope,
             sources = listOf(source),
-            onProgress = {},  // progress는 onProgress 콜백으로 직접 보고 — Flow는 error 신호만 방출
             onRemove = { progressUseCase.removeProgress(instanceId) },
             onSuccess = { fileNavigatorUseCase.refresh() },
             onError = { message -> _downloadError.tryEmit(message ?: "") }

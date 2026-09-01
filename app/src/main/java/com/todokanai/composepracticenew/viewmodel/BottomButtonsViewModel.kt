@@ -59,75 +59,60 @@ class BottomButtonsViewModel @Inject constructor(
         val targets = selectedList.filterNot { it.path in conflictPaths }
         if (targets.isEmpty()) return
         when (selectMode) {
-            CONFIRM_MODE_COPY -> launchFlows(
-                actionType = ACTION_KEY_COPY,
-                flows = listOf(
-                    fileActionUseCase.copyAction(
-                        targetFiles = targets.map { it.path },
-                        targetPath = currentPath
-                    )
-                )
-            )
-            CONFIRM_MODE_MOVE -> launchFlows(
-                actionType = ACTION_KEY_MOVE,
-                completionMessage = context.getString(R.string.noti_move_complete),
-                flows = listOf(fileActionUseCase.moveFile(targets.map { it.path }, currentPath))
-            )
-            CONFIRM_MODE_UNZIP -> launchFlows(
-                actionType = ACTION_KEY_UNZIP,
-                flows = listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = false))
-            )
-            CONFIRM_MODE_UNZIP_HERE -> launchFlows(
-                actionType = ACTION_KEY_UNZIP,
-                flows = listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = true))
-            )
+            CONFIRM_MODE_COPY -> launchFlows(ACTION_KEY_COPY) { onProgress ->
+                listOf(fileActionUseCase.copyAction(targets.map { it.path }, currentPath, onProgress))
+            }
+            CONFIRM_MODE_MOVE -> launchFlows(ACTION_KEY_MOVE, context.getString(R.string.noti_move_complete)) { onProgress ->
+                listOf(fileActionUseCase.moveFile(targets.map { it.path }, currentPath, onProgress))
+            }
+            CONFIRM_MODE_UNZIP -> launchFlows(ACTION_KEY_UNZIP) { onProgress ->
+                listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = false, onProgress = onProgress))
+            }
+            CONFIRM_MODE_UNZIP_HERE -> launchFlows(ACTION_KEY_UNZIP) { onProgress ->
+                listOf(fileActionUseCase.unzipAction(targets.map { it.path }, currentPath, unzipHere = true, onProgress = onProgress))
+            }
         }
     }
 
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
-        launchFlows(
-            actionType = ACTION_KEY_ZIP,
-            flows = listOf(
-                fileActionUseCase.zipAction(
-                    targetFiles = selectedList.map { it.path },
-                    zipFile = "$parent/$name.zip"
-                )
-            )
-        )
+        launchFlows(ACTION_KEY_ZIP) { onProgress ->
+            listOf(fileActionUseCase.zipAction(selectedList.map { it.path }, "$parent/$name.zip", onProgress))
+        }
     }
 
     fun rename(item: FileHolderItem, name: String) {
-        launchFlows(
-            actionType = null,
-            flows = listOf(fileActionUseCase.renameFile(item.path, name))
-        )
+        launchFlows(actionType = null) { _ ->
+            listOf(fileActionUseCase.renameFile(item.path, name))
+        }
     }
 
     fun delete(selectedList: List<FileHolderItem>) {
-        launchFlows(
-            actionType = ACTION_KEY_DELETE,
-            completionMessage = context.getString(R.string.noti_delete_complete),
-            flows = selectedList.map { fileActionUseCase.deleteFile(it.path) }
-        )
+        launchFlows(ACTION_KEY_DELETE, context.getString(R.string.noti_delete_complete)) { onProgress ->
+            selectedList.map { fileActionUseCase.deleteFile(it.path, onProgress) }
+        }
     }
 
-
+    /**
+     * instanceId와 onProgress 람다를 구성한 뒤 buildFlows에 전달해 Flow를 생성하고, TransferCoordinator에서 수집한다.
+     * @param buildFlows onProgress를 받아 IO 작업 Flow 목록을 반환하는 팩토리
+     */
     private fun launchFlows(
         actionType: Int?,
         completionMessage: String? = null,
-        flows: List<Flow<ProgressState>>
+        buildFlows: (onProgress: (ProgressState) -> Unit) -> List<Flow<ProgressState>>
     ) {
         val instanceId = progressUseCase.nextInstanceId()
+        // instanceId 캡처 후 람다 구성 — IO 스레드에서 직접 호출되므로 non-suspending
+        val onProgress: (ProgressState) -> Unit = { state ->
+            if (actionType != null) {
+                progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
+                sendProgressNoti(actionType, state)
+            }
+        }
         coordinator.launch(
             scope = appScope,
-            sources = flows,
-            onProgress = { state ->
-                if (actionType != null) {
-                    progressUseCase.setProgressState(instanceId, state.copy(actionKey = actionType))
-                    sendProgressNoti(actionType, state)
-                }
-            },
+            sources = buildFlows(onProgress),
             onRemove = { if (actionType != null) progressUseCase.removeProgress(instanceId) },
             onSuccess = {
                 val message = completionMessage ?: context.getString(R.string.noti_complete)
