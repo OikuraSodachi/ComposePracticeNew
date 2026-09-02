@@ -42,6 +42,14 @@ fun AppNavHost(
     // activity-scoped: handleProgressIntent(MainActivity)와 동일 인스턴스를 공유하기 위해 activity를 owner로 지정
     // coordinator는 FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     val viewModel: FileListViewModel = hiltViewModel(viewModelStoreOwner = activity)
+    val showRemoteProgressDialog by viewModel.showRemoteProgressDialog.collectAsStateWithLifecycle()
+
+    // 원격 알림 클릭 시 현재 화면이 REMOTE_FILE_LIST가 아니면 자동으로 이동한다
+    LaunchedEffect(showRemoteProgressDialog) {
+        if (showRemoteProgressDialog && navController.currentDestination?.route != NavDestinations.REMOTE_FILE_LIST) {
+            navController.navigate(NavDestinations.REMOTE_FILE_LIST)
+        }
+    }
 
     NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
         composable(NavDestinations.STORAGE) {
@@ -172,10 +180,18 @@ fun AppNavHost(
                 val remoteSelectMode by coordinator.remoteSelectMode.collectAsStateWithLifecycle()
                 val remoteSelectedList by coordinator.remoteSelectedList.collectAsStateWithLifecycle()
                 val uploadPendingList by coordinator.uploadPendingList.collectAsStateWithLifecycle()
+                val showRemoteProgressDialog by viewModel.showRemoteProgressDialog.collectAsStateWithLifecycle()
 
                 val context = LocalContext.current
                 LaunchedEffect(isRemoteProgressActive) {
                     if (isRemoteProgressActive) remoteUserDismissed = false
+                }
+                // showRemoteProgressDialog를 키로 사용 — 알림 클릭으로 true가 될 때만 닫힌 다이얼로그를 강제 재표시한다
+                LaunchedEffect(showRemoteProgressDialog) {
+                    if (showRemoteProgressDialog) {
+                        remoteUserDismissed = false
+                        viewModel.onRemoteProgressDialogShown()
+                    }
                 }
                 LaunchedEffect(Unit) {
                     launch {

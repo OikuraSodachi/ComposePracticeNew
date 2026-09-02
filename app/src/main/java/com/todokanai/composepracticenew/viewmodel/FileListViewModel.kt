@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
+import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
 import com.todokanai.composepracticenew.tools.MyNotification
@@ -79,8 +80,20 @@ class FileListViewModel @Inject constructor(
     private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
     val showProgressDialogForKey: StateFlow<Int?> = _showProgressDialogForKey.asStateFlow()
 
+    private val _showRemoteProgressDialog = MutableStateFlow(false)
+    /** 원격 전송(다운로드·업로드) 알림 클릭 시 REMOTE_FILE_LIST 화면의 진행률 다이얼로그를 다시 표시해야 하는지 여부. */
+    val showRemoteProgressDialog: StateFlow<Boolean> = _showRemoteProgressDialog.asStateFlow()
+
     fun requestShowProgressDialog(actionKey: Int) {
-        _showProgressDialogForKey.value = actionKey
+        if (actionKey == ACTION_KEY_DOWNLOAD || actionKey == ACTION_KEY_UPLOAD) {
+            _showRemoteProgressDialog.value = true
+        } else {
+            _showProgressDialogForKey.value = actionKey
+        }
+    }
+
+    fun onRemoteProgressDialogShown() {
+        _showRemoteProgressDialog.value = false
     }
 
     fun onProgressDialogShown() {
