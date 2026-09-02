@@ -188,6 +188,12 @@ fun AppNavHost(
                             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                         }
                     }
+                    // 원격 전송 알림 클릭 신호 — 사용자가 닫은 다이얼로그를 다시 표시한다
+                    launch {
+                        viewModel.showRemoteProgressDialog.collect {
+                            remoteUserDismissed = false
+                        }
+                    }
                 }
 
                 val activeRemoteProgressMap = remoteProgressMap.filter { (_, state) -> state.progress < 100 }
