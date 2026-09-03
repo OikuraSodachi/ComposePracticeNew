@@ -7,18 +7,17 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
-import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
+import com.todokanai.composepracticenew.operation.FtpUploadOperation
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
-import com.todokanai.composepracticenew.tools.MyNotification
-import com.todokanai.composepracticenew.tools.TransferCoordinator
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,7 +28,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.scan
@@ -46,7 +44,6 @@ class RemoteFileListViewModel @Inject constructor(
     private val ftpServiceController: FtpServiceController,
     private val ftpUseCase: FtpUseCase,
     private val myNoti: MyNotification,
-    private val transferCoordinator: TransferCoordinator,
     private val progressUseCase: ProgressUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
@@ -70,7 +67,6 @@ class RemoteFileListViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap()
         )
-
 
     init {
         val path = fileNavigatorUseCase.currentPath.value
@@ -165,77 +161,29 @@ class RemoteFileListViewModel @Inject constructor(
     }
 
     /**
-     * item의 원격 파일을 localDestPath로 다운로드한다.
-     * appScope에서 ftpUseCase.download()를 collect해 ProgressState를 처리한다.
-     * @param item 다운로드할 원격 파일 항목
-     * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
-     */
-    fun onDownload(item: FileHolderItem, localDestPath: String) {
-        val instanceId = item.path.hashCode()
-        collectTransfer(instanceId, ACTION_KEY_DOWNLOAD, ftpUseCase.download(item.path, localDestPath, item.isDirectory) { state ->
-            progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
-            state.progress?.let { progress -> sendProgressNoti(ACTION_KEY_DOWNLOAD, progress, instanceId) }
-        })
-    }
-
-    /**
      * localPath의 파일을 현재 원격 경로에 업로드한다.
-     * currentPath를 remoteDestPath로 사용해 appScope에서 ftpUseCase.upload()를 collect한다.
      * @param localPath 업로드할 로컬 파일의 절대 경로
      */
     fun onUpload(localPath: String) {
         val remotePath = fileNavigatorUseCase.currentPath.value ?: return
         val instanceId = localPath.hashCode()
-        collectTransfer(instanceId, ACTION_KEY_UPLOAD, ftpUseCase.upload(localPath, remotePath) { state ->
-            progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_UPLOAD))
-            state.progress?.let { progress -> sendProgressNoti(ACTION_KEY_UPLOAD, progress, instanceId) }
-        })
-    }
-
-    /**
-     * source Flow를 수집해 remoteProgressMap을 갱신하고, 완료 또는 에러 시 해당 키를 제거한다.
-     * @param instanceId 진행률 맵에서 이 전송 인스턴스를 식별하는 키
-     * @param actionKey ProgressDialog 라벨 표시에 사용하는 작업 유형 키
-     * @param source 수집할 진행률 Flow
-     */
-    private fun collectTransfer(instanceId: Int, actionKey: Int, source: Flow<ProgressState>) {
-        transferCoordinator.launch(
-            scope = appScope,
-            sources = listOf(source),
-            onRemove = { progressUseCase.removeProgress(instanceId) },
-            onSuccess = {
-                val message = completionMessage(actionKey)
-                myNoti.completedNotification("", message, actionKey, instanceId)
-                progressUseCase.emitCompletion(message)
-                if (actionKey == ACTION_KEY_UPLOAD) fileNavigatorUseCase.refresh()
-            },
-            onError = { message ->
-                myNoti.cancelNotification(instanceId)
-                progressUseCase.emitError(message ?: context.getString(R.string.noti_complete))
-            }
-        )
-    }
-
-    companion object {
-        private const val TAG = "RemoteFileListVM"
-    }
-
-    private fun completionMessage(actionKey: Int): String = when (actionKey) {
-        ACTION_KEY_DOWNLOAD -> context.getString(R.string.noti_download_complete)
-        ACTION_KEY_UPLOAD -> context.getString(R.string.noti_upload_complete)
-        else -> context.getString(R.string.noti_complete)
-    }
-
-    private fun sendProgressNoti(actionKey: Int, progress: Int, notifId: Int) {
-        when (actionKey) {
-            ACTION_KEY_DOWNLOAD -> myNoti.downloadProgressNoti(progress, notifId)
-            ACTION_KEY_UPLOAD -> myNoti.uploadProgressNoti(progress, notifId)
-        }
+        FtpUploadOperation(
+            localPath = localPath,
+            remoteDestPath = remotePath,
+            ftpUseCase = ftpUseCase,
+            instanceId = instanceId,
+            myNoti = myNoti,
+            completionMessage = context.getString(R.string.noti_upload_complete),
+            onRefresh = { fileNavigatorUseCase.refresh() },
+            onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
+            onEmitError = { msg -> progressUseCase.emitError(msg) },
+            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+            clearProgress = { progressUseCase.removeProgress(instanceId) }
+        ).execute(appScope)
     }
 
     /**
      * item을 newName으로 이름 변경한다.
-     * ftpUseCase를 통해 FtpRepository.rename()을 호출하고 성공 시 목록을 갱신한다.
      * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
      */
     fun onRename(item: FileHolderItem, newName: String) {
@@ -248,7 +196,6 @@ class RemoteFileListViewModel @Inject constructor(
 
     /**
      * item을 원격 서버에서 삭제한다.
-     * 파일이면 FtpRepository.deleteFile(), 디렉터리이면 FtpRepository.removeDirectory()를 호출한다.
      * @param item 삭제할 원격 파일 또는 디렉터리 항목
      */
     fun onDelete(item: FileHolderItem) {
@@ -261,7 +208,6 @@ class RemoteFileListViewModel @Inject constructor(
 
     /**
      * 현재 원격 경로 아래에 dirName 이름의 새 디렉터리를 생성한다.
-     * FtpRepository.makeDirectory()를 호출하고 성공 시 목록을 갱신한다.
      * @param dirName 생성할 디렉터리 이름
      */
     fun onMakeDirectory(dirName: String) {
@@ -271,5 +217,9 @@ class RemoteFileListViewModel @Inject constructor(
             if (success) fileNavigatorUseCase.refresh()
             else progressUseCase.emitError("디렉터리 생성 실패: $dirName")
         }
+    }
+
+    companion object {
+        private const val TAG = "RemoteFileListVM"
     }
 }
