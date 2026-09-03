@@ -11,7 +11,6 @@ import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
-import com.todokanai.composepracticenew.operation.FtpDownloadOperation
 import com.todokanai.composepracticenew.operation.FtpUploadOperation
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
@@ -159,29 +158,6 @@ class RemoteFileListViewModel @Inject constructor(
     fun onUploadSkipping(pending: List<FileHolderItem>, conflicts: List<FileHolderItem>) {
         val skipPaths = conflicts.map { it.path }.toSet()
         pending.filter { it.path !in skipPaths }.forEach { onUpload(it.path) }
-    }
-
-    /**
-     * item의 원격 파일을 localDestPath로 다운로드한다.
-     * @param item 다운로드할 원격 파일 항목
-     * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
-     */
-    fun onDownload(item: FileHolderItem, localDestPath: String) {
-        val instanceId = item.path.hashCode()
-        FtpDownloadOperation(
-            remotePath = item.path,
-            localDestPath = localDestPath,
-            isDirectory = item.isDirectory,
-            ftpUseCase = ftpUseCase,
-            instanceId = instanceId,
-            myNoti = myNoti,
-            completionMessage = context.getString(R.string.noti_download_complete),
-            onRefresh = {},
-            onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) },
-            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-            clearProgress = { progressUseCase.removeProgress(instanceId) }
-        ).execute(appScope)
     }
 
     /**
