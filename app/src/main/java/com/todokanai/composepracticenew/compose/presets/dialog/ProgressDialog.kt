@@ -59,7 +59,7 @@ fun ProgressDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onCancel) {
+            TextButton(onClick = { onCancel(); onDismissRequest() }) {
                 Text(stringResource(R.string.btn_cancel))
             }
         }
