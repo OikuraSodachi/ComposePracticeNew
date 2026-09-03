@@ -19,7 +19,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
-import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
@@ -53,7 +53,7 @@ fun RemoteBottomButtonListView(
     }
 
     when (selectMode) {
-        Constants.MULTI_SELECT_MODE -> {
+        AppConstants.MULTI_SELECT_MODE -> {
             Row(
                 modifier = modifier
                     .fillMaxWidth()
@@ -63,14 +63,14 @@ fun RemoteBottomButtonListView(
             ) {
                 TextButton(onClick = {
                     onEnterDownloadMode(selectedList.toList())
-                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onSelectModeChange(AppConstants.DEFAULT_MODE)
                     onClearSelection()
                 }) {
                     Text(strRemoteDownload)
                 }
                 TextButton(onClick = {
                     selectedList.forEach { viewModel.onDelete(it) }
-                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onSelectModeChange(AppConstants.DEFAULT_MODE)
                     onClearSelection()
                 }) {
                     Text(strRemoteDelete)
@@ -79,7 +79,7 @@ fun RemoteBottomButtonListView(
                     enabled = selectedList.size == 1,
                     onClick = {
                         renameTarget = selectedList.first()
-                        onSelectModeChange(Constants.DEFAULT_MODE)
+                        onSelectModeChange(AppConstants.DEFAULT_MODE)
                         onClearSelection()
                     }
                 ) {
@@ -87,16 +87,16 @@ fun RemoteBottomButtonListView(
                 }
             }
         }
-        Constants.CONFIRM_MODE_UPLOAD -> {
+        AppConstants.CONFIRM_MODE_UPLOAD -> {
             ConfirmButtons(
                 modifier = modifier,
                 confirm = {
                     onConfirmUpload()
-                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onSelectModeChange(AppConstants.DEFAULT_MODE)
                     onClearSelection()
                 },
-                cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
-                mode = Constants.CONFIRM_MODE_UPLOAD
+                cancel = { onSelectModeChange(AppConstants.DEFAULT_MODE) },
+                mode = AppConstants.CONFIRM_MODE_UPLOAD
             )
         }
     }

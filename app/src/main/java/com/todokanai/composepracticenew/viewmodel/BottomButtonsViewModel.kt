@@ -5,10 +5,7 @@ import androidx.lifecycle.ViewModel
 import com.todokanai.composepracticenew.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.todokanai.composepracticenew.di.ApplicationScope
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP_HERE
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.operation.CopyOperation
 import com.todokanai.composepracticenew.operation.DeleteOperation
 import com.todokanai.composepracticenew.operation.MoveOperation
@@ -39,10 +36,10 @@ class BottomButtonsViewModel @Inject constructor(
     fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return emptyList()
         return when (selectMode) {
-            CONFIRM_MODE_COPY, CONFIRM_MODE_MOVE -> selectedList.filter { item ->
+            AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE -> selectedList.filter { item ->
                 File(currentPath, File(item.path).name).exists()
             }
-            CONFIRM_MODE_UNZIP, CONFIRM_MODE_UNZIP_HERE -> selectedList.filter { item ->
+            AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> selectedList.filter { item ->
                 File(currentPath, File(item.path).nameWithoutExtension).exists()
             }
             else -> emptyList()
@@ -56,7 +53,7 @@ class BottomButtonsViewModel @Inject constructor(
         val targets = selectedList.filterNot { it.path in conflictPaths }
         if (targets.isEmpty()) return
         when (selectMode) {
-            CONFIRM_MODE_COPY -> {
+            AppConstants.CONFIRM_MODE_COPY -> {
                 val instanceId = progressUseCase.nextInstanceId()
                 CopyOperation(
                     targetFiles = targets.map { it.path },
@@ -71,7 +68,7 @@ class BottomButtonsViewModel @Inject constructor(
                     clearProgress = { progressUseCase.removeProgress(instanceId) }
                 ).execute(appScope)
             }
-            CONFIRM_MODE_MOVE -> {
+            AppConstants.CONFIRM_MODE_MOVE -> {
                 val instanceId = progressUseCase.nextInstanceId()
                 MoveOperation(
                     targetFiles = targets.map { it.path },
@@ -86,7 +83,7 @@ class BottomButtonsViewModel @Inject constructor(
                     clearProgress = { progressUseCase.removeProgress(instanceId) }
                 ).execute(appScope)
             }
-            CONFIRM_MODE_UNZIP -> {
+            AppConstants.CONFIRM_MODE_UNZIP -> {
                 val instanceId = progressUseCase.nextInstanceId()
                 UnzipOperation(
                     zipFiles = targets.map { it.path },
@@ -102,7 +99,7 @@ class BottomButtonsViewModel @Inject constructor(
                     clearProgress = { progressUseCase.removeProgress(instanceId) }
                 ).execute(appScope)
             }
-            CONFIRM_MODE_UNZIP_HERE -> {
+            AppConstants.CONFIRM_MODE_UNZIP_HERE -> {
                 val instanceId = progressUseCase.nextInstanceId()
                 UnzipOperation(
                     zipFiles = targets.map { it.path },

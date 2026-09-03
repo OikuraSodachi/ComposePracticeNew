@@ -19,7 +19,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
-import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
@@ -56,8 +56,8 @@ fun RemoteFileListFrag(
         }
     }
 
-    BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
-        onSelectModeChange(Constants.DEFAULT_MODE)
+    BackHandler(enabled = selectMode == AppConstants.MULTI_SELECT_MODE) {
+        onSelectModeChange(AppConstants.DEFAULT_MODE)
         clearList()
     }
 
@@ -77,7 +77,7 @@ fun RemoteFileListFrag(
                 selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
-                onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
+                onItemLongClick = { onSelectModeChange(AppConstants.MULTI_SELECT_MODE) },
                 addToList = addToList,
                 removeFromList = removeFromList,
                 clearList = clearList

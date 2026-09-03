@@ -9,8 +9,8 @@ import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.operation.FtpUploadOperation
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem

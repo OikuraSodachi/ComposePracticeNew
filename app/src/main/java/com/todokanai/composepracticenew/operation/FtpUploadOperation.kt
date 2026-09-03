@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 

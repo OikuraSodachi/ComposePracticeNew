@@ -9,13 +9,12 @@ import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.compose.BottomButtons
 import com.todokanai.composepracticenew.compose.ConfirmButtons
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_DOWNLOAD
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.InfoDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
-import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
 
@@ -36,13 +35,13 @@ fun BottomButtonListView(
     var deleteDialog by remember { mutableStateOf(false) }
     var showConflictDialog by remember { mutableStateOf(false) }
     var conflictFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
-    var pendingSelectMode by remember { mutableStateOf(Constants.DEFAULT_MODE) }
+    var pendingSelectMode by remember { mutableStateOf(AppConstants.DEFAULT_MODE) }
 
     val onConfirmWithConflictCheck: () -> Unit = {
         val conflicts = viewModel.getConflicts(selectedList, selectMode)
         if (conflicts.isEmpty()) {
             viewModel.confirm(selectedList, selectMode)
-            onSelectModeChange(Constants.DEFAULT_MODE)
+            onSelectModeChange(AppConstants.DEFAULT_MODE)
             onClearSelection()
         } else {
             conflictFiles = conflicts
@@ -50,45 +49,45 @@ fun BottomButtonListView(
             showConflictDialog = true
         }
     }
-    val onCancel: () -> Unit = { onSelectModeChange(Constants.DEFAULT_MODE) }
+    val onCancel: () -> Unit = { onSelectModeChange(AppConstants.DEFAULT_MODE) }
 
     when (selectMode) {
-        Constants.MULTI_SELECT_MODE -> {
+        AppConstants.MULTI_SELECT_MODE -> {
             BottomButtons(
                 modifier = modifier,
-                move = { onSelectModeChange(Constants.CONFIRM_MODE_MOVE) },
-                copy = { onSelectModeChange(Constants.CONFIRM_MODE_COPY) },
+                move = { onSelectModeChange(AppConstants.CONFIRM_MODE_MOVE) },
+                copy = { onSelectModeChange(AppConstants.CONFIRM_MODE_COPY) },
                 delete = { deleteDialog = true },
                 zip = { zipDialog = true },
-                unzip = { onSelectModeChange(Constants.CONFIRM_MODE_UNZIP) },
-                unzipHere = { onSelectModeChange(Constants.CONFIRM_MODE_UNZIP_HERE) },
+                unzip = { onSelectModeChange(AppConstants.CONFIRM_MODE_UNZIP) },
+                unzipHere = { onSelectModeChange(AppConstants.CONFIRM_MODE_UNZIP_HERE) },
                 rename = { renameDialog = true },
                 info = { infoDialog = true },
                 upload = {
                     onEnterUploadMode()
-                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onSelectModeChange(AppConstants.DEFAULT_MODE)
                     onClearSelection()
                 },
                 selectedList = selectedList
             )
         }
-        Constants.CONFIRM_MODE_MOVE -> {
+        AppConstants.CONFIRM_MODE_MOVE -> {
             ConfirmButtons(
                 modifier = modifier,
                 confirm = onConfirmWithConflictCheck,
                 cancel = onCancel,
-                mode = Constants.CONFIRM_MODE_MOVE
+                mode = AppConstants.CONFIRM_MODE_MOVE
             )
         }
-        Constants.CONFIRM_MODE_COPY -> {
+        AppConstants.CONFIRM_MODE_COPY -> {
             ConfirmButtons(
                 modifier = modifier,
                 confirm = onConfirmWithConflictCheck,
                 cancel = onCancel,
-                mode = Constants.CONFIRM_MODE_COPY
+                mode = AppConstants.CONFIRM_MODE_COPY
             )
         }
-        Constants.CONFIRM_MODE_UNZIP, Constants.CONFIRM_MODE_UNZIP_HERE -> {
+        AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> {
             ConfirmButtons(
                 modifier = modifier,
                 confirm = onConfirmWithConflictCheck,
@@ -96,16 +95,16 @@ fun BottomButtonListView(
                 mode = selectMode
             )
         }
-        CONFIRM_MODE_DOWNLOAD -> {
+        AppConstants.CONFIRM_MODE_DOWNLOAD -> {
             ConfirmButtons(
                 modifier = modifier,
                 confirm = {
                     onConfirmDownload()
-                    onSelectModeChange(Constants.DEFAULT_MODE)
+                    onSelectModeChange(AppConstants.DEFAULT_MODE)
                     onClearSelection()
                 },
-                cancel = { onSelectModeChange(Constants.DEFAULT_MODE) },
-                mode = CONFIRM_MODE_DOWNLOAD
+                cancel = { onSelectModeChange(AppConstants.DEFAULT_MODE) },
+                mode = AppConstants.CONFIRM_MODE_DOWNLOAD
             )
         }
     }
@@ -114,7 +113,7 @@ fun BottomButtonListView(
         ZipDialog(
             onConfirm = {
                 viewModel.zip(selectedList, it)
-                onSelectModeChange(Constants.DEFAULT_MODE)
+                onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
             },
             onCancel = { zipDialog = false }
@@ -136,7 +135,7 @@ fun BottomButtonListView(
         DeleteDialog(
             onConfirm = {
                 viewModel.delete(selectedList)
-                onSelectModeChange(Constants.DEFAULT_MODE)
+                onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
             },
             onCancel = { deleteDialog = false }
@@ -148,13 +147,13 @@ fun BottomButtonListView(
             totalCount = selectedList.size,
             onOverwrite = {
                 viewModel.confirm(selectedList, pendingSelectMode)
-                onSelectModeChange(Constants.DEFAULT_MODE)
+                onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
                 showConflictDialog = false
             },
             onSkip = {
                 viewModel.confirm(selectedList, pendingSelectMode, skipFiles = conflictFiles)
-                onSelectModeChange(Constants.DEFAULT_MODE)
+                onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
                 showConflictDialog = false
             },

@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
-import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,11 +14,11 @@ import javax.inject.Inject
 @HiltViewModel
 class FileTransferCoordinatorViewModel @Inject constructor() : ViewModel() {
 
-    private val _localSelectMode = MutableStateFlow(Constants.DEFAULT_MODE)
+    private val _localSelectMode = MutableStateFlow(AppConstants.DEFAULT_MODE)
     /** 로컬 파일 목록 화면의 현재 선택 모드. */
     val localSelectMode: StateFlow<Int> = _localSelectMode.asStateFlow()
 
-    private val _remoteSelectMode = MutableStateFlow(Constants.DEFAULT_MODE)
+    private val _remoteSelectMode = MutableStateFlow(AppConstants.DEFAULT_MODE)
     /** 원격 파일 목록 화면의 현재 선택 모드. */
     val remoteSelectMode: StateFlow<Int> = _remoteSelectMode.asStateFlow()
 
@@ -54,16 +54,16 @@ class FileTransferCoordinatorViewModel @Inject constructor() : ViewModel() {
     /** 로컬 선택 목록을 업로드 대기 목록으로 옮기고 양쪽 화면의 선택 모드를 전환한다. */
     fun enterUploadMode() {
         _uploadPendingList.value = _localSelectedList.value
-        _remoteSelectMode.value = Constants.CONFIRM_MODE_UPLOAD
-        _localSelectMode.value = Constants.DEFAULT_MODE
+        _remoteSelectMode.value = AppConstants.CONFIRM_MODE_UPLOAD
+        _localSelectMode.value = AppConstants.DEFAULT_MODE
         _localSelectedList.value = emptyList()
     }
 
     /** items를 다운로드 대기 목록으로 설정하고 양쪽 화면의 선택 모드를 전환한다. */
     fun enterDownloadMode(items: List<FileHolderItem>) {
         _downloadPendingList.value = items
-        _localSelectMode.value = Constants.CONFIRM_MODE_DOWNLOAD
-        _remoteSelectMode.value = Constants.DEFAULT_MODE
+        _localSelectMode.value = AppConstants.CONFIRM_MODE_DOWNLOAD
+        _remoteSelectMode.value = AppConstants.DEFAULT_MODE
         _remoteSelectedList.value = emptyList()
     }
 

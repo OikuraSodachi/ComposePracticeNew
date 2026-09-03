@@ -12,11 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_COPY
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_DOWNLOAD
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_MOVE
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UNZIP
-import com.todokanai.composepracticenew.myobjects.Constants.CONFIRM_MODE_UPLOAD
+import com.todokanai.composepracticenew.myobjects.AppConstants
 
 @Composable
 fun ConfirmButtons(
@@ -41,19 +37,19 @@ fun ConfirmButtons(
             Modifier.weight(1f)
         ) {
             when(mode){
-                CONFIRM_MODE_MOVE ->{
+                AppConstants.CONFIRM_MODE_MOVE ->{
                     Text(stringResource(R.string.btn_move))
                 }
-                CONFIRM_MODE_COPY ->{
+                AppConstants.CONFIRM_MODE_COPY ->{
                     Text(stringResource(R.string.btn_copy))
                 }
-                CONFIRM_MODE_UNZIP ->{
+                AppConstants.CONFIRM_MODE_UNZIP ->{
                     Text(stringResource(R.string.btn_unzip))
                 }
-                CONFIRM_MODE_DOWNLOAD -> {
+                AppConstants.CONFIRM_MODE_DOWNLOAD -> {
                     Text(stringResource(R.string.btn_download))
                 }
-                CONFIRM_MODE_UPLOAD -> {
+                AppConstants.CONFIRM_MODE_UPLOAD -> {
                     Text(stringResource(R.string.btn_upload_confirm))
                 }
             }
@@ -69,7 +65,7 @@ private fun ConfirmButtonsPreview(){
             modifier = Modifier,
             confirm = {},
             cancel = {},
-            mode = CONFIRM_MODE_UNZIP
+            mode = AppConstants.CONFIRM_MODE_UNZIP
         )
     }
 }
