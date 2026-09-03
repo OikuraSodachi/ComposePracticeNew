@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 abstract class IoOperation {
 
     /** 현재 작업의 진행 상태 — mainOperation()이 갱신하고, progressTracker()가 읽는다. */
+    @Volatile
     protected var progressState: ProgressState = ProgressState(progress = 0)
 
     /**
