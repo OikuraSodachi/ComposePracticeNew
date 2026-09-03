@@ -33,7 +33,11 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_ZIP
 
-/** 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것. */
+/**
+ * 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것.
+ *
+ * @param onCancel 진행 중인 파일 작업을 취소하는 버튼의 콜백.
+ */
 @Composable
 fun ProgressDialog(
     progressMap: Map<Int, ProgressStateModel>,
