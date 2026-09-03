@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.myobjects
 
-/** data 레이어 전용 상수 모음. 파일 작업 식별 키·알림 채널 등 data 모듈 관심사만 정의한다. */
+/** data 모듈에 소유되며 app에서도 소비되는 파일 작업 식별 키·알림 상수 모음. */
 object OperationConstants {
 
     /** 알림 채널 식별자. */
