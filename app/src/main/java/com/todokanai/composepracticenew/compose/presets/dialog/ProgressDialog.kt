@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,7 +37,8 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_
 @Composable
 fun ProgressDialog(
     progressMap: Map<Int, ProgressStateModel>,
-    onDismissRequest: () -> Unit = {}
+    onDismissRequest: () -> Unit = {},
+    onCancel: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -51,7 +53,12 @@ fun ProgressDialog(
                 }
             }
         },
-        confirmButton = {}
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(stringResource(R.string.btn_cancel))
+            }
+        }
     )
 }
 
