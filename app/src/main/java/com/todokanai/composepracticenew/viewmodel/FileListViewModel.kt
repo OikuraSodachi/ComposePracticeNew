@@ -1,9 +1,10 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
-import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toModel
@@ -11,16 +12,16 @@ import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
 import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
+import com.todokanai.composepracticenew.operation.FtpDownloadOperation
 import com.todokanai.composepracticenew.tools.MyNotification
-import com.todokanai.composepracticenew.tools.TransferCoordinator
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -36,10 +37,10 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FileListViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val progressUseCase: ProgressUseCase,
     private val myNoti: MyNotification,
-    private val transferCoordinator: TransferCoordinator,
     private val openFileUseCase: OpenFileUseCase,
     private val ftpUseCase: FtpUseCase,
     @ApplicationScope private val appScope: CoroutineScope
@@ -112,14 +113,23 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    /** items를 현재 로컬 경로에 다운로드한다. 진행률은 onProgress 콜백을 통해 ProgressTracker에 직접 보고된다. */
+    /** items를 현재 로컬 경로에 다운로드한다. */
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
         items.forEach { item ->
-            val instanceId = item.path.hashCode()
-            downloadSingle(instanceId, ftpUseCase.download(item.path, localPath, item.isDirectory) { state ->
-                progressUseCase.setProgressState(instanceId, state.copy(actionKey = ACTION_KEY_DOWNLOAD))
-            })
+            FtpDownloadOperation(
+                remotePath = item.path,
+                localDestPath = localPath,
+                isDirectory = item.isDirectory,
+                ftpUseCase = ftpUseCase,
+                progressUseCase = progressUseCase,
+                instanceId = item.path.hashCode(),
+                myNoti = myNoti,
+                completionMessage = context.getString(R.string.noti_download_complete),
+                onRefresh = { fileNavigatorUseCase.refresh() },
+                onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
+                onEmitError = { msg -> _downloadError.tryEmit(msg) }
+            ).execute(appScope)
         }
     }
 
@@ -127,21 +137,6 @@ class FileListViewModel @Inject constructor(
     fun onDownloadSkipping(pending: List<FileHolderItem>, conflicts: List<FileHolderItem>) {
         val skipPaths = conflicts.map { it.path }.toSet()
         onDownload(pending.filter { it.path !in skipPaths })
-    }
-
-    /**
-     * source Flow를 수집해 완료·에러를 처리한다. 진행률은 onProgress 콜백으로 직접 보고된다.
-     * @param instanceId 진행률 맵에서 이 전송 인스턴스를 식별하는 키
-     * @param source 수집할 다운로드 진행률 Flow
-     */
-    private fun downloadSingle(instanceId: Int, source: Flow<ProgressState>) {
-        transferCoordinator.launch(
-            scope = appScope,
-            sources = listOf(source),
-            onRemove = { progressUseCase.removeProgress(instanceId) },
-            onSuccess = { fileNavigatorUseCase.refresh() },
-            onError = { message -> _downloadError.tryEmit(message ?: "") }
-        )
     }
 
     fun onItemClick(selected: FileHolderItem, selectMode: Int) {
@@ -153,5 +148,4 @@ class FileListViewModel @Inject constructor(
             }
         }
     }
-
 }
