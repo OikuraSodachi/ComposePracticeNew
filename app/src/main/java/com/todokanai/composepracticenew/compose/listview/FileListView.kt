@@ -26,6 +26,7 @@ fun FileListView(
 ) {
     val selectedPaths = remember(selectedList) { selectedList.mapTo(HashSet()) { it.path } }
 
+    // items{} 밖에서 1회 생성 — 스크롤 시 painterResource가 item 수만큼 호출되는 것을 방지
     val folderIcon = painterResource(DataR.drawable.ic_baseline_folder_24)
     val fileIcon = painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
     val pdfIcon = painterResource(DataR.drawable.ic_pdf)
