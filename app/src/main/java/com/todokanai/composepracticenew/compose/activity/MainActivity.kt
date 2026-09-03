@@ -12,7 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.todokanai.composepracticenew.myobjects.Constants.EXTRA_ACTION_KEY
+import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.navigation.AppNavHost
 import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel

@@ -9,8 +9,8 @@ import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.AppConstants
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
-import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.operation.FtpDownloadOperation
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
