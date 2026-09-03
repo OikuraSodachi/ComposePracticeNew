@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.compose.holder
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,35 +15,35 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.core.net.toUri
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.data.R as DataR
 
-/** 파일 목록의 개별 항목을 표시하는 컴포저블. modifier.background 처리는 FileListView에서 담당 예정. */
+/** 파일 목록의 개별 항목을 표시하는 컴포저블. icon 선택·isAsyncImage 판별은 호출부에서 결정한다. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileHolder(
     modifier: Modifier,
     file: FileHolderItem,
-    isSelected: Boolean
+    isSelected: Boolean,
+    icon: Painter,
+    isAsyncImage: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
-    val extension = remember(file.name) { file.name.substringAfterLast('.', "") }
+    // data URI 문자열이 바뀔 때만 Uri 객체 재생성 — 매 리컴포지션마다 toUri() 호출 방지
     val imageData = remember(file.data) { file.data?.toUri() }
-    val icon = when {
-        file.isDirectory -> painterResource(DataR.drawable.ic_baseline_folder_24)
-        extension == "pdf" -> painterResource(DataR.drawable.ic_pdf)
-        else -> painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
-    }
 
     Row(
         modifier = modifier
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .background(if (isSelected) Color.LightGray else Color.Transparent)
             .fillMaxWidth()
             .height(60.dp),
@@ -52,7 +54,7 @@ fun FileHolder(
                 .width(50.dp)
                 .fillMaxHeight()
                 .padding(5.dp),
-            isAsyncImage = (extension == "jpg"),
+            isAsyncImage = isAsyncImage,
             data = imageData,
             icon = icon
         )
@@ -89,5 +91,4 @@ fun FileHolder(
                 .padding(4.dp)
         )
     }
-
 }

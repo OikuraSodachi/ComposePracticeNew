@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.compose.presets.image
 
 import androidx.compose.foundation.Image
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
@@ -16,13 +17,17 @@ fun ImageHolder(
     icon: Painter,
     data: Any?
 ) {
-    val context = LocalContext.current
     if (isAsyncImage) {
-        AsyncImage(
-            model = ImageRequest.Builder(context)
+        val context = LocalContext.current
+        // data가 바뀔 때만 재빌드 — 매 리컴포지션마다 Coil 요청이 새로 생성되는 것을 방지
+        val imageRequest = remember(data) {
+            ImageRequest.Builder(context)
                 .data(data)
                 .crossfade(true)
-                .build(),
+                .build()
+        }
+        AsyncImage(
+            model = imageRequest,
             contentDescription = null,
             modifier = modifier,
             placeholder = icon
