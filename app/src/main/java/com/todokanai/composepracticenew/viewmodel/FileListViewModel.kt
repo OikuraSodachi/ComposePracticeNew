@@ -8,10 +8,9 @@ import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toModel
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.Constants.ACTION_KEY_UPLOAD
-import com.todokanai.composepracticenew.myobjects.Constants.DEFAULT_MODE
-import com.todokanai.composepracticenew.myobjects.Constants.MULTI_SELECT_MODE
 import com.todokanai.composepracticenew.operation.FtpDownloadOperation
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -144,8 +143,8 @@ class FileListViewModel @Inject constructor(
     fun onItemClick(selected: FileHolderItem, selectMode: Int) {
         viewModelScope.launch {
             when (selectMode) {
-                DEFAULT_MODE -> openFileUseCase.open(selected.toDomain())
-                MULTI_SELECT_MODE -> { }
+                AppConstants.DEFAULT_MODE -> openFileUseCase.open(selected.toDomain())
+                AppConstants.MULTI_SELECT_MODE -> { }
                 else -> if (selected.isDirectory) openFileUseCase.open(selected.toDomain())
             }
         }

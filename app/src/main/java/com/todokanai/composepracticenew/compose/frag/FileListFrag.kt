@@ -16,7 +16,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
 @Composable
@@ -35,8 +35,8 @@ fun FileListFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = selectMode == Constants.MULTI_SELECT_MODE) {
-        onSelectModeChange(Constants.DEFAULT_MODE)
+    BackHandler(enabled = selectMode == AppConstants.MULTI_SELECT_MODE) {
+        onSelectModeChange(AppConstants.DEFAULT_MODE)
         clearList()
     }
 
@@ -60,7 +60,7 @@ fun FileListFrag(
                 selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
-                onItemLongClick = { onSelectModeChange(Constants.MULTI_SELECT_MODE) },
+                onItemLongClick = { onSelectModeChange(AppConstants.MULTI_SELECT_MODE) },
                 addToList = addToList,
                 removeFromList = removeFromList,
                 clearList = clearList
