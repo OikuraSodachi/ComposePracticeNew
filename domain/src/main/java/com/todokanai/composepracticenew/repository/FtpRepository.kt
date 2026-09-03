@@ -58,8 +58,6 @@ interface FtpRepository {
      * @returns 전송 진행 상태를 방출하는 Flow
      * TODO(IoOperation): onProgress 콜백 제거 예정 — IoOperation.mainOperation()이 progressState를 직접 갱신함
      * TODO(IoOperation): Flow<ProgressState> → suspend fun 전환 예정
-     *   전환 전: 실패는 ProgressState.error 인밴드 방출로 전달 — IoOperation은 onCompletion()에서 처리(의도된 동작)
-     *   전환 후: 실패 시 예외를 throw해 IoOperation.onError()로 라우팅
      */
     fun download(remotePath: String, localPath: String, isDirectory: Boolean = false, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState>
 
@@ -70,8 +68,6 @@ interface FtpRepository {
      * @returns 전송 진행 상태를 방출하는 Flow
      * TODO(IoOperation): onProgress 콜백 제거 예정 — IoOperation.mainOperation()이 progressState를 직접 갱신함
      * TODO(IoOperation): Flow<ProgressState> → suspend fun 전환 예정
-     *   전환 전: 실패는 ProgressState.error 인밴드 방출로 전달 — IoOperation은 onCompletion()에서 처리(의도된 동작)
-     *   전환 후: 실패 시 예외를 throw해 IoOperation.onError()로 라우팅
      */
     fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState>
 
