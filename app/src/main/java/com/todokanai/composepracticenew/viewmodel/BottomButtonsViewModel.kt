@@ -56,72 +56,85 @@ class BottomButtonsViewModel @Inject constructor(
         val targets = selectedList.filterNot { it.path in conflictPaths }
         if (targets.isEmpty()) return
         when (selectMode) {
-            CONFIRM_MODE_COPY -> CopyOperation(
-                targetFiles = targets.map { it.path },
-                targetPath = currentPath,
-                fileActionUseCase = fileActionUseCase,
-                progressUseCase = progressUseCase,
-                instanceId = progressUseCase.nextInstanceId(),
-                myNoti = myNoti,
-                completionMessage = context.getString(R.string.noti_complete),
-                onRefresh = { fileNavigatorUseCase.refresh() },
-                onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                onEmitError = { msg -> progressUseCase.emitError(msg) }
-            ).execute(appScope)
-            CONFIRM_MODE_MOVE -> MoveOperation(
-                targetFiles = targets.map { it.path },
-                targetPath = currentPath,
-                fileActionUseCase = fileActionUseCase,
-                progressUseCase = progressUseCase,
-                instanceId = progressUseCase.nextInstanceId(),
-                myNoti = myNoti,
-                completionMessage = context.getString(R.string.noti_move_complete),
-                onRefresh = { fileNavigatorUseCase.refresh() },
-                onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                onEmitError = { msg -> progressUseCase.emitError(msg) }
-            ).execute(appScope)
-            CONFIRM_MODE_UNZIP -> UnzipOperation(
-                zipFiles = targets.map { it.path },
-                destPath = currentPath,
-                unzipHere = false,
-                fileActionUseCase = fileActionUseCase,
-                progressUseCase = progressUseCase,
-                instanceId = progressUseCase.nextInstanceId(),
-                myNoti = myNoti,
-                completionMessage = context.getString(R.string.noti_complete),
-                onRefresh = { fileNavigatorUseCase.refresh() },
-                onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                onEmitError = { msg -> progressUseCase.emitError(msg) }
-            ).execute(appScope)
-            CONFIRM_MODE_UNZIP_HERE -> UnzipOperation(
-                zipFiles = targets.map { it.path },
-                destPath = currentPath,
-                unzipHere = true,
-                fileActionUseCase = fileActionUseCase,
-                progressUseCase = progressUseCase,
-                instanceId = progressUseCase.nextInstanceId(),
-                myNoti = myNoti,
-                completionMessage = context.getString(R.string.noti_complete),
-                onRefresh = { fileNavigatorUseCase.refresh() },
-                onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                onEmitError = { msg -> progressUseCase.emitError(msg) }
-            ).execute(appScope)
+            CONFIRM_MODE_COPY -> {
+                val instanceId = progressUseCase.nextInstanceId()
+                CopyOperation(
+                    targetFiles = targets.map { it.path },
+                    targetPath = currentPath,
+                    fileActionUseCase = fileActionUseCase,
+                    myNoti = myNoti,
+                    completionMessage = context.getString(R.string.noti_complete),
+                    onRefresh = { fileNavigatorUseCase.refresh() },
+                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
+                    onEmitError = { msg -> progressUseCase.emitError(msg) },
+                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                ).execute(appScope)
+            }
+            CONFIRM_MODE_MOVE -> {
+                val instanceId = progressUseCase.nextInstanceId()
+                MoveOperation(
+                    targetFiles = targets.map { it.path },
+                    targetPath = currentPath,
+                    fileActionUseCase = fileActionUseCase,
+                    myNoti = myNoti,
+                    completionMessage = context.getString(R.string.noti_move_complete),
+                    onRefresh = { fileNavigatorUseCase.refresh() },
+                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
+                    onEmitError = { msg -> progressUseCase.emitError(msg) },
+                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                ).execute(appScope)
+            }
+            CONFIRM_MODE_UNZIP -> {
+                val instanceId = progressUseCase.nextInstanceId()
+                UnzipOperation(
+                    zipFiles = targets.map { it.path },
+                    destPath = currentPath,
+                    unzipHere = false,
+                    fileActionUseCase = fileActionUseCase,
+                    myNoti = myNoti,
+                    completionMessage = context.getString(R.string.noti_complete),
+                    onRefresh = { fileNavigatorUseCase.refresh() },
+                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
+                    onEmitError = { msg -> progressUseCase.emitError(msg) },
+                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                ).execute(appScope)
+            }
+            CONFIRM_MODE_UNZIP_HERE -> {
+                val instanceId = progressUseCase.nextInstanceId()
+                UnzipOperation(
+                    zipFiles = targets.map { it.path },
+                    destPath = currentPath,
+                    unzipHere = true,
+                    fileActionUseCase = fileActionUseCase,
+                    myNoti = myNoti,
+                    completionMessage = context.getString(R.string.noti_complete),
+                    onRefresh = { fileNavigatorUseCase.refresh() },
+                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
+                    onEmitError = { msg -> progressUseCase.emitError(msg) },
+                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                ).execute(appScope)
+            }
         }
     }
 
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
+        val instanceId = progressUseCase.nextInstanceId()
         ZipOperation(
             sourceFiles = selectedList.map { it.path },
             zipFilePath = "$parent/$name.zip",
             fileActionUseCase = fileActionUseCase,
-            progressUseCase = progressUseCase,
-            instanceId = progressUseCase.nextInstanceId(),
             myNoti = myNoti,
             completionMessage = context.getString(R.string.noti_complete),
             onRefresh = { fileNavigatorUseCase.refresh() },
             onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) }
+            onEmitError = { msg -> progressUseCase.emitError(msg) },
+            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+            clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
     }
 
@@ -141,16 +154,17 @@ class BottomButtonsViewModel @Inject constructor(
     }
 
     fun delete(selectedList: List<FileHolderItem>) {
+        val instanceId = progressUseCase.nextInstanceId()
         DeleteOperation(
             targetFiles = selectedList.map { it.path },
             fileActionUseCase = fileActionUseCase,
-            progressUseCase = progressUseCase,
-            instanceId = progressUseCase.nextInstanceId(),
             myNoti = myNoti,
             completionMessage = context.getString(R.string.noti_delete_complete),
             onRefresh = { fileNavigatorUseCase.refresh() },
             onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) }
+            onEmitError = { msg -> progressUseCase.emitError(msg) },
+            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+            clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
     }
 }

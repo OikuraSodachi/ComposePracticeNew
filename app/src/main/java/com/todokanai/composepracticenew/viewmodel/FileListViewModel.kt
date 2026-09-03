@@ -117,18 +117,20 @@ class FileListViewModel @Inject constructor(
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
         items.forEach { item ->
+            val instanceId = item.path.hashCode()
             FtpDownloadOperation(
                 remotePath = item.path,
                 localDestPath = localPath,
                 isDirectory = item.isDirectory,
                 ftpUseCase = ftpUseCase,
-                progressUseCase = progressUseCase,
-                instanceId = item.path.hashCode(),
+                instanceId = instanceId,
                 myNoti = myNoti,
                 completionMessage = context.getString(R.string.noti_download_complete),
                 onRefresh = { fileNavigatorUseCase.refresh() },
                 onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                onEmitError = { msg -> _downloadError.tryEmit(msg) }
+                onEmitError = { msg -> _downloadError.tryEmit(msg) },
+                setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+                clearProgress = { progressUseCase.removeProgress(instanceId) }
             ).execute(appScope)
         }
     }

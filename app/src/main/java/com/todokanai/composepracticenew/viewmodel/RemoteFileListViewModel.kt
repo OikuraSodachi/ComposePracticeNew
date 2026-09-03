@@ -167,18 +167,20 @@ class RemoteFileListViewModel @Inject constructor(
      * @param localDestPath 저장할 로컬 디렉터리의 절대 경로
      */
     fun onDownload(item: FileHolderItem, localDestPath: String) {
+        val instanceId = item.path.hashCode()
         FtpDownloadOperation(
             remotePath = item.path,
             localDestPath = localDestPath,
             isDirectory = item.isDirectory,
             ftpUseCase = ftpUseCase,
-            progressUseCase = progressUseCase,
-            instanceId = item.path.hashCode(),
+            instanceId = instanceId,
             myNoti = myNoti,
             completionMessage = context.getString(R.string.noti_download_complete),
             onRefresh = {},
             onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) }
+            onEmitError = { msg -> progressUseCase.emitError(msg) },
+            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+            clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
     }
 
@@ -188,17 +190,19 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun onUpload(localPath: String) {
         val remotePath = fileNavigatorUseCase.currentPath.value ?: return
+        val instanceId = localPath.hashCode()
         FtpUploadOperation(
             localPath = localPath,
             remoteDestPath = remotePath,
             ftpUseCase = ftpUseCase,
-            progressUseCase = progressUseCase,
-            instanceId = localPath.hashCode(),
+            instanceId = instanceId,
             myNoti = myNoti,
             completionMessage = context.getString(R.string.noti_upload_complete),
             onRefresh = { fileNavigatorUseCase.refresh() },
             onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) }
+            onEmitError = { msg -> progressUseCase.emitError(msg) },
+            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
+            clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
     }
 
