@@ -1,7 +1,5 @@
 package com.todokanai.composepracticenew.compose.listview
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,7 +12,6 @@ import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.data.R as DataR
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileListView(
     modifier: Modifier,
@@ -71,17 +68,14 @@ fun FileListView(
                 }
             }
 
-            // onClick/onLongClick 참조가 바뀔 때만 Modifier 재생성 — 상위 리컴포지션 시 FileHolder 강제 리컴포지션 방지
-            val clickableModifier = remember(onClick, onLongClick) {
-                Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            }
-
             FileHolder(
-                modifier = clickableModifier,
+                modifier = Modifier,
                 file = fileHolderItem,
                 isSelected = isSelected,
                 icon = icon,
-                isAsyncImage = extension == "jpg"
+                isAsyncImage = extension == "jpg",
+                onClick = onClick,
+                onLongClick = onLongClick
             )
         }
     }

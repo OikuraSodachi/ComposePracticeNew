@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.compose.holder
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,20 +26,24 @@ import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
-/** 파일 목록의 개별 항목을 표시하는 컴포저블. modifier.background 처리는 FileListView에서 담당 예정. */
+/** 파일 목록의 개별 항목을 표시하는 컴포저블. icon 선택·isAsyncImage 판별은 호출부에서 결정한다. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileHolder(
     modifier: Modifier,
     file: FileHolderItem,
     isSelected: Boolean,
     icon: Painter,
-    isAsyncImage: Boolean
+    isAsyncImage: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     // data URI 문자열이 바뀔 때만 Uri 객체 재생성 — 매 리컴포지션마다 toUri() 호출 방지
     val imageData = remember(file.data) { file.data?.toUri() }
 
     Row(
         modifier = modifier
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .background(if (isSelected) Color.LightGray else Color.Transparent)
             .fillMaxWidth()
             .height(60.dp),
