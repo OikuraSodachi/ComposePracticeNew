@@ -43,10 +43,13 @@ fun FileListView(
             // name이 바뀔 때만 재계산 — icon 선택과 isAsyncImage 판별에 공유 사용
             val extension = remember(fileHolderItem.name) { fileHolderItem.name.substringAfterLast('.', "") }
 
-            val icon = when {
-                fileHolderItem.isDirectory -> folderIcon
-                extension == "pdf" -> pdfIcon
-                else -> fileIcon
+            // fileHolderItem.isDirectory 또는 extension이 바뀔 때만 재선택
+            val icon = remember(fileHolderItem.isDirectory, extension) {
+                when {
+                    fileHolderItem.isDirectory -> folderIcon
+                    extension == "pdf" -> pdfIcon
+                    else -> fileIcon
+                }
             }
 
             val onClick = remember(fileHolderItem, selectMode, isSelected) {
