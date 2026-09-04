@@ -80,20 +80,35 @@ class FileListViewModel @Inject constructor(
     private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
     val showProgressDialogForKey: StateFlow<Int?> = _showProgressDialogForKey.asStateFlow()
 
-    private val _showRemoteProgressDialog = MutableStateFlow(false)
+    /** 알림 클릭으로 로컬 작업 진행률 다이얼로그를 강제 재표시해야 하는지 여부. */
+    val showProgressDialog: StateFlow<Boolean> = _showProgressDialogForKey
+        .map { it != null }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
+
+    private val _showRemoteProgressDialogForKey = MutableStateFlow<Int?>(null)
     /** 원격 전송(다운로드·업로드) 알림 클릭 시 REMOTE_FILE_LIST 화면의 진행률 다이얼로그를 다시 표시해야 하는지 여부. */
-    val showRemoteProgressDialog: StateFlow<Boolean> = _showRemoteProgressDialog.asStateFlow()
+    val showRemoteProgressDialog: StateFlow<Boolean> = _showRemoteProgressDialogForKey
+        .map { it != null }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
 
     fun requestShowProgressDialog(actionKey: Int) {
         if (actionKey == ACTION_KEY_DOWNLOAD || actionKey == ACTION_KEY_UPLOAD) {
-            _showRemoteProgressDialog.value = true
+            _showRemoteProgressDialogForKey.value = actionKey
         } else {
             _showProgressDialogForKey.value = actionKey
         }
     }
 
     fun onRemoteProgressDialogShown() {
-        _showRemoteProgressDialog.value = false
+        _showRemoteProgressDialogForKey.value = null
     }
 
     fun onProgressDialogShown() {
