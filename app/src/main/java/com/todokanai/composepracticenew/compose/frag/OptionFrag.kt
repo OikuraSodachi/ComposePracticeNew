@@ -1,10 +1,10 @@
 package com.todokanai.composepracticenew.compose.frag
 
-import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
 import kotlin.system.exitProcess
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,12 +36,12 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
 @Composable
 fun OptionFrag(
     modifier: Modifier,
-    activity: Activity,
     navigateToStorage: () -> Unit,
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
     viewModel: OptionViewModel = hiltViewModel(),
 ) {
+    val context = LocalContext.current
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
@@ -107,7 +107,7 @@ fun OptionFrag(
                     contents = listOf(
                         Pair(stringResource(R.string.btn_create_new_folder), { showEditTextDialog = true }),
                         Pair(stringResource(R.string.btn_sort), { showSortDialog = true }),
-                        Pair(stringResource(R.string.btn_exit), { exitApp(activity) })
+                        Pair(stringResource(R.string.btn_exit), { exitApp(context) })
                     ),
                     expanded = moreButtonExpanded
                 )
@@ -130,8 +130,8 @@ fun OptionFrag(
     }
 }
 
-private fun exitApp(activity: Activity) {
-    val activityManager = activity.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+private fun exitApp(context: Context) {
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
     activityManager.appTasks.forEach { it.finishAndRemoveTask() }
     exitProcess(0)
 }
