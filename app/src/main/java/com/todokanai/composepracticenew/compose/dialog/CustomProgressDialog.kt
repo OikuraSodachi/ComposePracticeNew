@@ -1,4 +1,4 @@
-package com.todokanai.composepracticenew.compose.presets.dialog
+package com.todokanai.composepracticenew.compose.dialog
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -21,8 +22,8 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import com.todokanai.composepracticenew.R
 import androidx.compose.ui.unit.dp
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_COPY
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DELETE
@@ -32,11 +33,16 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_ZIP
 
-/** 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것. */
+/**
+ * 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것.
+ *
+ * @param onCancel 진행 중인 파일 작업을 취소하는 버튼의 콜백.
+ */
 @Composable
-fun ProgressDialog(
+fun CustomProgressDialog(
     progressMap: Map<Int, ProgressStateModel>,
-    onDismissRequest: () -> Unit = {}
+    onDismissRequest: () -> Unit = {},
+    onCancel: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
@@ -51,7 +57,12 @@ fun ProgressDialog(
                 }
             }
         },
-        confirmButton = {}
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onCancel) {
+                Text(stringResource(R.string.btn_cancel))
+            }
+        }
     )
 }
 
@@ -63,7 +74,7 @@ private fun ProgressItem(state: ProgressStateModel) {
             text = actionKeyToLabel(state.actionKey),
             style = MaterialTheme.typography.labelMedium
         )
-        CustomLinearProgressIndicator(
+        ProgressLinearIndicator(
             modifier = Modifier.fillMaxWidth().height(8.dp),
             progress = progress / 100f
         )
@@ -95,7 +106,7 @@ private fun ProgressItem(state: ProgressStateModel) {
             }
         }
         if (state.listSize != null && state.currentIndex != null) {
-            CustomLinearProgressIndicator(
+            ProgressLinearIndicator(
                 modifier = Modifier.fillMaxWidth().height(6.dp),
                 progress = state.currentIndex.toFloat() / state.listSize.coerceAtLeast(1),
                 progressColor = MaterialTheme.colorScheme.secondary,
@@ -123,7 +134,7 @@ private fun actionKeyToLabel(actionKey: Int?) = when (actionKey) {
 
 /** 둥근 모서리의 커스텀 LinearProgressIndicator. */
 @Composable
-fun CustomLinearProgressIndicator(
+private fun ProgressLinearIndicator(
     modifier: Modifier = Modifier,
     progress: Float,
     progressColor: Color = Color.Red,
@@ -146,26 +157,13 @@ fun CustomLinearProgressIndicator(
 
 @Preview
 @Composable
-private fun ProgressDialogPreview() {
+private fun CustomProgressDialogPreview() {
     Surface {
-        ProgressDialog(
+        CustomProgressDialog(
             progressMap = mapOf(
                 ACTION_KEY_COPY to ProgressStateModel(progress = 42, actionKey = ACTION_KEY_COPY),
                 ACTION_KEY_ZIP to ProgressStateModel(progress = 75, actionKey = ACTION_KEY_ZIP)
             )
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun CustomLinearProgressIndicatorPreview() {
-    Surface {
-        CustomLinearProgressIndicator(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(10.dp),
-            progress = 0.7f
         )
     }
 }

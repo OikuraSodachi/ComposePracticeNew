@@ -24,7 +24,7 @@ import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.OptionFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
-import com.todokanai.composepracticenew.compose.presets.dialog.ProgressDialog
+import com.todokanai.composepracticenew.compose.dialog.CustomProgressDialog
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
@@ -277,9 +277,10 @@ fun AppNavHost(
                 }
 
                 if (showRemoteProgress) {
-                    ProgressDialog(
+                    CustomProgressDialog(
                         progressMap = activeRemoteProgressMap,
-                        onDismissRequest = { remoteUserDismissed = true }
+                        onDismissRequest = { remoteUserDismissed = true },
+                        onCancel = { remoteViewModel.onCancelTransfer() }
                     )
                 }
             }
@@ -287,7 +288,7 @@ fun AppNavHost(
     }
 }
 
-/** progressMap 수집과 ProgressDialog 표시를 담당하는 섹션 — 진행률 업데이트 리컴포즈 범위를 이 composable로 한정한다. */
+/** progressMap 수집과 CustomProgressDialog 표시를 담당하는 섹션 — 진행률 업데이트 리컴포즈 범위를 이 composable로 한정한다. */
 @Composable
 private fun ProgressSection(viewModel: FileListViewModel) {
     val progressMap by viewModel.progressMap.collectAsStateWithLifecycle()
@@ -311,9 +312,10 @@ private fun ProgressSection(viewModel: FileListViewModel) {
     val showProgress = activeProgressMap.isNotEmpty() && !userDismissed
 
     if (showProgress) {
-        ProgressDialog(
+        CustomProgressDialog(
             progressMap = activeProgressMap,
-            onDismissRequest = { userDismissed = true }
+            onDismissRequest = { userDismissed = true },
+            onCancel = { }
         )
     }
 }
