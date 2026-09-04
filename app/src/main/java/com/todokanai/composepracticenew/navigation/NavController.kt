@@ -104,7 +104,6 @@ fun AppNavHost(
                 Column(modifier = Modifier) {
                     OptionFrag(
                         modifier = Modifier,
-                        activity = activity,
                         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
                         dirTree = dirUiState.dirTree,
                         onDirClick = { directoryViewModel.updateCurrentPath(it) }
@@ -203,7 +202,6 @@ fun AppNavHost(
                 Column(modifier = Modifier) {
                     OptionFrag(
                         modifier = Modifier,
-                        activity = activity,
                         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
                         dirTree = remoteDirTree,
                         onDirClick = { remoteViewModel.navigateToDir(it) }
