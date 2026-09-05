@@ -10,7 +10,6 @@ import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
-import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
@@ -27,10 +26,6 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object UseCaseModule {
-
-    @Provides @Singleton
-    fun provideNavigateBackUseCase(nav: FileNavigatorRepository) =
-        NavigateBackUseCase(nav)
 
     @Provides @Singleton
     fun provideOpenFileUseCase(nav: FileNavigatorRepository) =

@@ -29,10 +29,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            HomeScreen(
-                activity = this,
-                mViewModel = mViewModel
-            )
+            HomeScreen(activity = this)
         }
 
         mViewModel.getPermission(this)
@@ -58,19 +55,13 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun HomeScreen(
-    activity: MainActivity,
-    mViewModel: MainViewModel
-) {
+private fun HomeScreen(activity: MainActivity) {
     ComposePracticeTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            AppNavHost(
-                activity = activity,
-                mViewModel = mViewModel
-            )
+            AppNavHost(activity = activity)
         }
     }
 }
