@@ -9,14 +9,18 @@ import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.operation.FtpDownloadOperation
 import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.SortModeUseCase
+import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +46,8 @@ class FileListViewModel @Inject constructor(
     private val myNoti: MyNotification,
     private val openFileUseCase: OpenFileUseCase,
     private val ftpUseCase: FtpUseCase,
+    private val sortModeUseCase: SortModeUseCase,
+    private val fileActionUseCase: FileActionUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -75,6 +81,35 @@ class FileListViewModel @Inject constructor(
     val operationError: SharedFlow<String> = progressUseCase.operationErrors
     /** 파일 작업 완료 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
     val operationCompletion: SharedFlow<String> = progressUseCase.operationCompletions
+
+    /** 현재 정렬 기준. DataStore에서 수집한다. */
+    val sortMode: StateFlow<String> = sortModeUseCase.sortBy
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = Constants.BY_DEFAULT
+        )
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    /** 폴더 생성 실패 시 표시할 오류 메시지. null이면 표시 없음. */
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    /** 오류 메시지를 소비한 뒤 초기화한다. */
+    fun clearError() { _errorMessage.value = null }
+
+    /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
+    fun newFolder(name: String) {
+        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
+        viewModelScope.launch {
+            fileActionUseCase.makeDirectory(currentPath, name).collect { state ->
+                state.error?.let { _errorMessage.value = it }
+            }
+            fileNavigatorUseCase.refresh()
+        }
+    }
+
+    /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
+    fun sortModeCallbackList() = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
 
     /** 알림 클릭으로 다이얼로그를 다시 표시해야 할 때 설정되는 actionKey. null이면 신호 없음. */
     private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)

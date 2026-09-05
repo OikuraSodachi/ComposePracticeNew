@@ -16,6 +16,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
@@ -31,6 +32,14 @@ fun FileListFrag(
     onSwitchToRemote: () -> Unit = {},
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
+    navigateToStorage: () -> Unit,
+    dirTree: List<DirectoryItem>,
+    onDirClick: (DirectoryItem) -> Unit,
+    sortMode: String,
+    sortModeCallbackList: List<Pair<String, () -> Unit>>,
+    errorMessage: String?,
+    onErrorDismiss: () -> Unit,
+    onNewFolder: (String) -> Unit,
     viewModel: FileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
@@ -44,6 +53,17 @@ fun FileListFrag(
         modifier = modifier
             .fillMaxSize()
     ) {
+        OptionFrag(
+            modifier = Modifier,
+            navigateToStorage = navigateToStorage,
+            dirTree = dirTree,
+            onDirClick = onDirClick,
+            sortMode = sortMode,
+            sortModeCallbackList = sortModeCallbackList,
+            errorMessage = errorMessage,
+            onErrorDismiss = onErrorDismiss,
+            onNewFolder = onNewFolder
+        )
         if (uiState.value.fileHolderItemList.isEmpty()) {
             Text(
                 modifier = Modifier
