@@ -18,7 +18,6 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
@@ -35,13 +34,14 @@ fun FileListFrag(
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
     navigateToStorage: () -> Unit,
-    dirTree: List<DirectoryItem>,
-    onDirClick: (DirectoryItem) -> Unit,
+    // TODO: NavController의 activity-scoped FileListViewModel과 별개 인스턴스 — 동일 singleton Flow를 구독하므로 데이터는 일치하나, 인스턴스 통합 검토 필요
     viewModel: FileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    // viewModel.dirTree를 키로 — dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
+    val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
     // viewModel 참조가 바뀔 때만 재생성 — sortModeCallbackList는 고정 목록
     val sortModeCallbackList = remember(viewModel) { viewModel.sortModeCallbackList() }
 
@@ -58,7 +58,7 @@ fun FileListFrag(
             modifier = Modifier,
             navigateToStorage = navigateToStorage,
             dirTree = dirTree,
-            onDirClick = onDirClick,
+            onDirClick = { viewModel.updateCurrentPath(it.path) },
             sortMode = sortMode,
             sortModeCallbackList = sortModeCallbackList,
             errorMessage = errorMessage,

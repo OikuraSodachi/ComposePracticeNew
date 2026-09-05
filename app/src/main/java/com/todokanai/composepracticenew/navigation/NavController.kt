@@ -23,7 +23,6 @@ import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
@@ -55,7 +54,7 @@ fun AppNavHost(
                 activity = activity,
                 exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
                 exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
-                setInitialPath = { viewModel.updateCurrentPath(it) }
+                setInitialPath = { viewModel.updateCurrentPath(it.absolutePath) }
             )
         }
         navigation(
@@ -68,8 +67,6 @@ fun AppNavHost(
                 }
                 val coordinator: FileTransferCoordinatorViewModel = hiltViewModel(graphEntry)
                 val context = LocalContext.current
-                val directoryViewModel: DirectoryViewModel = hiltViewModel()
-                val dirUiState by directoryViewModel.uiState.collectAsStateWithLifecycle()
                 var showDownloadConflictDialog by remember { mutableStateOf(false) }
                 var conflictDownloadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
 
@@ -129,9 +126,7 @@ fun AppNavHost(
                             navController.navigate(NavDestinations.REMOTE_FILE_LIST)
                         }
                     },
-                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
-                    dirTree = dirUiState.dirTree,
-                    onDirClick = { directoryViewModel.updateCurrentPath(it) }
+                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
                 )
 
                 ProgressSection(
