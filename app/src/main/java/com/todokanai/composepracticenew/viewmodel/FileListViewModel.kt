@@ -200,6 +200,13 @@ class FileListViewModel @Inject constructor(
         onDownload(pending.filter { it.path !in skipPaths })
     }
 
+    /** 상위 디렉터리로 이동한다. 루트이면 toStorageFrag를 호출한다. */
+    fun onBackPressed(toStorageFrag: () -> Unit) {
+        viewModelScope.launch {
+            fileNavigatorUseCase.navigateBack(toStorageFrag)
+        }
+    }
+
     fun onItemClick(selected: FileHolderItem, selectMode: Int) {
         viewModelScope.launch {
             when (selectMode) {

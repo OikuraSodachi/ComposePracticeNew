@@ -17,7 +17,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
-import com.todokanai.composepracticenew.usecase.NavigateBackUseCase
 import com.todokanai.composepracticenew.R
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
@@ -26,7 +25,6 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val navigateBackUseCase: NavigateBackUseCase,
     private val getStorageListUseCase: GetStorageListUseCase
 ) : ViewModel() {
 
@@ -109,9 +107,4 @@ class MainViewModel @Inject constructor(
         return storageList
     }
 
-    fun onBackPressed(toStorageFrag: () -> Unit) {
-        viewModelScope.launch {
-            navigateBackUseCase.navigateBack(toStorageFrag)
-        }
-    }
 }
