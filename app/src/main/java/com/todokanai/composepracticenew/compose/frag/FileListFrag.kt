@@ -40,7 +40,7 @@ fun FileListFrag(
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
-    // viewModel.dirTree를 키로 — dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
+    // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
     // viewModel 참조가 바뀔 때만 재생성 — sortModeCallbackList는 고정 목록
     val sortModeCallbackList = remember(viewModel) { viewModel.sortModeCallbackList() }
