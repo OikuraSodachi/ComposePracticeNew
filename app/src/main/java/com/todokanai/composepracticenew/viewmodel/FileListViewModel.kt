@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.AppConstants
@@ -35,7 +36,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
@@ -156,9 +156,19 @@ class FileListViewModel @Inject constructor(
         return pendingList.filter { remote -> localFiles.any { local -> local.name == remote.name } }
     }
 
-    fun updateCurrentPath(file: File) {
+    /** 경로 breadcrumb에 표시할 디렉터리 트리. */
+    val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
+        .map { list -> list.map { DirectoryItem(name = it.name, path = it.path) } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    /** 주어진 절대 경로로 현재 디렉터리를 이동한다. */
+    fun updateCurrentPath(path: String) {
         viewModelScope.launch {
-            fileNavigatorUseCase.setPath(file.absolutePath)
+            fileNavigatorUseCase.setPath(path)
         }
     }
 
