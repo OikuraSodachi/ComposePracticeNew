@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -20,6 +22,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
 import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
@@ -37,9 +40,16 @@ fun RemoteFileListFrag(
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
     onConfirmUpload: () -> Unit = {},
     onConnectionLost: () -> Unit = {},
+    navigateToStorage: () -> Unit,
+    dirTree: List<DirectoryItem>,
+    onDirClick: (DirectoryItem) -> Unit,
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
+    val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
+    // viewModel 참조가 바뀔 때만 재생성 — sortModeCallbackList는 고정 목록
+    val sortModeCallbackList = remember(viewModel) { viewModel.sortModeCallbackList() }
 
     val context = LocalContext.current
     LaunchedEffect(Unit) {
@@ -62,6 +72,17 @@ fun RemoteFileListFrag(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
+        OptionFrag(
+            modifier = Modifier,
+            navigateToStorage = navigateToStorage,
+            dirTree = dirTree,
+            onDirClick = onDirClick,
+            sortMode = sortMode,
+            sortModeCallbackList = sortModeCallbackList,
+            errorMessage = errorMessage,
+            onErrorDismiss = viewModel::clearError,
+            onNewFolder = viewModel::onMakeDirectory
+        )
         if (uiState.value.fileHolderItemList.isEmpty()) {
             Text(
                 modifier = Modifier

@@ -22,15 +22,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
 import com.todokanai.composepracticenew.compose.presets.dialog.BooleanDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.todokanai.composepracticenew.viewmodel.OptionViewModel
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 
 @Composable
@@ -39,19 +36,21 @@ fun OptionFrag(
     navigateToStorage: () -> Unit,
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
-    viewModel: OptionViewModel = hiltViewModel(),
+    sortMode: String,
+    sortModeCallbackList: List<Pair<String, () -> Unit>>,
+    errorMessage: String?,
+    onErrorDismiss: () -> Unit,
+    onNewFolder: (String) -> Unit,
 ) {
     val context = LocalContext.current
-    val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
 
     errorMessage?.let { msg ->
         BooleanDialog(
             modifier = Modifier,
             title = stringResource(R.string.dialog_error_title),
             message = msg,
-            onConfirm = { viewModel.clearError() },
-            onCancel = { viewModel.clearError() }
+            onConfirm = onErrorDismiss,
+            onCancel = onErrorDismiss
         )
     }
 
@@ -63,7 +62,7 @@ fun OptionFrag(
             defaultText = stringResource(R.string.dialog_new_folder_hint),
             onConfirm = {
                 showEditTextDialog = false
-                viewModel.newFolder(it)
+                onNewFolder(it)
             },
         ) { showEditTextDialog = false }
     }
@@ -71,8 +70,8 @@ fun OptionFrag(
     var showSortDialog by remember { mutableStateOf(false) }
     if (showSortDialog) {
         SortDialog(
-            items = viewModel.sortModeCallbackList(),
-            selectedItem = uiState.value.sortMode,
+            items = sortModeCallbackList,
+            selectedItem = sortMode,
             onCancel = {
                 showSortDialog = false
             }
