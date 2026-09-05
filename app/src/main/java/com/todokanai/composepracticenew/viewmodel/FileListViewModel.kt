@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -223,6 +224,19 @@ class FileListViewModel @Inject constructor(
         }
     }
 
+    /** 파일 작업 완료 후 현재 디렉터리 목록을 갱신한다. */
+    private val onRefresh: () -> Unit = { fileNavigatorUseCase.refresh() }
+    /** 작업 완료 메시지를 Progress 스트림에 방출한다. */
+    private val onEmitCompletion: (String) -> Unit = { progressUseCase.emitCompletion(it) }
+    /** 작업 오류 메시지를 Progress 스트림에 방출한다. */
+    private val onEmitError: (String) -> Unit = { progressUseCase.emitError(it) }
+    /** instanceId에 해당하는 Progress 상태를 갱신하는 콜백을 반환한다. */
+    private fun setProgressFor(instanceId: Int): (ProgressState) -> Unit =
+        { state -> progressUseCase.setProgressState(instanceId, state) }
+    /** instanceId에 해당하는 Progress 항목을 제거하는 콜백을 반환한다. */
+    private fun clearProgressFor(instanceId: Int): () -> Unit =
+        { progressUseCase.removeProgress(instanceId) }
+
     /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
     fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return emptyList()
@@ -252,11 +266,11 @@ class FileListViewModel @Inject constructor(
                     fileActionUseCase = fileActionUseCase,
                     myNoti = myNoti,
                     completionMessage = context.getString(R.string.noti_complete),
-                    onRefresh = { fileNavigatorUseCase.refresh() },
-                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                    onEmitError = { msg -> progressUseCase.emitError(msg) },
-                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                    onRefresh = onRefresh,
+                    onEmitCompletion = onEmitCompletion,
+                    onEmitError = onEmitError,
+                    setProgress = setProgressFor(instanceId),
+                    clearProgress = clearProgressFor(instanceId)
                 ).execute(appScope)
             }
             AppConstants.CONFIRM_MODE_MOVE -> {
@@ -267,11 +281,11 @@ class FileListViewModel @Inject constructor(
                     fileActionUseCase = fileActionUseCase,
                     myNoti = myNoti,
                     completionMessage = context.getString(R.string.noti_move_complete),
-                    onRefresh = { fileNavigatorUseCase.refresh() },
-                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                    onEmitError = { msg -> progressUseCase.emitError(msg) },
-                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                    onRefresh = onRefresh,
+                    onEmitCompletion = onEmitCompletion,
+                    onEmitError = onEmitError,
+                    setProgress = setProgressFor(instanceId),
+                    clearProgress = clearProgressFor(instanceId)
                 ).execute(appScope)
             }
             AppConstants.CONFIRM_MODE_UNZIP -> {
@@ -283,11 +297,11 @@ class FileListViewModel @Inject constructor(
                     fileActionUseCase = fileActionUseCase,
                     myNoti = myNoti,
                     completionMessage = context.getString(R.string.noti_complete),
-                    onRefresh = { fileNavigatorUseCase.refresh() },
-                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                    onEmitError = { msg -> progressUseCase.emitError(msg) },
-                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                    onRefresh = onRefresh,
+                    onEmitCompletion = onEmitCompletion,
+                    onEmitError = onEmitError,
+                    setProgress = setProgressFor(instanceId),
+                    clearProgress = clearProgressFor(instanceId)
                 ).execute(appScope)
             }
             AppConstants.CONFIRM_MODE_UNZIP_HERE -> {
@@ -299,11 +313,11 @@ class FileListViewModel @Inject constructor(
                     fileActionUseCase = fileActionUseCase,
                     myNoti = myNoti,
                     completionMessage = context.getString(R.string.noti_complete),
-                    onRefresh = { fileNavigatorUseCase.refresh() },
-                    onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                    onEmitError = { msg -> progressUseCase.emitError(msg) },
-                    setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-                    clearProgress = { progressUseCase.removeProgress(instanceId) }
+                    onRefresh = onRefresh,
+                    onEmitCompletion = onEmitCompletion,
+                    onEmitError = onEmitError,
+                    setProgress = setProgressFor(instanceId),
+                    clearProgress = clearProgressFor(instanceId)
                 ).execute(appScope)
             }
         }
@@ -319,11 +333,11 @@ class FileListViewModel @Inject constructor(
             fileActionUseCase = fileActionUseCase,
             myNoti = myNoti,
             completionMessage = context.getString(R.string.noti_complete),
-            onRefresh = { fileNavigatorUseCase.refresh() },
-            onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) },
-            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-            clearProgress = { progressUseCase.removeProgress(instanceId) }
+            onRefresh = onRefresh,
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
+            setProgress = setProgressFor(instanceId),
+            clearProgress = clearProgressFor(instanceId)
         ).execute(appScope)
     }
 
@@ -351,11 +365,11 @@ class FileListViewModel @Inject constructor(
             fileActionUseCase = fileActionUseCase,
             myNoti = myNoti,
             completionMessage = context.getString(R.string.noti_delete_complete),
-            onRefresh = { fileNavigatorUseCase.refresh() },
-            onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) },
-            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-            clearProgress = { progressUseCase.removeProgress(instanceId) }
+            onRefresh = onRefresh,
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
+            setProgress = setProgressFor(instanceId),
+            clearProgress = clearProgressFor(instanceId)
         ).execute(appScope)
     }
 }
