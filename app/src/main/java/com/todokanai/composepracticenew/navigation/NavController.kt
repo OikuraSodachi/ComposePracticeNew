@@ -71,16 +71,20 @@ fun AppNavHost(
     }
 }
 
+/** FILE_BROWSER_GRAPH에 스코프된 FileTransferCoordinatorViewModel을 반환한다. */
+@Composable
+private fun rememberGraphCoordinator(navController: NavHostController): FileTransferCoordinatorViewModel {
+    val graphEntry = remember { navController.getBackStackEntry(NavDestinations.FILE_BROWSER_GRAPH) }
+    return hiltViewModel(graphEntry)
+}
+
 /** FILE_LIST destination의 UI와 상태를 담당한다. */
 @Composable
 private fun FileListDestination(
     navController: NavHostController,
     viewModel: FileListViewModel
 ) {
-    val graphEntry = remember {
-        navController.getBackStackEntry(NavDestinations.FILE_BROWSER_GRAPH)
-    }
-    val coordinator: FileTransferCoordinatorViewModel = hiltViewModel(graphEntry)
+    val coordinator = rememberGraphCoordinator(navController)
     var showDownloadConflictDialog by remember { mutableStateOf(false) }
     var conflictDownloadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
 
@@ -159,10 +163,7 @@ private fun RemoteFileListDestination(
     navController: NavHostController,
     viewModel: FileListViewModel
 ) {
-    val graphEntry = remember {
-        navController.getBackStackEntry(NavDestinations.FILE_BROWSER_GRAPH)
-    }
-    val coordinator: FileTransferCoordinatorViewModel = hiltViewModel(graphEntry)
+    val coordinator = rememberGraphCoordinator(navController)
     val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
     val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
     var showUploadConflictDialog by remember { mutableStateOf(false) }
