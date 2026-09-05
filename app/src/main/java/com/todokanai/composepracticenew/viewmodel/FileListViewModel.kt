@@ -31,6 +31,8 @@ import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -238,18 +240,19 @@ class FileListViewModel @Inject constructor(
         { progressUseCase.removeProgress(instanceId) }
 
     /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
-    fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
-        val currentPath = fileNavigatorUseCase.currentPath.value ?: return emptyList()
-        return when (selectMode) {
-            AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE -> selectedList.filter { item ->
-                File(currentPath, File(item.path).name).exists()
+    suspend fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> =
+        withContext(Dispatchers.IO) {
+            val currentPath = fileNavigatorUseCase.currentPath.value ?: return@withContext emptyList()
+            when (selectMode) {
+                AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE -> selectedList.filter { item ->
+                    File(currentPath, File(item.path).name).exists()
+                }
+                AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> selectedList.filter { item ->
+                    File(currentPath, File(item.path).nameWithoutExtension).exists()
+                }
+                else -> emptyList()
             }
-            AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> selectedList.filter { item ->
-                File(currentPath, File(item.path).nameWithoutExtension).exists()
-            }
-            else -> emptyList()
         }
-    }
 
     /** 선택 목록에서 skipFiles를 제외한 대상에 대해 selectMode에 맞는 파일 작업을 실행한다. @param skipFiles 충돌로 건너뛸 파일 목록 */
     fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {
