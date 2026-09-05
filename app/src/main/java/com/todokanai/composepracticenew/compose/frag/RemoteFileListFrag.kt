@@ -24,7 +24,6 @@ import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListV
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
 /** 원격 스토리지의 파일 목록을 표시하고 I/O 작업(다운로드·업로드·이름변경·삭제·새폴더)을 제공하는 화면. */
@@ -44,14 +43,13 @@ fun RemoteFileListFrag(
     navigateToStorage: () -> Unit,
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
-    fileListViewModel: FileListViewModel,
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-    val sortMode by fileListViewModel.sortMode.collectAsStateWithLifecycle()
-    val errorMessage by fileListViewModel.errorMessage.collectAsStateWithLifecycle()
+    val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
+    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     // viewModel 참조가 바뀔 때만 재생성 — sortModeCallbackList는 고정 목록
-    val sortModeCallbackList = remember(fileListViewModel) { fileListViewModel.sortModeCallbackList() }
+    val sortModeCallbackList = remember(viewModel) { viewModel.sortModeCallbackList() }
 
     val context = LocalContext.current
     LaunchedEffect(Unit) {
@@ -82,8 +80,8 @@ fun RemoteFileListFrag(
             sortMode = sortMode,
             sortModeCallbackList = sortModeCallbackList,
             errorMessage = errorMessage,
-            onErrorDismiss = fileListViewModel::clearError,
-            onNewFolder = fileListViewModel::newFolder
+            onErrorDismiss = viewModel::clearError,
+            onNewFolder = viewModel::onMakeDirectory
         )
         if (uiState.value.fileHolderItemList.isEmpty()) {
             Text(

@@ -228,8 +228,7 @@ fun AppNavHost(
                     onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) },
                     navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
                     dirTree = remoteDirTree,
-                    onDirClick = { remoteViewModel.navigateToDir(it) },
-                    fileListViewModel = viewModel
+                    onDirClick = { remoteViewModel.navigateToDir(it) }
                 )
 
                 if (showUploadConflictDialog) {

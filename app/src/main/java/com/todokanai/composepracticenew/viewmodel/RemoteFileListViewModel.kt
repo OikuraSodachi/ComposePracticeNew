@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
+import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.operation.FtpUploadOperation
@@ -20,14 +21,18 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
+import com.todokanai.composepracticenew.usecase.SortModeUseCase
+import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.scan
@@ -45,6 +50,7 @@ class RemoteFileListViewModel @Inject constructor(
     private val ftpUseCase: FtpUseCase,
     private val myNoti: MyNotification,
     private val progressUseCase: ProgressUseCase,
+    private val sortModeUseCase: SortModeUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -126,6 +132,24 @@ class RemoteFileListViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyList()
         )
+
+    /** 현재 정렬 기준. DataStore에서 수집한다. */
+    val sortMode: StateFlow<String> = sortModeUseCase.sortBy
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = Constants.BY_DEFAULT
+        )
+
+    /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
+    fun sortModeCallbackList() = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
+
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    /** 폴더 생성 실패 시 표시할 오류 메시지. null이면 표시 없음. */
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+
+    /** 오류 메시지를 소비한 뒤 초기화한다. */
+    fun clearError() { _errorMessage.value = null }
 
     /** breadcrumb 항목 클릭 시 해당 경로로 이동한다. */
     fun navigateToDir(entry: DirectoryItem) {
@@ -215,7 +239,7 @@ class RemoteFileListViewModel @Inject constructor(
         appScope.launch {
             val success = ftpUseCase.makeDirectory(currentPath, dirName)
             if (success) fileNavigatorUseCase.refresh()
-            else progressUseCase.emitError("디렉터리 생성 실패: $dirName")
+            else _errorMessage.value = "디렉터리 생성 실패: $dirName"
         }
     }
 
