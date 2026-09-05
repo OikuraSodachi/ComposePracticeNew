@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -20,7 +22,9 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
 import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
 /** 원격 스토리지의 파일 목록을 표시하고 I/O 작업(다운로드·업로드·이름변경·삭제·새폴더)을 제공하는 화면. */
@@ -37,9 +41,17 @@ fun RemoteFileListFrag(
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
     onConfirmUpload: () -> Unit = {},
     onConnectionLost: () -> Unit = {},
+    navigateToStorage: () -> Unit,
+    dirTree: List<DirectoryItem>,
+    onDirClick: (DirectoryItem) -> Unit,
+    fileListViewModel: FileListViewModel,
     viewModel: RemoteFileListViewModel = hiltViewModel()
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
+    val sortMode by fileListViewModel.sortMode.collectAsStateWithLifecycle()
+    val errorMessage by fileListViewModel.errorMessage.collectAsStateWithLifecycle()
+    // viewModel 참조가 바뀔 때만 재생성 — sortModeCallbackList는 고정 목록
+    val sortModeCallbackList = remember(fileListViewModel) { fileListViewModel.sortModeCallbackList() }
 
     val context = LocalContext.current
     LaunchedEffect(Unit) {
@@ -62,6 +74,17 @@ fun RemoteFileListFrag(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
+        OptionFrag(
+            modifier = Modifier,
+            navigateToStorage = navigateToStorage,
+            dirTree = dirTree,
+            onDirClick = onDirClick,
+            sortMode = sortMode,
+            sortModeCallbackList = sortModeCallbackList,
+            errorMessage = errorMessage,
+            onErrorDismiss = fileListViewModel::clearError,
+            onNewFolder = fileListViewModel::newFolder
+        )
         if (uiState.value.fileHolderItemList.isEmpty()) {
             Text(
                 modifier = Modifier

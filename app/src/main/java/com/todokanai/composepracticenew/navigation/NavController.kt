@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.navigation
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -21,7 +20,6 @@ import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.compose.activity.MainActivity
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
-import com.todokanai.composepracticenew.compose.frag.OptionFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -29,7 +27,6 @@ import com.todokanai.composepracticenew.viewmodel.DirectoryViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
-import com.todokanai.composepracticenew.viewmodel.OptionViewModel
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
 /** 앱 전체 navigation graph를 정의하고 각 destination을 composable에 연결한다. */
@@ -73,10 +70,6 @@ fun AppNavHost(
                 val context = LocalContext.current
                 val directoryViewModel: DirectoryViewModel = hiltViewModel()
                 val dirUiState by directoryViewModel.uiState.collectAsStateWithLifecycle()
-                val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
-                val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
-                // sortModeCallbackList 목록은 고정값 — ViewModel 참조가 바뀔 때만 재생성
-                val sortModeCallbackList = remember(viewModel) { viewModel.sortModeCallbackList() }
                 var showDownloadConflictDialog by remember { mutableStateOf(false) }
                 var conflictDownloadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
 
@@ -138,12 +131,7 @@ fun AppNavHost(
                     },
                     navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
                     dirTree = dirUiState.dirTree,
-                    onDirClick = { directoryViewModel.updateCurrentPath(it) },
-                    sortMode = sortMode,
-                    sortModeCallbackList = sortModeCallbackList,
-                    errorMessage = errorMessage,
-                    onErrorDismiss = viewModel::clearError,
-                    onNewFolder = viewModel::newFolder
+                    onDirClick = { directoryViewModel.updateCurrentPath(it) }
                 )
 
                 ProgressSection(
@@ -178,12 +166,7 @@ fun AppNavHost(
                 }
                 val coordinator: FileTransferCoordinatorViewModel = hiltViewModel(graphEntry)
                 val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
-                val optionViewModel: OptionViewModel = hiltViewModel()
                 val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
-                val optionUiState by optionViewModel.uiState.collectAsStateWithLifecycle()
-                val optionErrorMessage by optionViewModel.errorMessage.collectAsStateWithLifecycle()
-                // sortModeCallbackList 목록은 고정값 — ViewModel 참조가 바뀔 때만 재생성
-                val sortModeCallbackList = remember(optionViewModel) { optionViewModel.sortModeCallbackList() }
                 var showUploadConflictDialog by remember { mutableStateOf(false) }
                 var conflictUploadFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
 
@@ -209,54 +192,45 @@ fun AppNavHost(
                     remoteViewModel.onBackPressed { navController.popBackStack() }
                 }
 
-                Column(modifier = Modifier) {
-                    OptionFrag(
-                        modifier = Modifier,
-                        navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
-                        dirTree = remoteDirTree,
-                        onDirClick = { remoteViewModel.navigateToDir(it) },
-                        sortMode = optionUiState.sortMode,
-                        sortModeCallbackList = sortModeCallbackList,
-                        errorMessage = optionErrorMessage,
-                        onErrorDismiss = optionViewModel::clearError,
-                        onNewFolder = optionViewModel::newFolder
-                    )
-                    RemoteFileListFrag(
-                        modifier = Modifier,
-                        selectMode = remoteSelectMode,
-                        selectedList = remoteSelectedList,
-                        onSelectModeChange = coordinator::setRemoteSelectMode,
-                        addToList = coordinator::addToRemoteList,
-                        removeFromList = coordinator::removeFromRemoteList,
-                        clearList = coordinator::clearRemoteList,
-                        onSwitchToLocal = {
-                            if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
-                                navController.navigate(NavDestinations.FILE_LIST) {
-                                    popUpTo(NavDestinations.STORAGE) { inclusive = false }
-                                }
+                RemoteFileListFrag(
+                    modifier = Modifier,
+                    selectMode = remoteSelectMode,
+                    selectedList = remoteSelectedList,
+                    onSelectModeChange = coordinator::setRemoteSelectMode,
+                    addToList = coordinator::addToRemoteList,
+                    removeFromList = coordinator::removeFromRemoteList,
+                    clearList = coordinator::clearRemoteList,
+                    onSwitchToLocal = {
+                        if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
+                            navController.navigate(NavDestinations.FILE_LIST) {
+                                popUpTo(NavDestinations.STORAGE) { inclusive = false }
                             }
-                        },
-                        onEnterDownloadMode = { items ->
-                            coordinator.enterDownloadMode(items)
-                            if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
-                                navController.navigate(NavDestinations.FILE_LIST) {
-                                    popUpTo(NavDestinations.REMOTE_FILE_LIST) { inclusive = true }
-                                }
+                        }
+                    },
+                    onEnterDownloadMode = { items ->
+                        coordinator.enterDownloadMode(items)
+                        if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
+                            navController.navigate(NavDestinations.FILE_LIST) {
+                                popUpTo(NavDestinations.REMOTE_FILE_LIST) { inclusive = true }
                             }
-                        },
-                        onConfirmUpload = {
-                            val conflicts = remoteViewModel.getUploadConflicts(uploadPendingList)
-                            if (conflicts.isEmpty()) {
-                                uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
-                                coordinator.clearUploadPending()
-                            } else {
-                                conflictUploadFiles = conflicts
-                                showUploadConflictDialog = true
-                            }
-                        },
-                        onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) }
-                    )
-                }
+                        }
+                    },
+                    onConfirmUpload = {
+                        val conflicts = remoteViewModel.getUploadConflicts(uploadPendingList)
+                        if (conflicts.isEmpty()) {
+                            uploadPendingList.forEach { remoteViewModel.onUpload(it.path) }
+                            coordinator.clearUploadPending()
+                        } else {
+                            conflictUploadFiles = conflicts
+                            showUploadConflictDialog = true
+                        }
+                    },
+                    onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) },
+                    navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
+                    dirTree = remoteDirTree,
+                    onDirClick = { remoteViewModel.navigateToDir(it) },
+                    fileListViewModel = viewModel
+                )
 
                 if (showUploadConflictDialog) {
                     FileConflictDialog(
