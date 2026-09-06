@@ -4,9 +4,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.compose.BottomButtons
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
@@ -16,7 +17,6 @@ import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.viewmodel.BottomButtonsViewModel
 
 @Composable
 fun BottomButtonListView(
@@ -27,7 +27,11 @@ fun BottomButtonListView(
     selectedList: List<FileHolderItem>,
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
-    viewModel: BottomButtonsViewModel = hiltViewModel()
+    onGetConflicts: suspend (List<FileHolderItem>, Int) -> List<FileHolderItem>,
+    onConfirm: (List<FileHolderItem>, Int, List<FileHolderItem>) -> Unit,
+    onZip: (List<FileHolderItem>, String) -> Unit,
+    onRename: (FileHolderItem, String) -> Unit,
+    onDelete: (List<FileHolderItem>) -> Unit,
 ) {
     var zipDialog by remember { mutableStateOf(false) }
     var renameDialog by remember { mutableStateOf(false) }
@@ -37,16 +41,22 @@ fun BottomButtonListView(
     var conflictFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
     var pendingSelectMode by remember { mutableStateOf(AppConstants.DEFAULT_MODE) }
 
-    val onConfirmWithConflictCheck: () -> Unit = {
-        val conflicts = viewModel.getConflicts(selectedList, selectMode)
-        if (conflicts.isEmpty()) {
-            viewModel.confirm(selectedList, selectMode)
-            onSelectModeChange(AppConstants.DEFAULT_MODE)
-            onClearSelection()
-        } else {
-            conflictFiles = conflicts
-            pendingSelectMode = selectMode
-            showConflictDialog = true
+    val scope = rememberCoroutineScope()
+    // selectedList·selectMode가 바뀔 때만 재생성 — 가변 캡처값 변경 시 stale 람다 방지
+    val onConfirmWithConflictCheck: () -> Unit = remember(selectedList, selectMode) {
+        {
+            scope.launch {
+                val conflicts = onGetConflicts(selectedList, selectMode)
+                if (conflicts.isEmpty()) {
+                    onConfirm(selectedList, selectMode, emptyList())
+                    onSelectModeChange(AppConstants.DEFAULT_MODE)
+                    onClearSelection()
+                } else {
+                    conflictFiles = conflicts
+                    pendingSelectMode = selectMode
+                    showConflictDialog = true
+                }
+            }
         }
     }
     val onCancel: () -> Unit = { onSelectModeChange(AppConstants.DEFAULT_MODE) }
@@ -112,7 +122,7 @@ fun BottomButtonListView(
     if (zipDialog) {
         ZipDialog(
             onConfirm = {
-                viewModel.zip(selectedList, it)
+                onZip(selectedList, it)
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
             },
@@ -121,7 +131,7 @@ fun BottomButtonListView(
     }
     if (renameDialog) {
         RenameDialog(
-            onConfirm = { viewModel.rename(selectedList.first(), it) },
+            onConfirm = { onRename(selectedList.first(), it) },
             onCancel = { renameDialog = false }
         )
     }
@@ -134,7 +144,7 @@ fun BottomButtonListView(
     if (deleteDialog) {
         DeleteDialog(
             onConfirm = {
-                viewModel.delete(selectedList)
+                onDelete(selectedList)
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
             },
@@ -146,13 +156,13 @@ fun BottomButtonListView(
             conflictingFiles = conflictFiles,
             totalCount = selectedList.size,
             onOverwrite = {
-                viewModel.confirm(selectedList, pendingSelectMode)
+                onConfirm(selectedList, pendingSelectMode, emptyList())
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
                 showConflictDialog = false
             },
             onSkip = {
-                viewModel.confirm(selectedList, pendingSelectMode, skipFiles = conflictFiles)
+                onConfirm(selectedList, pendingSelectMode, conflictFiles)
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
                 showConflictDialog = false

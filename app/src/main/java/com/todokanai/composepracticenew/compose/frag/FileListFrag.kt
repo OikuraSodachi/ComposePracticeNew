@@ -95,7 +95,12 @@ fun FileListFrag(
             onClearSelection = clearList,
             selectedList = selectedList,
             onConfirmDownload = onConfirmDownload,
-            onEnterUploadMode = onEnterUploadMode
+            onEnterUploadMode = onEnterUploadMode,
+            onGetConflicts = viewModel::getConflicts,
+            onConfirm = { list, mode, skip -> viewModel.confirm(list, mode, skip) },
+            onZip = viewModel::zip,
+            onRename = viewModel::rename,
+            onDelete = viewModel::delete
         )
 
         StorageSwitchBar(
