@@ -247,6 +247,9 @@ class FileListViewModel @Inject constructor(
                 AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE -> selectedList.filter { item ->
                     File(currentPath, File(item.path).name).exists()
                 }
+                // TODO: UNZIP_HERE 충돌 판정이 잘못됨 — nameWithoutExtension 하위 폴더 존재 여부를 검사하지만,
+                //  unzipHere=true 구현은 currentPath에 직접 엔트리를 추출하므로 실제 충돌 대상은 currentPath 내 동일 이름 파일이다.
+                //  CONFIRM_MODE_UNZIP_HERE 브랜치를 분리하고 File(currentPath, entry.name).exists() 로 교체해야 한다.
                 AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> selectedList.filter { item ->
                     File(currentPath, File(item.path).nameWithoutExtension).exists()
                 }
