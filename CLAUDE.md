@@ -92,6 +92,10 @@ Top-level `_td`-suffixed functions (e.g., `dirTree_td`, `readableFileSize_td`, `
 
 - [x] I/O 작업 진행상황 조회 — 복사, 압축 등 파일 작업 중 진행률을 UI에 실시간으로 표시
 
+## Compose Configuration
+
+- **Strong Skipping** is enabled. All `@Composable` functions benefit from strong-skipping optimization — unstable parameters no longer unconditionally force recomposition. Avoid adding `@Stable`/`@Immutable` annotations solely to enable skipping; strong skipping already covers the common case.
+
 ## Key Conventions
 
 - Sort mode constants are strings defined in `Constants` (e.g., `BY_NAME_ASCENDING`).
