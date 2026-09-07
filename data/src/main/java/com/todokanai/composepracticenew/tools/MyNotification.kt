@@ -69,7 +69,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         }
     }
 
-    fun deleteProgressNoti(progress: Int, total: Int) {
+    fun deleteProgressNoti(progress: Int, total: Int, notifId: Int) {
         notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
@@ -80,22 +80,19 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(buildClickIntent(ACTION_KEY_DELETE))
         with(NotificationManagerCompat.from(context)) {
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notify(ACTION_KEY_DELETE, builder.build())
-                return
-            }
-            notify(ACTION_KEY_DELETE, builder.build())
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+            notify(notifId, builder.build())
         }
     }
 
-    fun copyProgressNoti(progress: Int) = progressNoti("Copying", "$progress %", progress, ACTION_KEY_COPY)
-    fun moveProgressNoti(progress: Int) = progressNoti("Moving", "$progress %", progress, ACTION_KEY_MOVE)
-    fun unzipProgressNoti(progress: Int) = progressNoti("Unzipping", "$progress %", progress, ACTION_KEY_UNZIP)
-    fun zipProgressNoti(progress: Int) = progressNoti("Zipping", "$progress %", progress, ACTION_KEY_ZIP)
+    fun copyProgressNoti(progress: Int, notifId: Int) = progressNoti("Copying", "$progress %", progress, ACTION_KEY_COPY, notifId)
+    fun moveProgressNoti(progress: Int, notifId: Int) = progressNoti("Moving", "$progress %", progress, ACTION_KEY_MOVE, notifId)
+    fun unzipProgressNoti(progress: Int, notifId: Int) = progressNoti("Unzipping", "$progress %", progress, ACTION_KEY_UNZIP, notifId)
+    fun zipProgressNoti(progress: Int, notifId: Int) = progressNoti("Zipping", "$progress %", progress, ACTION_KEY_ZIP, notifId)
     fun downloadProgressNoti(progress: Int, notifId: Int) = progressNoti("Downloading", "$progress %", progress, ACTION_KEY_DOWNLOAD, notifId)
     fun uploadProgressNoti(progress: Int, notifId: Int) = progressNoti("Uploading", "$progress %", progress, ACTION_KEY_UPLOAD, notifId)
 
-    private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int = actionKey) {
+    private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int) {
         notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)

@@ -18,8 +18,8 @@ class ProgressUseCase(private val repo: ProgressRepository) {
 
     /** 작업 인스턴스마다 전역적으로 고유한 ID를 발급한다. */
     fun nextInstanceId(): Int = instanceCounter.incrementAndGet()
-    fun setProgressState(actionKey: Int, state: ProgressState) = repo.setProgressState(actionKey, state)
-    fun removeProgress(actionKey: Int) = repo.removeProgress(actionKey)
+    fun setProgressState(instanceId: Int, state: ProgressState) = repo.setProgressState(instanceId, state)
+    fun removeProgress(instanceId: Int) = repo.removeProgress(instanceId)
     fun emitError(message: String) = repo.emitError(message)
     fun emitCompletion(message: String) = repo.emitCompletion(message)
 }

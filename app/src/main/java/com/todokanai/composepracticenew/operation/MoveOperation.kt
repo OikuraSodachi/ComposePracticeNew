@@ -11,6 +11,7 @@ class MoveOperation(
     private val targetPath: String,
     private val fileActionUseCase: FileActionUseCase,
     private val myNoti: MyNotification,
+    private val instanceId: Int,
     private val completionMessage: String,
     private val onRefresh: suspend () -> Unit,
     private val onEmitCompletion: suspend (String) -> Unit,
@@ -23,17 +24,18 @@ class MoveOperation(
         fileActionUseCase.moveFile(targetFiles, targetPath) { state ->
             progressState = state.copy(actionKey = ACTION_KEY_MOVE)
             setProgress(progressState)
-            state.progress?.let { myNoti.moveProgressNoti(it) }
+            state.progress?.let { myNoti.moveProgressNoti(it, instanceId) }
         }.collect {}
     }
 
     override suspend fun onCompletion() {
-        myNoti.completedNotification("", completionMessage, ACTION_KEY_MOVE)
+        myNoti.completedNotification("", completionMessage, ACTION_KEY_MOVE, instanceId)
         onEmitCompletion(completionMessage)
         onRefresh()
     }
 
     override suspend fun onError(message: String) {
+        myNoti.cancelNotification(instanceId)
         onEmitError(message)
         onRefresh()
     }
