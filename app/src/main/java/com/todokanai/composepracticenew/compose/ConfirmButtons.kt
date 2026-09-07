@@ -27,13 +27,13 @@ fun ConfirmButtons(
             .height(50.dp)
     ) {
         TextButton(
-            onClick = { cancel() },
+            onClick = cancel,
             Modifier.weight(1f)
         ) {
             Text(stringResource(R.string.btn_cancel))
         }
         TextButton(
-            onClick = { confirm() },
+            onClick = confirm,
             Modifier.weight(1f)
         ) {
             when(mode){

@@ -55,7 +55,7 @@ fun StorageMenuButtons(
 
         TextButton(
             modifier = Modifier.weight(1f),
-            onClick = { exit() }
+            onClick = exit
         ) {
             Text(stringResource(R.string.btn_exit))
         }

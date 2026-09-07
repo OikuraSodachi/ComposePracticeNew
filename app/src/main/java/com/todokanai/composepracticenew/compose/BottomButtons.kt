@@ -48,19 +48,19 @@ fun BottomButtons(
             .height(50.dp)
     ) {
         TextButton(
-            onClick = { move() },
+            onClick = move,
             Modifier.weight(1f)
         ) {
             Text(strMove)
         }
         TextButton(
-            onClick = { copy() },
+            onClick = copy,
             Modifier.weight(1f)
         ) {
             Text(strCopy)
         }
         TextButton(
-            onClick = { delete() },
+            onClick = delete,
             Modifier.weight(1f)
         ) {
             Text(strDelete)
