@@ -10,15 +10,17 @@ class FtpUploadOperation(
     private val localPath: String,
     private val remoteDestPath: String,
     private val ftpUseCase: FtpUseCase,
-    private val instanceId: Int,
-    private val myNoti: MyNotification,
-    private val completionMessage: String,
-    private val onRefresh: suspend () -> Unit,
-    private val onEmitCompletion: suspend (String) -> Unit,
-    private val onEmitError: suspend (String) -> Unit,
+    myNoti: MyNotification,
+    instanceId: Int,
+    completionMessage: String,
+    onRefresh: suspend () -> Unit,
+    onEmitCompletion: suspend (String) -> Unit,
+    onEmitError: suspend (String) -> Unit,
     setProgress: (ProgressState) -> Unit,
     clearProgress: () -> Unit
-) : IoOperation(setProgress, clearProgress) {
+) : NotiIoOperation(myNoti, instanceId, completionMessage, onRefresh, onEmitCompletion, onEmitError, setProgress, clearProgress) {
+
+    override val actionKey = ACTION_KEY_UPLOAD
 
     override suspend fun mainOperation() {
         ftpUseCase.upload(localPath, remoteDestPath) { state ->
@@ -26,17 +28,5 @@ class FtpUploadOperation(
             setProgress(progressState)
             state.progress?.let { myNoti.uploadProgressNoti(it, instanceId) }
         }.collect {}
-    }
-
-    override suspend fun onCompletion() {
-        myNoti.completedNotification("", completionMessage, ACTION_KEY_UPLOAD, instanceId)
-        onEmitCompletion(completionMessage)
-        onRefresh()
-    }
-
-    override suspend fun onError(message: String) {
-        myNoti.cancelNotification(instanceId)
-        onEmitError(message)
-        onRefresh()
     }
 }

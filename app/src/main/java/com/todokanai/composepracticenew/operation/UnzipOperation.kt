@@ -11,15 +11,17 @@ class UnzipOperation(
     private val destPath: String,
     private val unzipHere: Boolean,
     private val fileActionUseCase: FileActionUseCase,
-    private val myNoti: MyNotification,
-    private val instanceId: Int,
-    private val completionMessage: String,
-    private val onRefresh: suspend () -> Unit,
-    private val onEmitCompletion: suspend (String) -> Unit,
-    private val onEmitError: suspend (String) -> Unit,
+    myNoti: MyNotification,
+    instanceId: Int,
+    completionMessage: String,
+    onRefresh: suspend () -> Unit,
+    onEmitCompletion: suspend (String) -> Unit,
+    onEmitError: suspend (String) -> Unit,
     setProgress: (ProgressState) -> Unit,
     clearProgress: () -> Unit
-) : IoOperation(setProgress, clearProgress) {
+) : NotiIoOperation(myNoti, instanceId, completionMessage, onRefresh, onEmitCompletion, onEmitError, setProgress, clearProgress) {
+
+    override val actionKey = ACTION_KEY_UNZIP
 
     override suspend fun mainOperation() {
         fileActionUseCase.unzipAction(zipFiles, destPath, unzipHere) { state ->
@@ -27,17 +29,5 @@ class UnzipOperation(
             setProgress(progressState)
             state.progress?.let { myNoti.unzipProgressNoti(it, instanceId) }
         }.collect {}
-    }
-
-    override suspend fun onCompletion() {
-        myNoti.completedNotification("", completionMessage, ACTION_KEY_UNZIP, instanceId)
-        onEmitCompletion(completionMessage)
-        onRefresh()
-    }
-
-    override suspend fun onError(message: String) {
-        myNoti.cancelNotification(instanceId)
-        onEmitError(message)
-        onRefresh()
     }
 }
