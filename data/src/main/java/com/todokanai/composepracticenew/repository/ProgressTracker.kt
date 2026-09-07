@@ -13,7 +13,7 @@ import com.todokanai.composepracticenew.repository.ProgressRepository
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** 동시에 진행 중인 파일 작업들의 progress 상태를 actionKey별로 관리한다. */
+/** 동시에 진행 중인 파일 작업들의 progress 상태를 instanceId별로 관리한다. */
 @Singleton
 class ProgressTracker @Inject constructor() : ProgressRepository {
     private val _progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
@@ -25,12 +25,12 @@ class ProgressTracker @Inject constructor() : ProgressRepository {
     private val _operationCompletions = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     override val operationCompletions: SharedFlow<String> = _operationCompletions.asSharedFlow()
 
-    override fun setProgressState(actionKey: Int, state: ProgressState) {
-        _progressMap.update { it + (actionKey to state) }
+    override fun setProgressState(instanceId: Int, state: ProgressState) {
+        _progressMap.update { it + (instanceId to state) }
     }
 
-    override fun removeProgress(actionKey: Int) {
-        _progressMap.update { it - actionKey }
+    override fun removeProgress(instanceId: Int) {
+        _progressMap.update { it - instanceId }
     }
 
     override fun emitError(message: String) {
