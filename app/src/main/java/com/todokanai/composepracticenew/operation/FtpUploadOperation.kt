@@ -37,5 +37,6 @@ class FtpUploadOperation(
     override suspend fun onError(message: String) {
         myNoti.cancelNotification(instanceId)
         onEmitError(message)
+        onRefresh()
     }
 }

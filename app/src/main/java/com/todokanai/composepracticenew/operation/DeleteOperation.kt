@@ -10,6 +10,7 @@ class DeleteOperation(
     private val targetFiles: List<String>,
     private val fileActionUseCase: FileActionUseCase,
     private val myNoti: MyNotification,
+    private val instanceId: Int,
     private val completionMessage: String,
     private val onRefresh: suspend () -> Unit,
     private val onEmitCompletion: suspend (String) -> Unit,
@@ -25,18 +26,19 @@ class DeleteOperation(
                 setProgress(progressState)
                 val idx = state.currentIndex ?: return@deleteFile
                 val total = state.listSize ?: return@deleteFile
-                myNoti.deleteProgressNoti(idx, total)
+                myNoti.deleteProgressNoti(idx, total, instanceId)
             }.collect {}
         }
     }
 
     override suspend fun onCompletion() {
-        myNoti.completedNotification("", completionMessage, ACTION_KEY_DELETE)
+        myNoti.completedNotification("", completionMessage, ACTION_KEY_DELETE, instanceId)
         onEmitCompletion(completionMessage)
         onRefresh()
     }
 
     override suspend fun onError(message: String) {
+        myNoti.cancelNotification(instanceId)
         onEmitError(message)
         onRefresh()
     }

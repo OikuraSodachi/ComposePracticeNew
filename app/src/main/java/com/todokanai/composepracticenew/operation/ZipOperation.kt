@@ -11,6 +11,7 @@ class ZipOperation(
     private val zipFilePath: String,
     private val fileActionUseCase: FileActionUseCase,
     private val myNoti: MyNotification,
+    private val instanceId: Int,
     private val completionMessage: String,
     private val onRefresh: suspend () -> Unit,
     private val onEmitCompletion: suspend (String) -> Unit,
@@ -23,17 +24,18 @@ class ZipOperation(
         fileActionUseCase.zipAction(sourceFiles, zipFilePath) { state ->
             progressState = state.copy(actionKey = ACTION_KEY_ZIP)
             setProgress(progressState)
-            state.progress?.let { myNoti.zipProgressNoti(it) }
+            state.progress?.let { myNoti.zipProgressNoti(it, instanceId) }
         }.collect {}
     }
 
     override suspend fun onCompletion() {
-        myNoti.completedNotification("", completionMessage, ACTION_KEY_ZIP)
+        myNoti.completedNotification("", completionMessage, ACTION_KEY_ZIP, instanceId)
         onEmitCompletion(completionMessage)
         onRefresh()
     }
 
     override suspend fun onError(message: String) {
+        myNoti.cancelNotification(instanceId)
         onEmitError(message)
         onRefresh()
     }

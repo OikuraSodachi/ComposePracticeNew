@@ -12,6 +12,7 @@ class UnzipOperation(
     private val unzipHere: Boolean,
     private val fileActionUseCase: FileActionUseCase,
     private val myNoti: MyNotification,
+    private val instanceId: Int,
     private val completionMessage: String,
     private val onRefresh: suspend () -> Unit,
     private val onEmitCompletion: suspend (String) -> Unit,
@@ -24,17 +25,18 @@ class UnzipOperation(
         fileActionUseCase.unzipAction(zipFiles, destPath, unzipHere) { state ->
             progressState = state.copy(actionKey = ACTION_KEY_UNZIP)
             setProgress(progressState)
-            state.progress?.let { myNoti.unzipProgressNoti(it) }
+            state.progress?.let { myNoti.unzipProgressNoti(it, instanceId) }
         }.collect {}
     }
 
     override suspend fun onCompletion() {
-        myNoti.completedNotification("", completionMessage, ACTION_KEY_UNZIP)
+        myNoti.completedNotification("", completionMessage, ACTION_KEY_UNZIP, instanceId)
         onEmitCompletion(completionMessage)
         onRefresh()
     }
 
     override suspend fun onError(message: String) {
+        myNoti.cancelNotification(instanceId)
         onEmitError(message)
         onRefresh()
     }
