@@ -1,12 +1,16 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
@@ -29,6 +33,16 @@ class FileTransferCoordinatorViewModel @Inject constructor() : ViewModel() {
     private val _remoteSelectedList = MutableStateFlow<List<FileHolderItem>>(emptyList())
     /** 원격 화면에서 선택된 파일 항목 목록. */
     val remoteSelectedList: StateFlow<List<FileHolderItem>> = _remoteSelectedList.asStateFlow()
+
+    /** 로컬 선택 항목의 경로 집합. 선택 목록 변경 시에만 재계산된다. */
+    val localSelectedPaths: StateFlow<Set<String>> = _localSelectedList
+        .map { list -> list.mapTo(HashSet()) { it.path } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
+
+    /** 원격 선택 항목의 경로 집합. 선택 목록 변경 시에만 재계산된다. */
+    val remoteSelectedPaths: StateFlow<Set<String>> = _remoteSelectedList
+        .map { list -> list.mapTo(HashSet()) { it.path } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     private val _downloadPendingList = MutableStateFlow<List<FileHolderItem>>(emptyList())
     /** 원격 → 로컬 다운로드 대기 목록. */

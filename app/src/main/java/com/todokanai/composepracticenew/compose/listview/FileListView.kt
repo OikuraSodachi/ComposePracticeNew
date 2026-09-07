@@ -16,7 +16,7 @@ import com.todokanai.composepracticenew.data.R as DataR
 fun FileListView(
     modifier: Modifier,
     fileHolderItemList: List<FileHolderItem>,
-    selectedList: List<FileHolderItem>,
+    selectedPaths: Set<String>,
     selectMode: Int,
     onItemClick: (FileHolderItem) -> Unit,
     onItemLongClick: (FileHolderItem) -> Unit,
@@ -24,8 +24,6 @@ fun FileListView(
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit
 ) {
-    val selectedPaths = remember(selectedList) { selectedList.mapTo(HashSet()) { it.path } }
-
     // items{} 밖에서 1회 생성 — 스크롤 시 painterResource가 item 수만큼 호출되는 것을 방지
     val folderIcon = painterResource(DataR.drawable.ic_baseline_folder_24)
     val fileIcon = painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
@@ -39,16 +37,15 @@ fun FileListView(
 
             val isSelected = fileHolderItem.path in selectedPaths
 
-            // name이 바뀔 때만 재계산 — icon 선택과 isAsyncImage 판별에 공유 사용
-            val extension = remember(fileHolderItem.name) { fileHolderItem.name.substringAfterLast('.', "") }
-
-            // fileHolderItem.isDirectory 또는 extension이 바뀔 때만 재선택
-            val icon = remember(fileHolderItem.isDirectory, extension) {
-                when {
+            // name 또는 isDirectory가 바뀔 때만 재계산 — extension과 icon을 단일 블록으로 통합
+            val (extension, icon) = remember(fileHolderItem.name, fileHolderItem.isDirectory) {
+                val ext = fileHolderItem.name.substringAfterLast('.', "")
+                val ico = when {
                     fileHolderItem.isDirectory -> folderIcon
-                    extension == "pdf" -> pdfIcon
+                    ext == "pdf" -> pdfIcon
                     else -> fileIcon
                 }
+                ext to ico
             }
 
             val onClick = remember(fileHolderItem, selectMode, isSelected) {

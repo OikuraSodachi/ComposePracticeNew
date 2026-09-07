@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
@@ -42,18 +43,20 @@ fun BottomButtonListView(
     var pendingSelectMode by remember { mutableStateOf(AppConstants.DEFAULT_MODE) }
 
     val scope = rememberCoroutineScope()
-    // selectedList·selectMode가 바뀔 때만 재생성 — 가변 캡처값 변경 시 stale 람다 방지
-    val onConfirmWithConflictCheck: () -> Unit = remember(selectedList, selectMode) {
+    // rememberUpdatedState — 람다를 재생성하지 않고 코루틴 실행 시점에 최신 값을 읽도록 보장
+    val latestSelectedList by rememberUpdatedState(selectedList)
+    val latestSelectMode by rememberUpdatedState(selectMode)
+    val onConfirmWithConflictCheck: () -> Unit = remember {
         {
             scope.launch {
-                val conflicts = onGetConflicts(selectedList, selectMode)
+                val conflicts = onGetConflicts(latestSelectedList, latestSelectMode)
                 if (conflicts.isEmpty()) {
-                    onConfirm(selectedList, selectMode, emptyList())
+                    onConfirm(latestSelectedList, latestSelectMode, emptyList())
                     onSelectModeChange(AppConstants.DEFAULT_MODE)
                     onClearSelection()
                 } else {
                     conflictFiles = conflicts
-                    pendingSelectMode = selectMode
+                    pendingSelectMode = latestSelectMode
                     showConflictDialog = true
                 }
             }

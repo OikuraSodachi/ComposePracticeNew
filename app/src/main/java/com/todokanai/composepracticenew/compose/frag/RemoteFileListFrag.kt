@@ -11,7 +11,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -32,6 +31,7 @@ fun RemoteFileListFrag(
     modifier: Modifier,
     selectMode: Int,
     selectedList: List<FileHolderItem>,
+    selectedPaths: Set<String>,
     onSelectModeChange: (Int) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
@@ -48,8 +48,7 @@ fun RemoteFileListFrag(
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
-    // viewModel 참조가 바뀔 때만 재생성 — sortModeCallbackList는 고정 목록
-    val sortModeCallbackList = remember(viewModel) { viewModel.sortModeCallbackList() }
+    val sortModeCallbackList = viewModel.sortModeCallbackList
 
     val context = LocalContext.current
     LaunchedEffect(Unit) {
@@ -95,7 +94,7 @@ fun RemoteFileListFrag(
             FileListView(
                 modifier = Modifier.weight(1f),
                 fileHolderItemList = uiState.value.fileHolderItemList,
-                selectedList = selectedList,
+                selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
                 onItemLongClick = { onSelectModeChange(AppConstants.MULTI_SELECT_MODE) },
