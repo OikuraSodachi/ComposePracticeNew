@@ -9,15 +9,17 @@ import com.todokanai.composepracticenew.usecase.FileActionUseCase
 class DeleteOperation(
     private val targetFiles: List<String>,
     private val fileActionUseCase: FileActionUseCase,
-    private val myNoti: MyNotification,
-    private val instanceId: Int,
-    private val completionMessage: String,
-    private val onRefresh: suspend () -> Unit,
-    private val onEmitCompletion: suspend (String) -> Unit,
-    private val onEmitError: suspend (String) -> Unit,
+    myNoti: MyNotification,
+    instanceId: Int,
+    completionMessage: String,
+    onRefresh: suspend () -> Unit,
+    onEmitCompletion: suspend (String) -> Unit,
+    onEmitError: suspend (String) -> Unit,
     setProgress: (ProgressState) -> Unit,
     clearProgress: () -> Unit
-) : IoOperation(setProgress, clearProgress) {
+) : NotiIoOperation(myNoti, instanceId, completionMessage, onRefresh, onEmitCompletion, onEmitError, setProgress, clearProgress) {
+
+    override val actionKey = ACTION_KEY_DELETE
 
     override suspend fun mainOperation() {
         targetFiles.forEach { path ->
@@ -29,17 +31,5 @@ class DeleteOperation(
                 myNoti.deleteProgressNoti(idx, total, instanceId)
             }.collect {}
         }
-    }
-
-    override suspend fun onCompletion() {
-        myNoti.completedNotification("", completionMessage, ACTION_KEY_DELETE, instanceId)
-        onEmitCompletion(completionMessage)
-        onRefresh()
-    }
-
-    override suspend fun onError(message: String) {
-        myNoti.cancelNotification(instanceId)
-        onEmitError(message)
-        onRefresh()
     }
 }
