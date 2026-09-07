@@ -80,10 +80,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(buildClickIntent(ACTION_KEY_DELETE))
         with(NotificationManagerCompat.from(context)) {
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                notify(notifId, builder.build())
-                return
-            }
+            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
             notify(notifId, builder.build())
         }
     }
@@ -95,7 +92,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     fun downloadProgressNoti(progress: Int, notifId: Int) = progressNoti("Downloading", "$progress %", progress, ACTION_KEY_DOWNLOAD, notifId)
     fun uploadProgressNoti(progress: Int, notifId: Int) = progressNoti("Uploading", "$progress %", progress, ACTION_KEY_UPLOAD, notifId)
 
-    private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int = actionKey) {
+    private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int) {
         notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
