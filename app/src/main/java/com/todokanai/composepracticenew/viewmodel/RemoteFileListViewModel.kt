@@ -142,7 +142,7 @@ class RemoteFileListViewModel @Inject constructor(
         )
 
     /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
-    fun sortModeCallbackList() = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
+    val sortModeCallbackList = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     /** 폴더 생성 실패 시 표시할 오류 메시지. null이면 표시 없음. */

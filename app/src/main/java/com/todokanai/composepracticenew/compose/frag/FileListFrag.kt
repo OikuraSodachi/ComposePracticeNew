@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -26,6 +25,7 @@ fun FileListFrag(
     modifier: Modifier,
     selectMode: Int,
     selectedList: List<FileHolderItem>,
+    selectedPaths: Set<String>,
     onSelectModeChange: (Int) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
@@ -42,8 +42,7 @@ fun FileListFrag(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
-    // viewModel 참조가 바뀔 때만 재생성 — sortModeCallbackList는 고정 목록
-    val sortModeCallbackList = remember(viewModel) { viewModel.sortModeCallbackList() }
+    val sortModeCallbackList = viewModel.sortModeCallbackList
 
     BackHandler(enabled = selectMode == AppConstants.MULTI_SELECT_MODE) {
         onSelectModeChange(AppConstants.DEFAULT_MODE)
@@ -78,7 +77,7 @@ fun FileListFrag(
                 modifier = Modifier
                     .weight(1f),
                 fileHolderItemList = uiState.value.fileHolderItemList,
-                selectedList = selectedList,
+                selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
                 onItemLongClick = { onSelectModeChange(AppConstants.MULTI_SELECT_MODE) },

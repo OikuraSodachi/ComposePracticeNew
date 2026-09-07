@@ -90,6 +90,7 @@ private fun FileListDestination(
 
     val localSelectMode by coordinator.localSelectMode.collectAsStateWithLifecycle()
     val localSelectedList by coordinator.localSelectedList.collectAsStateWithLifecycle()
+    val localSelectedPaths by coordinator.localSelectedPaths.collectAsStateWithLifecycle()
     val downloadPendingList by coordinator.downloadPendingList.collectAsStateWithLifecycle()
 
     ToastEffect(viewModel.downloadError, viewModel.operationError, viewModel.operationCompletion)
@@ -102,6 +103,7 @@ private fun FileListDestination(
         modifier = Modifier,
         selectMode = localSelectMode,
         selectedList = localSelectedList,
+        selectedPaths = localSelectedPaths,
         onSelectModeChange = coordinator::setLocalSelectMode,
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,
@@ -171,6 +173,7 @@ private fun RemoteFileListDestination(
 
     val remoteSelectMode by coordinator.remoteSelectMode.collectAsStateWithLifecycle()
     val remoteSelectedList by coordinator.remoteSelectedList.collectAsStateWithLifecycle()
+    val remoteSelectedPaths by coordinator.remoteSelectedPaths.collectAsStateWithLifecycle()
     val uploadPendingList by coordinator.uploadPendingList.collectAsStateWithLifecycle()
 
     ToastEffect(viewModel.operationError, viewModel.operationCompletion)
@@ -183,6 +186,7 @@ private fun RemoteFileListDestination(
         modifier = Modifier,
         selectMode = remoteSelectMode,
         selectedList = remoteSelectedList,
+        selectedPaths = remoteSelectedPaths,
         onSelectModeChange = coordinator::setRemoteSelectMode,
         addToList = coordinator::addToRemoteList,
         removeFromList = coordinator::removeFromRemoteList,
