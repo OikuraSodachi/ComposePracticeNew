@@ -225,8 +225,10 @@ class RemoteFileListViewModel @Inject constructor(
     fun onDelete(item: FileHolderItem) {
         appScope.launch {
             val success = ftpUseCase.delete(item.path, item.isDirectory)
-            if (success) fileNavigatorUseCase.refresh()
-            else progressUseCase.emitError("삭제 실패: ${item.name}")
+            if (success) {
+                progressUseCase.emitCompletion(context.getString(R.string.noti_delete_complete))
+                fileNavigatorUseCase.refresh()
+            } else progressUseCase.emitError("삭제 실패: ${item.name}")
         }
     }
 
