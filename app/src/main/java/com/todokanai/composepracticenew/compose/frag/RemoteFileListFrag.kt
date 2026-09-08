@@ -41,6 +41,7 @@ fun RemoteFileListFrag(
     onConfirmUpload: () -> Unit = {},
     onConnectionLost: () -> Unit = {},
     navigateToStorage: () -> Unit,
+    onExit: () -> Unit,
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
     viewModel: RemoteFileListViewModel = hiltViewModel()
@@ -80,7 +81,8 @@ fun RemoteFileListFrag(
             sortModeCallbackList = sortModeCallbackList,
             errorMessage = errorMessage,
             onErrorDismiss = viewModel::clearError,
-            onNewFolder = viewModel::onMakeDirectory
+            onNewFolder = viewModel::onMakeDirectory,
+            onExit = onExit
         )
         if (uiState.value.fileHolderItemList.isEmpty()) {
             Text(

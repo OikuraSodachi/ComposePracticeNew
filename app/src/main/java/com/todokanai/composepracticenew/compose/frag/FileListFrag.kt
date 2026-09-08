@@ -34,6 +34,7 @@ fun FileListFrag(
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
     navigateToStorage: () -> Unit,
+    onExit: () -> Unit,
     // TODO: NavController의 activity-scoped FileListViewModel과 별개 인스턴스 — 동일 singleton Flow를 구독하므로 데이터는 일치하나, 인스턴스 통합 검토 필요
     viewModel: FileListViewModel = hiltViewModel()
 ) {
@@ -62,7 +63,8 @@ fun FileListFrag(
             sortModeCallbackList = sortModeCallbackList,
             errorMessage = errorMessage,
             onErrorDismiss = viewModel::clearError,
-            onNewFolder = viewModel::newFolder
+            onNewFolder = viewModel::newFolder,
+            onExit = onExit
         )
         if (uiState.value.fileHolderItemList.isEmpty()) {
             Text(

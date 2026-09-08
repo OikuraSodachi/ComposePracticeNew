@@ -20,6 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.compose.activity.MainActivity
+import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
@@ -62,10 +63,10 @@ fun AppNavHost(
             route = NavDestinations.FILE_BROWSER_GRAPH
         ) {
             composable(NavDestinations.FILE_LIST) {
-                FileListDestination(navController, viewModel)
+                FileListDestination(navController, viewModel, onExit = { exit_td(activity) })
             }
             composable(NavDestinations.REMOTE_FILE_LIST) {
-                RemoteFileListDestination(navController, viewModel)
+                RemoteFileListDestination(navController, viewModel, onExit = { exit_td(activity) })
             }
         }
     }
@@ -82,7 +83,8 @@ private fun rememberGraphCoordinator(navController: NavHostController): FileTran
 @Composable
 private fun FileListDestination(
     navController: NavHostController,
-    viewModel: FileListViewModel
+    viewModel: FileListViewModel,
+    onExit: () -> Unit
 ) {
     val coordinator = rememberGraphCoordinator(navController)
     var showDownloadConflictDialog by remember { mutableStateOf(false) }
@@ -130,7 +132,8 @@ private fun FileListDestination(
                 navController.navigate(NavDestinations.REMOTE_FILE_LIST)
             }
         },
-        navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) }
+        navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
+        onExit = onExit
     )
 
     ProgressSection(
@@ -163,7 +166,8 @@ private fun FileListDestination(
 @Composable
 private fun RemoteFileListDestination(
     navController: NavHostController,
-    viewModel: FileListViewModel
+    viewModel: FileListViewModel,
+    onExit: () -> Unit
 ) {
     val coordinator = rememberGraphCoordinator(navController)
     val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
@@ -219,7 +223,8 @@ private fun RemoteFileListDestination(
         onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) },
         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
         dirTree = remoteDirTree,
-        onDirClick = { remoteViewModel.navigateToDir(it) }
+        onDirClick = { remoteViewModel.navigateToDir(it) },
+        onExit = onExit
     )
 
     if (showUploadConflictDialog) {

@@ -1,10 +1,6 @@
 package com.todokanai.composepracticenew.compose.frag
 
-import android.app.ActivityManager
-import android.content.Context
-import kotlin.system.exitProcess
 import androidx.compose.foundation.clickable
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,9 +37,8 @@ fun OptionFrag(
     errorMessage: String?,
     onErrorDismiss: () -> Unit,
     onNewFolder: (String) -> Unit,
+    onExit: () -> Unit,
 ) {
-    val context = LocalContext.current
-
     errorMessage?.let { msg ->
         BooleanDialog(
             modifier = Modifier,
@@ -106,7 +101,7 @@ fun OptionFrag(
                     contents = listOf(
                         Pair(stringResource(R.string.btn_create_new_folder), { showEditTextDialog = true }),
                         Pair(stringResource(R.string.btn_sort), { showSortDialog = true }),
-                        Pair(stringResource(R.string.btn_exit), { exitApp(context) })
+                        Pair(stringResource(R.string.btn_exit), onExit)
                     ),
                     expanded = moreButtonExpanded
                 )
@@ -129,8 +124,3 @@ fun OptionFrag(
     }
 }
 
-private fun exitApp(context: Context) {
-    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-    activityManager.appTasks.forEach { it.finishAndRemoveTask() }
-    exitProcess(0)
-}
