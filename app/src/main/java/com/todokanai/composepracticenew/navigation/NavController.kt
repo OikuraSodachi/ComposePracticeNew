@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.navigation
 
+import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -22,6 +23,7 @@ import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.compose.activity.MainActivity
 import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
+import com.todokanai.composepracticenew.service.FtpForegroundService
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
@@ -63,10 +65,10 @@ fun AppNavHost(
             route = NavDestinations.FILE_BROWSER_GRAPH
         ) {
             composable(NavDestinations.FILE_LIST) {
-                FileListDestination(navController, viewModel, onExit = { exit_td(activity) })
+                FileListDestination(navController, viewModel, onExit = { exit_td(activity, Intent(activity, FtpForegroundService::class.java)) })
             }
             composable(NavDestinations.REMOTE_FILE_LIST) {
-                RemoteFileListDestination(navController, viewModel, onExit = { exit_td(activity) })
+                RemoteFileListDestination(navController, viewModel, onExit = { exit_td(activity, Intent(activity, FtpForegroundService::class.java)) })
             }
         }
     }
