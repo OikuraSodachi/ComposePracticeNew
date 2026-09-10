@@ -240,19 +240,16 @@ class FileListViewModel @Inject constructor(
         { progressUseCase.removeProgress(instanceId) }
 
     /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
-    suspend fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> =
-        withContext(Dispatchers.IO) {
-            val currentPath = fileNavigatorUseCase.currentPath.value ?: return@withContext emptyList()
-            when (selectMode) {
-                AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE -> selectedList.filter { item ->
-                    File(currentPath, File(item.path).name).exists()
-                }
-                AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> selectedList.filter { item ->
-                    File(currentPath, File(item.path).nameWithoutExtension).exists()
-                }
-                else -> emptyList()
-            }
+    fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
+        val destinationNames = uiState.value.fileHolderItemList.map { it.name }.toHashSet()
+        return when (selectMode) {
+            AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE ->
+                selectedList.filter { it.name in destinationNames }
+            AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE ->
+                selectedList.filter { it.name.substringBeforeLast('.') in destinationNames }
+            else -> emptyList()
         }
+    }
 
     /** 선택 목록에서 skipFiles를 제외한 대상에 대해 selectMode에 맞는 파일 작업을 실행한다. @param skipFiles 충돌로 건너뛸 파일 목록 */
     fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {

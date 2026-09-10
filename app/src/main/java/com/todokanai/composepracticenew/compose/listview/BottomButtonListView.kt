@@ -4,10 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import com.todokanai.composepracticenew.compose.BottomButtons
 import com.todokanai.composepracticenew.compose.ConfirmButtons
@@ -28,7 +26,7 @@ fun BottomButtonListView(
     selectedList: List<FileHolderItem>,
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
-    onGetConflicts: suspend (List<FileHolderItem>, Int) -> List<FileHolderItem>,
+    onGetConflicts: (List<FileHolderItem>, Int) -> List<FileHolderItem>,
     onConfirm: (List<FileHolderItem>, Int, List<FileHolderItem>) -> Unit,
     onZip: (List<FileHolderItem>, String) -> Unit,
     onRename: (FileHolderItem, String) -> Unit,
@@ -42,23 +40,20 @@ fun BottomButtonListView(
     var conflictFiles by remember { mutableStateOf<List<FileHolderItem>>(emptyList()) }
     var pendingSelectMode by remember { mutableStateOf(AppConstants.DEFAULT_MODE) }
 
-    val scope = rememberCoroutineScope()
-    // rememberUpdatedState — 람다를 재생성하지 않고 코루틴 실행 시점에 최신 값을 읽도록 보장
+    // rememberUpdatedState — 람다를 재생성하지 않고 실행 시점에 최신 값을 읽도록 보장
     val latestSelectedList by rememberUpdatedState(selectedList)
     val latestSelectMode by rememberUpdatedState(selectMode)
     val onConfirmWithConflictCheck: () -> Unit = remember {
         {
-            scope.launch {
-                val conflicts = onGetConflicts(latestSelectedList, latestSelectMode)
-                if (conflicts.isEmpty()) {
-                    onConfirm(latestSelectedList, latestSelectMode, emptyList())
-                    onSelectModeChange(AppConstants.DEFAULT_MODE)
-                    onClearSelection()
-                } else {
-                    conflictFiles = conflicts
-                    pendingSelectMode = latestSelectMode
-                    showConflictDialog = true
-                }
+            val conflicts = onGetConflicts(latestSelectedList, latestSelectMode)
+            if (conflicts.isEmpty()) {
+                onConfirm(latestSelectedList, latestSelectMode, emptyList())
+                onSelectModeChange(AppConstants.DEFAULT_MODE)
+                onClearSelection()
+            } else {
+                conflictFiles = conflicts
+                pendingSelectMode = latestSelectMode
+                showConflictDialog = true
             }
         }
     }
