@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_COPY
-import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.repository.FileOperationNotifier
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 
 /** 로컬 복사 작업을 IoOperation 생명주기로 실행하는 구현체. */
@@ -10,7 +10,7 @@ class CopyOperation(
     private val targetFiles: List<String>,
     private val targetPath: String,
     private val fileActionUseCase: FileActionUseCase,
-    myNoti: MyNotification,
+    notifier: FileOperationNotifier,
     instanceId: Int,
     completionMessage: String,
     onRefresh: suspend () -> Unit,
@@ -18,7 +18,7 @@ class CopyOperation(
     onEmitError: suspend (String) -> Unit,
     setProgress: (ProgressState) -> Unit,
     clearProgress: () -> Unit
-) : NotiIoOperation(myNoti, instanceId, completionMessage, onRefresh, onEmitCompletion, onEmitError, setProgress, clearProgress) {
+) : NotiIoOperation(notifier, instanceId, completionMessage, onRefresh, onEmitCompletion, onEmitError, setProgress, clearProgress) {
 
     override val actionKey = ACTION_KEY_COPY
 
@@ -26,7 +26,7 @@ class CopyOperation(
         fileActionUseCase.copyAction(targetFiles, targetPath) { state ->
             progressState = state.copy(actionKey = ACTION_KEY_COPY)
             setProgress(progressState)
-            state.progress?.let { myNoti.copyProgressNoti(it, instanceId) }
+            state.progress?.let { notifier.copyProgressNoti(it, instanceId) }
         }.collect {}
     }
 }
