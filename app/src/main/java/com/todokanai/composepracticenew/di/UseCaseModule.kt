@@ -16,10 +16,13 @@ import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.di.RemoteNavigator
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
 import javax.inject.Singleton
 
 /** Provides domain-layer UseCase instances as singletons. */
@@ -66,4 +69,13 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideFtpUseCase(repo: FtpRepository) =
         FtpUseCase(repo)
+
+    @Provides @Singleton
+    fun provideFileOperationUseCase(
+        notifier: FileOperationNotifier,
+        progressUseCase: ProgressUseCase,
+        fileActionUseCase: FileActionUseCase,
+        ftpUseCase: FtpUseCase,
+        @ApplicationScope appScope: CoroutineScope
+    ) = FileOperationUseCase(notifier, progressUseCase, fileActionUseCase, ftpUseCase, appScope)
 }

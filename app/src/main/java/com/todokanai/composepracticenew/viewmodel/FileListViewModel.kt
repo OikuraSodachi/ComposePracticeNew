@@ -4,35 +4,23 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.di.ApplicationScope
-import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ProgressStateModel
-import com.todokanai.composepracticenew.ui.model.DirectoryItem
-import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
-import com.todokanai.composepracticenew.operation.CopyOperation
-import com.todokanai.composepracticenew.operation.DeleteOperation
-import com.todokanai.composepracticenew.operation.FtpDownloadOperation
-import com.todokanai.composepracticenew.operation.MoveOperation
-import com.todokanai.composepracticenew.operation.UnzipOperation
-import com.todokanai.composepracticenew.operation.ZipOperation
-import com.todokanai.composepracticenew.tools.MyNotification
+import com.todokanai.composepracticenew.ui.model.DirectoryItem
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.composepracticenew.usecase.FtpUseCase
+import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -52,12 +40,10 @@ class FileListViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val progressUseCase: ProgressUseCase,
-    private val myNoti: MyNotification,
     private val openFileUseCase: OpenFileUseCase,
-    private val ftpUseCase: FtpUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val fileActionUseCase: FileActionUseCase,
-    @ApplicationScope private val appScope: CoroutineScope
+    private val fileOperationUseCase: FileOperationUseCase
 ) : ViewModel() {
 
     /** 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
@@ -185,21 +171,14 @@ class FileListViewModel @Inject constructor(
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
         items.forEach { item ->
-            val instanceId = item.path.hashCode()
-            FtpDownloadOperation(
+            fileOperationUseCase.download(
                 remotePath = item.path,
                 localDestPath = localPath,
                 isDirectory = item.isDirectory,
-                ftpUseCase = ftpUseCase,
-                instanceId = instanceId,
-                myNoti = myNoti,
                 completionMessage = context.getString(R.string.noti_download_complete),
                 onRefresh = { fileNavigatorUseCase.refresh() },
-                onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-                onEmitError = { msg -> _downloadError.tryEmit(msg) },
-                setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-                clearProgress = { progressUseCase.removeProgress(instanceId) }
-            ).execute(appScope)
+                onError = { msg -> _downloadError.tryEmit(msg) }
+            )
         }
     }
 
@@ -226,19 +205,6 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    /** 파일 작업 완료 후 현재 디렉터리 목록을 갱신한다. */
-    private val onRefresh: () -> Unit = { fileNavigatorUseCase.refresh() }
-    /** 작업 완료 메시지를 Progress 스트림에 방출한다. */
-    private val onEmitCompletion: (String) -> Unit = { progressUseCase.emitCompletion(it) }
-    /** 작업 오류 메시지를 Progress 스트림에 방출한다. */
-    private val onEmitError: (String) -> Unit = { progressUseCase.emitError(it) }
-    /** instanceId에 해당하는 Progress 상태를 갱신하는 콜백을 반환한다. */
-    private fun setProgressFor(instanceId: Int): (ProgressState) -> Unit =
-        { state -> progressUseCase.setProgressState(instanceId, state) }
-    /** instanceId에 해당하는 Progress 항목을 제거하는 콜백을 반환한다. */
-    private fun clearProgressFor(instanceId: Int): () -> Unit =
-        { progressUseCase.removeProgress(instanceId) }
-
     /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
     fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
         val destinationNames = uiState.value.fileHolderItemList.map { it.name }.toHashSet()
@@ -257,125 +223,64 @@ class FileListViewModel @Inject constructor(
         val conflictPaths = skipFiles.map { it.path }.toSet()
         val targets = selectedList.filterNot { it.path in conflictPaths }
         if (targets.isEmpty()) return
+        val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
         when (selectMode) {
-            AppConstants.CONFIRM_MODE_COPY -> {
-                val instanceId = progressUseCase.nextInstanceId()
-                CopyOperation(
-                    targetFiles = targets.map { it.path },
-                    targetPath = currentPath,
-                    fileActionUseCase = fileActionUseCase,
-                    myNoti = myNoti,
-                    instanceId = instanceId,
-                    completionMessage = context.getString(R.string.noti_complete),
-                    onRefresh = onRefresh,
-                    onEmitCompletion = onEmitCompletion,
-                    onEmitError = onEmitError,
-                    setProgress = setProgressFor(instanceId),
-                    clearProgress = clearProgressFor(instanceId)
-                ).execute(appScope)
-            }
-            AppConstants.CONFIRM_MODE_MOVE -> {
-                val instanceId = progressUseCase.nextInstanceId()
-                MoveOperation(
-                    targetFiles = targets.map { it.path },
-                    targetPath = currentPath,
-                    fileActionUseCase = fileActionUseCase,
-                    myNoti = myNoti,
-                    instanceId = instanceId,
-                    completionMessage = context.getString(R.string.noti_move_complete),
-                    onRefresh = onRefresh,
-                    onEmitCompletion = onEmitCompletion,
-                    onEmitError = onEmitError,
-                    setProgress = setProgressFor(instanceId),
-                    clearProgress = clearProgressFor(instanceId)
-                ).execute(appScope)
-            }
-            AppConstants.CONFIRM_MODE_UNZIP -> {
-                val instanceId = progressUseCase.nextInstanceId()
-                UnzipOperation(
-                    zipFiles = targets.map { it.path },
-                    destPath = currentPath,
-                    unzipHere = false,
-                    fileActionUseCase = fileActionUseCase,
-                    myNoti = myNoti,
-                    instanceId = instanceId,
-                    completionMessage = context.getString(R.string.noti_complete),
-                    onRefresh = onRefresh,
-                    onEmitCompletion = onEmitCompletion,
-                    onEmitError = onEmitError,
-                    setProgress = setProgressFor(instanceId),
-                    clearProgress = clearProgressFor(instanceId)
-                ).execute(appScope)
-            }
-            AppConstants.CONFIRM_MODE_UNZIP_HERE -> {
-                val instanceId = progressUseCase.nextInstanceId()
-                UnzipOperation(
-                    zipFiles = targets.map { it.path },
-                    destPath = currentPath,
-                    unzipHere = true,
-                    fileActionUseCase = fileActionUseCase,
-                    myNoti = myNoti,
-                    instanceId = instanceId,
-                    completionMessage = context.getString(R.string.noti_complete),
-                    onRefresh = onRefresh,
-                    onEmitCompletion = onEmitCompletion,
-                    onEmitError = onEmitError,
-                    setProgress = setProgressFor(instanceId),
-                    clearProgress = clearProgressFor(instanceId)
-                ).execute(appScope)
-            }
+            AppConstants.CONFIRM_MODE_COPY -> fileOperationUseCase.copy(
+                files = targets.map { it.path },
+                destPath = currentPath,
+                completionMessage = context.getString(R.string.noti_complete),
+                onRefresh = onRefresh
+            )
+            AppConstants.CONFIRM_MODE_MOVE -> fileOperationUseCase.move(
+                files = targets.map { it.path },
+                destPath = currentPath,
+                completionMessage = context.getString(R.string.noti_move_complete),
+                onRefresh = onRefresh
+            )
+            AppConstants.CONFIRM_MODE_UNZIP -> fileOperationUseCase.unzip(
+                zipFiles = targets.map { it.path },
+                destPath = currentPath,
+                unzipHere = false,
+                completionMessage = context.getString(R.string.noti_complete),
+                onRefresh = onRefresh
+            )
+            AppConstants.CONFIRM_MODE_UNZIP_HERE -> fileOperationUseCase.unzip(
+                zipFiles = targets.map { it.path },
+                destPath = currentPath,
+                unzipHere = true,
+                completionMessage = context.getString(R.string.noti_complete),
+                onRefresh = onRefresh
+            )
         }
     }
 
     /** selectedList의 파일들을 [name].zip으로 압축한다. */
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
-        val instanceId = progressUseCase.nextInstanceId()
-        ZipOperation(
-            sourceFiles = selectedList.map { it.path },
+        fileOperationUseCase.zip(
+            files = selectedList.map { it.path },
             zipFilePath = "$parent/$name.zip",
-            fileActionUseCase = fileActionUseCase,
-            myNoti = myNoti,
-            instanceId = instanceId,
             completionMessage = context.getString(R.string.noti_complete),
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = setProgressFor(instanceId),
-            clearProgress = clearProgressFor(instanceId)
-        ).execute(appScope)
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 
     /** [item]의 이름을 [name]으로 변경한다. */
     fun rename(item: FileHolderItem, name: String) {
-        appScope.launch {
-            try {
-                fileActionUseCase.renameFile(item.path, name).collect {}
-                val message = context.getString(R.string.noti_complete)
-                myNoti.completedNotification("", message)
-                progressUseCase.emitCompletion(message)
-            } catch (e: Exception) {
-                progressUseCase.emitError(e.message ?: "이름 변경 중 오류")
-            } finally {
-                fileNavigatorUseCase.refresh()
-            }
-        }
+        fileOperationUseCase.rename(
+            path = item.path,
+            newName = name,
+            completionMessage = context.getString(R.string.noti_complete),
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {
-        val instanceId = progressUseCase.nextInstanceId()
-        DeleteOperation(
-            targetFiles = selectedList.map { it.path },
-            fileActionUseCase = fileActionUseCase,
-            myNoti = myNoti,
-            instanceId = instanceId,
+        fileOperationUseCase.delete(
+            files = selectedList.map { it.path },
             completionMessage = context.getString(R.string.noti_delete_complete),
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = setProgressFor(instanceId),
-            clearProgress = clearProgressFor(instanceId)
-        ).execute(appScope)
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 }

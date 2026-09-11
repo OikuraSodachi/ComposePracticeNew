@@ -12,12 +12,11 @@ import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
-import com.todokanai.composepracticenew.operation.FtpUploadOperation
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
@@ -48,9 +47,9 @@ class RemoteFileListViewModel @Inject constructor(
     private val remoteStorageUseCase: RemoteStorageUseCase,
     private val ftpServiceController: FtpServiceController,
     private val ftpUseCase: FtpUseCase,
-    private val myNoti: MyNotification,
     private val progressUseCase: ProgressUseCase,
     private val sortModeUseCase: SortModeUseCase,
+    private val fileOperationUseCase: FileOperationUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : ViewModel() {
 
@@ -190,20 +189,12 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun onUpload(localPath: String) {
         val remotePath = fileNavigatorUseCase.currentPath.value ?: return
-        val instanceId = localPath.hashCode()
-        FtpUploadOperation(
+        fileOperationUseCase.upload(
             localPath = localPath,
             remoteDestPath = remotePath,
-            ftpUseCase = ftpUseCase,
-            instanceId = instanceId,
-            myNoti = myNoti,
             completionMessage = context.getString(R.string.noti_upload_complete),
-            onRefresh = { fileNavigatorUseCase.refresh() },
-            onEmitCompletion = { msg -> progressUseCase.emitCompletion(msg) },
-            onEmitError = { msg -> progressUseCase.emitError(msg) },
-            setProgress = { state -> progressUseCase.setProgressState(instanceId, state) },
-            clearProgress = { progressUseCase.removeProgress(instanceId) }
-        ).execute(appScope)
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 
     /**

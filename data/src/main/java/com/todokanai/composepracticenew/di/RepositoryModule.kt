@@ -22,6 +22,8 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.tools.MyNotification
 
 /** Binds domain repository interfaces to their data-layer implementations. */
 @Module
@@ -41,6 +43,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindFtpRepository(impl: FtpRepositoryImpl): FtpRepository
+
+    @Binds
+    abstract fun bindFileOperationNotifier(impl: MyNotification): FileOperationNotifier
 
     companion object {
         @Provides @Singleton

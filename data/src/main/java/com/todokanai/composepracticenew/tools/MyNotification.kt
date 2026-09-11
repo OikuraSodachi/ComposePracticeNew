@@ -20,11 +20,12 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import javax.inject.Singleton
 
 /** 파일 작업 진행/완료 알림을 발송하는 싱글톤. */
 @Singleton
-class MyNotification @Inject constructor(@ApplicationContext private val context: Context) {
+class MyNotification @Inject constructor(@ApplicationContext private val context: Context) : FileOperationNotifier {
     private val channelId = CHANNEL_ID
     private val icon = android.R.drawable.stat_sys_upload
     private val channel = NotificationChannel(channelId, "My Channel", NotificationManager.IMPORTANCE_DEFAULT).apply {
@@ -69,7 +70,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         }
     }
 
-    fun deleteProgressNoti(progress: Int, total: Int, notifId: Int) {
+    override fun deleteProgressNoti(progress: Int, total: Int, notifId: Int) {
         notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
@@ -85,12 +86,12 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         }
     }
 
-    fun copyProgressNoti(progress: Int, notifId: Int) = progressNoti("Copying", "$progress %", progress, ACTION_KEY_COPY, notifId)
-    fun moveProgressNoti(progress: Int, notifId: Int) = progressNoti("Moving", "$progress %", progress, ACTION_KEY_MOVE, notifId)
-    fun unzipProgressNoti(progress: Int, notifId: Int) = progressNoti("Unzipping", "$progress %", progress, ACTION_KEY_UNZIP, notifId)
-    fun zipProgressNoti(progress: Int, notifId: Int) = progressNoti("Zipping", "$progress %", progress, ACTION_KEY_ZIP, notifId)
-    fun downloadProgressNoti(progress: Int, notifId: Int) = progressNoti("Downloading", "$progress %", progress, ACTION_KEY_DOWNLOAD, notifId)
-    fun uploadProgressNoti(progress: Int, notifId: Int) = progressNoti("Uploading", "$progress %", progress, ACTION_KEY_UPLOAD, notifId)
+    override fun copyProgressNoti(progress: Int, notifId: Int) = progressNoti("Copying", "$progress %", progress, ACTION_KEY_COPY, notifId)
+    override fun moveProgressNoti(progress: Int, notifId: Int) = progressNoti("Moving", "$progress %", progress, ACTION_KEY_MOVE, notifId)
+    override fun unzipProgressNoti(progress: Int, notifId: Int) = progressNoti("Unzipping", "$progress %", progress, ACTION_KEY_UNZIP, notifId)
+    override fun zipProgressNoti(progress: Int, notifId: Int) = progressNoti("Zipping", "$progress %", progress, ACTION_KEY_ZIP, notifId)
+    override fun downloadProgressNoti(progress: Int, notifId: Int) = progressNoti("Downloading", "$progress %", progress, ACTION_KEY_DOWNLOAD, notifId)
+    override fun uploadProgressNoti(progress: Int, notifId: Int) = progressNoti("Uploading", "$progress %", progress, ACTION_KEY_UPLOAD, notifId)
 
     private fun progressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int) {
         notificationManager.createNotificationChannel(channel)
@@ -121,7 +122,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         )
     }
 
-    fun completedNotification(title: String, message: String, actionKey: Int? = null, notifId: Int = actionKey ?: 0) {
+    override fun completedNotification(title: String, message: String, actionKey: Int?, notifId: Int) {
         notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
@@ -139,7 +140,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     /** 지정한 ID의 알림을 취소한다. */
-    fun cancelNotification(notifId: Int) {
+    override fun cancelNotification(notifId: Int) {
         notificationManager.cancel(notifId)
     }
 }
