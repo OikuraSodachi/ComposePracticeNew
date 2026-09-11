@@ -23,7 +23,7 @@ FileManager를 jetpack compose로 재현하는걸 목표로 만드는 중
 
 ### 로컬 저장소
 - [Room](https://developer.android.com/training/data-storage/room) — 로컬 데이터베이스
-- [DataStore Preferences](https://developer.android.com/topic/libraries/architecture/datastore) — 설정 값 영속화
+- [DataStore Preferences](https://developer.android.com/topic/libraries/architecture/datastore) — 설정 값 저장
 
 ### 이미지 로딩
 - [Coil](https://coil-kt.github.io/coil/) — Compose 전용 이미지 로딩
