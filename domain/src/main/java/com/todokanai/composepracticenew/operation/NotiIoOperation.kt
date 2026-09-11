@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.repository.FileOperationNotifier
 
 /**
  * 알림을 사용하는 파일 작업 공통 생명주기(완료 알림·오류 처리·갱신)를 템플릿으로 제공하는 추상 클래스.

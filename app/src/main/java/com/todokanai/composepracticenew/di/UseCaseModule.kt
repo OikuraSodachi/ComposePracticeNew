@@ -16,7 +16,7 @@ import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.di.RemoteNavigator
-import com.todokanai.composepracticenew.repository.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import dagger.Module
 import dagger.Provides

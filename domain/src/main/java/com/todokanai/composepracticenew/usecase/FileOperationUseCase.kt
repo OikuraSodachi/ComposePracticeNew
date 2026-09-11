@@ -7,7 +7,7 @@ import com.todokanai.composepracticenew.operation.FtpUploadOperation
 import com.todokanai.composepracticenew.operation.MoveOperation
 import com.todokanai.composepracticenew.operation.UnzipOperation
 import com.todokanai.composepracticenew.operation.ZipOperation
-import com.todokanai.composepracticenew.repository.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -19,6 +19,9 @@ class FileOperationUseCase(
     private val ftpUseCase: FtpUseCase,
     private val appScope: CoroutineScope
 ) {
+    private val onEmitCompletion: (String) -> Unit = { progressUseCase.emitCompletion(it) }
+    private val onEmitError: (String) -> Unit = { progressUseCase.emitError(it) }
+
     /** [files]를 [destPath]에 복사한다. */
     fun copy(files: List<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = progressUseCase.nextInstanceId()
@@ -30,8 +33,8 @@ class FileOperationUseCase(
             instanceId = instanceId,
             completionMessage = completionMessage,
             onRefresh = onRefresh,
-            onEmitCompletion = { progressUseCase.emitCompletion(it) },
-            onEmitError = { progressUseCase.emitError(it) },
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
             setProgress = { progressUseCase.setProgressState(instanceId, it) },
             clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
@@ -47,8 +50,8 @@ class FileOperationUseCase(
             instanceId = instanceId,
             completionMessage = completionMessage,
             onRefresh = onRefresh,
-            onEmitCompletion = { progressUseCase.emitCompletion(it) },
-            onEmitError = { progressUseCase.emitError(it) },
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
             setProgress = { progressUseCase.setProgressState(instanceId, it) },
             clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
@@ -65,8 +68,8 @@ class FileOperationUseCase(
             instanceId = instanceId,
             completionMessage = completionMessage,
             onRefresh = onRefresh,
-            onEmitCompletion = { progressUseCase.emitCompletion(it) },
-            onEmitError = { progressUseCase.emitError(it) },
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
             setProgress = { progressUseCase.setProgressState(instanceId, it) },
             clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
@@ -83,8 +86,8 @@ class FileOperationUseCase(
             instanceId = instanceId,
             completionMessage = completionMessage,
             onRefresh = onRefresh,
-            onEmitCompletion = { progressUseCase.emitCompletion(it) },
-            onEmitError = { progressUseCase.emitError(it) },
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
             setProgress = { progressUseCase.setProgressState(instanceId, it) },
             clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
@@ -102,8 +105,8 @@ class FileOperationUseCase(
             instanceId = instanceId,
             completionMessage = completionMessage,
             onRefresh = onRefresh,
-            onEmitCompletion = { progressUseCase.emitCompletion(it) },
-            onEmitError = { progressUseCase.emitError(it) },
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
             setProgress = { progressUseCase.setProgressState(instanceId, it) },
             clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)
@@ -149,8 +152,8 @@ class FileOperationUseCase(
             instanceId = instanceId,
             completionMessage = completionMessage,
             onRefresh = onRefresh,
-            onEmitCompletion = { progressUseCase.emitCompletion(it) },
-            onEmitError = { progressUseCase.emitError(it) },
+            onEmitCompletion = onEmitCompletion,
+            onEmitError = onEmitError,
             setProgress = { progressUseCase.setProgressState(instanceId, it) },
             clearProgress = { progressUseCase.removeProgress(instanceId) }
         ).execute(appScope)

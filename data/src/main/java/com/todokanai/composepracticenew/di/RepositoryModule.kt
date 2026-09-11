@@ -22,7 +22,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
-import com.todokanai.composepracticenew.repository.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.tools.MyNotification
 
 /** Binds domain repository interfaces to their data-layer implementations. */

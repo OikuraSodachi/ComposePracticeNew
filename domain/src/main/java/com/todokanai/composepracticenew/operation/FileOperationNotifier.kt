@@ -1,4 +1,4 @@
-package com.todokanai.composepracticenew.repository
+package com.todokanai.composepracticenew.operation
 
 /** 파일 작업 진행·완료·취소 시 시스템 알림을 발송하는 인터페이스. */
 interface FileOperationNotifier {

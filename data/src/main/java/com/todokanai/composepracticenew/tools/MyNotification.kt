@@ -20,7 +20,7 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
-import com.todokanai.composepracticenew.repository.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import javax.inject.Singleton
 
 /** 파일 작업 진행/완료 알림을 발송하는 싱글톤. */
