@@ -8,7 +8,6 @@ import com.todokanai.composepracticenew.operation.MoveOperation
 import com.todokanai.composepracticenew.operation.UnzipOperation
 import com.todokanai.composepracticenew.operation.ZipOperation
 import com.todokanai.composepracticenew.repository.FileOperationNotifier
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
@@ -164,11 +163,9 @@ class FileOperationUseCase(
                 fileActionUseCase.renameFile(path, newName).collect {}
                 notifier.completedNotification("", completionMessage)
                 progressUseCase.emitCompletion(completionMessage)
-                onRefresh()
-            } catch (e: CancellationException) {
-                throw e
             } catch (e: Exception) {
                 progressUseCase.emitError(e.message ?: "이름 변경 중 오류")
+            } finally {
                 onRefresh()
             }
         }
