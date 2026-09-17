@@ -1,17 +1,21 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionState
+import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** FtpRepository 계약을 FtpConnectionState에 위임해 구현한다. */
+/** FtpRepository 계약을 FtpConnectionState, FtpCommandExecutor, FtpTransferrer에 위임해 구현한다. */
 @Singleton
 class FtpRepositoryImpl @Inject constructor(
-    private val connectionState: FtpConnectionState
+    private val connectionState: FtpConnectionState,
+    private val commandExecutor: FtpCommandExecutor,
+    private val transferrer: FtpTransferrer
 ) : FtpRepository {
 
     /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */
@@ -37,21 +41,20 @@ class FtpRepositoryImpl @Inject constructor(
      * 현재 FTP 작업 디렉터리의 절대 경로를 반환한다.
      * FTPClient.printWorkingDirectory()로 조회하며, 실패 시 빈 문자열을 반환한다.
      */
-    override suspend fun getWorkingDirectory(): String = connectionState.getWorkingDirectory()
+    override suspend fun getWorkingDirectory(): String = commandExecutor.getWorkingDirectory()
 
     /**
      * path로 FTP 작업 디렉터리를 변경한다.
      * FTPClient.changeWorkingDirectory()를 호출하며 성공 여부를 반환한다.
      * @param path 이동할 원격 디렉터리의 절대 경로
      */
-    override suspend fun changeDirectory(path: String): Boolean = connectionState.changeDirectory(path)
+    override suspend fun changeDirectory(path: String): Boolean = commandExecutor.changeDirectory(path)
 
     /**
      * path 디렉터리의 파일·하위 디렉터리 목록을 FileEntry 리스트로 반환한다.
      * @param path 목록을 조회할 원격 디렉터리의 절대 경로
      */
-    override suspend fun listFiles(path: String): List<FileEntry> =
-        connectionState.listFiles(path)
+    override suspend fun listFiles(path: String): List<FileEntry> = commandExecutor.listFiles(path)
 
     /**
      * remotePath의 파일 또는 디렉터리를 localPath로 다운로드한다.
@@ -60,7 +63,7 @@ class FtpRepositoryImpl @Inject constructor(
      * @param isDirectory remotePath가 디렉터리인 경우 true
      */
     override fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): Flow<ProgressState> =
-        connectionState.download(remotePath, localPath, isDirectory, onProgress)
+        transferrer.download(remotePath, localPath, isDirectory, onProgress)
 
     /**
      * localPath의 파일을 remotePath로 업로드한다.
@@ -68,53 +71,53 @@ class FtpRepositoryImpl @Inject constructor(
      * @param remotePath 저장될 원격 파일의 절대 경로
      */
     override fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> =
-        connectionState.upload(localPath, remotePath, onProgress)
+        transferrer.upload(localPath, remotePath, onProgress)
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.
      * FTPClient.rename()을 호출하며 성공 여부를 반환한다.
      * @param fromPath 원본 경로, @param toPath 변경할 경로
      */
-    override suspend fun rename(fromPath: String, toPath: String): Boolean = connectionState.rename(fromPath, toPath)
+    override suspend fun rename(fromPath: String, toPath: String): Boolean = commandExecutor.rename(fromPath, toPath)
 
     /**
      * path의 파일을 원격 서버에서 삭제한다.
      * FTPClient.deleteFile()을 호출하며 성공 여부를 반환한다.
      * @param path 삭제할 원격 파일의 절대 경로
      */
-    override suspend fun deleteFile(path: String): Boolean = connectionState.deleteFile(path)
+    override suspend fun deleteFile(path: String): Boolean = commandExecutor.deleteFile(path)
 
     /**
      * path에 새 원격 디렉터리를 생성한다.
      * FTPClient.makeDirectory()를 호출하며 성공 여부를 반환한다.
      * @param path 생성할 디렉터리의 절대 경로
      */
-    override suspend fun makeDirectory(path: String): Boolean = connectionState.makeDirectory(path)
+    override suspend fun makeDirectory(path: String): Boolean = commandExecutor.makeDirectory(path)
 
     /**
      * path의 빈 디렉터리를 원격 서버에서 삭제한다.
      * FTPClient.removeDirectory()를 호출하며 성공 여부를 반환한다.
      * @param path 삭제할 빈 디렉터리의 절대 경로
      */
-    override suspend fun removeDirectory(path: String): Boolean = connectionState.removeDirectory(path)
+    override suspend fun removeDirectory(path: String): Boolean = commandExecutor.removeDirectory(path)
 
     /**
      * path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다.
      * @param path 삭제할 디렉터리의 절대 경로
      */
-    override suspend fun removeDirectoryRecursive(path: String): Boolean = connectionState.removeDirectoryRecursive(path)
+    override suspend fun removeDirectoryRecursive(path: String): Boolean = commandExecutor.removeDirectoryRecursive(path)
 
     /**
      * path 파일의 크기를 바이트 단위로 반환한다.
      * FTPClient.mlistFile()로 조회하며, 실패 시 -1을 반환한다.
      * @param path 크기를 조회할 원격 파일의 절대 경로
      */
-    override suspend fun getFileSize(path: String): Long = connectionState.getFileSize(path)
+    override suspend fun getFileSize(path: String): Long = commandExecutor.getFileSize(path)
 
     /**
      * path 파일의 최종 수정 시각을 FTP MDTM 형식 문자열로 반환한다.
      * FTPClient.getModificationTime()으로 조회하며, 실패 시 빈 문자열을 반환한다.
      * @param path 수정 시각을 조회할 원격 파일의 절대 경로
      */
-    override suspend fun getModificationTime(path: String): String = connectionState.getModificationTime(path)
+    override suspend fun getModificationTime(path: String): String = commandExecutor.getModificationTime(path)
 }
