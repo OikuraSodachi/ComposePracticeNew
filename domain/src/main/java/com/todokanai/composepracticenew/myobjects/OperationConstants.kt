@@ -23,4 +23,8 @@ object OperationConstants {
     const val ACTION_KEY_DOWNLOAD: Int = 25
     /** 업로드 작업 식별 키. */
     const val ACTION_KEY_UPLOAD: Int = 26
+
+    /** actionKey가 원격(다운로드·업로드) 작업인지 판별한다. */
+    fun isRemoteOperation(actionKey: Int?) =
+        actionKey == ACTION_KEY_DOWNLOAD || actionKey == ACTION_KEY_UPLOAD
 }

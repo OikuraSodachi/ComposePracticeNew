@@ -159,6 +159,35 @@ class FileOperationUseCase(
         ).execute(appScope)
     }
 
+    /** [path]의 원격 파일 이름을 [newName]으로 변경한다. 성공 시 onRefresh, 실패 시 onError를 호출한다. */
+    fun renameRemote(path: String, newName: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
+        appScope.launch {
+            val ok = ftpUseCase.rename(path, newName)
+            if (ok) onRefresh() else onError()
+        }
+    }
+
+    /** [path]의 원격 파일 또는 디렉터리를 삭제한다. 성공 시 completionMessage를 발행하고 onRefresh를 호출한다. */
+    fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
+        appScope.launch {
+            val ok = ftpUseCase.delete(path, isDirectory)
+            if (ok) {
+                progressUseCase.emitCompletion(completionMessage)
+                onRefresh()
+            } else {
+                onError()
+            }
+        }
+    }
+
+    /** [parentPath] 아래에 [dirName] 디렉터리를 원격 서버에 생성한다. 성공 시 onRefresh, 실패 시 onError를 호출한다. */
+    fun makeDirectoryRemote(parentPath: String, dirName: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
+        appScope.launch {
+            val ok = ftpUseCase.makeDirectory(parentPath, dirName)
+            if (ok) onRefresh() else onError()
+        }
+    }
+
     /** [path]의 파일 이름을 [newName]으로 변경한다. */
     fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         appScope.launch {
