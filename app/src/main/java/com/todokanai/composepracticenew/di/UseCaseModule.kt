@@ -18,6 +18,7 @@ import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.usecase.FileOperationUseCase
+import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -69,6 +70,13 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideFtpUseCase(repo: FtpRepository) =
         FtpUseCase(repo)
+
+    @Provides @Singleton
+    fun provideFtpConnectionResilienceUseCase(
+        ftpUseCase: FtpUseCase,
+        remoteStorageUseCase: RemoteStorageUseCase,
+        @RemoteNavigator fileNavigatorUseCase: FileNavigatorUseCase
+    ) = FtpConnectionResilienceUseCase(ftpUseCase, remoteStorageUseCase, fileNavigatorUseCase)
 
     @Provides @Singleton
     fun provideFileOperationUseCase(

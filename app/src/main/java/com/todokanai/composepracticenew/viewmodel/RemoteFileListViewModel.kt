@@ -1,30 +1,24 @@
 package com.todokanai.composepracticenew.viewmodel
 
-import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.service.FtpServiceController
+import com.todokanai.composepracticenew.tools.CompletionMessageProvider
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FileOperationUseCase
-import com.todokanai.composepracticenew.usecase.FtpUseCase
+import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
-import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -32,9 +26,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -42,15 +34,13 @@ import javax.inject.Inject
 /** 원격 파일 목록 화면의 UI 상태, 네비게이션, 파일 조작(다운로드·업로드·이름변경·삭제·새폴더)을 관리하는 ViewModel. */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
-    private val remoteStorageUseCase: RemoteStorageUseCase,
     private val ftpServiceController: FtpServiceController,
-    private val ftpUseCase: FtpUseCase,
     private val progressUseCase: ProgressUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val fileOperationUseCase: FileOperationUseCase,
-    @ApplicationScope private val appScope: CoroutineScope
+    private val ftpConnectionResilienceUseCase: FtpConnectionResilienceUseCase,
+    private val messages: CompletionMessageProvider
 ) : ViewModel() {
 
     private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -64,7 +54,7 @@ class RemoteFileListViewModel @Inject constructor(
     /** 진행 중인 원격 전송 작업의 진행률 맵. ProgressDialog 표시에 사용한다. DOWNLOAD·UPLOAD 키로 필터링해 로컬 IO 항목을 제외한다. */
     val remoteProgressMap: StateFlow<Map<Int, ProgressStateModel>> = progressUseCase.progressMap
         .map { map ->
-            map.filter { (_, state) -> state.actionKey == ACTION_KEY_DOWNLOAD || state.actionKey == ACTION_KEY_UPLOAD }
+            map.filter { (_, state) -> OperationConstants.isRemoteOperation(state.actionKey) }
                 .mapValues { (_, state) -> state.toModel() }
         }
         .stateIn(
@@ -77,36 +67,23 @@ class RemoteFileListViewModel @Inject constructor(
         val path = fileNavigatorUseCase.currentPath.value
         Log.d(TAG, "init — currentPath=$path")
         if (path == null) {
-            viewModelScope.launch { reconnectLast() }
+            viewModelScope.launch {
+                val item = ftpConnectionResilienceUseCase.reconnectLast()
+                if (item != null) {
+                    Log.d(TAG, "reconnectLast — 재연결 성공: ${item.name}")
+                    ftpServiceController.start(item.name)
+                } else {
+                    Log.w(TAG, "reconnectLast — 재연결 실패")
+                    _reconnectFailed.tryEmit(Unit)
+                }
+            }
         }
-        viewModelScope.launch { observeConnectionLost() }
-    }
-
-    private suspend fun observeConnectionLost() {
-        ftpUseCase.isConnected
-            .scan(Pair(false, false)) { acc, curr -> Pair(acc.second, curr) }
-            .filter { (prev, curr) -> prev && !curr }
-            .collect {
+        viewModelScope.launch {
+            ftpConnectionResilienceUseCase.connectionDropped.collect {
                 Log.w(TAG, "연결 끊김 감지 — 서비스 중지 및 이벤트 발행")
                 ftpServiceController.stop()
                 _connectionLost.emit(Unit)
             }
-    }
-
-    private suspend fun reconnectLast() {
-        Log.d(TAG, "reconnectLast 시작")
-        val item = remoteStorageUseCase.getLastConnectedItem()
-        if (item == null) {
-            Log.w(TAG, "reconnectLast — 저장된 서버 없음")
-            return
-        }
-        Log.d(TAG, "reconnectLast — 서버=${item.address}:${item.port}")
-        val connected = fileNavigatorUseCase.setPath(item)
-        Log.d(TAG, "reconnectLast — 결과=$connected")
-        if (connected) {
-            ftpServiceController.start(item.name)
-        } else {
-            _reconnectFailed.tryEmit(Unit)
         }
     }
 
@@ -192,7 +169,7 @@ class RemoteFileListViewModel @Inject constructor(
         fileOperationUseCase.upload(
             localPath = localPath,
             remoteDestPath = remotePath,
-            completionMessage = context.getString(R.string.noti_upload_complete),
+            completionMessage = messages.notiUploadComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -202,11 +179,13 @@ class RemoteFileListViewModel @Inject constructor(
      * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
      */
     fun onRename(item: FileHolderItem, newName: String) {
-        appScope.launch {
-            val success = ftpUseCase.rename(item.path, newName)
-            if (success) fileNavigatorUseCase.refresh()
-            else progressUseCase.emitError("rename 실패: ${item.name}")
-        }
+        fileOperationUseCase.renameRemote(
+            path = item.path,
+            newName = newName,
+            completionMessage = messages.notiComplete,
+            onError = { progressUseCase.emitError("rename 실패: ${item.name}") },
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 
     /**
@@ -214,13 +193,13 @@ class RemoteFileListViewModel @Inject constructor(
      * @param item 삭제할 원격 파일 또는 디렉터리 항목
      */
     fun onDelete(item: FileHolderItem) {
-        appScope.launch {
-            val success = ftpUseCase.delete(item.path, item.isDirectory)
-            if (success) {
-                progressUseCase.emitCompletion(context.getString(R.string.noti_delete_complete))
-                fileNavigatorUseCase.refresh()
-            } else progressUseCase.emitError("삭제 실패: ${item.name}")
-        }
+        fileOperationUseCase.deleteRemote(
+            path = item.path,
+            isDirectory = item.isDirectory,
+            completionMessage = messages.notiDeleteComplete,
+            onError = { progressUseCase.emitError("삭제 실패: ${item.name}") },
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 
     /**
@@ -229,11 +208,13 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun onMakeDirectory(dirName: String) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
-        appScope.launch {
-            val success = ftpUseCase.makeDirectory(currentPath, dirName)
-            if (success) fileNavigatorUseCase.refresh()
-            else _errorMessage.value = "디렉터리 생성 실패: $dirName"
-        }
+        fileOperationUseCase.makeDirectoryRemote(
+            parentPath = currentPath,
+            dirName = dirName,
+            completionMessage = messages.notiComplete,
+            onError = { _errorMessage.value = "디렉터리 생성 실패: $dirName" },
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 
     /** 진행 중인 원격 전송(다운로드·업로드) 작업을 취소한다. */

@@ -1,15 +1,13 @@
 package com.todokanai.composepracticenew.viewmodel
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants
+import com.todokanai.composepracticenew.tools.CompletionMessageProvider
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileActionUseCase
@@ -20,7 +18,6 @@ import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,13 +34,13 @@ import javax.inject.Inject
 
 @HiltViewModel
 class FileListViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val progressUseCase: ProgressUseCase,
     private val openFileUseCase: OpenFileUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val fileActionUseCase: FileActionUseCase,
-    private val fileOperationUseCase: FileOperationUseCase
+    private val fileOperationUseCase: FileOperationUseCase,
+    private val messages: CompletionMessageProvider
 ) : ViewModel() {
 
     /** 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
@@ -130,7 +127,7 @@ class FileListViewModel @Inject constructor(
         )
 
     fun requestShowProgressDialog(actionKey: Int) {
-        if (actionKey == ACTION_KEY_DOWNLOAD || actionKey == ACTION_KEY_UPLOAD) {
+        if (OperationConstants.isRemoteOperation(actionKey)) {
             _showRemoteProgressDialogForKey.value = actionKey
         } else {
             _showProgressDialogForKey.value = actionKey
@@ -175,7 +172,7 @@ class FileListViewModel @Inject constructor(
                 remotePath = item.path,
                 localDestPath = localPath,
                 isDirectory = item.isDirectory,
-                completionMessage = context.getString(R.string.noti_download_complete),
+                completionMessage = messages.notiDownloadComplete,
                 onRefresh = { fileNavigatorUseCase.refresh() },
                 onError = { msg -> _downloadError.tryEmit(msg) }
             )
@@ -228,27 +225,27 @@ class FileListViewModel @Inject constructor(
             AppConstants.CONFIRM_MODE_COPY -> fileOperationUseCase.copy(
                 files = targets.map { it.path },
                 destPath = currentPath,
-                completionMessage = context.getString(R.string.noti_complete),
+                completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
             AppConstants.CONFIRM_MODE_MOVE -> fileOperationUseCase.move(
                 files = targets.map { it.path },
                 destPath = currentPath,
-                completionMessage = context.getString(R.string.noti_move_complete),
+                completionMessage = messages.notiMoveComplete,
                 onRefresh = onRefresh
             )
             AppConstants.CONFIRM_MODE_UNZIP -> fileOperationUseCase.unzip(
                 zipFiles = targets.map { it.path },
                 destPath = currentPath,
                 unzipHere = false,
-                completionMessage = context.getString(R.string.noti_complete),
+                completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
             AppConstants.CONFIRM_MODE_UNZIP_HERE -> fileOperationUseCase.unzip(
                 zipFiles = targets.map { it.path },
                 destPath = currentPath,
                 unzipHere = true,
-                completionMessage = context.getString(R.string.noti_complete),
+                completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
         }
@@ -260,7 +257,7 @@ class FileListViewModel @Inject constructor(
         fileOperationUseCase.zip(
             files = selectedList.map { it.path },
             zipFilePath = "$parent/$name.zip",
-            completionMessage = context.getString(R.string.noti_complete),
+            completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -270,7 +267,7 @@ class FileListViewModel @Inject constructor(
         fileOperationUseCase.rename(
             path = item.path,
             newName = name,
-            completionMessage = context.getString(R.string.noti_complete),
+            completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -279,7 +276,7 @@ class FileListViewModel @Inject constructor(
     fun delete(selectedList: List<FileHolderItem>) {
         fileOperationUseCase.delete(
             files = selectedList.map { it.path },
-            completionMessage = context.getString(R.string.noti_delete_complete),
+            completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
