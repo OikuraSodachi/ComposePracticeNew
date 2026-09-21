@@ -182,6 +182,7 @@ class RemoteFileListViewModel @Inject constructor(
         fileOperationUseCase.renameRemote(
             path = item.path,
             newName = newName,
+            completionMessage = messages.notiComplete,
             onError = { progressUseCase.emitError("rename 실패: ${item.name}") },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
@@ -210,6 +211,7 @@ class RemoteFileListViewModel @Inject constructor(
         fileOperationUseCase.makeDirectoryRemote(
             parentPath = currentPath,
             dirName = dirName,
+            completionMessage = messages.notiComplete,
             onError = { _errorMessage.value = "디렉터리 생성 실패: $dirName" },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
