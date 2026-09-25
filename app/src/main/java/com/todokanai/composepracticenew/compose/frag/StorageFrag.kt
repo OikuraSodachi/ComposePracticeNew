@@ -17,11 +17,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
-import com.todokanai.composepracticenew.compose.activity.MainActivity
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
@@ -34,12 +34,12 @@ import java.io.File
 @Composable
 fun StorageFrag(
     modifier: Modifier,
-    activity: MainActivity,
     exitStorageFrag: () -> Unit,
     exitToRemoteFileFrag: () -> Unit,
     setInitialPath: (File) -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
     var showAddRemoteStorageDialog by remember { mutableStateOf(false) }
@@ -48,7 +48,7 @@ fun StorageFrag(
     LaunchedEffect(Unit) {
         launch {
             viewModel.connectionFailed.collect {
-                Toast.makeText(activity, activity.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
             }
         }
         launch {
@@ -82,7 +82,7 @@ fun StorageFrag(
             StorageMenuButtons(
                 modifier = Modifier,
                 onAddRemoteStorage = { showAddRemoteStorageDialog = true },
-                exit = { viewModel.exit(activity, Intent(activity, FtpForegroundService::class.java)) }
+                exit = { viewModel.exit(context, Intent(context, FtpForegroundService::class.java)) }
             )
 
             LazyColumn(
