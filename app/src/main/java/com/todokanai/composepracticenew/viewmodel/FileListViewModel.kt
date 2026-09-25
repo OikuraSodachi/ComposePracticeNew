@@ -52,7 +52,7 @@ class FileListViewModel @Inject constructor(
 
     val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
         .map { list -> UiState(list.map { FileHolderItem.from(it) }) }
-        .flowOn(Dispatchers.IO)
+        .flowOn(Dispatchers.IO) // from() 항목마다 File().toUri() 문자열화 비용 → 메인 스레드 밖으로 오프로딩
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

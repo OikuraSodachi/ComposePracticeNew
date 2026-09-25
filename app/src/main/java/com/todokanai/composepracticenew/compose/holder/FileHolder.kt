@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
 /** 파일 목록의 개별 항목을 표시하는 컴포저블. icon 선택·isAsyncImage 판별은 호출부에서 결정한다. */
@@ -51,7 +52,7 @@ fun FileHolder(
     ) {
         ImageHolder(
             modifier = Modifier
-                .width(50.dp)
+                .width(AppConstants.THUMBNAIL_SIZE_DP)
                 .fillMaxHeight()
                 .padding(5.dp),
             isAsyncImage = isAsyncImage,
