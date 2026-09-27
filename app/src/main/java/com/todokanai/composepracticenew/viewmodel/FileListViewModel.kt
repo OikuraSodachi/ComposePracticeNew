@@ -17,6 +17,7 @@ import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
+import com.todokanai.composepracticenew.service.FtpServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
@@ -42,7 +43,8 @@ class FileListViewModel @Inject constructor(
     private val sortModeUseCase: SortModeUseCase,
     private val fileActionUseCase: FileActionUseCase,
     private val fileOperationUseCase: FileOperationUseCase,
-    private val messages: CompletionMessageProvider
+    private val messages: CompletionMessageProvider,
+    private val ftpServiceController: FtpServiceController
 ) : ViewModel() {
 
     /** 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
@@ -67,6 +69,10 @@ class FileListViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = emptyMap()
         )
+
+    private val _exitEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** FTP 서비스를 중단하고 앱을 종료하라는 이벤트. NavController에서 수집해 exit_td를 호출한다. */
+    val exitEvent: SharedFlow<Unit> = _exitEvent.asSharedFlow()
 
     private val _downloadError = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** 다운로드 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
@@ -282,5 +288,11 @@ class FileListViewModel @Inject constructor(
             completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
+    }
+
+    /** FTP 서비스를 중단하고 앱 종료 이벤트를 발행한다. */
+    fun exit() {
+        ftpServiceController.stop()
+        _exitEvent.tryEmit(Unit)
     }
 }
