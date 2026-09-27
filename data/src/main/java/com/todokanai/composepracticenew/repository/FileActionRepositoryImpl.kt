@@ -21,7 +21,7 @@ import javax.inject.Singleton
 @Singleton
 class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
-    override fun zipAction(targetFiles: List<String>, zipFile: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
         val allFiles = roots.flatMap { root ->
@@ -73,7 +73,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         ))
     }.flowOn(Dispatchers.IO)
 
-    override fun copyAction(targetFiles: List<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
         onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
@@ -141,7 +141,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
     }.flowOn(Dispatchers.IO)
 
-    override fun moveFile(targetFiles: List<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
         onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         val destDir = File(targetPath)
@@ -201,7 +201,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         onProgress(ProgressState(progress = 100, totalBytes = totalBytes, writtenBytes = totalBytes, listSize = totalFileCount, currentIndex = totalFileCount))
     }.flowOn(Dispatchers.IO)
 
-    override fun unzipAction(zipFiles: List<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
         onProgress(ProgressState(progress = 0))
 
         // 전체 zip 파일의 압축 해제 용량 합산

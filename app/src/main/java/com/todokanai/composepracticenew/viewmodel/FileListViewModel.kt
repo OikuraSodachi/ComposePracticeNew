@@ -230,31 +230,31 @@ class FileListViewModel @Inject constructor(
     fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         val conflictPaths = skipFiles.map { it.path }.toSet()
-        val targets = selectedList.filterNot { it.path in conflictPaths }
+        val targets = selectedList.filterNot { it.path in conflictPaths }.map{it.path}.toSet()
         if (targets.isEmpty()) return
         val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
         when (selectMode) {
             AppConstants.CONFIRM_MODE_COPY -> fileOperationUseCase.copy(
-                files = targets.map { it.path },
+                files = targets,
                 destPath = currentPath,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
             AppConstants.CONFIRM_MODE_MOVE -> fileOperationUseCase.move(
-                files = targets.map { it.path },
+                files = targets,
                 destPath = currentPath,
                 completionMessage = messages.notiMoveComplete,
                 onRefresh = onRefresh
             )
             AppConstants.CONFIRM_MODE_UNZIP -> fileOperationUseCase.unzip(
-                zipFiles = targets.map { it.path },
+                zipFiles = targets,
                 destPath = currentPath,
                 unzipHere = false,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
             AppConstants.CONFIRM_MODE_UNZIP_HERE -> fileOperationUseCase.unzip(
-                zipFiles = targets.map { it.path },
+                zipFiles = targets,
                 destPath = currentPath,
                 unzipHere = true,
                 completionMessage = messages.notiComplete,
@@ -266,8 +266,9 @@ class FileListViewModel @Inject constructor(
     /** selectedList의 파일들을 [name].zip으로 압축한다. */
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
+        val targets = selectedList.map{it.path}.toSet()
         fileOperationUseCase.zip(
-            files = selectedList.map { it.path },
+            files = targets,
             zipFilePath = "$parent/$name.zip",
             completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
@@ -286,8 +287,9 @@ class FileListViewModel @Inject constructor(
 
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {
+        val target = selectedList.map{it.path}.toSet()
         fileOperationUseCase.delete(
-            files = selectedList.map { it.path },
+            files = target,
             completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

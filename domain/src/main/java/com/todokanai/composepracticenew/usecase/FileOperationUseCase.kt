@@ -38,14 +38,14 @@ class FileOperationUseCase(
     private fun nextInstanceId(): Int = instanceCounter.incrementAndGet()
 
     /** 출발지 파일 중 하나라도 목적지와 동일한 경로이면 true를 반환한다. */
-    private fun isSamePath(files: List<String>, destPath: String): Boolean =
+    private fun isSamePath(files: Set<String>, destPath: String): Boolean =
         files.any { srcPath ->
             val srcName = srcPath.substringAfterLast('/')
             "$destPath/$srcName" == srcPath
         }
 
     /** [files]를 [destPath]에 복사한다. */
-    fun copy(files: List<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
             progressRepo.emitError("복사 실패: 출발지와 목적지가 동일합니다.")
             return
@@ -67,7 +67,7 @@ class FileOperationUseCase(
     }
 
     /** [files]를 삭제한다. */
-    fun delete(files: List<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = nextInstanceId()
         DeleteOperation(
             targetFiles = files,
@@ -84,7 +84,7 @@ class FileOperationUseCase(
     }
 
     /** [files]를 [destPath]로 이동한다. */
-    fun move(files: List<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun move(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
             progressRepo.emitError("이동 실패: 출발지와 목적지가 동일합니다.")
             return
@@ -106,7 +106,7 @@ class FileOperationUseCase(
     }
 
     /** [files]를 [zipFilePath]로 압축한다. */
-    fun zip(files: List<String>, zipFilePath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun zip(files: Set<String>, zipFilePath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = nextInstanceId()
         ZipOperation(
             sourceFiles = files,
@@ -124,7 +124,7 @@ class FileOperationUseCase(
     }
 
     /** [zipFiles]를 [destPath]에 압축 해제한다. */
-    fun unzip(zipFiles: List<String>, destPath: String, unzipHere: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun unzip(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = nextInstanceId()
         UnzipOperation(
             zipFiles = zipFiles,

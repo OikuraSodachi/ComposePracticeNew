@@ -19,7 +19,7 @@ import com.todokanai.composepracticenew.repository.FileActionRepository
  * @param clearProgress 진행 상태를 초기화하는 콜백
  */
 class ZipOperation(
-    private val sourceFiles: List<String>,
+    private val sourceFiles: Set<String>,
     private val zipFilePath: String,
     private val fileActionRepo: FileActionRepository,
     notifier: FileOperationNotifier,

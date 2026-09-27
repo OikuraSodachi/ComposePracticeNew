@@ -20,7 +20,7 @@ import com.todokanai.composepracticenew.repository.FileActionRepository
  * @param clearProgress 진행 상태를 초기화하는 콜백
  */
 class UnzipOperation(
-    private val zipFiles: List<String>,
+    private val zipFiles: Set<String>,
     private val destPath: String,
     private val unzipHere: Boolean,
     private val fileActionRepo: FileActionRepository,

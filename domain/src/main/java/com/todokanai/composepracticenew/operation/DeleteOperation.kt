@@ -18,7 +18,7 @@ import com.todokanai.composepracticenew.repository.FileActionRepository
  * @param clearProgress 진행 상태를 초기화하는 콜백
  */
 class DeleteOperation(
-    private val targetFiles: List<String>,
+    private val targetFiles: Set<String>,
     private val fileActionRepo: FileActionRepository,
     notifier: FileOperationNotifier,
     instanceId: Int,
