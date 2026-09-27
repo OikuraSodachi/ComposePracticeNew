@@ -35,6 +35,7 @@ fun StorageFrag(
     exitStorageFrag: () -> Unit,
     exitToRemoteFileFrag: () -> Unit,
     setInitialPath: (File) -> Unit,
+    /** 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거). */
     onExit: () -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {
