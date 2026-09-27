@@ -73,17 +73,17 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideFtpConnectionResilienceUseCase(
-        ftpUseCase: FtpUseCase,
-        remoteStorageUseCase: RemoteStorageUseCase,
-        @RemoteNavigator fileNavigatorUseCase: FileNavigatorUseCase
-    ) = FtpConnectionResilienceUseCase(ftpUseCase, remoteStorageUseCase, fileNavigatorUseCase)
+        ftpRepo: FtpRepository,
+        localDataRepo: LocalDataRepository,
+        @RemoteNavigator fileNavigatorRepo: FileNavigatorRepository
+    ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, fileNavigatorRepo)
 
     @Provides @Singleton
     fun provideFileOperationUseCase(
         notifier: FileOperationNotifier,
-        progressUseCase: ProgressUseCase,
-        fileActionUseCase: FileActionUseCase,
-        ftpUseCase: FtpUseCase,
+        progressRepo: ProgressRepository,
+        fileActionRepo: FileActionRepository,
+        ftpRepo: FtpRepository,
         @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationUseCase(notifier, progressUseCase, fileActionUseCase, ftpUseCase, appScope)
+    ) = FileOperationUseCase(notifier, progressRepo, fileActionRepo, ftpRepo, appScope)
 }

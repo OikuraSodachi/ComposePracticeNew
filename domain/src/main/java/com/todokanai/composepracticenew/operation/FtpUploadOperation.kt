@@ -2,13 +2,13 @@ package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
-import com.todokanai.composepracticenew.usecase.FtpUseCase
+import com.todokanai.composepracticenew.repository.FtpRepository
 
 /**
  * FTP 업로드 작업을 IoOperation 생명주기로 실행하는 구현체.
  * @param localPath 업로드할 로컬 파일 경로
- * @param remoteDestPath 업로드 대상 원격 디렉터리 경로
- * @param ftpUseCase FTP 작업을 실행하는 UseCase
+ * @param remoteDestPath 저장될 원격 파일의 절대 경로
+ * @param ftpRepo FTP 파일 전송 작업을 실행하는 FtpRepository
  * @param notifier 파일 작업 알림 전송 인터페이스
  * @param instanceId 작업 인스턴스 식별자
  * @param completionMessage 작업 완료 시 표시할 메시지
@@ -21,7 +21,7 @@ import com.todokanai.composepracticenew.usecase.FtpUseCase
 class FtpUploadOperation(
     private val localPath: String,
     private val remoteDestPath: String,
-    private val ftpUseCase: FtpUseCase,
+    private val ftpRepo: FtpRepository,
     notifier: FileOperationNotifier,
     instanceId: Int,
     completionMessage: String,
@@ -35,7 +35,7 @@ class FtpUploadOperation(
     override val actionKey = ACTION_KEY_UPLOAD
 
     override suspend fun mainOperation() {
-        ftpUseCase.upload(localPath, remoteDestPath) { state ->
+        ftpRepo.upload(localPath, remoteDestPath) { state ->
             progressState = state.copy(actionKey = ACTION_KEY_UPLOAD)
             setProgress(progressState)
             state.progress?.let { notifier.uploadProgressNoti(it, instanceId) }
