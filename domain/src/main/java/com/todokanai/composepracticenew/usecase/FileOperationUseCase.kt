@@ -154,7 +154,7 @@ class FileOperationUseCase(
         onRefresh: suspend () -> Unit,
         onError: (String) -> Unit
     ) {
-        val instanceId = remotePath.hashCode()
+        val instanceId = nextInstanceId()
         val localFilePath = "$localDestPath/${remotePath.substringAfterLast("/")}"
         FtpDownloadOperation(
             remotePath = remotePath,
@@ -165,7 +165,7 @@ class FileOperationUseCase(
             instanceId = instanceId,
             completionMessage = completionMessage,
             onRefresh = onRefresh,
-            onEmitCompletion = { progressRepo.emitCompletion(it) },
+            onEmitCompletion = onEmitCompletion,
             onEmitError = { onError(it) },
             setProgress = { progressRepo.setProgressState(instanceId, it) },
             clearProgress = { progressRepo.removeProgress(instanceId) }
@@ -174,7 +174,7 @@ class FileOperationUseCase(
 
     /** [localPath]를 [remoteDestPath]에 업로드한다. */
     fun upload(localPath: String, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val instanceId = localPath.hashCode()
+        val instanceId = nextInstanceId()
         val remoteFilePath = "$remoteDestPath/${localPath.substringAfterLast("/")}"
         FtpUploadOperation(
             localPath = localPath,
