@@ -26,9 +26,7 @@ import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
-import com.todokanai.composepracticenew.service.FtpForegroundService
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
-import android.content.Intent
 import java.io.File
 
 @Composable
@@ -37,6 +35,7 @@ fun StorageFrag(
     exitStorageFrag: () -> Unit,
     exitToRemoteFileFrag: () -> Unit,
     setInitialPath: (File) -> Unit,
+    onExit: () -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -82,7 +81,7 @@ fun StorageFrag(
             StorageMenuButtons(
                 modifier = Modifier,
                 onAddRemoteStorage = { showAddRemoteStorageDialog = true },
-                exit = { viewModel.exit(context, Intent(context, FtpForegroundService::class.java)) }
+                exit = onExit
             )
 
             LazyColumn(

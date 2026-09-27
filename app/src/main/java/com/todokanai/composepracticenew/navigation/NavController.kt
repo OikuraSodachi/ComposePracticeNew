@@ -57,7 +57,8 @@ fun AppNavHost(
                 modifier = Modifier,
                 exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
                 exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
-                setInitialPath = { viewModel.updateCurrentPath(it.absolutePath) }
+                setInitialPath = { viewModel.updateCurrentPath(it.absolutePath) },
+                onExit = { exit_td(activity, Intent(context, FtpForegroundService::class.java)) }
             )
         }
         navigation(
@@ -65,10 +66,10 @@ fun AppNavHost(
             route = NavDestinations.FILE_BROWSER_GRAPH
         ) {
             composable(NavDestinations.FILE_LIST) {
-                FileListDestination(navController, viewModel, onExit = { exit_td(context, Intent(context, FtpForegroundService::class.java)) })
+                FileListDestination(navController, viewModel, onExit = { exit_td(activity, Intent(context, FtpForegroundService::class.java)) })
             }
             composable(NavDestinations.REMOTE_FILE_LIST) {
-                RemoteFileListDestination(navController, viewModel, onExit = { exit_td(context, Intent(context, FtpForegroundService::class.java)) })
+                RemoteFileListDestination(navController, viewModel, onExit = { exit_td(activity, Intent(context, FtpForegroundService::class.java)) })
             }
         }
     }
