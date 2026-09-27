@@ -48,7 +48,7 @@ fun StorageFrag(
     LaunchedEffect(Unit) {
         launch {
             viewModel.connectionFailed.collect {
-                Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, R.string.toast_connection_failed, Toast.LENGTH_SHORT).show()
             }
         }
         launch {
