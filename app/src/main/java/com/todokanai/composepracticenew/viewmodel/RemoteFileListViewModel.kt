@@ -87,7 +87,10 @@ class RemoteFileListViewModel @Inject constructor(
         }
     }
 
-    /** 원격 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
+    /**
+     * 원격 파일 목록 화면에 필요한 UI 상태를 담는 클래스.
+     * @param fileHolderItemList 현재 원격 디렉터리의 파일 목록
+     */
     data class UiState(
         val fileHolderItemList: List<FileHolderItem> = emptyList()
     )

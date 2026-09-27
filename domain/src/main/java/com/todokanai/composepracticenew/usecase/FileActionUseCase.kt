@@ -6,7 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOf
 
-/** Delegates all file mutation operations to [FileActionRepository], with input validation and exception handling. */
+/**
+ * Delegates all file mutation operations to [FileActionRepository], with input validation and exception handling.
+ * @param repository 파일 변경 작업을 실행하는 FileActionRepository 구현체
+ */
 class FileActionUseCase(private val repository: FileActionRepository) {
 
     // @param targetFiles absolutePath (or URI) of files to compress

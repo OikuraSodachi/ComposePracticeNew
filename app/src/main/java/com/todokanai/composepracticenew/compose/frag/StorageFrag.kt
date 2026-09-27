@@ -29,13 +29,15 @@ import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import java.io.File
 
+/**
+ * @param onExit 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거).
+ */
 @Composable
 fun StorageFrag(
     modifier: Modifier,
     exitStorageFrag: () -> Unit,
     exitToRemoteFileFrag: () -> Unit,
     setInitialPath: (File) -> Unit,
-    /** 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거). */
     onExit: () -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {

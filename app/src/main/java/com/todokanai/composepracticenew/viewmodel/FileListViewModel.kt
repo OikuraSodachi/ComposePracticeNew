@@ -47,7 +47,10 @@ class FileListViewModel @Inject constructor(
     private val ftpServiceController: FtpServiceController
 ) : ViewModel() {
 
-    /** 파일 목록 화면에 필요한 UI 상태를 담는 클래스. */
+    /**
+     * 파일 목록 화면에 필요한 UI 상태를 담는 클래스.
+     * @param fileHolderItemList 현재 디렉터리의 파일 목록
+     */
     data class UiState(
         val fileHolderItemList: List<FileHolderItem> = emptyList()
     )

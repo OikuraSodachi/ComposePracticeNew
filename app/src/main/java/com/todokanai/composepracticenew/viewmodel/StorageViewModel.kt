@@ -30,7 +30,11 @@ class StorageViewModel @Inject constructor(
     private val ftpUseCase: FtpUseCase
 ) : ViewModel() {
 
-    /** 스토리지 선택 화면에 필요한 UI 상태를 담는 클래스. */
+    /**
+     * 스토리지 선택 화면에 필요한 UI 상태를 담는 클래스.
+     * @param storageList 로컬 스토리지 목록
+     * @param remoteStorageList 원격 스토리지 목록
+     */
     data class UiState(
         val storageList: List<StorageHolderItem> = emptyList(),
         val remoteStorageList: List<RemoteStorageItem> = emptyList()

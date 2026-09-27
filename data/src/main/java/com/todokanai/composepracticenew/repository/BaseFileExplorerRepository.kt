@@ -17,7 +17,13 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.stateIn
 
-/** currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList를 구성하는 공통 Flow 로직을 보유한 기반 클래스. */
+/**
+ * currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList를 구성하는 공통 Flow 로직을 보유한 기반 클래스.
+ * @param converter 파일 목록을 UI 모델로 변환하는 DataConverter
+ * @param dsRepo 정렬 기준 등 설정을 읽는 DataStoreRepository
+ * @param started StateFlow 공유 시작 전략
+ * @param initialPath 초기 탐색 경로; null이면 루트로 시작하지 않는다
+ */
 abstract class BaseFileExplorerRepository(
     private val converter: DataConverter,
     private val dsRepo: DataStoreRepository,

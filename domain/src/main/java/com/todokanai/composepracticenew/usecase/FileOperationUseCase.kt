@@ -11,7 +11,14 @@ import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-/** 파일 작업의 알림·진행 상태·실행 생명주기를 통합 조율하는 UseCase. */
+/**
+ * 파일 작업의 알림·진행 상태·실행 생명주기를 통합 조율하는 UseCase.
+ * @param notifier 파일 작업 시스템 알림을 전송하는 인터페이스
+ * @param progressUseCase 작업 진행 상태 및 완료·오류 이벤트를 관리하는 UseCase
+ * @param fileActionUseCase 로컬 파일 변경 작업을 실행하는 UseCase
+ * @param ftpUseCase FTP 파일 전송 작업을 실행하는 UseCase
+ * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
+ */
 class FileOperationUseCase(
     private val notifier: FileOperationNotifier,
     private val progressUseCase: ProgressUseCase,

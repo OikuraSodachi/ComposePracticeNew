@@ -13,7 +13,13 @@ import kotlinx.coroutines.sync.withLock
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 
-/** 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다. */
+/**
+ * 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다.
+ * @param client FTP 클라이언트 인스턴스
+ * @param ioMutex FTP I/O 직렬화에 사용하는 Mutex
+ * @param isConnected FTP 연결 상태 Flow
+ * @param onDropped 연결이 끊어졌을 때 호출되는 콜백
+ */
 internal class FtpKeepAlive(
     private val client: FTPClient,
     private val ioMutex: Mutex,

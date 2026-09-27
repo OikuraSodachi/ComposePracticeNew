@@ -1,25 +1,27 @@
 package com.todokanai.composepracticenew.model
 
-/** 파일 작업의 Progress 상태 관찰을 위한 class **/
+/**
+ * 파일 작업의 Progress 상태 관찰을 위한 class
+ * @param progress 진행도(percent)
+ * @param progressFloat 진행도(Float)
+ * @param totalBytes 전체 파일 크기(bytes)
+ * @param writtenBytes 작업 진행된 크기(bytes)
+ * @param listSize 전체 목록의 갯수
+ * @param currentIndex 진행된 갯수
+ * @param currentFileName 현재 작업중인 파일명
+ * @param currentFileBytes 현재 작업중인 파일의 전체 용량(bytes)
+ * @param actionKey 그 외의 정보?
+ * @param error non-null이면 해당 작업이 실패했음을 의미하며 오류 메시지를 담는다.
+ */
 data class ProgressState(
-    /** 진행도(percent) **/
     val progress: Int? = null,
-    /** 진행도(Float) **/
     val progressFloat: Float? = null,
-    /** 전체 파일 크기(bytes) **/
     val totalBytes: Long? = null,
-    /** 작업 진행된 크기(bytes) **/
     val writtenBytes: Long? = null,
-    /** 전체 목록의 갯수 **/
     val listSize: Int? = null,
-    /** 진행된 갯수 **/
     val currentIndex: Int? = null,
-    /** 현재 작업중인 파일명 **/
     val currentFileName: String? = null,
-    /** 현재 작업중인 파일의 전체 용량(bytes) **/
     val currentFileBytes: Long? = null,
-    /** 그 외의 정보? **/
     val actionKey: Int? = null,
-    /** non-null이면 해당 작업이 실패했음을 의미하며 오류 메시지를 담는다. **/
     val error: String? = null
 )

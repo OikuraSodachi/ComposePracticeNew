@@ -6,7 +6,10 @@ import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
-/** 파일 탐색기의 네비게이션 상태를 읽고 조작하는 UseCase. */
+/**
+ * 파일 탐색기의 네비게이션 상태를 읽고 조작하는 UseCase.
+ * @param nav 파일 탐색기 네비게이션 상태를 관리하는 FileNavigatorRepository 구현체
+ */
 class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     val fileList: StateFlow<List<FileHolderItem>> = nav.fileHolderItemList
     val dirTree: Flow<List<FileEntry>> = nav.dirTree

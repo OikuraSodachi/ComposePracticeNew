@@ -6,7 +6,12 @@ import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.SharingStarted
 import java.io.File
 
-/** 로컬 파일 시스템만 탐색하는 FileNavigatorRepository 구현체. FTP 의존성이 없다. */
+/**
+ * 로컬 파일 시스템만 탐색하는 FileNavigatorRepository 구현체. FTP 의존성이 없다.
+ * @param converter 파일 목록을 UI 모델로 변환하는 DataConverter
+ * @param dsRepo 정렬 기준 등 설정을 읽는 DataStoreRepository
+ * @param initialPath 초기 탐색 경로; null이면 설정하지 않는다
+ */
 class LocalFileExplorerRepositoryImpl(
     converter: DataConverter,
     dsRepo: DataStoreRepository,

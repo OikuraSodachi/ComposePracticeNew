@@ -7,9 +7,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- *  onComplete를 추가하기 위한 class
- *
- *  notification 내용은 여기서 설정(?)
+ * onComplete를 추가하기 위한 class
+ * @param actionKey 작업 식별 키
+ * @param myNoti 완료 알림 전송에 사용하는 MyNotification 인스턴스
  */
 class ActionWrapper(val actionKey: Int, private val myNoti: MyNotification) {
 
