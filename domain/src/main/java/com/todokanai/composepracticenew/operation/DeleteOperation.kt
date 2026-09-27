@@ -2,12 +2,12 @@ package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DELETE
-import com.todokanai.composepracticenew.usecase.FileActionUseCase
+import com.todokanai.composepracticenew.repository.FileActionRepository
 
 /**
  * 로컬 삭제 작업을 IoOperation 생명주기로 실행하는 구현체.
  * @param targetFiles 삭제할 파일 경로 목록
- * @param fileActionUseCase 파일 작업을 실행하는 UseCase
+ * @param fileActionRepo 파일 변경 작업을 실행하는 FileActionRepository
  * @param notifier 파일 작업 알림 전송 인터페이스
  * @param instanceId 작업 인스턴스 식별자
  * @param completionMessage 작업 완료 시 표시할 메시지
@@ -19,7 +19,7 @@ import com.todokanai.composepracticenew.usecase.FileActionUseCase
  */
 class DeleteOperation(
     private val targetFiles: List<String>,
-    private val fileActionUseCase: FileActionUseCase,
+    private val fileActionRepo: FileActionRepository,
     notifier: FileOperationNotifier,
     instanceId: Int,
     completionMessage: String,
@@ -34,7 +34,7 @@ class DeleteOperation(
 
     override suspend fun mainOperation() {
         targetFiles.forEach { path ->
-            fileActionUseCase.deleteFile(path) { state ->
+            fileActionRepo.deleteFile(path) { state ->
                 progressState = state.copy(actionKey = ACTION_KEY_DELETE)
                 setProgress(progressState)
                 val idx = state.currentIndex ?: return@deleteFile
