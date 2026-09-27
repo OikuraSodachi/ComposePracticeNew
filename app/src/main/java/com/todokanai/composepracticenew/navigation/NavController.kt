@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.navigation
 
-import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
@@ -21,9 +20,7 @@ import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.compose.activity.MainActivity
-import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
-import com.todokanai.composepracticenew.service.FtpForegroundService
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
@@ -43,6 +40,11 @@ fun AppNavHost(
     val viewModel: FileListViewModel = hiltViewModel(viewModelStoreOwner = activity)
     val showRemoteProgressDialog by viewModel.showRemoteProgressDialog.collectAsStateWithLifecycle()
 
+    // viewModel.exit()이 서비스 중단 후 emit — View는 Activity API만 담당
+    LaunchedEffect(Unit) {
+        viewModel.exitEvent.collect { activity.finishAndRemoveTask() }
+    }
+
     // 원격 알림 클릭 시 현재 화면이 REMOTE_FILE_LIST가 아니면 자동으로 이동한다
     LaunchedEffect(showRemoteProgressDialog) {
         if (showRemoteProgressDialog && navController.currentDestination?.route != NavDestinations.REMOTE_FILE_LIST) {
@@ -54,10 +56,10 @@ fun AppNavHost(
         composable(NavDestinations.STORAGE) {
             StorageFrag(
                 modifier = Modifier,
-                activity = activity,
                 exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
                 exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
-                setInitialPath = { viewModel.updateCurrentPath(it.absolutePath) }
+                setInitialPath = { viewModel.updateCurrentPath(it.absolutePath) },
+                onExit = viewModel::exit
             )
         }
         navigation(
@@ -65,10 +67,10 @@ fun AppNavHost(
             route = NavDestinations.FILE_BROWSER_GRAPH
         ) {
             composable(NavDestinations.FILE_LIST) {
-                FileListDestination(navController, viewModel, onExit = { exit_td(activity, Intent(activity, FtpForegroundService::class.java)) })
+                FileListDestination(navController, viewModel, onExit = viewModel::exit)
             }
             composable(NavDestinations.REMOTE_FILE_LIST) {
-                RemoteFileListDestination(navController, viewModel, onExit = { exit_td(activity, Intent(activity, FtpForegroundService::class.java)) })
+                RemoteFileListDestination(navController, viewModel, onExit = viewModel::exit)
             }
         }
     }

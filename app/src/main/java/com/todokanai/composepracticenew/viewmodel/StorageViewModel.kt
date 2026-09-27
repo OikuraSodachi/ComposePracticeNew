@@ -1,13 +1,10 @@
 package com.todokanai.composepracticenew.viewmodel
 
-import android.app.Activity
-import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
-import com.todokanai.composepracticenew.tools.independent.exit_td
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
@@ -107,5 +104,4 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    fun exit(activity: Activity, serviceIntent: Intent? = null) = exit_td(activity, serviceIntent)
 }
