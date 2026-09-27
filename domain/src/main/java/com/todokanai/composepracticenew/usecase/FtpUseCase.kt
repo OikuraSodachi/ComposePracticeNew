@@ -6,7 +6,10 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
-/** FTP 연결 상태 조회·해제 및 파일 전송(다운로드·업로드) 작업을 도메인 계층에서 조율하는 UseCase. */
+/**
+ * FTP 연결 상태 조회·해제 및 파일 전송(다운로드·업로드) 작업을 도메인 계층에서 조율하는 UseCase.
+ * @param repo FTP 연결 및 파일 전송 작업을 수행하는 FtpRepository 구현체
+ */
 class FtpUseCase(private val repo: FtpRepository) {
 
     /** FTP 연결 또는 연결 해제 진행 중 여부를 방출한다. */

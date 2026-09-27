@@ -7,7 +7,13 @@ import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.SharingStarted
 import java.io.File
 
-/** 로컬 및 FTP 원격 경로를 모두 탐색할 수 있는 FileNavigatorRepository 구현체. */
+/**
+ * 로컬 및 FTP 원격 경로를 모두 탐색할 수 있는 FileNavigatorRepository 구현체.
+ * @param converter 파일 목록을 UI 모델로 변환하는 DataConverter
+ * @param dsRepo 정렬 기준 등 설정을 읽는 DataStoreRepository
+ * @param ftpFileSystem FTP 파일 시스템 접근을 담당하는 FtpRepository
+ * @param initialPath 초기 탐색 경로; null이면 설정하지 않는다
+ */
 class FileExplorerRepositoryImpl(
     converter: DataConverter,
     dsRepo: DataStoreRepository,

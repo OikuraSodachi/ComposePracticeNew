@@ -4,7 +4,10 @@ import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.repository.LocalDataRepository
 import kotlinx.coroutines.flow.Flow
 
-/** 원격 스토리지 접속 정보의 조회·추가·수정·삭제를 담당하는 UseCase. */
+/**
+ * 원격 스토리지 접속 정보의 조회·추가·수정·삭제를 담당하는 UseCase.
+ * @param repo 원격 스토리지 접속 정보를 읽고 쓰는 LocalDataRepository 구현체
+ */
 class RemoteStorageUseCase(private val repo: LocalDataRepository) {
     fun getAll(): Flow<List<RemoteStorageItem>> = repo.getAll()
     suspend fun add(name: String, address: String, port: Int, userId: String, password: String, encoding: String) =

@@ -29,13 +29,21 @@ import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import java.io.File
 
+/**
+ * 스토리지 선택 화면. 로컬/원격 스토리지 목록을 표시하고 탐색 진입점을 제공한다.
+ * @param modifier 레이아웃 수정자
+ * @param exitStorageFrag 로컬 스토리지 선택 후 파일 목록 화면으로 이동하는 콜백
+ * @param exitToRemoteFileFrag 원격 스토리지 연결 성공 후 원격 파일 목록 화면으로 이동하는 콜백
+ * @param setInitialPath 선택한 로컬 스토리지의 루트 경로를 설정하는 콜백
+ * @param onExit 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거).
+ * @param viewModel 스토리지 선택 화면의 ViewModel
+ */
 @Composable
 fun StorageFrag(
     modifier: Modifier,
     exitStorageFrag: () -> Unit,
     exitToRemoteFileFrag: () -> Unit,
     setInitialPath: (File) -> Unit,
-    /** 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거). */
     onExit: () -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {

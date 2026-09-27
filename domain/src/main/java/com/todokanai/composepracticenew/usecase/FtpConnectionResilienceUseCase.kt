@@ -6,7 +6,12 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.scan
 
-/** FTP 연결 끊김 감지와 마지막 서버 자동 재연결을 담당하는 UseCase. */
+/**
+ * FTP 연결 끊김 감지와 마지막 서버 자동 재연결을 담당하는 UseCase.
+ * @param ftpUseCase FTP 연결 상태를 관찰하고 해제하는 UseCase
+ * @param remoteStorageUseCase 마지막 연결 서버 정보를 조회하는 UseCase
+ * @param fileNavigatorUseCase 재연결 후 원격 경로로 이동하는 UseCase
+ */
 class FtpConnectionResilienceUseCase(
     private val ftpUseCase: FtpUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
