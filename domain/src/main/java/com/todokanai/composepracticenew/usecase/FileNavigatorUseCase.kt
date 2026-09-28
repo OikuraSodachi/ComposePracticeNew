@@ -16,8 +16,8 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     val currentPath: StateFlow<String?> = nav.currentPath
 
     /**
-     * 로컬 파일 시스템의 [path] 경로로 이동한다.
-     * @param path 이동할 로컬 디렉터리의 절대 경로
+     * [path] 경로로 이동한다.
+     * @param path 이동할 디렉터리의 절대 경로 또는 URI
      * @return Unit
      */
     suspend fun setPath(path: String) = nav.navigate(path)
