@@ -15,6 +15,11 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     val dirTree: Flow<List<FileEntry>> = nav.dirTree
     val currentPath: StateFlow<String?> = nav.currentPath
 
+    /**
+     * 로컬 파일 시스템의 [path] 경로로 이동한다.
+     * @param path 이동할 로컬 디렉터리의 절대 경로
+     * @return Unit
+     */
     suspend fun setPath(path: String) = nav.navigate(path)
     /** FTP 서버에 연결하고 루트 경로로 이동한다. 연결 성공 여부를 반환한다. */
     suspend fun setPath(item: RemoteStorageItem): Boolean {
@@ -22,6 +27,10 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
         if (connected) nav.setRemotePath(item.address)
         return connected
     }
+    /**
+     * 현재 디렉터리의 파일 목록을 강제로 새로 고침한다.
+     * @return Unit
+     */
     fun refresh() = nav.refresh()
 
     /** 상위 디렉터리로 이동한다. 현재 경로가 루트이면 toRoot를 호출한다. */

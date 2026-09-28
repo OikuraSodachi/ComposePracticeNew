@@ -44,7 +44,14 @@ class FileOperationUseCase(
             "$destPath/$srcName" == srcPath
         }
 
-    /** [files]를 [destPath]에 복사한다. */
+    /**
+     * [files]를 [destPath]에 복사한다.
+     * @param files 복사할 파일의 절대 경로 집합
+     * @param destPath 복사 대상 디렉터리의 절대 경로
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
             progressRepo.emitError("복사 실패: 출발지와 목적지가 동일합니다.")
@@ -66,7 +73,13 @@ class FileOperationUseCase(
         ).execute(appScope)
     }
 
-    /** [files]를 삭제한다. */
+    /**
+     * [files]를 삭제한다.
+     * @param files 삭제할 파일의 절대 경로 집합
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = nextInstanceId()
         DeleteOperation(
@@ -83,7 +96,14 @@ class FileOperationUseCase(
         ).execute(appScope)
     }
 
-    /** [files]를 [destPath]로 이동한다. */
+    /**
+     * [files]를 [destPath]로 이동한다.
+     * @param files 이동할 파일의 절대 경로 집합
+     * @param destPath 이동 대상 디렉터리의 절대 경로
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun move(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
             progressRepo.emitError("이동 실패: 출발지와 목적지가 동일합니다.")
@@ -105,7 +125,14 @@ class FileOperationUseCase(
         ).execute(appScope)
     }
 
-    /** [files]를 [zipFilePath]로 압축한다. */
+    /**
+     * [files]를 [zipFilePath]로 압축한다.
+     * @param files 압축할 파일의 절대 경로 집합
+     * @param zipFilePath 생성할 zip 파일의 절대 경로
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun zip(files: Set<String>, zipFilePath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = nextInstanceId()
         ZipOperation(
@@ -123,7 +150,15 @@ class FileOperationUseCase(
         ).execute(appScope)
     }
 
-    /** [zipFiles]를 [destPath]에 압축 해제한다. */
+    /**
+     * [zipFiles]를 [destPath]에 압축 해제한다.
+     * @param zipFiles 압축 해제할 zip 파일의 절대 경로 집합
+     * @param destPath 압축 해제 대상 디렉터리의 절대 경로
+     * @param unzipHere true이면 [destPath]에 직접 해제, false이면 zip 파일명 하위 폴더 생성 후 해제
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun unzip(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = nextInstanceId()
         UnzipOperation(
@@ -144,7 +179,13 @@ class FileOperationUseCase(
 
     /**
      * [remotePath]를 [localDestPath]에 다운로드한다.
+     * @param remotePath 다운로드할 원격 파일 또는 디렉터리의 경로
+     * @param localDestPath 로컬 저장 대상 디렉터리의 절대 경로
+     * @param isDirectory 원격 경로가 디렉터리이면 true
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @param onError 다운로드 오류 시 호출되는 콜백 — 호출부마다 오류 라우팅이 다르므로 위임한다.
+     * @return Unit
      */
     fun download(
         remotePath: String,
@@ -172,7 +213,14 @@ class FileOperationUseCase(
         ).execute(appScope)
     }
 
-    /** [localPath]를 [remoteDestPath]에 업로드한다. */
+    /**
+     * [localPath]를 [remoteDestPath]에 업로드한다.
+     * @param localPath 업로드할 로컬 파일의 절대 경로
+     * @param remoteDestPath 업로드 대상 원격 디렉터리 경로
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun upload(localPath: String, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         val instanceId = nextInstanceId()
         val remoteFilePath = "$remoteDestPath/${localPath.substringAfterLast("/")}"
@@ -191,7 +239,15 @@ class FileOperationUseCase(
         ).execute(appScope)
     }
 
-    /** [path]의 원격 파일 이름을 [newName]으로 변경한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다. */
+    /**
+     * [path]의 원격 파일 이름을 [newName]으로 변경한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다.
+     * @param path 이름을 변경할 원격 파일의 경로
+     * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onError 이름 변경 실패 시 호출되는 콜백
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun renameRemote(path: String, newName: String, completionMessage: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
         appScope.launch {
             val toPath = "${path.substringBeforeLast("/")}/$newName"
@@ -204,7 +260,15 @@ class FileOperationUseCase(
         }
     }
 
-    /** [path]의 원격 파일 또는 디렉터리를 삭제한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다. */
+    /**
+     * [path]의 원격 파일 또는 디렉터리를 삭제한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다.
+     * @param path 삭제할 원격 파일 또는 디렉터리의 경로
+     * @param isDirectory 삭제 대상이 디렉터리이면 true
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onError 삭제 실패 시 호출되는 콜백
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
         appScope.launch {
             val ok = if (isDirectory) {
@@ -218,7 +282,15 @@ class FileOperationUseCase(
         }
     }
 
-    /** [parentPath] 아래에 [dirName] 디렉터리를 원격 서버에 생성한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다. */
+    /**
+     * [parentPath] 아래에 [dirName] 디렉터리를 원격 서버에 생성한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다.
+     * @param parentPath 디렉터리를 생성할 원격 부모 경로
+     * @param dirName 생성할 디렉터리 이름
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onError 생성 실패 시 호출되는 콜백
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
         appScope.launch {
             val ok = ftpRepo.makeDirectory("$parentPath/$dirName")
@@ -230,7 +302,14 @@ class FileOperationUseCase(
         }
     }
 
-    /** [path]의 파일 이름을 [newName]으로 변경한다. */
+    /**
+     * [path]의 파일 이름을 [newName]으로 변경한다.
+     * @param path 이름을 변경할 파일의 절대 경로
+     * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
     fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         appScope.launch {
             try {

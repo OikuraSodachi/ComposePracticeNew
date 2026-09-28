@@ -15,6 +15,8 @@ class FileActionUseCase(private val repository: FileActionRepository) {
     /**
      * @param targetFiles absolutePath (or URI) of files to compress
      * @param zipFile absolutePath (or URI) of new zip file to create
+     * @param onProgress 압축 진행 상태를 수신하는 콜백
+     * @return 작업 진행 상태를 방출하는 Flow — 오류 발생 시 error 필드가 채워진 ProgressState를 emit한다
      */
     fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
         repository.zipAction(targetFiles, zipFile, onProgress)
@@ -23,6 +25,8 @@ class FileActionUseCase(private val repository: FileActionRepository) {
     /**
      * @param targetFiles absolutePath (or URI) of files to copy
      * @param targetPath absolutePath (or URI) of destination directory
+     * @param onProgress 복사 진행 상태를 수신하는 콜백
+     * @return 작업 진행 상태를 방출하는 Flow — 오류 발생 시 error 필드가 채워진 ProgressState를 emit한다
      */
     fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> {
         // 출발지-목적지 동일 경로 검사: File(targetPath, src.name) == src 가 되는 케이스를 차단
@@ -39,12 +43,17 @@ class FileActionUseCase(private val repository: FileActionRepository) {
     /**
      * @param targetFile absolutePath (or URI) of file to rename
      * @param newName new file name (not a full path)
+     * @return 작업 진행 상태를 방출하는 Flow — 오류 발생 시 error 필드가 채워진 ProgressState를 emit한다
      */
     fun renameFile(targetFile: String, newName: String): Flow<ProgressState> =
         repository.renameFile(targetFile, newName)
             .catch { e -> emit(ProgressState(error = e.message ?: "이름 변경 중 오류가 발생했습니다.")) }
 
-    /** @param targetFile absolutePath (or URI) of file or directory to delete */
+    /**
+     * @param targetFile absolutePath (or URI) of file or directory to delete
+     * @param onProgress 삭제 진행 상태를 수신하는 콜백
+     * @return 작업 진행 상태를 방출하는 Flow — 오류 발생 시 error 필드가 채워진 ProgressState를 emit한다
+     */
     fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
         repository.deleteFile(targetFile, onProgress)
             .catch { e -> emit(ProgressState(error = e.message ?: "삭제 중 오류가 발생했습니다.")) }
@@ -53,6 +62,8 @@ class FileActionUseCase(private val repository: FileActionRepository) {
      * @param zipFiles absolutePaths of zip files to extract
      * @param destPath absolutePath of destination directory
      * @param unzipHere true이면 [destPath]에 직접 해제, false이면 zip 파일명 하위 폴더 생성 후 해제
+     * @param onProgress 압축 해제 진행 상태를 수신하는 콜백
+     * @return 작업 진행 상태를 방출하는 Flow — 오류 발생 시 error 필드가 채워진 ProgressState를 emit한다
      */
     fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean = false, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
         repository.unzipAction(zipFiles, destPath, unzipHere, onProgress)
@@ -61,6 +72,7 @@ class FileActionUseCase(private val repository: FileActionRepository) {
     /**
      * @param parentPath absolutePath (or URI) of the parent directory
      * @param name name of the new directory
+     * @return 작업 진행 상태를 방출하는 Flow — 오류 발생 시 error 필드가 채워진 ProgressState를 emit한다
      */
     fun makeDirectory(parentPath: String, name: String): Flow<ProgressState> =
         repository.makeDirectory(parentPath, name)
@@ -69,6 +81,8 @@ class FileActionUseCase(private val repository: FileActionRepository) {
     /**
      * @param targetFiles absolutePaths (or URIs) of files to move
      * @param targetPath absolutePath (or URI) of destination directory
+     * @param onProgress 이동 진행 상태를 수신하는 콜백
+     * @return 작업 진행 상태를 방출하는 Flow — 오류 발생 시 error 필드가 채워진 ProgressState를 emit한다
      */
     fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> {
         for (srcPath in targetFiles) {

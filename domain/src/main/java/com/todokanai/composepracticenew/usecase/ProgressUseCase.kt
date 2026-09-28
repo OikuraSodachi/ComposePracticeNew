@@ -21,8 +21,32 @@ class ProgressUseCase(private val repo: ProgressRepository) {
 
     /** 작업 인스턴스마다 전역적으로 고유한 ID를 발급한다. */
     fun nextInstanceId(): Int = instanceCounter.incrementAndGet()
+    /**
+     * 특정 작업 인스턴스의 진행 상태를 갱신한다.
+     * @param instanceId 갱신할 작업 인스턴스의 고유 id
+     * @param state 새로 설정할 ProgressState
+     * @return Unit
+     */
     fun setProgressState(instanceId: Int, state: ProgressState) = repo.setProgressState(instanceId, state)
+
+    /**
+     * 완료된 작업 인스턴스의 진행 상태를 제거한다.
+     * @param instanceId 제거할 작업 인스턴스의 고유 id
+     * @return Unit
+     */
     fun removeProgress(instanceId: Int) = repo.removeProgress(instanceId)
+
+    /**
+     * 파일 작업 오류 이벤트를 방출한다.
+     * @param message 오류 내용을 설명하는 메시지
+     * @return Unit
+     */
     fun emitError(message: String) = repo.emitError(message)
+
+    /**
+     * 파일 작업 완료 이벤트를 방출한다.
+     * @param message 완료 내용을 설명하는 메시지
+     * @return Unit
+     */
     fun emitCompletion(message: String) = repo.emitCompletion(message)
 }
