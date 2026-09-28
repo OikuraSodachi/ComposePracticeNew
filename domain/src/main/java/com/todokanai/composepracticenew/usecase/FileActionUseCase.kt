@@ -16,7 +16,7 @@ class FileActionUseCase(private val repository: FileActionRepository) {
      * @param targetFiles absolutePath (or URI) of files to compress
      * @param zipFile absolutePath (or URI) of new zip file to create
      */
-    fun zipAction(targetFiles: List<String>, zipFile: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
+    fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
         repository.zipAction(targetFiles, zipFile, onProgress)
             .catch { e -> emit(ProgressState(error = e.message ?: "압축 중 오류가 발생했습니다.")) }
 
@@ -24,7 +24,7 @@ class FileActionUseCase(private val repository: FileActionRepository) {
      * @param targetFiles absolutePath (or URI) of files to copy
      * @param targetPath absolutePath (or URI) of destination directory
      */
-    fun copyAction(targetFiles: List<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> {
+    fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> {
         // 출발지-목적지 동일 경로 검사: File(targetPath, src.name) == src 가 되는 케이스를 차단
         for (srcPath in targetFiles) {
             val srcName = srcPath.substringAfterLast('/')
@@ -54,7 +54,7 @@ class FileActionUseCase(private val repository: FileActionRepository) {
      * @param destPath absolutePath of destination directory
      * @param unzipHere true이면 [destPath]에 직접 해제, false이면 zip 파일명 하위 폴더 생성 후 해제
      */
-    fun unzipAction(zipFiles: List<String>, destPath: String, unzipHere: Boolean = false, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
+    fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean = false, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> =
         repository.unzipAction(zipFiles, destPath, unzipHere, onProgress)
             .catch { e -> emit(ProgressState(error = e.message ?: "압축 해제 중 오류가 발생했습니다.")) }
 
@@ -70,7 +70,7 @@ class FileActionUseCase(private val repository: FileActionRepository) {
      * @param targetFiles absolutePaths (or URIs) of files to move
      * @param targetPath absolutePath (or URI) of destination directory
      */
-    fun moveFile(targetFiles: List<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> {
+    fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): Flow<ProgressState> {
         for (srcPath in targetFiles) {
             val srcName = srcPath.substringAfterLast('/')
             if ("$targetPath/$srcName" == srcPath) {
