@@ -287,9 +287,9 @@ class FileListViewModel @Inject constructor(
 
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {
-        val target = selectedList.map{it.path}.toSet()
+        val targets = selectedList.map{it.path}.toSet()
         fileOperationUseCase.delete(
-            files = target,
+            files = targets,
             completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
