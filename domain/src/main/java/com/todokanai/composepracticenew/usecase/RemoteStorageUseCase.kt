@@ -30,7 +30,7 @@ class RemoteStorageUseCase(private val repo: LocalDataRepository) {
 
     /**
      * 기존 원격 스토리지 접속 정보를 갱신한다.
-     * @param item 갱신할 RemoteStorageItem (id가 일치하는 항목을 덮어씀)
+     * @param item 갱신할 RemoteStorageItem — 유효한 기존 id 필요. id가 일치하는 행을 REPLACE함; id가 0이면 새 행이 INSERT됨
      * @return Unit
      */
     suspend fun update(item: RemoteStorageItem) = repo.insert(item)

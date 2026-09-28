@@ -21,7 +21,11 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
      * @return Unit
      */
     suspend fun setPath(path: String) = nav.navigate(path)
-    /** FTP 서버에 연결하고 루트 경로로 이동한다. 연결 성공 여부를 반환한다. */
+    /**
+     * FTP 서버에 연결하고 루트 경로로 이동한다.
+     * @param item 연결할 원격 스토리지 접속 정보
+     * @return 연결 성공이면 true, 실패이면 false
+     */
     suspend fun setPath(item: RemoteStorageItem): Boolean {
         val connected = nav.connectRemote(item.address, item.port, item.userId, item.password, item.encoding)
         if (connected) nav.setRemotePath(item.address)
@@ -33,7 +37,11 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
      */
     fun refresh() = nav.refresh()
 
-    /** 상위 디렉터리로 이동한다. 현재 경로가 루트이면 toRoot를 호출한다. */
+    /**
+     * 상위 디렉터리로 이동한다. 현재 경로가 루트이면 toRoot를 호출한다.
+     * @param toRoot 상위 경로가 없을 때 호출되는 콜백 — currentPath가 null이면 호출되지 않는다
+     * @return Unit
+     */
     suspend fun navigateBack(toRoot: () -> Unit) {
         val path = nav.currentPath.value ?: return
         val parent = nav.getParentPath(path)

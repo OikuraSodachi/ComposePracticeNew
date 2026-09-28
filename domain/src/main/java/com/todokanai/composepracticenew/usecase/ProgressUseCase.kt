@@ -13,13 +13,17 @@ import java.util.concurrent.atomic.AtomicInteger
 class ProgressUseCase(private val repo: ProgressRepository) {
     private val instanceCounter = AtomicInteger(0)
 
+    /** 현재 진행 중인 모든 파일 작업의 진행 상태를 인스턴스 id 기준으로 저장하는 StateFlow. */
     val progressMap: StateFlow<Map<Int, ProgressState>> = repo.progressMap
     /** 파일 작업 실패 시 발생하는 오류 메시지 이벤트. */
     val operationErrors: SharedFlow<String> = repo.operationErrors
     /** 파일 작업 완료 시 발생하는 완료 메시지 이벤트. */
     val operationCompletions: SharedFlow<String> = repo.operationCompletions
 
-    /** 작업 인스턴스마다 전역적으로 고유한 ID를 발급한다. */
+    /**
+     * 작업 인스턴스마다 전역적으로 고유한 ID를 발급한다.
+     * @return 새로 발급된 고유 인스턴스 id (1씩 증가)
+     */
     fun nextInstanceId(): Int = instanceCounter.incrementAndGet()
     /**
      * 특정 작업 인스턴스의 진행 상태를 갱신한다.
