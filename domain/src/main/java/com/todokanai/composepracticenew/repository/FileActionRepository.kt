@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ProgressState
-import kotlinx.coroutines.flow.Flow
 
 /** Contract for performing file mutations (zip, copy, rename, delete, move). */
 interface FileActionRepository {
@@ -12,8 +11,8 @@ interface FileActionRepository {
     // Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
     suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {})
 
-    // Renames the file at [targetFile] to [newName], emitting progress.
-    fun renameFile(targetFile: String, newName: String): Flow<ProgressState>
+    // Renames the file at [targetFile] to [newName].
+    suspend fun renameFile(targetFile: String, newName: String)
 
     // Deletes the file at [targetFile], reporting progress via [onProgress].
     suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit = {})
@@ -25,6 +24,6 @@ interface FileActionRepository {
     // If [unzipHere] is true, extracts directly into [destPath] without creating a subfolder.
     suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean = false, onProgress: (ProgressState) -> Unit = {})
 
-    // Creates a new directory named [name] under [parentPath], emitting progress.
-    fun makeDirectory(parentPath: String, name: String): Flow<ProgressState>
+    // Creates a new directory named [name] under [parentPath].
+    suspend fun makeDirectory(parentPath: String, name: String)
 }

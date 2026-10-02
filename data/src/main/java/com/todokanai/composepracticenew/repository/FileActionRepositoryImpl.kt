@@ -3,9 +3,6 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.model.ProgressState
 import android.system.Os
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
@@ -117,15 +114,11 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         ))
     }
 
-    override fun renameFile(targetFile: String, newName: String): Flow<ProgressState> = flow {
+    override suspend fun renameFile(targetFile: String, newName: String) = withContext(Dispatchers.IO) {
         val file = File(targetFile)
         val success = file.renameTo(File("${file.parent}/$newName"))
-        if (success) {
-            emit(ProgressState(progress = 100))
-        } else {
-            emit(ProgressState(error = "이름 변경 실패: ${file.name} → $newName"))
-        }
-    }.flowOn(Dispatchers.IO)
+        if (!success) throw Exception("이름 변경 실패: ${file.name} → $newName")
+    }
 
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
@@ -254,14 +247,10 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
     }
 
-    override fun makeDirectory(parentPath: String, name: String): Flow<ProgressState> = flow {
+    override suspend fun makeDirectory(parentPath: String, name: String) = withContext(Dispatchers.IO) {
         val dir = File(parentPath, name)
-        if (dir.mkdir()) {
-            emit(ProgressState(progress = 100))
-        } else {
-            emit(ProgressState(error = "폴더 생성 실패: $name"))
-        }
-    }.flowOn(Dispatchers.IO)
+        if (!dir.mkdir()) throw Exception("폴더 생성 실패: $name")
+    }
 
     /** 두 파일이 동일한 파티션에 있는지 OS 레벨 디바이스 ID로 판별한다. 판별 실패 시 false를 반환해 copy+delete 경로를 선택한다. */
     private fun isSamePartition(a: File, b: File): Boolean = runCatching {

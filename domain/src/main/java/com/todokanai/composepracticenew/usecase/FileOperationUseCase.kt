@@ -313,7 +313,7 @@ class FileOperationUseCase(
     fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         appScope.launch {
             try {
-                fileActionRepo.makeDirectory(parentPath, name).collect {}
+                fileActionRepo.makeDirectory(parentPath, name)
                 notifier.completedNotification("", completionMessage)
                 progressRepo.emitCompletion(completionMessage)
             } catch (e: CancellationException) {
@@ -337,7 +337,7 @@ class FileOperationUseCase(
     fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         appScope.launch {
             try {
-                fileActionRepo.renameFile(path, newName).collect {}
+                fileActionRepo.renameFile(path, newName)
                 notifier.completedNotification("", completionMessage)
                 progressRepo.emitCompletion(completionMessage)
             } catch (e: CancellationException) {
