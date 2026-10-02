@@ -41,6 +41,6 @@ class UnzipOperation(
             progressState = state.copy(actionKey = ACTION_KEY_UNZIP)
             setProgress(progressState)
             state.progress?.let { notifier.unzipProgressNoti(it, instanceId) }
-        }.collect {}
+        }
     }
 }

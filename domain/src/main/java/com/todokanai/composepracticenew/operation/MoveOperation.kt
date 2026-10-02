@@ -39,6 +39,6 @@ class MoveOperation(
             progressState = state.copy(actionKey = ACTION_KEY_MOVE)
             setProgress(progressState)
             state.progress?.let { notifier.moveProgressNoti(it, instanceId) }
-        }.collect {}
+        }
     }
 }

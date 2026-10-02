@@ -10,7 +10,6 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.tools.CompletionMessageProvider
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
@@ -41,7 +40,6 @@ class FileListViewModel @Inject constructor(
     private val progressUseCase: ProgressUseCase,
     private val openFileUseCase: OpenFileUseCase,
     private val sortModeUseCase: SortModeUseCase,
-    private val fileActionUseCase: FileActionUseCase,
     private val fileOperationUseCase: FileOperationUseCase,
     private val messages: CompletionMessageProvider,
     private val ftpServiceController: FtpServiceController
@@ -104,12 +102,12 @@ class FileListViewModel @Inject constructor(
     /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
     fun newFolder(name: String) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
-        viewModelScope.launch {
-            fileActionUseCase.makeDirectory(currentPath, name).collect { state ->
-                state.error?.let { _errorMessage.value = it }
-            }
-            fileNavigatorUseCase.refresh()
-        }
+        fileOperationUseCase.makeDirectory(
+            parentPath = currentPath,
+            name = name,
+            completionMessage = messages.notiComplete,
+            onRefresh = { fileNavigatorUseCase.refresh() }
+        )
     }
 
     /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */

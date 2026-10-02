@@ -303,6 +303,28 @@ class FileOperationUseCase(
     }
 
     /**
+     * [parentPath] 아래에 [name] 이름의 디렉터리를 생성한다.
+     * @param parentPath 디렉터리를 생성할 부모 디렉터리의 절대 경로
+     * @param name 생성할 디렉터리 이름
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
+    fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
+        appScope.launch {
+            try {
+                fileActionRepo.makeDirectory(parentPath, name).collect {}
+                notifier.completedNotification("", completionMessage)
+                progressRepo.emitCompletion(completionMessage)
+            } catch (e: Exception) {
+                progressRepo.emitError(e.message ?: "폴더 생성 중 오류")
+            } finally {
+                onRefresh()
+            }
+        }
+    }
+
+    /**
      * [path]의 파일 이름을 [newName]으로 변경한다.
      * @param path 이름을 변경할 파일의 절대 경로
      * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
