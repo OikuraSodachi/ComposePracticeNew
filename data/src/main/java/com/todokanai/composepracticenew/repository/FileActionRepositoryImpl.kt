@@ -3,9 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.model.ProgressState
 import android.system.Os
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -21,7 +19,7 @@ import javax.inject.Singleton
 @Singleton
 class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
-    override fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
         val allFiles = roots.flatMap { root ->
@@ -30,10 +28,10 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 .map { root to it }
                 .toList()
         }
-        if (allFiles.isEmpty()) { emit(ProgressState(error = "압축할 파일이 없습니다.")); return@flow }
+        if (allFiles.isEmpty()) throw Exception("압축할 파일이 없습니다.")
         val totalBytes = totalBytesAcc.coerceAtLeast(1)
         checkDiskSpace(totalBytes, File(zipFile).parentFile ?: File(zipFile))
-            ?.let { emit(ProgressState(error = it)); return@flow }
+            ?.let { throw Exception(it) }
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
@@ -71,9 +69,9 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             listSize = totalFileCount,
             currentIndex = totalFileCount
         ))
-    }.flowOn(Dispatchers.IO)
+    }
 
-    override fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
@@ -84,7 +82,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         }
         val totalBytes = totalBytesAcc.coerceAtLeast(1)
         checkDiskSpace(totalBytes, File(targetPath))
-            ?.let { emit(ProgressState(error = it)); return@flow }
+            ?.let { throw Exception(it) }
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
@@ -114,19 +112,15 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             listSize = totalFileCount,
             currentIndex = totalFileCount
         ))
-    }.flowOn(Dispatchers.IO)
+    }
 
-    override fun renameFile(targetFile: String, newName: String): Flow<ProgressState> = flow {
+    override suspend fun renameFile(targetFile: String, newName: String) = withContext(Dispatchers.IO) {
         val file = File(targetFile)
         val success = file.renameTo(File("${file.parent}/$newName"))
-        if (success) {
-            emit(ProgressState(progress = 100))
-        } else {
-            emit(ProgressState(error = "이름 변경 실패: ${file.name} → $newName"))
-        }
-    }.flowOn(Dispatchers.IO)
+        if (!success) throw Exception("이름 변경 실패: ${file.name} → $newName")
+    }
 
-    override fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow<ProgressState> {
+    override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
         val files = File(targetFile).walkBottomUp().toList()
         val total = files.size.coerceAtLeast(1)
@@ -139,9 +133,9 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 currentFileName = file.name
             ))
         }
-    }.flowOn(Dispatchers.IO)
+    }
 
-    override fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         val destDir = File(targetPath)
@@ -159,8 +153,8 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             .filter { !isSamePartition(roots[it], destDir) }
             .sumOf { leafSizes[it] }
         if (crossBytes > 0) {
-            if (destDir.freeSpace == 0L) { emit(ProgressState(error = "디스크 공간 부족: 여유 공간 없음")); return@flow }
-            checkDiskSpace(crossBytes, destDir)?.let { emit(ProgressState(error = it)); return@flow }
+            if (destDir.freeSpace == 0L) throw Exception("디스크 공간 부족: 여유 공간 없음")
+            checkDiskSpace(crossBytes, destDir)?.let { throw Exception(it) }
         }
 
         var writtenBytes = 0L
@@ -171,12 +165,11 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             val dest = File(targetPath, root.name)
             if (isSamePartition(root, destDir)) {
                 // 동일 파티션: rename syscall로 원자적 이동
-                // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패 시 error emit
+                // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패 시 throw
                 runCatching {
                     Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 }.onFailure { e ->
-                    emit(ProgressState(error = "이동 실패: ${root.name} — ${e.message} (${i}개 항목은 이미 이동됨)"))
-                    return@flow
+                    throw Exception("이동 실패: ${root.name} — ${e.message} (${i}개 항목은 이미 이동됨)")
                 }
                 writtenBytes += leafSizes[i]
                 fileIndex += leafCounts[i]
@@ -193,15 +186,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
                 prevProgress = pp
                 fileIndex = fi
                 if (!root.deleteRecursively()) {
-                    emit(ProgressState(error = "원본 삭제 실패: ${root.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다 (앞선 ${i}개 항목은 이동 완료)"))
-                    return@flow
+                    throw Exception("원본 삭제 실패: ${root.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다 (앞선 ${i}개 항목은 이동 완료)")
                 }
             }
         }
         onProgress(ProgressState(progress = 100, totalBytes = totalBytes, writtenBytes = totalBytes, listSize = totalFileCount, currentIndex = totalFileCount))
-    }.flowOn(Dispatchers.IO)
+    }
 
-    override fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit): Flow<ProgressState> = flow {
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
 
         // 전체 zip 파일의 압축 해제 용량 합산
@@ -215,7 +207,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             }
         }
         val totalBytes = sumBytesOrOne(byteSizes)
-        checkDiskSpace(totalBytes, File(destPath))?.let { emit(ProgressState(error = it)); return@flow }
+        checkDiskSpace(totalBytes, File(destPath))?.let { throw Exception(it) }
 
         var writtenBytes = 0L
         var prevProgress = -1
@@ -249,20 +241,16 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             }
         }
         if (skippedEntries > 0) {
-            emit(ProgressState(error = "경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀"))
+            throw Exception("경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀")
         } else {
             onProgress(ProgressState(progress = 100))
         }
-    }.flowOn(Dispatchers.IO)
+    }
 
-    override fun makeDirectory(parentPath: String, name: String): Flow<ProgressState> = flow {
+    override suspend fun makeDirectory(parentPath: String, name: String) = withContext(Dispatchers.IO) {
         val dir = File(parentPath, name)
-        if (dir.mkdir()) {
-            emit(ProgressState(progress = 100))
-        } else {
-            emit(ProgressState(error = "폴더 생성 실패: $name"))
-        }
-    }.flowOn(Dispatchers.IO)
+        if (!dir.mkdir()) throw Exception("폴더 생성 실패: $name")
+    }
 
     /** 두 파일이 동일한 파티션에 있는지 OS 레벨 디바이스 ID로 판별한다. 판별 실패 시 false를 반환해 copy+delete 경로를 선택한다. */
     private fun isSamePartition(a: File, b: File): Boolean = runCatching {

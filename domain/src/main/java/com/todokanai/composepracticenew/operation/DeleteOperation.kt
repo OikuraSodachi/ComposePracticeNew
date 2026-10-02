@@ -40,7 +40,7 @@ class DeleteOperation(
                 val idx = state.currentIndex ?: return@deleteFile
                 val total = state.listSize ?: return@deleteFile
                 notifier.deleteProgressNoti(idx, total, instanceId)
-            }.collect {}
+            }
         }
     }
 }

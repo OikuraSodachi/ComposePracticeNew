@@ -39,6 +39,6 @@ class CopyOperation(
             progressState = state.copy(actionKey = ACTION_KEY_COPY)
             setProgress(progressState)
             state.progress?.let { notifier.copyProgressNoti(it, instanceId) }
-        }.collect {}
+        }
     }
 }

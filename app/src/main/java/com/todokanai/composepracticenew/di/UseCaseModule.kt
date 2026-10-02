@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.repository.FtpRepository
-import com.todokanai.composepracticenew.usecase.FileActionUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
@@ -38,10 +37,6 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
         GetStorageListUseCase(storageRepo)
-
-    @Provides @Singleton
-    fun provideFileActionUseCase(repo: FileActionRepository) =
-        FileActionUseCase(repo)
 
     @Provides @Singleton
     fun provideFileNavigatorUseCase(nav: FileNavigatorRepository) =
