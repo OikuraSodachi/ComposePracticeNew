@@ -316,6 +316,8 @@ class FileOperationUseCase(
                 fileActionRepo.makeDirectory(parentPath, name).collect {}
                 notifier.completedNotification("", completionMessage)
                 progressRepo.emitCompletion(completionMessage)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 progressRepo.emitError(e.message ?: "폴더 생성 중 오류")
             } finally {
@@ -338,6 +340,8 @@ class FileOperationUseCase(
                 fileActionRepo.renameFile(path, newName).collect {}
                 notifier.completedNotification("", completionMessage)
                 progressRepo.emitCompletion(completionMessage)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 progressRepo.emitError(e.message ?: "이름 변경 중 오류")
             } finally {
