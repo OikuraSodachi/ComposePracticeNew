@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
-import com.todokanai.composepracticenew.compose.presets.dialog.BooleanDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
@@ -34,21 +33,9 @@ fun OptionFrag(
     onDirClick: (DirectoryItem) -> Unit,
     sortMode: String,
     sortModeCallbackList: List<Pair<String, () -> Unit>>,
-    errorMessage: String?,
-    onErrorDismiss: () -> Unit,
     onNewFolder: (String) -> Unit,
     onExit: () -> Unit,
 ) {
-    errorMessage?.let { msg ->
-        BooleanDialog(
-            modifier = Modifier,
-            title = stringResource(R.string.dialog_error_title),
-            message = msg,
-            onConfirm = onErrorDismiss,
-            onCancel = onErrorDismiss
-        )
-    }
-
     var showEditTextDialog by remember { mutableStateOf(false) }
     if (showEditTextDialog) {
         EditTextDialog(

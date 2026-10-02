@@ -92,12 +92,6 @@ class FileListViewModel @Inject constructor(
             initialValue = Constants.BY_DEFAULT
         )
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    /** 폴더 생성 실패 시 표시할 오류 메시지. null이면 표시 없음. */
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
-    /** 오류 메시지를 소비한 뒤 초기화한다. */
-    fun clearError() { _errorMessage.value = null }
 
     /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
     fun newFolder(name: String) {
