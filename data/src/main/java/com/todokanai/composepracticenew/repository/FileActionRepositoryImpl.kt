@@ -72,6 +72,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
+        // TODO: onProgress(0)이 checkDiskSpace 앞에 있어 디스크 부족 실패 시 progress bar가 순간 노출됨 — zipAction처럼 checkDiskSpace 이후로 이동 필요
         onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
@@ -136,6 +137,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
+        // TODO: onProgress(0)이 checkDiskSpace 앞에 있어 디스크 부족 실패 시 progress bar가 순간 노출됨 — zipAction처럼 checkDiskSpace 이후로 이동 필요
         onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         val destDir = File(targetPath)
@@ -194,6 +196,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
+        // TODO: onProgress(0)이 checkDiskSpace 앞에 있어 디스크 부족 실패 시 progress bar가 순간 노출됨 — zipAction처럼 checkDiskSpace 이후로 이동 필요
         onProgress(ProgressState(progress = 0))
 
         // 전체 zip 파일의 압축 해제 용량 합산
