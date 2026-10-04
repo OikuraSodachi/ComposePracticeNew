@@ -20,12 +20,10 @@ import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -123,13 +121,6 @@ class RemoteFileListViewModel @Inject constructor(
     /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
     val sortModeCallbackList = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
 
-    private val _errorMessage = MutableStateFlow<String?>(null)
-    /** 폴더 생성 실패 시 표시할 오류 메시지. null이면 표시 없음. */
-    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
-
-    /** 오류 메시지를 소비한 뒤 초기화한다. */
-    fun clearError() { _errorMessage.value = null }
-
     /** breadcrumb 항목 클릭 시 해당 경로로 이동한다. */
     fun navigateToDir(entry: DirectoryItem) {
         viewModelScope.launch { fileNavigatorUseCase.setPath(entry.path) }
@@ -215,7 +206,7 @@ class RemoteFileListViewModel @Inject constructor(
             parentPath = currentPath,
             dirName = dirName,
             completionMessage = messages.notiComplete,
-            onError = { _errorMessage.value = "디렉터리 생성 실패: $dirName" },
+            onError = { progressUseCase.emitError("디렉터리 생성 실패: $dirName") },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }

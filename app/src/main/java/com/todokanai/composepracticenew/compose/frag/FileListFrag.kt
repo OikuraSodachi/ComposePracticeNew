@@ -40,7 +40,6 @@ fun FileListFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
-    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
     val sortModeCallbackList = viewModel.sortModeCallbackList
@@ -61,8 +60,6 @@ fun FileListFrag(
             onDirClick = { viewModel.updateCurrentPath(it.path) },
             sortMode = sortMode,
             sortModeCallbackList = sortModeCallbackList,
-            errorMessage = errorMessage,
-            onErrorDismiss = viewModel::clearError,
             onNewFolder = viewModel::newFolder,
             onExit = onExit
         )

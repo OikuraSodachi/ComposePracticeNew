@@ -48,7 +48,6 @@ fun RemoteFileListFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
-    val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val sortModeCallbackList = viewModel.sortModeCallbackList
 
     val context = LocalContext.current
@@ -79,8 +78,6 @@ fun RemoteFileListFrag(
             onDirClick = onDirClick,
             sortMode = sortMode,
             sortModeCallbackList = sortModeCallbackList,
-            errorMessage = errorMessage,
-            onErrorDismiss = viewModel::clearError,
             onNewFolder = viewModel::onMakeDirectory,
             onExit = onExit
         )

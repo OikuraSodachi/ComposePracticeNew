@@ -39,6 +39,6 @@ class ZipOperation(
             progressState = state.copy(actionKey = ACTION_KEY_ZIP)
             setProgress(progressState)
             state.progress?.let { notifier.zipProgressNoti(it, instanceId) }
-        }.collect {}
+        }
     }
 }
