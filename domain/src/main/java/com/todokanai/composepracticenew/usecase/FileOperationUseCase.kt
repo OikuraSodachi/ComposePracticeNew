@@ -210,7 +210,7 @@ class FileOperationUseCase(
      * @return Unit
      */
     fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = progressHandle()
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
         appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
             fileActionRepo.renameFile(path, newName)
         }
@@ -225,7 +225,7 @@ class FileOperationUseCase(
      * @return Unit
      */
     fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = progressHandle()
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
         appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
             fileActionRepo.makeDirectory(parentPath, name)
         }
@@ -236,14 +236,15 @@ class FileOperationUseCase(
      * @param path 이름을 변경할 원격 파일의 경로
      * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
      * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param errorMessage 이름 변경 실패 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun renameRemote(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = progressHandle()
+    fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
         appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
             val toPath = "${path.substringBeforeLast("/")}/$newName"
-            if (!ftpRepo.rename(path, toPath)) throw Exception("rename 실패: ${path.substringAfterLast("/")}")
+            if (!ftpRepo.rename(path, toPath)) throw Exception(errorMessage)
         }
     }
 
@@ -252,14 +253,15 @@ class FileOperationUseCase(
      * @param path 삭제할 원격 파일 또는 디렉터리의 경로
      * @param isDirectory 삭제 대상이 디렉터리이면 true
      * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param errorMessage 삭제 실패 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = progressHandle()
+    fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
         appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
             val ok = if (isDirectory) ftpRepo.removeDirectoryRecursive(path) else ftpRepo.deleteFile(path)
-            if (!ok) throw Exception("삭제 실패: ${path.substringAfterLast("/")}")
+            if (!ok) throw Exception(errorMessage)
         }
     }
 
@@ -268,13 +270,14 @@ class FileOperationUseCase(
      * @param parentPath 디렉터리를 생성할 원격 부모 경로
      * @param dirName 생성할 디렉터리 이름
      * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param errorMessage 디렉터리 생성 실패 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = progressHandle()
+    fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
         appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
-            if (!ftpRepo.makeDirectory("$parentPath/$dirName")) throw Exception("디렉터리 생성 실패: $dirName")
+            if (!ftpRepo.makeDirectory("$parentPath/$dirName")) throw Exception(errorMessage)
         }
     }
 }

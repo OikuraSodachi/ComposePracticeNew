@@ -177,6 +177,7 @@ class RemoteFileListViewModel @Inject constructor(
             path = item.path,
             newName = newName,
             completionMessage = messages.notiComplete,
+            errorMessage = "rename 실패: ${item.path.substringAfterLast("/")}",
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -190,6 +191,7 @@ class RemoteFileListViewModel @Inject constructor(
             path = item.path,
             isDirectory = item.isDirectory,
             completionMessage = messages.notiDeleteComplete,
+            errorMessage = "삭제 실패: ${item.path.substringAfterLast("/")}",
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -204,6 +206,7 @@ class RemoteFileListViewModel @Inject constructor(
             parentPath = currentPath,
             dirName = dirName,
             completionMessage = messages.notiComplete,
+            errorMessage = "디렉터리 생성 실패: $dirName",
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
