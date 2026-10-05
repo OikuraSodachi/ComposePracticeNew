@@ -1,19 +1,20 @@
 package com.todokanai.composepracticenew.usecase
 
-import com.todokanai.composepracticenew.operation.CopyOperation
-import com.todokanai.composepracticenew.operation.DeleteOperation
-import com.todokanai.composepracticenew.operation.FtpDownloadOperation
-import com.todokanai.composepracticenew.operation.FtpUploadOperation
-import com.todokanai.composepracticenew.operation.MoveOperation
-import com.todokanai.composepracticenew.operation.UnzipOperation
-import com.todokanai.composepracticenew.operation.ZipOperation
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_COPY
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DELETE
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_MOVE
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UNZIP
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
+import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.OperationCallback
+import com.todokanai.composepracticenew.operation.ProgressHandle
+import com.todokanai.composepracticenew.operation.launchOperation
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FtpRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -32,10 +33,17 @@ class FileOperationUseCase(
     private val appScope: CoroutineScope
 ) {
     private val instanceCounter = AtomicInteger(0)
-    private val onEmitCompletion: (String) -> Unit = { progressRepo.emitCompletion(it) }
-    private val onEmitError: (String) -> Unit = { progressRepo.emitError(it) }
 
-    private fun nextInstanceId(): Int = instanceCounter.incrementAndGet()
+    private fun nextInstanceId() = instanceCounter.incrementAndGet()
+
+    private fun progressHandle() = ProgressHandle(nextInstanceId(), progressRepo)
+
+    private fun callback(
+        completionMessage: String,
+        actionKey: Int? = null,
+        onRefresh: suspend () -> Unit,
+        onErrorOverride: ((String) -> Unit)? = null
+    ) = OperationCallback(notifier, progressRepo, completionMessage, actionKey, onRefresh, onErrorOverride)
 
     /** 출발지 파일 중 하나라도 목적지와 동일한 경로이면 true를 반환한다. */
     private fun isSamePath(files: Set<String>, destPath: String): Boolean =
@@ -57,20 +65,13 @@ class FileOperationUseCase(
             progressRepo.emitError("복사 실패: 출발지와 목적지가 동일합니다.")
             return
         }
-        val instanceId = nextInstanceId()
-        CopyOperation(
-            targetFiles = files,
-            targetPath = destPath,
-            fileActionRepo = fileActionRepo,
-            notifier = notifier,
-            instanceId = instanceId,
-            completionMessage = completionMessage,
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = { progressRepo.setProgressState(instanceId, it) },
-            clearProgress = { progressRepo.removeProgress(instanceId) }
-        ).execute(appScope)
+        val handle = progressHandle()
+        appScope.launchOperation(handle, callback(completionMessage, ACTION_KEY_COPY, onRefresh)) {
+            fileActionRepo.copyAction(files, destPath) { state ->
+                handle.set(state.copy(actionKey = ACTION_KEY_COPY))
+                state.progress?.let { notifier.copyProgressNoti(it, handle.instanceId) }
+            }
+        }
     }
 
     /**
@@ -81,19 +82,17 @@ class FileOperationUseCase(
      * @return Unit
      */
     fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val instanceId = nextInstanceId()
-        DeleteOperation(
-            targetFiles = files,
-            fileActionRepo = fileActionRepo,
-            notifier = notifier,
-            instanceId = instanceId,
-            completionMessage = completionMessage,
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = { progressRepo.setProgressState(instanceId, it) },
-            clearProgress = { progressRepo.removeProgress(instanceId) }
-        ).execute(appScope)
+        val handle = progressHandle()
+        appScope.launchOperation(handle, callback(completionMessage, ACTION_KEY_DELETE, onRefresh)) {
+            files.forEach { path ->
+                fileActionRepo.deleteFile(path) { state ->
+                    handle.set(state.copy(actionKey = ACTION_KEY_DELETE))
+                    val idx = state.currentIndex ?: return@deleteFile
+                    val total = state.listSize ?: return@deleteFile
+                    notifier.deleteProgressNoti(idx, total, handle.instanceId)
+                }
+            }
+        }
     }
 
     /**
@@ -109,20 +108,13 @@ class FileOperationUseCase(
             progressRepo.emitError("이동 실패: 출발지와 목적지가 동일합니다.")
             return
         }
-        val instanceId = nextInstanceId()
-        MoveOperation(
-            targetFiles = files,
-            targetPath = destPath,
-            fileActionRepo = fileActionRepo,
-            notifier = notifier,
-            instanceId = instanceId,
-            completionMessage = completionMessage,
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = { progressRepo.setProgressState(instanceId, it) },
-            clearProgress = { progressRepo.removeProgress(instanceId) }
-        ).execute(appScope)
+        val handle = progressHandle()
+        appScope.launchOperation(handle, callback(completionMessage, ACTION_KEY_MOVE, onRefresh)) {
+            fileActionRepo.moveFile(files, destPath) { state ->
+                handle.set(state.copy(actionKey = ACTION_KEY_MOVE))
+                state.progress?.let { notifier.moveProgressNoti(it, handle.instanceId) }
+            }
+        }
     }
 
     /**
@@ -134,20 +126,13 @@ class FileOperationUseCase(
      * @return Unit
      */
     fun zip(files: Set<String>, zipFilePath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val instanceId = nextInstanceId()
-        ZipOperation(
-            sourceFiles = files,
-            zipFilePath = zipFilePath,
-            fileActionRepo = fileActionRepo,
-            notifier = notifier,
-            instanceId = instanceId,
-            completionMessage = completionMessage,
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = { progressRepo.setProgressState(instanceId, it) },
-            clearProgress = { progressRepo.removeProgress(instanceId) }
-        ).execute(appScope)
+        val handle = progressHandle()
+        appScope.launchOperation(handle, callback(completionMessage, ACTION_KEY_ZIP, onRefresh)) {
+            fileActionRepo.zipAction(files, zipFilePath) { state ->
+                handle.set(state.copy(actionKey = ACTION_KEY_ZIP))
+                state.progress?.let { notifier.zipProgressNoti(it, handle.instanceId) }
+            }
+        }
     }
 
     /**
@@ -160,21 +145,13 @@ class FileOperationUseCase(
      * @return Unit
      */
     fun unzip(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val instanceId = nextInstanceId()
-        UnzipOperation(
-            zipFiles = zipFiles,
-            destPath = destPath,
-            unzipHere = unzipHere,
-            fileActionRepo = fileActionRepo,
-            notifier = notifier,
-            instanceId = instanceId,
-            completionMessage = completionMessage,
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = { progressRepo.setProgressState(instanceId, it) },
-            clearProgress = { progressRepo.removeProgress(instanceId) }
-        ).execute(appScope)
+        val handle = progressHandle()
+        appScope.launchOperation(handle, callback(completionMessage, ACTION_KEY_UNZIP, onRefresh)) {
+            fileActionRepo.unzipAction(zipFiles, destPath, unzipHere) { state ->
+                handle.set(state.copy(actionKey = ACTION_KEY_UNZIP))
+                state.progress?.let { notifier.unzipProgressNoti(it, handle.instanceId) }
+            }
+        }
     }
 
     /**
@@ -195,22 +172,14 @@ class FileOperationUseCase(
         onRefresh: suspend () -> Unit,
         onError: (String) -> Unit
     ) {
-        val instanceId = nextInstanceId()
+        val handle = progressHandle()
         val localFilePath = "$localDestPath/${remotePath.substringAfterLast("/")}"
-        FtpDownloadOperation(
-            remotePath = remotePath,
-            localDestPath = localFilePath,
-            isDirectory = isDirectory,
-            ftpRepo = ftpRepo,
-            notifier = notifier,
-            instanceId = instanceId,
-            completionMessage = completionMessage,
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = { onError(it) },
-            setProgress = { progressRepo.setProgressState(instanceId, it) },
-            clearProgress = { progressRepo.removeProgress(instanceId) }
-        ).execute(appScope)
+        appScope.launchOperation(handle, callback(completionMessage, ACTION_KEY_DOWNLOAD, onRefresh, onErrorOverride = onError)) {
+            ftpRepo.download(remotePath, localFilePath, isDirectory) { state ->
+                handle.set(state.copy(actionKey = ACTION_KEY_DOWNLOAD))
+                state.progress?.let { notifier.downloadProgressNoti(it, handle.instanceId) }
+            }.collect {}
+        }
     }
 
     /**
@@ -222,107 +191,13 @@ class FileOperationUseCase(
      * @return Unit
      */
     fun upload(localPath: String, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val instanceId = nextInstanceId()
+        val handle = progressHandle()
         val remoteFilePath = "$remoteDestPath/${localPath.substringAfterLast("/")}"
-        FtpUploadOperation(
-            localPath = localPath,
-            remoteDestPath = remoteFilePath,
-            ftpRepo = ftpRepo,
-            notifier = notifier,
-            instanceId = instanceId,
-            completionMessage = completionMessage,
-            onRefresh = onRefresh,
-            onEmitCompletion = onEmitCompletion,
-            onEmitError = onEmitError,
-            setProgress = { progressRepo.setProgressState(instanceId, it) },
-            clearProgress = { progressRepo.removeProgress(instanceId) }
-        ).execute(appScope)
-    }
-
-    /**
-     * [path]의 원격 파일 이름을 [newName]으로 변경한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다.
-     * @param path 이름을 변경할 원격 파일의 경로
-     * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
-     * @param completionMessage 작업 완료 시 표시할 메시지
-     * @param onError 이름 변경 실패 시 호출되는 콜백
-     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @return Unit
-     */
-    fun renameRemote(path: String, newName: String, completionMessage: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
-        appScope.launch {
-            val toPath = "${path.substringBeforeLast("/")}/$newName"
-            val ok = ftpRepo.rename(path, toPath)
-            if (ok) {
-                notifier.completedNotification("", completionMessage)
-                progressRepo.emitCompletion(completionMessage)
-                onRefresh()
-            } else onError()
-        }
-    }
-
-    /**
-     * [path]의 원격 파일 또는 디렉터리를 삭제한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다.
-     * @param path 삭제할 원격 파일 또는 디렉터리의 경로
-     * @param isDirectory 삭제 대상이 디렉터리이면 true
-     * @param completionMessage 작업 완료 시 표시할 메시지
-     * @param onError 삭제 실패 시 호출되는 콜백
-     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @return Unit
-     */
-    fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
-        appScope.launch {
-            val ok = if (isDirectory) {
-                try { ftpRepo.removeDirectoryRecursive(path) } catch (e: CancellationException) { false }
-            } else ftpRepo.deleteFile(path)
-            if (ok) {
-                notifier.completedNotification("", completionMessage)
-                progressRepo.emitCompletion(completionMessage)
-                onRefresh()
-            } else onError()
-        }
-    }
-
-    /**
-     * [parentPath] 아래에 [dirName] 디렉터리를 원격 서버에 생성한다. 성공 시 시스템 알림·완료 메시지를 발행하고 onRefresh를 호출한다.
-     * @param parentPath 디렉터리를 생성할 원격 부모 경로
-     * @param dirName 생성할 디렉터리 이름
-     * @param completionMessage 작업 완료 시 표시할 메시지
-     * @param onError 생성 실패 시 호출되는 콜백
-     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @return Unit
-     */
-    fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, onError: () -> Unit, onRefresh: suspend () -> Unit) {
-        appScope.launch {
-            val ok = ftpRepo.makeDirectory("$parentPath/$dirName")
-            if (ok) {
-                notifier.completedNotification("", completionMessage)
-                progressRepo.emitCompletion(completionMessage)
-                onRefresh()
-            } else onError()
-        }
-    }
-
-    /**
-     * [parentPath] 아래에 [name] 이름의 디렉터리를 생성한다.
-     * @param parentPath 디렉터리를 생성할 부모 디렉터리의 절대 경로
-     * @param name 생성할 디렉터리 이름
-     * @param completionMessage 작업 완료 시 표시할 메시지
-     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @return Unit
-     */
-    fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        appScope.launch {
-            try {
-                fileActionRepo.makeDirectory(parentPath, name)
-                notifier.completedNotification("", completionMessage)
-                progressRepo.emitCompletion(completionMessage)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                progressRepo.emitError(e.message ?: "폴더 생성 중 오류")
-            } finally {
-                onRefresh()
-            }
+        appScope.launchOperation(handle, callback(completionMessage, ACTION_KEY_UPLOAD, onRefresh)) {
+            ftpRepo.upload(localPath, remoteFilePath) { state ->
+                handle.set(state.copy(actionKey = ACTION_KEY_UPLOAD))
+                state.progress?.let { notifier.uploadProgressNoti(it, handle.instanceId) }
+            }.collect {}
         }
     }
 
@@ -335,18 +210,74 @@ class FileOperationUseCase(
      * @return Unit
      */
     fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        appScope.launch {
-            try {
-                fileActionRepo.renameFile(path, newName)
-                notifier.completedNotification("", completionMessage)
-                progressRepo.emitCompletion(completionMessage)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                progressRepo.emitError(e.message ?: "이름 변경 중 오류")
-            } finally {
-                onRefresh()
-            }
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
+        appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
+            fileActionRepo.renameFile(path, newName)
+        }
+    }
+
+    /**
+     * [parentPath] 아래에 [name] 이름의 디렉터리를 생성한다.
+     * @param parentPath 디렉터리를 생성할 부모 디렉터리의 절대 경로
+     * @param name 생성할 디렉터리 이름
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
+    fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
+        appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
+            fileActionRepo.makeDirectory(parentPath, name)
+        }
+    }
+
+    /**
+     * [path]의 원격 파일 이름을 [newName]으로 변경한다.
+     * @param path 이름을 변경할 원격 파일의 경로
+     * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param errorMessage 이름 변경 실패 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
+    fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
+        appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
+            val toPath = "${path.substringBeforeLast("/")}/$newName"
+            if (!ftpRepo.rename(path, toPath)) throw Exception(errorMessage)
+        }
+    }
+
+    /**
+     * [path]의 원격 파일 또는 디렉터리를 삭제한다.
+     * @param path 삭제할 원격 파일 또는 디렉터리의 경로
+     * @param isDirectory 삭제 대상이 디렉터리이면 true
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param errorMessage 삭제 실패 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
+    fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
+        appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
+            val ok = if (isDirectory) ftpRepo.removeDirectoryRecursive(path) else ftpRepo.deleteFile(path)
+            if (!ok) throw Exception(errorMessage)
+        }
+    }
+
+    /**
+     * [parentPath] 아래에 [dirName] 디렉터리를 원격 서버에 생성한다.
+     * @param parentPath 디렉터리를 생성할 원격 부모 경로
+     * @param dirName 생성할 디렉터리 이름
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param errorMessage 디렉터리 생성 실패 시 표시할 메시지
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @return Unit
+     */
+    fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        val handle = progressHandle() // progress 보고 없음 — 순간 작업
+        appScope.launchOperation(handle, callback(completionMessage, onRefresh = onRefresh)) {
+            if (!ftpRepo.makeDirectory("$parentPath/$dirName")) throw Exception(errorMessage)
         }
     }
 }
