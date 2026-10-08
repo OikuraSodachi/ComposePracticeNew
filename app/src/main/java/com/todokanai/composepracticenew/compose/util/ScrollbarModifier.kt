@@ -1,14 +1,11 @@
 package com.todokanai.composepracticenew.compose.util
 
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -26,38 +23,36 @@ fun Modifier.verticalScrollbar(
     thumbColor: Color = Color.Gray.copy(alpha = 0.6f),
     thumbWidth: Dp = 4.dp,
     minThumbHeightFraction: Float = 0.05f
-): Modifier = composed {
-    val thumbWidthPx = with(LocalDensity.current) { thumbWidth.toPx() }
+): Modifier = drawWithContent {
+    drawContent()
+    // DrawScope가 Density를 구현하므로 composed/LocalDensity 불필요
+    val thumbWidthPx = thumbWidth.toPx()
 
-    drawWithContent {
-        drawContent()
+    val layoutInfo = state.layoutInfo
+    val totalItems = layoutInfo.totalItemsCount
+    val visibleItems = layoutInfo.visibleItemsInfo
 
-        val layoutInfo = state.layoutInfo
-        val totalItems = layoutInfo.totalItemsCount
-        val visibleItems = layoutInfo.visibleItemsInfo
+    if (totalItems <= 0 || visibleItems.isEmpty()) return@drawWithContent
 
-        if (totalItems <= 0 || visibleItems.isEmpty()) return@drawWithContent
+    val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
+        .coerceIn(minThumbHeightFraction, 1f)
 
-        val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
-            .coerceIn(minThumbHeightFraction, 1f)
+    if (thumbHeightFraction >= 1f) return@drawWithContent
 
-        if (thumbHeightFraction >= 1f) return@drawWithContent
+    val itemHeight = visibleItems.first().size.toFloat()
+    if (itemHeight <= 0f) return@drawWithContent
 
-        val itemHeight = visibleItems.first().size.toFloat()
-        if (itemHeight <= 0f) return@drawWithContent
+    // firstVisibleItemScrollOffset를 아이템 단위로 정규화하여 연속적인 스크롤 진행도 계산
+    val scrollProgress = ((state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / itemHeight)
+            / (totalItems - visibleItems.size).coerceAtLeast(1))
+        .coerceIn(0f, 1f)
 
-        // firstVisibleItemScrollOffset를 아이템 단위로 정규화하여 연속적인 스크롤 진행도 계산
-        val scrollProgress = ((state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / itemHeight)
-                / (totalItems - visibleItems.size).coerceAtLeast(1))
-            .coerceIn(0f, 1f)
+    val thumbHeight = size.height * thumbHeightFraction
+    val thumbOffset = (size.height - thumbHeight) * scrollProgress
 
-        val thumbHeight = size.height * thumbHeightFraction
-        val thumbOffset = (size.height - thumbHeight) * scrollProgress
-
-        drawRect(
-            color = thumbColor,
-            topLeft = Offset(x = size.width - thumbWidthPx, y = thumbOffset),
-            size = Size(width = thumbWidthPx, height = thumbHeight)
-        )
-    }
+    drawRect(
+        color = thumbColor,
+        topLeft = Offset(x = size.width - thumbWidthPx, y = thumbOffset),
+        size = Size(width = thumbWidthPx, height = thumbHeight)
+    )
 }
