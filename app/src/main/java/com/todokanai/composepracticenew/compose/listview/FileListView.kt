@@ -3,11 +3,13 @@ package com.todokanai.composepracticenew.compose.listview
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import com.todokanai.composepracticenew.compose.holder.FileHolder
+import com.todokanai.composepracticenew.compose.util.verticalScrollbar
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.data.R as DataR
@@ -29,9 +31,14 @@ fun FileListView(
     val fileIcon = painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
     val pdfIcon = painterResource(DataR.drawable.ic_pdf)
 
+    // LazyColumn과 verticalScrollbar가 동일한 스크롤 상태를 공유해야 하므로 remember로 1회 생성 — 리컴포지션 간 스크롤 위치 보존
+    val listState = rememberLazyListState()
+
     LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxWidth()
+            .verticalScrollbar(listState)
     ) {
         items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
 
