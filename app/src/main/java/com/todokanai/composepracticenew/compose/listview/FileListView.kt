@@ -31,7 +31,7 @@ fun FileListView(
     val fileIcon = painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
     val pdfIcon = painterResource(DataR.drawable.ic_pdf)
 
-    // 스크롤바 thumb 위치 계산에 사용
+    // LazyColumn과 verticalScrollbar가 동일한 스크롤 상태를 공유해야 하므로 remember로 1회 생성 — 리컴포지션 간 스크롤 위치 보존
     val listState = rememberLazyListState()
 
     LazyColumn(

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
  * @param thumbColor thumb 색상
  * @param thumbWidth thumb 너비
  * @param minThumbHeightFraction 전체 높이 대비 thumb 최소 비율
+ * @return 스크롤바 thumb가 오른쪽에 overlay로 그려진 Modifier
  */
 fun Modifier.verticalScrollbar(
     state: LazyListState,
