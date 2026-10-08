@@ -42,10 +42,11 @@ fun Modifier.verticalScrollbar(
     val itemHeight = visibleItems.first().size.toFloat()
     if (itemHeight <= 0f) return@drawWithContent
 
-    // firstVisibleItemScrollOffset를 아이템 단위로 정규화하여 연속적인 스크롤 진행도 계산
-    val scrollProgress = ((state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / itemHeight)
-            / (totalItems - visibleItems.size).coerceAtLeast(1))
-        .coerceIn(0f, 1f)
+    // 픽셀 기반 계산 — 아이템 단위 분모는 뷰포트에 아이템이 반쯤 걸릴 때 thumb가 바닥에 닿지 않는 오차를 유발
+    val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
+    val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
+    val scrolledHeight = state.firstVisibleItemIndex * itemHeight + state.firstVisibleItemScrollOffset
+    val scrollProgress = (scrolledHeight / scrollableHeight).coerceIn(0f, 1f)
 
     val thumbHeight = size.height * thumbHeightFraction
     val thumbOffset = (size.height - thumbHeight) * scrollProgress
