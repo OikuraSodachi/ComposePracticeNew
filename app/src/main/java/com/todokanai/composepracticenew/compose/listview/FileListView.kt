@@ -1,18 +1,27 @@
 package com.todokanai.composepracticenew.compose.listview
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.compose.util.verticalScrollbar
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.data.R as DataR
+
+/** 스크롤바 터치 영역 너비 — Material 최소 터치 타겟(48dp), thumb 시각 너비(8dp)와 별개 */
+private val ScrollbarTouchTargetWidth = 48.dp
 
 @Composable
 fun FileListView(
@@ -34,12 +43,11 @@ fun FileListView(
     // LazyColumn과 verticalScrollbar가 동일한 스크롤 상태를 공유해야 하므로 remember로 1회 생성 — 리컴포지션 간 스크롤 위치 보존
     val listState = rememberLazyListState()
 
-    LazyColumn(
-        state = listState,
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScrollbar(listState)
-    ) {
+    Box(modifier = modifier.fillMaxWidth()) {
+        LazyColumn(
+            state = listState,
+            modifier = Modifier.fillMaxWidth()
+        ) {
         items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
 
             val isSelected = fileHolderItem.path in selectedPaths
@@ -86,5 +94,14 @@ fun FileListView(
                 onLongClick = onLongClick
             )
         }
+        }
+        // 스크롤바 전용 strip — 오른쪽 끝만 커버하여 목록 터치 이벤트와 hit-testing 충돌 없음
+        Spacer(
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(ScrollbarTouchTargetWidth)
+                .verticalScrollbar(listState)
+        )
     }
 }

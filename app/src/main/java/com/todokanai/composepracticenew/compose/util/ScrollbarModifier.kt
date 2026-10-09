@@ -1,59 +1,117 @@
 package com.todokanai.composepracticenew.compose.util
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+/** 스크롤바 계산에 필요한 레이아웃 지표 — [LazyListState.computeScrollMetrics]가 반환. */
+private data class ScrollMetrics(
+    val itemHeight: Float,
+    val scrollableHeight: Float,
+    val thumbHeightFraction: Float
+)
+
 /**
- * LazyList 콘텐츠 오른쪽 끝에 세로 스크롤바 thumb를 overlay로 그리는 Modifier.
+ * 현재 [LazyListState]에서 스크롤바 계산에 필요한 지표를 추출한다.
+ *
+ * @param minThumbHeightFraction thumb 최소 높이 비율
+ * @return 계산 가능한 상태이면 [ScrollMetrics], 아이템이 없거나 높이가 0이면 null
+ */
+private fun LazyListState.computeScrollMetrics(minThumbHeightFraction: Float): ScrollMetrics? {
+    val info = layoutInfo
+    val visibleItems = info.visibleItemsInfo
+    val totalItems = info.totalItemsCount
+    if (visibleItems.isEmpty() || totalItems <= 0) return null
+    val itemHeight = visibleItems.first().size.toFloat()
+    if (itemHeight <= 0f) return null
+    val viewportHeight = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
+    // 픽셀 기반 계산 — 아이템 단위 분모는 뷰포트에 아이템이 반쯤 걸릴 때 thumb가 바닥에 닿지 않는 오차를 유발
+    val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
+    val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
+        .coerceIn(minThumbHeightFraction, 1f)
+    return ScrollMetrics(itemHeight, scrollableHeight, thumbHeightFraction)
+}
+
+/**
+ * LazyList 오른쪽 끝에 드래그 가능한 세로 스크롤바 thumb를 overlay로 그리는 Modifier.
+ * Box 안에 align(Alignment.CenterEnd)로 배치된 좁은 Spacer에 적용해야 함 —
+ * 스크롤바 전용 strip이 hit-testing을 담당하므로 LazyColumn 스크롤 제스처와 충돌하지 않음.
+ *
+ * 주의: 모든 아이템 높이가 균일하다고 가정함. 가변 높이 아이템 사용 시
+ * thumb 위치·크기 및 드래그 변환 비율이 부정확해질 수 있음.
  *
  * @param state 연결할 [LazyListState]
  * @param thumbColor thumb 색상
- * @param thumbWidth thumb 너비
+ * @param thumbWidth thumb 시각적 너비
  * @param minThumbHeightFraction 전체 높이 대비 thumb 최소 비율
  * @return 스크롤바 thumb가 오른쪽에 overlay로 그려진 Modifier
  */
 fun Modifier.verticalScrollbar(
     state: LazyListState,
     thumbColor: Color = Color.Gray.copy(alpha = 0.6f),
-    thumbWidth: Dp = 4.dp,
+    thumbWidth: Dp = 8.dp,
     minThumbHeightFraction: Float = 0.05f
-): Modifier = drawWithContent {
-    drawContent()
-    // DrawScope가 Density를 구현하므로 composed/LocalDensity 불필요
-    val thumbWidthPx = thumbWidth.toPx()
+): Modifier = this
+    .pointerInput(state) {
+        awaitEachGesture {
+            // Initial pass 사용 — LazyColumn의 scrollable이 Initial pass에서 수직 드래그를 선점하므로
+            // 같은 pass에서 먼저 소비해야 scrollbar drag가 LazyColumn scroll보다 우선됨
+            val down = awaitFirstDown(pass = PointerEventPass.Initial)
+            // TODO(보류): 탭 시 down.position.y 기준 절대 위치 점프 미구현 — 현재는 relative drag만 지원.
+            //  일반 스크롤바 UX(탭 → 해당 비율 위치로 즉시 이동) 추가 여부 미결정.
 
-    val layoutInfo = state.layoutInfo
-    val totalItems = layoutInfo.totalItemsCount
-    val visibleItems = layoutInfo.visibleItemsInfo
+            // thumb가 그려지지 않는 상태(스크롤 불필요)면 소비하지 않고 흘려보냄 —
+            // drawWithContent의 thumbHeightFraction >= 1f 가드와 입력 조건을 일치시킴
+            val metricsAtDown = state.computeScrollMetrics(minThumbHeightFraction)
+            if (metricsAtDown == null || metricsAtDown.thumbHeightFraction >= 1f) return@awaitEachGesture
 
-    if (totalItems <= 0 || visibleItems.isEmpty()) return@drawWithContent
+            down.consume()
+            var lastY = down.position.y
 
-    val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
-        .coerceIn(minThumbHeightFraction, 1f)
+            while (true) {
+                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                val change = event.changes.find { it.id == down.id } ?: break
+                if (!change.pressed) break
 
-    if (thumbHeightFraction >= 1f) return@drawWithContent
+                val dragDeltaY = change.position.y - lastY
+                lastY = change.position.y
+                change.consume()
 
-    val itemHeight = visibleItems.first().size.toFloat()
-    if (itemHeight <= 0f) return@drawWithContent
+                val metrics = state.computeScrollMetrics(minThumbHeightFraction) ?: break
+                if (metrics.thumbHeightFraction >= 1f) break
+                val thumbTrackHeight = (size.height * (1f - metrics.thumbHeightFraction)).coerceAtLeast(1f)
 
-    // 픽셀 기반 계산 — 아이템 단위 분모는 뷰포트에 아이템이 반쯤 걸릴 때 thumb가 바닥에 닿지 않는 오차를 유발
-    val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
-    val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
-    val scrolledHeight = state.firstVisibleItemIndex * itemHeight + state.firstVisibleItemScrollOffset
-    val scrollProgress = (scrolledHeight / scrollableHeight).coerceIn(0f, 1f)
+                // thumb 이동 거리를 콘텐츠 스크롤 픽셀로 변환 — 두 공간의 비율 적용
+                state.dispatchRawDelta(dragDeltaY * metrics.scrollableHeight / thumbTrackHeight)
+            }
+        }
+    }
+    .drawWithContent {
+        drawContent()
+        // DrawScope가 Density를 구현하므로 composed/LocalDensity 불필요
+        val thumbWidthPx = thumbWidth.toPx()
 
-    val thumbHeight = size.height * thumbHeightFraction
-    val thumbOffset = (size.height - thumbHeight) * scrollProgress
+        val metrics = state.computeScrollMetrics(minThumbHeightFraction) ?: return@drawWithContent
+        if (metrics.thumbHeightFraction >= 1f) return@drawWithContent
 
-    drawRect(
-        color = thumbColor,
-        topLeft = Offset(x = size.width - thumbWidthPx, y = thumbOffset),
-        size = Size(width = thumbWidthPx, height = thumbHeight)
-    )
-}
+        val scrolledHeight = state.firstVisibleItemIndex * metrics.itemHeight + state.firstVisibleItemScrollOffset
+        val scrollProgress = (scrolledHeight / metrics.scrollableHeight).coerceIn(0f, 1f)
+
+        val thumbHeight = size.height * metrics.thumbHeightFraction
+        val thumbOffset = (size.height - thumbHeight) * scrollProgress
+
+        drawRect(
+            color = thumbColor,
+            topLeft = Offset(x = size.width - thumbWidthPx, y = thumbOffset),
+            size = Size(width = thumbWidthPx, height = thumbHeight)
+        )
+    }
