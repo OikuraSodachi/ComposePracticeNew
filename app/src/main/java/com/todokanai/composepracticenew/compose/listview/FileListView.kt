@@ -20,6 +20,9 @@ import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.data.R as DataR
 
+/** 스크롤바 터치 영역 너비 — Material 최소 터치 타겟(48dp), thumb 시각 너비(8dp)와 별개 */
+private val ScrollbarTouchTargetWidth = 48.dp
+
 @Composable
 fun FileListView(
     modifier: Modifier,
@@ -97,7 +100,7 @@ fun FileListView(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight()
-                .width(48.dp)
+                .width(ScrollbarTouchTargetWidth)
                 .verticalScrollbar(listState)
         )
     }
