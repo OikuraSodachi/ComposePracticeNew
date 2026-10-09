@@ -13,6 +13,34 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
+/** 스크롤바 계산에 필요한 레이아웃 지표 — [LazyListState.computeScrollMetrics]가 반환. */
+private data class ScrollMetrics(
+    val itemHeight: Float,
+    val scrollableHeight: Float,
+    val thumbHeightFraction: Float
+)
+
+/**
+ * 현재 [LazyListState]에서 스크롤바 계산에 필요한 지표를 추출한다.
+ *
+ * @param minThumbHeightFraction thumb 최소 높이 비율
+ * @return 계산 가능한 상태이면 [ScrollMetrics], 아이템이 없거나 높이가 0이면 null
+ */
+private fun LazyListState.computeScrollMetrics(minThumbHeightFraction: Float): ScrollMetrics? {
+    val info = layoutInfo
+    val visibleItems = info.visibleItemsInfo
+    val totalItems = info.totalItemsCount
+    if (visibleItems.isEmpty() || totalItems <= 0) return null
+    val itemHeight = visibleItems.first().size.toFloat()
+    if (itemHeight <= 0f) return null
+    val viewportHeight = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
+    // 픽셀 기반 계산 — 아이템 단위 분모는 뷰포트에 아이템이 반쯤 걸릴 때 thumb가 바닥에 닿지 않는 오차를 유발
+    val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
+    val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
+        .coerceIn(minThumbHeightFraction, 1f)
+    return ScrollMetrics(itemHeight, scrollableHeight, thumbHeightFraction)
+}
+
 /**
  * LazyList 오른쪽 끝에 드래그 가능한 세로 스크롤바 thumb를 overlay로 그리는 Modifier.
  * Box 안에 align(Alignment.CenterEnd)로 배치된 좁은 Spacer에 적용해야 함 —
@@ -43,13 +71,8 @@ fun Modifier.verticalScrollbar(
 
             // thumb가 그려지지 않는 상태(스크롤 불필요)면 소비하지 않고 흘려보냄 —
             // drawWithContent의 thumbHeightFraction >= 1f 가드와 입력 조건을 일치시킴
-            val infoAtDown = state.layoutInfo
-            val totalAtDown = infoAtDown.totalItemsCount
-            val visibleAtDown = infoAtDown.visibleItemsInfo
-            if (visibleAtDown.isEmpty() || totalAtDown <= 0) return@awaitEachGesture
-            val fractionAtDown = (visibleAtDown.size.toFloat() / totalAtDown)
-                .coerceIn(minThumbHeightFraction, 1f)
-            if (fractionAtDown >= 1f) return@awaitEachGesture
+            val metricsAtDown = state.computeScrollMetrics(minThumbHeightFraction)
+            if (metricsAtDown == null || metricsAtDown.thumbHeightFraction >= 1f) return@awaitEachGesture
 
             down.consume()
             var lastY = down.position.y
@@ -63,22 +86,12 @@ fun Modifier.verticalScrollbar(
                 lastY = change.position.y
                 change.consume()
 
-                val layoutInfo = state.layoutInfo
-                val totalItems = layoutInfo.totalItemsCount
-                val visibleItems = layoutInfo.visibleItemsInfo
-                if (visibleItems.isNotEmpty() && totalItems > 0) {
-                    val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
-                        .coerceIn(minThumbHeightFraction, 1f)
-                    if (thumbHeightFraction >= 1f) break
+                val metrics = state.computeScrollMetrics(minThumbHeightFraction) ?: break
+                if (metrics.thumbHeightFraction >= 1f) break
+                val thumbTrackHeight = (size.height * (1f - metrics.thumbHeightFraction)).coerceAtLeast(1f)
 
-                    val itemHeight = visibleItems.first().size.toFloat()
-                    val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
-                    val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
-                    val thumbTrackHeight = (size.height * (1f - thumbHeightFraction)).coerceAtLeast(1f)
-
-                    // thumb 이동 거리를 콘텐츠 스크롤 픽셀로 변환 — 두 공간의 비율 적용
-                    state.dispatchRawDelta(dragDeltaY * scrollableHeight / thumbTrackHeight)
-                }
+                // thumb 이동 거리를 콘텐츠 스크롤 픽셀로 변환 — 두 공간의 비율 적용
+                state.dispatchRawDelta(dragDeltaY * metrics.scrollableHeight / thumbTrackHeight)
             }
         }
     }
@@ -87,27 +100,13 @@ fun Modifier.verticalScrollbar(
         // DrawScope가 Density를 구현하므로 composed/LocalDensity 불필요
         val thumbWidthPx = thumbWidth.toPx()
 
-        val layoutInfo = state.layoutInfo
-        val totalItems = layoutInfo.totalItemsCount
-        val visibleItems = layoutInfo.visibleItemsInfo
+        val metrics = state.computeScrollMetrics(minThumbHeightFraction) ?: return@drawWithContent
+        if (metrics.thumbHeightFraction >= 1f) return@drawWithContent
 
-        if (totalItems <= 0 || visibleItems.isEmpty()) return@drawWithContent
+        val scrolledHeight = state.firstVisibleItemIndex * metrics.itemHeight + state.firstVisibleItemScrollOffset
+        val scrollProgress = (scrolledHeight / metrics.scrollableHeight).coerceIn(0f, 1f)
 
-        val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
-            .coerceIn(minThumbHeightFraction, 1f)
-
-        if (thumbHeightFraction >= 1f) return@drawWithContent
-
-        val itemHeight = visibleItems.first().size.toFloat()
-        if (itemHeight <= 0f) return@drawWithContent
-
-        // 픽셀 기반 계산 — 아이템 단위 분모는 뷰포트에 아이템이 반쯤 걸릴 때 thumb가 바닥에 닿지 않는 오차를 유발
-        val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
-        val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
-        val scrolledHeight = state.firstVisibleItemIndex * itemHeight + state.firstVisibleItemScrollOffset
-        val scrollProgress = (scrolledHeight / scrollableHeight).coerceIn(0f, 1f)
-
-        val thumbHeight = size.height * thumbHeightFraction
+        val thumbHeight = size.height * metrics.thumbHeightFraction
         val thumbOffset = (size.height - thumbHeight) * scrollProgress
 
         drawRect(
