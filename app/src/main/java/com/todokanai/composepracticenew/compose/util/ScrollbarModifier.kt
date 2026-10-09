@@ -35,6 +35,17 @@ fun Modifier.verticalScrollbar(
             // Initial pass 사용 — LazyColumn의 scrollable이 Initial pass에서 수직 드래그를 선점하므로
             // 같은 pass에서 먼저 소비해야 scrollbar drag가 LazyColumn scroll보다 우선됨
             val down = awaitFirstDown(pass = PointerEventPass.Initial)
+
+            // thumb가 그려지지 않는 상태(스크롤 불필요)면 소비하지 않고 흘려보냄 —
+            // drawWithContent의 thumbHeightFraction >= 1f 가드와 입력 조건을 일치시킴
+            val infoAtDown = state.layoutInfo
+            val totalAtDown = infoAtDown.totalItemsCount
+            val visibleAtDown = infoAtDown.visibleItemsInfo
+            if (visibleAtDown.isEmpty() || totalAtDown <= 0) return@awaitEachGesture
+            val fractionAtDown = (visibleAtDown.size.toFloat() / totalAtDown)
+                .coerceIn(minThumbHeightFraction, 1f)
+            if (fractionAtDown >= 1f) return@awaitEachGesture
+
             down.consume()
             var lastY = down.position.y
 
@@ -51,11 +62,13 @@ fun Modifier.verticalScrollbar(
                 val totalItems = layoutInfo.totalItemsCount
                 val visibleItems = layoutInfo.visibleItemsInfo
                 if (visibleItems.isNotEmpty() && totalItems > 0) {
+                    val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
+                        .coerceIn(minThumbHeightFraction, 1f)
+                    if (thumbHeightFraction >= 1f) break
+
                     val itemHeight = visibleItems.first().size.toFloat()
                     val viewportHeight = (layoutInfo.viewportEndOffset - layoutInfo.viewportStartOffset).toFloat()
                     val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
-                    val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
-                        .coerceIn(minThumbHeightFraction, 1f)
                     val thumbTrackHeight = (size.height * (1f - thumbHeightFraction)).coerceAtLeast(1f)
 
                     // thumb 이동 거리를 콘텐츠 스크롤 픽셀로 변환 — 두 공간의 비율 적용
