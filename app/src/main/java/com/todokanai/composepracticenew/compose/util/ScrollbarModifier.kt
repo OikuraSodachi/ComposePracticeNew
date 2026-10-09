@@ -18,6 +18,9 @@ import androidx.compose.ui.unit.dp
  * Box 안에 align(Alignment.CenterEnd)로 배치된 좁은 Spacer에 적용해야 함 —
  * 스크롤바 전용 strip이 hit-testing을 담당하므로 LazyColumn 스크롤 제스처와 충돌하지 않음.
  *
+ * 주의: 모든 아이템 높이가 균일하다고 가정함. 가변 높이 아이템 사용 시
+ * thumb 위치·크기 및 드래그 변환 비율이 부정확해질 수 있음.
+ *
  * @param state 연결할 [LazyListState]
  * @param thumbColor thumb 색상
  * @param thumbWidth thumb 시각적 너비
@@ -35,6 +38,8 @@ fun Modifier.verticalScrollbar(
             // Initial pass 사용 — LazyColumn의 scrollable이 Initial pass에서 수직 드래그를 선점하므로
             // 같은 pass에서 먼저 소비해야 scrollbar drag가 LazyColumn scroll보다 우선됨
             val down = awaitFirstDown(pass = PointerEventPass.Initial)
+            // TODO(보류): 탭 시 down.position.y 기준 절대 위치 점프 미구현 — 현재는 relative drag만 지원.
+            //  일반 스크롤바 UX(탭 → 해당 비율 위치로 즉시 이동) 추가 여부 미결정.
 
             // thumb가 그려지지 않는 상태(스크롤 불필요)면 소비하지 않고 흘려보냄 —
             // drawWithContent의 thumbHeightFraction >= 1f 가드와 입력 조건을 일치시킴
