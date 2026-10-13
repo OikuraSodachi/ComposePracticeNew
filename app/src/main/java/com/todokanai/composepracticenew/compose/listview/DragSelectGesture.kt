@@ -50,7 +50,7 @@ fun Modifier.dragSelectGesture(
     LaunchedEffect(isDragSelecting) {
         if (!isDragSelecting) return@LaunchedEffect
         while (isActive) {
-            if (scrollSpeed != 0f) {
+            if (scrollSpeed != 0f && latestFileList.isNotEmpty()) {
                 listState.scrollBy(scrollSpeed)
                 listState.itemIndexAtOffset(currentFingerY)
                     ?.coerceIn(0, latestFileList.lastIndex)
@@ -97,7 +97,7 @@ fun Modifier.dragSelectGesture(
                     }
 
                     // 엣지 외 영역: 즉시 선택 범위 갱신 (엣지 영역은 LaunchedEffect가 담당)
-                    if (scrollSpeed == 0f) {
+                    if (scrollSpeed == 0f && latestFileList.isNotEmpty()) {
                         listState.itemIndexAtOffset(y)
                             ?.coerceIn(0, latestFileList.lastIndex)
                             ?.let { idx ->
