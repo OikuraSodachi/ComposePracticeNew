@@ -21,4 +21,5 @@ class BottomButtonDialogState {
 
 /** BottomButtonDialogState를 컴포지션에 기억한다. */
 @Composable
+// BottomButtonDialogState 인스턴스를 컴포지션 생존 동안 1회만 생성 — 키 없음(입력과 무관하게 동일 인스턴스 유지)
 fun rememberBottomButtonDialogState() = remember { BottomButtonDialogState() }

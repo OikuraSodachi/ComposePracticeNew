@@ -14,7 +14,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
  * @param selectMode 현재 선택 모드
  * @param selectedList 현재 선택된 파일 목록
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
- * @param onConfirmWithConflictCheck 충돌 감지 후 확인 처리를 위임하는 콜백
+ * @param onConfirmWithConflictCheck 충돌 여부를 검사하고, 없으면 즉시 확인·있으면 충돌 다이얼로그를 표시하는 콜백
  * @param onSelectModeChange 선택 모드 변경 요청 콜백
  * @param onClearSelection 선택 목록 초기화 콜백
  * @param onConfirmDownload 다운로드 확인 콜백

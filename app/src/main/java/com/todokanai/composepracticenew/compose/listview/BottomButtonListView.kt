@@ -31,6 +31,7 @@ fun BottomButtonListView(
     val latestSelectMode   by rememberUpdatedState(selectMode)
 
     // selectedList·selectMode·dialogState를 연결하는 조율 람다 — ModeAwareButtons와 BottomButtonDialogHost 어느 쪽에도 귀속되지 않으므로 여기 유지
+    // 키 없음 — 캡처값은 rememberUpdatedState·안정 참조이므로 재생성 불필요
     val onConfirmWithConflictCheck: () -> Unit = remember {
         {
             val conflicts = onGetConflicts(latestSelectedList, latestSelectMode)
