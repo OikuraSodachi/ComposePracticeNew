@@ -36,6 +36,7 @@ fun RemoteFileListFrag(
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit,
+    onRangeSelect: (List<FileHolderItem>) -> Unit,
     onSwitchToLocal: () -> Unit = {},
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
     onConfirmUpload: () -> Unit = {},
@@ -96,7 +97,8 @@ fun RemoteFileListFrag(
                 selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
-                onItemLongClick = { onSelectModeChange(AppConstants.MULTI_SELECT_MODE) },
+                onSelectModeChange = onSelectModeChange,
+                onRangeSelect = onRangeSelect,
                 addToList = addToList,
                 removeFromList = removeFromList,
                 clearList = clearList

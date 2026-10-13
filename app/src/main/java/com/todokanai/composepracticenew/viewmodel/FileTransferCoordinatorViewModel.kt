@@ -81,6 +81,12 @@ class FileTransferCoordinatorViewModel @Inject constructor() : ViewModel() {
         _remoteSelectedList.value = emptyList()
     }
 
+    /** 로컬 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 clearList + 반복 addToList 대신 사용한다. */
+    fun setLocalSelectedList(list: List<FileHolderItem>) { _localSelectedList.value = list }
+
+    /** 원격 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 clearList + 반복 addToList 대신 사용한다. */
+    fun setRemoteSelectedList(list: List<FileHolderItem>) { _remoteSelectedList.value = list }
+
     fun clearDownloadPending() { _downloadPendingList.value = emptyList() }
     fun clearUploadPending() { _uploadPendingList.value = emptyList() }
 }

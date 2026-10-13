@@ -30,6 +30,7 @@ fun FileListFrag(
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit,
+    onRangeSelect: (List<FileHolderItem>) -> Unit,
     onSwitchToRemote: () -> Unit = {},
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
@@ -79,7 +80,8 @@ fun FileListFrag(
                 selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
-                onItemLongClick = { onSelectModeChange(AppConstants.MULTI_SELECT_MODE) },
+                onSelectModeChange = onSelectModeChange,
+                onRangeSelect = onRangeSelect,
                 addToList = addToList,
                 removeFromList = removeFromList,
                 clearList = clearList

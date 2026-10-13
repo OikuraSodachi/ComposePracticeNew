@@ -23,6 +23,7 @@ import com.todokanai.composepracticenew.data.R as DataR
 /** 스크롤바 터치 영역 너비 — Material 최소 터치 타겟(48dp), thumb 시각 너비(8dp)와 별개 */
 private val ScrollbarTouchTargetWidth = 48.dp
 
+/** 파일 목록을 스크롤바와 함께 표시하고, longPress 드래그 다중 선택을 지원한다. */
 @Composable
 fun FileListView(
     modifier: Modifier,
@@ -30,7 +31,8 @@ fun FileListView(
     selectedPaths: Set<String>,
     selectMode: Int,
     onItemClick: (FileHolderItem) -> Unit,
-    onItemLongClick: (FileHolderItem) -> Unit,
+    onSelectModeChange: (Int) -> Unit,
+    onRangeSelect: (List<FileHolderItem>) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit
@@ -43,57 +45,60 @@ fun FileListView(
     // LazyColumn과 verticalScrollbar가 동일한 스크롤 상태를 공유해야 하므로 remember로 1회 생성 — 리컴포지션 간 스크롤 위치 보존
     val listState = rememberLazyListState()
 
-    Box(modifier = modifier.fillMaxWidth()) {
+    // long-press는 Box 레벨 dragSelectGesture에서 처리 — combinedClickable 이중 발화 방지
+    val noOpLongClick: () -> Unit = remember { {} }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .dragSelectGesture(
+                listState = listState,
+                fileList = fileHolderItemList,
+                selectMode = selectMode,
+                onSelectModeChange = onSelectModeChange,
+                onRangeSelect = onRangeSelect
+            )
+    ) {
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxWidth()
         ) {
-        items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
+            items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
 
-            val isSelected = fileHolderItem.path in selectedPaths
+                val isSelected = fileHolderItem.path in selectedPaths
 
-            // name 또는 isDirectory가 바뀔 때만 재계산 — extension과 icon을 단일 블록으로 통합
-            val (extension, icon) = remember(fileHolderItem.name, fileHolderItem.isDirectory) {
-                val ext = fileHolderItem.name.substringAfterLast('.', "")
-                val ico = when {
-                    fileHolderItem.isDirectory -> folderIcon
-                    ext == "pdf" -> pdfIcon
-                    else -> fileIcon
+                // name 또는 isDirectory가 바뀔 때만 재계산 — extension과 icon을 단일 블록으로 통합
+                val (extension, icon) = remember(fileHolderItem.name, fileHolderItem.isDirectory) {
+                    val ext = fileHolderItem.name.substringAfterLast('.', "")
+                    val ico = when {
+                        fileHolderItem.isDirectory -> folderIcon
+                        ext == "pdf" -> pdfIcon
+                        else -> fileIcon
+                    }
+                    ext to ico
                 }
-                ext to ico
-            }
 
-            val onClick = remember(fileHolderItem, selectMode, isSelected) {
-                {
-                    if (selectMode == AppConstants.MULTI_SELECT_MODE) {
-                        if (isSelected) removeFromList(fileHolderItem)
-                        else addToList(fileHolderItem)
-                    } else {
-                        onItemClick(fileHolderItem)
+                val onClick = remember(fileHolderItem, selectMode, isSelected) {
+                    {
+                        if (selectMode == AppConstants.MULTI_SELECT_MODE) {
+                            if (isSelected) removeFromList(fileHolderItem)
+                            else addToList(fileHolderItem)
+                        } else {
+                            onItemClick(fileHolderItem)
+                        }
                     }
                 }
-            }
 
-            val onLongClick = remember(fileHolderItem, selectMode) {
-                {
-                    if (selectMode == AppConstants.DEFAULT_MODE) {
-                        clearList()
-                        addToList(fileHolderItem)
-                        onItemLongClick(fileHolderItem)
-                    }
-                }
+                FileHolder(
+                    modifier = Modifier,
+                    file = fileHolderItem,
+                    isSelected = isSelected,
+                    icon = icon,
+                    isAsyncImage = extension.lowercase() in AppConstants.ASYNC_IMAGE_EXTENSIONS,
+                    onClick = onClick,
+                    onLongClick = noOpLongClick
+                )
             }
-
-            FileHolder(
-                modifier = Modifier,
-                file = fileHolderItem,
-                isSelected = isSelected,
-                icon = icon,
-                isAsyncImage = extension.lowercase() in AppConstants.ASYNC_IMAGE_EXTENSIONS,
-                onClick = onClick,
-                onLongClick = onLongClick
-            )
-        }
         }
         // 스크롤바 전용 strip — 오른쪽 끝만 커버하여 목록 터치 이벤트와 hit-testing 충돌 없음
         Spacer(

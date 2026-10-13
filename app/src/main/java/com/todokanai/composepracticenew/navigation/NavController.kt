@@ -114,6 +114,7 @@ private fun FileListDestination(
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,
         clearList = coordinator::clearLocalList,
+        onRangeSelect = coordinator::setLocalSelectedList,
         onSwitchToRemote = {
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                 popUpTo(NavDestinations.STORAGE) { inclusive = false }
@@ -199,6 +200,7 @@ private fun RemoteFileListDestination(
         addToList = coordinator::addToRemoteList,
         removeFromList = coordinator::removeFromRemoteList,
         clearList = coordinator::clearRemoteList,
+        onRangeSelect = coordinator::setRemoteSelectedList,
         onSwitchToLocal = {
             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                 navController.navigate(NavDestinations.FILE_LIST) {
