@@ -17,6 +17,33 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
+private fun buildDropdownItems(
+    selectedList: List<FileHolderItem>,
+    strZip: String,
+    strInfo: String,
+    strUpload: String,
+    strRename: String,
+    strUnzip: String,
+    strUnzipHere: String,
+    zip: () -> Unit,
+    info: () -> Unit,
+    upload: () -> Unit,
+    rename: () -> Unit,
+    unzip: () -> Unit,
+    unzipHere: () -> Unit,
+): List<Pair<String, () -> Unit>> =
+    mutableListOf(Pair(strZip, zip), Pair(strInfo, info), Pair(strUpload, upload))
+        .apply {
+            if (selectedList.size == 1) {
+                add(Pair(strRename, rename))
+                if (selectedList.first().name.substringAfterLast('.', "") == "zip") {
+                    add(Pair(strUnzip, unzip))
+                    add(Pair(strUnzipHere, unzipHere))
+                }
+            }
+        }
+
+/** 멀티셀렉트 모드에서 이동·복사·삭제·더보기(압축·정보·업로드·이름변경·압축해제) 버튼을 제공한다. */
 @Composable
 fun BottomButtons(
     modifier: Modifier,
@@ -66,17 +93,7 @@ fun BottomButtons(
             Text(strDelete)
         }
         val dropdownContents = remember(selectedList) {
-            mutableListOf(Pair(strZip) { zip() }, Pair(strInfo) { info() }, Pair(strUpload) { upload() })
-                .apply {
-                    if (selectedList.size == 1) {
-                        val selected = selectedList.first()
-                        add(Pair(strRename) { rename() })
-                        if (selected.name.substringAfterLast('.', "") == "zip") {
-                            add(Pair(strUnzip) { unzip() })
-                            add(Pair(strUnzipHere) { unzipHere() })
-                        }
-                    }
-                }
+            buildDropdownItems(selectedList, strZip, strInfo, strUpload, strRename, strUnzip, strUnzipHere, zip, info, upload, rename, unzip, unzipHere)
         }
         Box(
             modifier = Modifier
