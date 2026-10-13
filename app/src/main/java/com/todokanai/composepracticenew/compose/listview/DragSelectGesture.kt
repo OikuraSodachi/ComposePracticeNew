@@ -114,8 +114,10 @@ fun Modifier.dragSelectGesture(
     }
 }
 
-// 픽셀 Y 좌표에 해당하는 실제 리스트 인덱스 반환
-private fun LazyListState.itemIndexAtOffset(y: Float): Int? =
-    layoutInfo.visibleItemsInfo
-        .firstOrNull { it.offset <= y && y < it.offset + it.size }
+// 픽셀 Y 좌표에 해당하는 실제 리스트 인덱스 반환 — viewportStartOffset 보정으로 contentPadding과 무관하게 동작
+private fun LazyListState.itemIndexAtOffset(y: Float): Int? {
+    val start = layoutInfo.viewportStartOffset
+    return layoutInfo.visibleItemsInfo
+        .firstOrNull { (it.offset - start) <= y && y < (it.offset - start) + it.size }
         ?.index
+}
