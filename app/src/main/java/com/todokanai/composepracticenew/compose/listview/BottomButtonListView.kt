@@ -40,9 +40,7 @@ fun BottomButtonListView(
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
             } else {
-                dialogState.conflictFiles = conflicts
-                dialogState.pendingSelectMode = latestSelectMode
-                dialogState.showConflictDialog = true
+                dialogState.openConflict(conflicts, latestSelectMode)
             }
         }
     }

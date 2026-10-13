@@ -10,13 +10,33 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
 /** BottomButtonListView의 다이얼로그 open/close 및 충돌 파일 상태를 보유한다. */
 class BottomButtonDialogState {
-    var zipDialog          by mutableStateOf(false)
-    var renameDialog       by mutableStateOf(false)
-    var infoDialog         by mutableStateOf(false)
-    var deleteDialog       by mutableStateOf(false)
-    var showConflictDialog by mutableStateOf(false)
-    var conflictFiles      by mutableStateOf<List<FileHolderItem>>(emptyList())
-    var pendingSelectMode  by mutableStateOf(AppConstants.DEFAULT_MODE)
+    var zipDialog          by mutableStateOf(false); private set
+    var renameDialog       by mutableStateOf(false); private set
+    var infoDialog         by mutableStateOf(false); private set
+    var deleteDialog       by mutableStateOf(false); private set
+    var showConflictDialog by mutableStateOf(false); private set
+    var conflictFiles      by mutableStateOf<List<FileHolderItem>>(emptyList()); private set
+    var pendingSelectMode  by mutableStateOf(AppConstants.DEFAULT_MODE); private set
+
+    fun openZip()    { zipDialog = true }
+    fun dismissZip() { zipDialog = false }
+
+    fun openRename()    { renameDialog = true }
+    fun dismissRename() { renameDialog = false }
+
+    fun openInfo()    { infoDialog = true }
+    fun dismissInfo() { infoDialog = false }
+
+    fun openDelete()    { deleteDialog = true }
+    fun dismissDelete() { deleteDialog = false }
+
+    /** conflictFiles·pendingSelectMode를 설정하고 충돌 다이얼로그를 표시한다. */
+    fun openConflict(files: List<FileHolderItem>, selectMode: Int) {
+        conflictFiles = files
+        pendingSelectMode = selectMode
+        showConflictDialog = true
+    }
+    fun dismissConflict() { showConflictDialog = false }
 }
 
 /** BottomButtonDialogState를 컴포지션에 기억한다. */

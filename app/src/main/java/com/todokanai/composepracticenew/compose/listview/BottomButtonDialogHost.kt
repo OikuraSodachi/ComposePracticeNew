@@ -19,7 +19,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
  * @param onZip 압축 실행 콜백
  * @param onRename 이름 변경 실행 콜백
  * @param onDelete 삭제 실행 콜백
- * @param onConfirm 이동/복사/압축 해제 확인 실행 콜백
+ * @param onConfirm 이동/복사/압축 해제 확인 실행 콜백 — 세 번째 인자는 건너뛸 충돌 파일 목록(overwrite 시 emptyList())
  */
 @Composable
 fun BottomButtonDialogHost(
@@ -39,19 +39,19 @@ fun BottomButtonDialogHost(
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
             },
-            onCancel = { dialogState.zipDialog = false }
+            onCancel = { dialogState.dismissZip() }
         )
     }
     if (dialogState.renameDialog) {
         RenameDialog(
             onConfirm = { onRename(selectedList.first(), it) },
-            onCancel = { dialogState.renameDialog = false }
+            onCancel = { dialogState.dismissRename() }
         )
     }
     if (dialogState.infoDialog) {
         InfoDialog(
             files = selectedList,
-            onCancel = { dialogState.infoDialog = false }
+            onCancel = { dialogState.dismissInfo() }
         )
     }
     if (dialogState.deleteDialog) {
@@ -61,7 +61,7 @@ fun BottomButtonDialogHost(
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
             },
-            onCancel = { dialogState.deleteDialog = false }
+            onCancel = { dialogState.dismissDelete() }
         )
     }
     if (dialogState.showConflictDialog) {
@@ -72,15 +72,15 @@ fun BottomButtonDialogHost(
                 onConfirm(selectedList, dialogState.pendingSelectMode, emptyList())
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
-                dialogState.showConflictDialog = false
+                dialogState.dismissConflict()
             },
             onSkip = {
                 onConfirm(selectedList, dialogState.pendingSelectMode, dialogState.conflictFiles)
                 onSelectModeChange(AppConstants.DEFAULT_MODE)
                 onClearSelection()
-                dialogState.showConflictDialog = false
+                dialogState.dismissConflict()
             },
-            onCancel = { dialogState.showConflictDialog = false }
+            onCancel = { dialogState.dismissConflict() }
         )
     }
 }

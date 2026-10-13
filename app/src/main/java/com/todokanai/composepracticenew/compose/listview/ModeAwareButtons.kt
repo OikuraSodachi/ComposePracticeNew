@@ -38,12 +38,12 @@ fun ModeAwareButtons(
                 modifier = modifier,
                 move = { onSelectModeChange(AppConstants.CONFIRM_MODE_MOVE) },
                 copy = { onSelectModeChange(AppConstants.CONFIRM_MODE_COPY) },
-                delete = { dialogState.deleteDialog = true },
-                zip = { dialogState.zipDialog = true },
+                delete = { dialogState.openDelete() },
+                zip = { dialogState.openZip() },
                 unzip = { onSelectModeChange(AppConstants.CONFIRM_MODE_UNZIP) },
                 unzipHere = { onSelectModeChange(AppConstants.CONFIRM_MODE_UNZIP_HERE) },
-                rename = { dialogState.renameDialog = true },
-                info = { dialogState.infoDialog = true },
+                rename = { dialogState.openRename() },
+                info = { dialogState.openInfo() },
                 upload = {
                     onEnterUploadMode()
                     onSelectModeChange(AppConstants.DEFAULT_MODE)
