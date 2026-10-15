@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.di
 import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
+import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.repository.FtpRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
@@ -21,6 +22,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
 import javax.inject.Singleton
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.tools.MyNotification
@@ -51,9 +53,11 @@ abstract class RepositoryModule {
         @Provides @Singleton
         fun provideLocalFileNavigatorRepository(
             converter: DataConverter,
-            dsRepo: DataStoreRepository
+            dsRepo: DataStoreRepository,
+            @ApplicationScope appScope: CoroutineScope,
+            localFiles: LocalFileDataSource
         ): FileNavigatorRepository = LocalFileExplorerRepositoryImpl(
-            converter, dsRepo,
+            converter, dsRepo, appScope, localFiles,
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
@@ -61,7 +65,9 @@ abstract class RepositoryModule {
         fun provideRemoteFileNavigatorRepository(
             converter: DataConverter,
             dsRepo: DataStoreRepository,
+            @ApplicationScope appScope: CoroutineScope,
+            localFiles: LocalFileDataSource,
             ftpFileSystem: FtpRepository
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, ftpFileSystem)
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, appScope, localFiles, ftpFileSystem)
     }
 }

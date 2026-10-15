@@ -5,10 +5,7 @@ import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,12 +18,14 @@ import kotlinx.coroutines.flow.stateIn
  * currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList를 구성하는 공통 Flow 로직을 보유한 기반 클래스.
  * @param converter 파일 목록을 UI 모델로 변환하는 DataConverter
  * @param dsRepo 정렬 기준 등 설정을 읽는 DataStoreRepository
+ * @param appScope 파일 탐색 Flow를 공유할 애플리케이션 수명 CoroutineScope
  * @param started StateFlow 공유 시작 전략
  * @param initialPath 초기 탐색 경로; null이면 루트로 시작하지 않는다
  */
 abstract class BaseFileExplorerRepository(
     private val converter: DataConverter,
     private val dsRepo: DataStoreRepository,
+    private val appScope: CoroutineScope,
     started: SharingStarted,
     initialPath: String? = null
 ) : StorageRepository(), FileNavigatorRepository {
@@ -40,7 +39,7 @@ abstract class BaseFileExplorerRepository(
                 flow { emit(converter.fileHolderItemList(path?.let { listFiles(it) } ?: emptyList(), sortMode)) }
             }
             .stateIn(
-                scope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+                scope = appScope,
                 started = started,
                 initialValue = emptyList()
             )
@@ -48,16 +47,4 @@ abstract class BaseFileExplorerRepository(
     init { initialPath?.let { navigateTo(it) } }
 
     override fun refresh() { _refreshTrigger.value = System.currentTimeMillis() }
-
-    /** java.io.File API로 path의 자식 목록을 읽어 FileEntry 리스트로 변환한다. */
-    protected fun localListFiles(path: String): List<FileEntry> =
-        File(path).listFiles()?.map { file ->
-            FileEntry(
-                name = file.name,
-                path = file.absolutePath,
-                isDirectory = file.isDirectory,
-                size = file.length(),
-                lastModified = file.lastModified()
-            )
-        } ?: emptyList()
 }
