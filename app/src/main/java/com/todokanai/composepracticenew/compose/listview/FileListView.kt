@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.compose.holder.FileHolder
@@ -22,6 +23,21 @@ import com.todokanai.composepracticenew.data.R as DataR
 
 /** 스크롤바 터치 영역 너비 — Material 최소 터치 타겟(48dp), thumb 시각 너비(8dp)와 별개 */
 private val ScrollbarTouchTargetWidth = 48.dp
+
+private fun resolveExtensionAndIcon(
+    name: String,
+    isDirectory: Boolean,
+    folderIcon: Painter,
+    pdfIcon: Painter,
+    fileIcon: Painter,
+): Pair<String, Painter> {
+    val ext = name.substringAfterLast('.', "")
+    return ext to when {
+        isDirectory  -> folderIcon
+        ext == "pdf" -> pdfIcon
+        else         -> fileIcon
+    }
+}
 
 /** 파일 목록을 스크롤바와 함께 표시하고, longPress 드래그 다중 선택을 지원한다. */
 @Composable
@@ -69,13 +85,7 @@ fun FileListView(
 
                 // name 또는 isDirectory가 바뀔 때만 재계산 — extension과 icon을 단일 블록으로 통합
                 val (extension, icon) = remember(fileHolderItem.name, fileHolderItem.isDirectory) {
-                    val ext = fileHolderItem.name.substringAfterLast('.', "")
-                    val ico = when {
-                        fileHolderItem.isDirectory -> folderIcon
-                        ext == "pdf" -> pdfIcon
-                        else -> fileIcon
-                    }
-                    ext to ico
+                    resolveExtensionAndIcon(fileHolderItem.name, fileHolderItem.isDirectory, folderIcon, pdfIcon, fileIcon)
                 }
 
                 val onClick = remember(fileHolderItem, selectMode, isSelected) {
