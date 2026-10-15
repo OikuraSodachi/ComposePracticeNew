@@ -11,6 +11,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
+    // TODO: notifier·appScope를 public val로 노출하면 UseCase가 내부 인프라에 직접 접근하게 된다.
+    //  private으로 내리고 launch(completionMessage, actionKey, onRefresh, block) 메서드를 추가해
+    //  UseCase가 스코프·알림 구현에 의존하지 않도록 개선 필요.
     val notifier: FileOperationNotifier,
     private val progressRepo: ProgressRepository,
     val appScope: CoroutineScope
