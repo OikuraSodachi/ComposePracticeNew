@@ -6,27 +6,26 @@ import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.tools.CompletionMessageProvider
+import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
-import com.todokanai.composepracticenew.service.FtpServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -41,8 +40,9 @@ class FileListViewModel @Inject constructor(
     private val openFileUseCase: OpenFileUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val fileOperationUseCase: FileOperationUseCase,
+    private val conflictCheckUseCase: ConflictCheckUseCase,
+    private val exitHandler: AppExitHandler,
     private val messages: CompletionMessageProvider,
-    private val ftpServiceController: FtpServiceController
 ) : ViewModel() {
 
     /**
@@ -71,9 +71,8 @@ class FileListViewModel @Inject constructor(
             initialValue = emptyMap()
         )
 
-    private val _exitEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** FTP 서비스를 중단하고 앱을 종료하라는 이벤트. NavController에서 수집해 exit_td를 호출한다. */
-    val exitEvent: SharedFlow<Unit> = _exitEvent.asSharedFlow()
+    val exitEvent: Flow<Unit> = exitHandler.exitEvent
 
     private val _downloadError = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** 다운로드 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
@@ -92,6 +91,32 @@ class FileListViewModel @Inject constructor(
             initialValue = Constants.BY_DEFAULT
         )
 
+    /** 알림 클릭으로 로컬 작업 진행률 다이얼로그를 강제 재표시해야 하는지 여부. */
+    val showProgressDialog: StateFlow<Boolean> = progressUseCase.showProgressDialogForKey
+        .map { it != null }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
+
+    /** 원격 전송(다운로드·업로드) 알림 클릭 시 REMOTE_FILE_LIST 화면의 진행률 다이얼로그를 다시 표시해야 하는지 여부. */
+    val showRemoteProgressDialog: StateFlow<Boolean> = progressUseCase.showRemoteProgressDialogForKey
+        .map { it != null }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = false
+        )
+
+    fun requestShowProgressDialog(actionKey: Int) = progressUseCase.requestShowDialog(actionKey)
+
+    fun onRemoteProgressDialogShown() = progressUseCase.onRemoteProgressDialogShown()
+
+    fun onProgressDialogShown() = progressUseCase.onProgressDialogShown()
+
+    /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
+    val sortModeCallbackList = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
 
     /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
     fun newFolder(name: String) {
@@ -104,52 +129,11 @@ class FileListViewModel @Inject constructor(
         )
     }
 
-    /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
-    val sortModeCallbackList = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
-
-    /** 알림 클릭으로 다이얼로그를 다시 표시해야 할 때 설정되는 actionKey. null이면 신호 없음. */
-    private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
-    val showProgressDialogForKey: StateFlow<Int?> = _showProgressDialogForKey.asStateFlow()
-
-    /** 알림 클릭으로 로컬 작업 진행률 다이얼로그를 강제 재표시해야 하는지 여부. */
-    val showProgressDialog: StateFlow<Boolean> = _showProgressDialogForKey
-        .map { it != null }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false
-        )
-
-    private val _showRemoteProgressDialogForKey = MutableStateFlow<Int?>(null)
-    /** 원격 전송(다운로드·업로드) 알림 클릭 시 REMOTE_FILE_LIST 화면의 진행률 다이얼로그를 다시 표시해야 하는지 여부. */
-    val showRemoteProgressDialog: StateFlow<Boolean> = _showRemoteProgressDialogForKey
-        .map { it != null }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false
-        )
-
-    fun requestShowProgressDialog(actionKey: Int) {
-        if (OperationConstants.isRemoteOperation(actionKey)) {
-            _showRemoteProgressDialogForKey.value = actionKey
-        } else {
-            _showProgressDialogForKey.value = actionKey
-        }
-    }
-
-    fun onRemoteProgressDialogShown() {
-        _showRemoteProgressDialogForKey.value = null
-    }
-
-    fun onProgressDialogShown() {
-        _showProgressDialogForKey.value = null
-    }
-
     /** pendingList 중 현재 로컬 디렉터리에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
     fun getDownloadConflicts(pendingList: List<FileHolderItem>): List<FileHolderItem> {
-        val localFiles = uiState.value.fileHolderItemList
-        return pendingList.filter { remote -> localFiles.any { local -> local.name == remote.name } }
+        val localNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
+        val conflictNames = conflictCheckUseCase.checkCopyMoveConflicts(pendingList.map { it.name }, localNames)
+        return pendingList.filter { it.name in conflictNames }
     }
 
     /** 경로 breadcrumb에 표시할 디렉터리 트리. */
@@ -208,12 +192,20 @@ class FileListViewModel @Inject constructor(
 
     /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
     fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
-        val destinationNames = uiState.value.fileHolderItemList.map { it.name }.toHashSet()
+        val destinationNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
         return when (selectMode) {
-            AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE ->
-                selectedList.filter { it.name in destinationNames }
-            AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE ->
-                selectedList.filter { it.name.substringBeforeLast('.') in destinationNames }
+            AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE -> {
+                val conflictNames = conflictCheckUseCase.checkCopyMoveConflicts(
+                    selectedList.map { it.name }, destinationNames
+                )
+                selectedList.filter { it.name in conflictNames }
+            }
+            AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> {
+                val conflictNames = conflictCheckUseCase.checkUnzipConflicts(
+                    selectedList.map { it.name }, destinationNames
+                )
+                selectedList.filter { it.name in conflictNames }
+            }
             else -> emptyList()
         }
     }
@@ -222,7 +214,7 @@ class FileListViewModel @Inject constructor(
     fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         val conflictPaths = skipFiles.map { it.path }.toSet()
-        val targets = selectedList.filterNot { it.path in conflictPaths }.map{it.path}.toSet()
+        val targets = selectedList.filterNot { it.path in conflictPaths }.map { it.path }.toSet()
         if (targets.isEmpty()) return
         val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
         when (selectMode) {
@@ -258,7 +250,7 @@ class FileListViewModel @Inject constructor(
     /** selectedList의 파일들을 [name].zip으로 압축한다. */
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
-        val targets = selectedList.map{it.path}.toSet()
+        val targets = selectedList.map { it.path }.toSet()
         fileOperationUseCase.zip(
             files = targets,
             zipFilePath = "$parent/$name.zip",
@@ -279,7 +271,7 @@ class FileListViewModel @Inject constructor(
 
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {
-        val targets = selectedList.map{it.path}.toSet()
+        val targets = selectedList.map { it.path }.toSet()
         fileOperationUseCase.delete(
             files = targets,
             completionMessage = messages.notiDeleteComplete,
@@ -288,8 +280,5 @@ class FileListViewModel @Inject constructor(
     }
 
     /** FTP 서비스를 중단하고 앱 종료 이벤트를 발행한다. */
-    fun exit() {
-        ftpServiceController.stop()
-        _exitEvent.tryEmit(Unit)
-    }
+    fun exit() = exitHandler.execute()
 }

@@ -16,6 +16,9 @@ import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.service.FtpServiceController
+import com.todokanai.composepracticenew.tools.AppExitHandler
+import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
 import dagger.Module
@@ -72,6 +75,13 @@ object UseCaseModule {
         localDataRepo: LocalDataRepository,
         @RemoteNavigator fileNavigatorRepo: FileNavigatorRepository
     ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, fileNavigatorRepo)
+
+    @Provides @Singleton
+    fun provideConflictCheckUseCase() = ConflictCheckUseCase()
+
+    @Provides @Singleton
+    fun provideAppExitHandler(ftpServiceController: FtpServiceController) =
+        AppExitHandler(ftpServiceController)
 
     @Provides @Singleton
     fun provideFileOperationUseCase(
