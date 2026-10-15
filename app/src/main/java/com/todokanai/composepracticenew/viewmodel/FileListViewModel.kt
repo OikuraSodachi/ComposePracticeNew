@@ -7,7 +7,7 @@ import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.tools.CompletionMessageProvider
-import com.todokanai.composepracticenew.tools.ExitUseCase
+import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
@@ -40,7 +40,7 @@ class FileListViewModel @Inject constructor(
     private val sortModeUseCase: SortModeUseCase,
     private val fileOperationUseCase: FileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
-    private val exitUseCase: ExitUseCase,
+    private val exitHandler: AppExitHandler,
     private val messages: CompletionMessageProvider,
 ) : ViewModel() {
 
@@ -71,7 +71,7 @@ class FileListViewModel @Inject constructor(
         )
 
     /** FTP 서비스를 중단하고 앱을 종료하라는 이벤트. NavController에서 수집해 exit_td를 호출한다. */
-    val exitEvent: SharedFlow<Unit> = exitUseCase.exitEvent
+    val exitEvent: SharedFlow<Unit> = exitHandler.exitEvent
 
     private val _downloadError = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     /** 다운로드 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
@@ -203,7 +203,7 @@ class FileListViewModel @Inject constructor(
                 val conflictNames = conflictCheckUseCase.checkUnzipConflicts(
                     selectedList.map { it.name }, destinationNames
                 )
-                selectedList.filter { it.name.substringBeforeLast('.') in conflictNames }
+                selectedList.filter { it.name in conflictNames }
             }
             else -> emptyList()
         }
@@ -279,5 +279,5 @@ class FileListViewModel @Inject constructor(
     }
 
     /** FTP 서비스를 중단하고 앱 종료 이벤트를 발행한다. */
-    fun exit() = exitUseCase.execute()
+    fun exit() = exitHandler.execute()
 }

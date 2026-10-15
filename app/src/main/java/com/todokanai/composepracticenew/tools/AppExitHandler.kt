@@ -8,11 +8,11 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * FTP 서비스를 중단하고 앱 종료 이벤트를 발행하는 UseCase.
+ * FTP 서비스를 중단하고 앱 종료 이벤트를 발행하는 핸들러.
  * @param ftpServiceController FTP Foreground Service 시작·종료를 담당하는 컨트롤러
  */
 @Singleton
-class ExitUseCase @Inject constructor(
+class AppExitHandler @Inject constructor(
     private val ftpServiceController: FtpServiceController
 ) {
     private val _exitEvent = MutableSharedFlow<Unit>(extraBufferCapacity = 1)

@@ -17,7 +17,7 @@ import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.service.FtpServiceController
-import com.todokanai.composepracticenew.tools.ExitUseCase
+import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
@@ -80,8 +80,8 @@ object UseCaseModule {
     fun provideConflictCheckUseCase() = ConflictCheckUseCase()
 
     @Provides @Singleton
-    fun provideExitUseCase(ftpServiceController: FtpServiceController) =
-        ExitUseCase(ftpServiceController)
+    fun provideAppExitHandler(ftpServiceController: FtpServiceController) =
+        AppExitHandler(ftpServiceController)
 
     @Provides @Singleton
     fun provideFileOperationUseCase(
