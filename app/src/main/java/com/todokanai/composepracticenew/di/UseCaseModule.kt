@@ -16,11 +16,13 @@ import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
-import com.todokanai.composepracticenew.usecase.FileOperationUseCase
 import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
+import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
+import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -84,11 +86,21 @@ object UseCaseModule {
         AppExitHandler(ftpServiceController)
 
     @Provides @Singleton
-    fun provideFileOperationUseCase(
+    fun provideFileOperationOrchestrator(
         notifier: FileOperationNotifier,
         progressRepo: ProgressRepository,
-        fileActionRepo: FileActionRepository,
-        ftpRepo: FtpRepository,
         @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationUseCase(notifier, progressRepo, fileActionRepo, ftpRepo, appScope)
+    ) = FileOperationOrchestrator(notifier, progressRepo, appScope)
+
+    @Provides @Singleton
+    fun provideLocalFileOperationUseCase(
+        orchestrator: FileOperationOrchestrator,
+        fileActionRepo: FileActionRepository
+    ) = LocalFileOperationUseCase(orchestrator, fileActionRepo)
+
+    @Provides @Singleton
+    fun provideRemoteFileOperationUseCase(
+        orchestrator: FileOperationOrchestrator,
+        ftpRepo: FtpRepository
+    ) = RemoteFileOperationUseCase(orchestrator, ftpRepo)
 }

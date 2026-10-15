@@ -13,7 +13,7 @@ import com.todokanai.composepracticenew.tools.CompletionMessageProvider
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.composepracticenew.usecase.FileOperationUseCase
+import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
@@ -36,7 +36,7 @@ class RemoteFileListViewModel @Inject constructor(
     private val ftpServiceController: FtpServiceController,
     private val progressUseCase: ProgressUseCase,
     private val sortModeUseCase: SortModeUseCase,
-    private val fileOperationUseCase: FileOperationUseCase,
+    private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val ftpConnectionResilienceUseCase: FtpConnectionResilienceUseCase,
     private val messages: CompletionMessageProvider
 ) : ViewModel() {
@@ -160,7 +160,7 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun onUpload(localPath: String) {
         val remotePath = fileNavigatorUseCase.currentPath.value ?: return
-        fileOperationUseCase.upload(
+        remoteFileOperationUseCase.upload(
             localPath = localPath,
             remoteDestPath = remotePath,
             completionMessage = messages.notiUploadComplete,
@@ -173,7 +173,7 @@ class RemoteFileListViewModel @Inject constructor(
      * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
      */
     fun onRename(item: FileHolderItem, newName: String) {
-        fileOperationUseCase.renameRemote(
+        remoteFileOperationUseCase.renameRemote(
             path = item.path,
             newName = newName,
             completionMessage = messages.notiComplete,
@@ -187,7 +187,7 @@ class RemoteFileListViewModel @Inject constructor(
      * @param item 삭제할 원격 파일 또는 디렉터리 항목
      */
     fun onDelete(item: FileHolderItem) {
-        fileOperationUseCase.deleteRemote(
+        remoteFileOperationUseCase.deleteRemote(
             path = item.path,
             isDirectory = item.isDirectory,
             completionMessage = messages.notiDeleteComplete,
@@ -202,7 +202,7 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun onMakeDirectory(dirName: String) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
-        fileOperationUseCase.makeDirectoryRemote(
+        remoteFileOperationUseCase.makeDirectoryRemote(
             parentPath = currentPath,
             dirName = dirName,
             completionMessage = messages.notiComplete,

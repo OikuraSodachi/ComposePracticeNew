@@ -12,8 +12,9 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.composepracticenew.usecase.FileOperationUseCase
+import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
+import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
@@ -39,7 +40,8 @@ class FileListViewModel @Inject constructor(
     private val progressUseCase: ProgressUseCase,
     private val openFileUseCase: OpenFileUseCase,
     private val sortModeUseCase: SortModeUseCase,
-    private val fileOperationUseCase: FileOperationUseCase,
+    private val localFileOperationUseCase: LocalFileOperationUseCase,
+    private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val exitHandler: AppExitHandler,
     private val messages: CompletionMessageProvider,
@@ -121,7 +123,7 @@ class FileListViewModel @Inject constructor(
     /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
     fun newFolder(name: String) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
-        fileOperationUseCase.makeDirectory(
+        localFileOperationUseCase.makeDirectory(
             parentPath = currentPath,
             name = name,
             completionMessage = messages.notiComplete,
@@ -156,7 +158,7 @@ class FileListViewModel @Inject constructor(
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
         items.forEach { item ->
-            fileOperationUseCase.download(
+            remoteFileOperationUseCase.download(
                 remotePath = item.path,
                 localDestPath = localPath,
                 isDirectory = item.isDirectory,
@@ -218,26 +220,26 @@ class FileListViewModel @Inject constructor(
         if (targets.isEmpty()) return
         val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
         when (selectMode) {
-            AppConstants.CONFIRM_MODE_COPY -> fileOperationUseCase.copy(
+            AppConstants.CONFIRM_MODE_COPY -> localFileOperationUseCase.copy(
                 files = targets,
                 destPath = currentPath,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
-            AppConstants.CONFIRM_MODE_MOVE -> fileOperationUseCase.move(
+            AppConstants.CONFIRM_MODE_MOVE -> localFileOperationUseCase.move(
                 files = targets,
                 destPath = currentPath,
                 completionMessage = messages.notiMoveComplete,
                 onRefresh = onRefresh
             )
-            AppConstants.CONFIRM_MODE_UNZIP -> fileOperationUseCase.unzip(
+            AppConstants.CONFIRM_MODE_UNZIP -> localFileOperationUseCase.unzip(
                 zipFiles = targets,
                 destPath = currentPath,
                 unzipHere = false,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
-            AppConstants.CONFIRM_MODE_UNZIP_HERE -> fileOperationUseCase.unzip(
+            AppConstants.CONFIRM_MODE_UNZIP_HERE -> localFileOperationUseCase.unzip(
                 zipFiles = targets,
                 destPath = currentPath,
                 unzipHere = true,
@@ -251,7 +253,7 @@ class FileListViewModel @Inject constructor(
     fun zip(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
         val targets = selectedList.map { it.path }.toSet()
-        fileOperationUseCase.zip(
+        localFileOperationUseCase.zip(
             files = targets,
             zipFilePath = "$parent/$name.zip",
             completionMessage = messages.notiComplete,
@@ -261,7 +263,7 @@ class FileListViewModel @Inject constructor(
 
     /** [item]의 이름을 [name]으로 변경한다. */
     fun rename(item: FileHolderItem, name: String) {
-        fileOperationUseCase.rename(
+        localFileOperationUseCase.rename(
             path = item.path,
             newName = name,
             completionMessage = messages.notiComplete,
@@ -272,7 +274,7 @@ class FileListViewModel @Inject constructor(
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {
         val targets = selectedList.map { it.path }.toSet()
-        fileOperationUseCase.delete(
+        localFileOperationUseCase.delete(
             files = targets,
             completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
