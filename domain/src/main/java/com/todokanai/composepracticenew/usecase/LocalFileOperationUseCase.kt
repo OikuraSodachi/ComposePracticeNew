@@ -33,6 +33,9 @@ class LocalFileOperationUseCase(
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
+    // TODO: progressHandle 할당 → launchOperation → handle.set → notifier 호출 배선이 모든 메서드에 반복된다.
+    //  orchestrator에 launch(completionMessage, actionKey, onRefresh, block) 메서드를 추가하면
+    //  UseCase는 레포 호출만 담당하고 인프라 배선은 orchestrator가 캡슐화할 수 있다.
     fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
             orchestrator.emitError("복사 실패: 출발지와 목적지가 동일합니다.")

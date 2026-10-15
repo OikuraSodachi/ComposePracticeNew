@@ -154,6 +154,9 @@ class FileListViewModel @Inject constructor(
         }
     }
 
+    // TODO: onError = { msg -> _downloadError.tryEmit(msg) } 람다가 ViewModel 소유 SharedFlow를 캡처해
+    //  Singleton OperationCallback이 ViewModel 수명을 초과해 _downloadError를 참조한다.
+    //  download 오류를 progressRepo.emitError() 경로로 통일하면 ViewModel-scoped 객체 캡처를 제거할 수 있다.
     /** items를 현재 로컬 경로에 다운로드한다. */
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
