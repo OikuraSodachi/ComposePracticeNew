@@ -1,17 +1,54 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 진행 중인 파일 작업의 progress 상태를 읽고 업데이트하며, 작업 실패 이벤트를 중계하는 UseCase.
+ * 알림 클릭으로 진행률 다이얼로그를 재표시하는 트리거 상태도 관리한다.
  * @param repo 진행 상태 및 이벤트를 저장·방출하는 ProgressRepository 구현체
  */
 class ProgressUseCase(private val repo: ProgressRepository) {
     private val instanceCounter = AtomicInteger(0)
+
+    private val _showProgressDialogForKey = MutableStateFlow<Int?>(null)
+    /** 알림 클릭으로 로컬 작업 진행률 다이얼로그를 재표시해야 하는 actionKey. null이면 신호 없음. */
+    val showProgressDialogForKey: StateFlow<Int?> = _showProgressDialogForKey.asStateFlow()
+
+    private val _showRemoteProgressDialogForKey = MutableStateFlow<Int?>(null)
+    /** 알림 클릭으로 원격 전송 진행률 다이얼로그를 재표시해야 하는 actionKey. null이면 신호 없음. */
+    val showRemoteProgressDialogForKey: StateFlow<Int?> = _showRemoteProgressDialogForKey.asStateFlow()
+
+    /**
+     * 알림 클릭 시 진행률 다이얼로그를 재표시하도록 요청한다.
+     * @param actionKey 재표시할 작업 식별 키 — 원격 작업이면 원격 다이얼로그, 아니면 로컬 다이얼로그 트리거
+     * @return Unit
+     */
+    fun requestShowDialog(actionKey: Int) {
+        if (OperationConstants.isRemoteOperation(actionKey)) {
+            _showRemoteProgressDialogForKey.value = actionKey
+        } else {
+            _showProgressDialogForKey.value = actionKey
+        }
+    }
+
+    /**
+     * 로컬 작업 진행률 다이얼로그가 표시됐음을 알려 트리거를 초기화한다.
+     * @return Unit
+     */
+    fun onProgressDialogShown() { _showProgressDialogForKey.value = null }
+
+    /**
+     * 원격 전송 진행률 다이얼로그가 표시됐음을 알려 트리거를 초기화한다.
+     * @return Unit
+     */
+    fun onRemoteProgressDialogShown() { _showRemoteProgressDialogForKey.value = null }
 
     /** 현재 진행 중인 모든 파일 작업의 진행 상태를 인스턴스 id 기준으로 저장하는 StateFlow. */
     val progressMap: StateFlow<Map<Int, ProgressState>> = repo.progressMap
