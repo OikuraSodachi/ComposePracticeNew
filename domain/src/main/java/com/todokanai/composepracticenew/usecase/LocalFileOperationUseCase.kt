@@ -21,7 +21,8 @@ class LocalFileOperationUseCase(
     private fun isSamePath(files: Set<String>, destPath: String): Boolean =
         files.any { srcPath ->
             val srcName = srcPath.substringAfterLast('/')
-            "$destPath/$srcName" == srcPath
+            "$destPath/$srcName" == srcPath ||
+            destPath.startsWith("$srcPath/")
         }
 
     /**
@@ -135,7 +136,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
+        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
         orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
             fileActionRepo.renameFile(path, newName)
         }
@@ -150,7 +151,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
+        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
         orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
             fileActionRepo.makeDirectory(parentPath, name)
         }

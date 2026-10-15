@@ -75,7 +75,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
+        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
         orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
             val toPath = "${path.substringBeforeLast("/")}/$newName"
             if (!ftpRepo.rename(path, toPath)) throw Exception(errorMessage)
@@ -92,7 +92,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
+        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
         orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
             val ok = if (isDirectory) ftpRepo.removeDirectoryRecursive(path) else ftpRepo.deleteFile(path)
             if (!ok) throw Exception(errorMessage)
@@ -109,7 +109,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
+        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
         orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
             if (!ftpRepo.makeDirectory("$parentPath/$dirName")) throw Exception(errorMessage)
         }
