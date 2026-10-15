@@ -25,6 +25,7 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
+// TODO(#143-review-4): StorageFrag.StorageConnectionEffects와 구조 동일 — Flow를 직접 받는 TwoFlowEffects 공통 함수로 추출 고려해볼 것
 /**
  * 원격 스토리지 연결 실패·유실 이벤트 Flow를 수집하고 Toast 및 콜백을 실행한다.
  *
