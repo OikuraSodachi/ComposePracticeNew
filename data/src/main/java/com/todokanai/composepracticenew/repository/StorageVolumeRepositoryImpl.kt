@@ -5,6 +5,7 @@ import android.os.Environment
 import android.os.storage.StorageManager
 import com.todokanai.composepracticenew.model.StorageHolderItem
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
+import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,11 +20,20 @@ class StorageVolumeRepositoryImpl @Inject constructor(
     private val _storageList = MutableStateFlow<List<StorageHolderItem>>(emptyList())
     override val storageList: StateFlow<List<StorageHolderItem>> get() = _storageList
 
-    override fun setStorageList(list: List<StorageHolderItem>) {
-        _storageList.value = list
+    override fun load() {
+        _storageList.value = scanPhysicalVolumes().map { info ->
+            val progress = if (info.totalSpace == 0L) 0f
+            else ((info.totalSpace - info.freeSpace).toDouble() / info.totalSpace.toDouble()).toFloat()
+            StorageHolderItem(
+                absolutePath = info.path,
+                used = readableFileSize_td(info.totalSpace - info.freeSpace),
+                total = readableFileSize_td(info.totalSpace),
+                progress = progress
+            )
+        }
     }
 
-    override fun loadPhysicalStorages(): List<StorageVolumeInfo> {
+    private fun scanPhysicalVolumes(): List<StorageVolumeInfo> {
         val defaultStorage = Environment.getExternalStorageDirectory()
         val volumes = context.getSystemService(StorageManager::class.java)?.storageVolumes
         val result = mutableListOf(

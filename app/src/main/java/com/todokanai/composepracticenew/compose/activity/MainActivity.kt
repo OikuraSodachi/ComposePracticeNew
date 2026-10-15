@@ -3,7 +3,11 @@ package com.todokanai.composepracticenew.compose.activity
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -17,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.navigation.AppNavHost
@@ -25,7 +28,6 @@ import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -34,18 +36,14 @@ class MainActivity : ComponentActivity() {
     private val mViewModel: MainViewModel by viewModels()
     private val fViewModel: FileListViewModel by viewModels()
 
-    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
             HomeScreen(activity = this)
         }
 
-        lifecycleScope.launch {
-            mViewModel.navigationEvent.collect { intent -> startActivity(intent) }
-        }
-
         checkAndRequestPermissions()
-        mViewModel.requestStorageManageAccess()
+        handleStorageAccess()
 
         activityResult =
             registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -59,6 +57,17 @@ class MainActivity : ComponentActivity() {
         if (!checkWritePermission()) requestWritePermission()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             requestNotificationPermission()
+        }
+    }
+
+    private fun handleStorageAccess() {
+        if (Environment.isExternalStorageManager()) {
+            mViewModel.loadStorages()
+        } else {
+            startActivity(Intent().apply {
+                action = Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+                data = Uri.fromParts("package", packageName, null)
+            })
         }
     }
 
