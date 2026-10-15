@@ -1,110 +1,48 @@
 package com.todokanai.composepracticenew.viewmodel
 
-import android.Manifest
-import android.app.Activity
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
-import android.os.storage.StorageManager
 import android.provider.Settings
-import android.widget.Toast
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
-import com.todokanai.composepracticenew.R
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.launch
-import java.io.File
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import javax.inject.Inject
 
+/**
+ * 스토리지 접근 권한 확인 및 스토리지 목록 초기화를 담당하는 ViewModel.
+ * @param getStorageListUseCase 물리 스토리지 목록을 조회·저장하는 UseCase
+ * @param context 패키지명 조회에 사용하는 ApplicationContext
+ */
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val getStorageListUseCase: GetStorageListUseCase
+    private val getStorageListUseCase: GetStorageListUseCase,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
-    fun getPermission(activity: Activity) {
-        viewModelScope.launch {
-            if (!checkPermission(activity)) {
-                requestPermission(activity)
-            }
-            requestStorageManageAccess(activity)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                requestNotificationPermission(activity)
-            }
-        }
-    }
+    private val _navigationEvent = MutableSharedFlow<Intent>(extraBufferCapacity = 1)
+    /** 스토리지 접근 권한 설정 화면으로 이동하라는 이벤트. Activity에서 수집해 startActivity()를 호출한다. */
+    val navigationEvent: SharedFlow<Intent> = _navigationEvent.asSharedFlow()
 
-    private fun requestNotificationPermission(activity: Activity) {
-        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.POST_NOTIFICATIONS)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            ActivityCompat.requestPermissions(
-                activity,
-                arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                112
-            )
-        }
-    }
-
-    private fun requestPermission(activity: Activity) {
-        if (ActivityCompat.shouldShowRequestPermissionRationale(
-                activity,
-                Manifest.permission.WRITE_EXTERNAL_STORAGE
-            )
-        ) {
-            Toast.makeText(
-                activity,
-                activity.getString(R.string.toast_storage_permission),
-                Toast.LENGTH_SHORT
-            ).show()
-        } else ActivityCompat.requestPermissions(
-            activity,
-            arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE),
-            111
-        )
-    }
-
-    private fun checkPermission(activity: Activity): Boolean {
-        val result = ContextCompat.checkSelfPermission(
-            activity,
-            Manifest.permission.WRITE_EXTERNAL_STORAGE
-        )
-        return result == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun requestStorageManageAccess(activity: Activity) {
+    /**
+     * MANAGE_APP_ALL_FILES_ACCESS 권한을 확인한다.
+     * 허용된 경우 스토리지 목록을 로드하고, 미허용이면 설정 화면 이동 이벤트를 방출한다.
+     * @return Unit
+     */
+    fun requestStorageManageAccess() {
         if (Environment.isExternalStorageManager()) {
-            getStorageListUseCase.execute(getPhysicalStorages(activity))
+            getStorageListUseCase.execute()
         } else {
-            val intent = Intent()
-            intent.action = Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
-            val uri: Uri = Uri.fromParts("package", activity.packageName, null)
-            intent.data = uri
-            activity.startActivity(intent)
-        }
-    }
-
-    private fun getPhysicalStorages(context: Context): List<StorageVolumeInfo> {
-        val defaultStorage = Environment.getExternalStorageDirectory()
-        val volumes = context.getSystemService(StorageManager::class.java)?.storageVolumes
-        val storageList = mutableListOf(
-            StorageVolumeInfo(defaultStorage.absolutePath, defaultStorage.totalSpace, defaultStorage.freeSpace)
-        )
-        volumes?.forEach { volume ->
-            if (!volume.isPrimary && volume.isRemovable) {
-                val sdCard = volume.directory
-                if (sdCard != null) {
-                    storageList.add(StorageVolumeInfo(sdCard.absolutePath, sdCard.totalSpace, sdCard.freeSpace))
-                }
+            val intent = Intent().apply {
+                action = Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
+                data = Uri.fromParts("package", context.packageName, null)
             }
+            _navigationEvent.tryEmit(intent)
         }
-        return storageList
     }
-
 }

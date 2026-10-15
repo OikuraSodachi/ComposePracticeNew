@@ -6,12 +6,16 @@ import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 
 /**
- * Converts raw storage volume info into display models and updates StorageRepository.
- * @param storageRepo 변환된 스토리지 목록을 저장하는 StorageVolumeRepository 구현체
+ * 물리 스토리지 목록을 조회해 표시 모델로 변환하고 StorageRepository에 저장하는 UseCase.
+ * @param storageRepo 스토리지 목록 조회·저장을 담당하는 StorageVolumeRepository 구현체
  */
 class GetStorageListUseCase(private val storageRepo: StorageVolumeRepository) {
-    fun execute(storages: List<StorageVolumeInfo>) {
-        val list = storages.map { info ->
+    /**
+     * 물리 스토리지 목록을 조회해 표시 모델로 변환하고 저장한다.
+     * @return Unit
+     */
+    fun execute() {
+        val list = storageRepo.loadPhysicalStorages().map { info ->
             val progress = if (info.totalSpace == 0L) 0f
                 else ((info.totalSpace - info.freeSpace).toDouble() / info.totalSpace.toDouble()).toFloat()
             StorageHolderItem(
