@@ -64,6 +64,8 @@ class MainActivity : ComponentActivity() {
         if (Environment.isExternalStorageManager()) {
             mViewModel.loadStorages()
         } else {
+            // TODO: startActivity 후 복귀 콜백이 없어 권한 허가 후에도 loadStorages()가 호출되지 않음.
+            //  registerForActivityResult(StartActivityForResult)로 교체하고 복귀 시 loadStorages() 재호출 필요.
             startActivity(Intent().apply {
                 action = Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION
                 data = Uri.fromParts("package", packageName, null)

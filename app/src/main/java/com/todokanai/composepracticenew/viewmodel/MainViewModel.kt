@@ -1,8 +1,11 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -18,5 +21,5 @@ class MainViewModel @Inject constructor(
      * 스토리지 목록을 로드해 UI 상태를 갱신한다.
      * @return Unit
      */
-    fun loadStorages() = getStorageListUseCase.execute()
+    fun loadStorages() = viewModelScope.launch(Dispatchers.IO) { getStorageListUseCase.execute() }
 }
