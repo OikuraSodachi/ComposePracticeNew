@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
-import java.io.File
 
 /**
  * 로컬 및 FTP 원격 경로를 모두 탐색할 수 있는 FileNavigatorRepository 구현체.
@@ -54,7 +53,7 @@ class FileExplorerRepositoryImpl(
     }
 
     override suspend fun setLocalPath(path: String) {
-        if (File(path).listFiles() != null) navigateTo(path)
+        if (localFiles.canRead(path)) navigateTo(path)
     }
 
     override suspend fun connectRemote(address: String, port: Int, userId: String, password: String, encoding: String): Boolean =

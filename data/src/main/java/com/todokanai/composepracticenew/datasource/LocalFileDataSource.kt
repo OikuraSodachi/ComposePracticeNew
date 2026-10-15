@@ -26,4 +26,11 @@ class LocalFileDataSource @Inject constructor() {
                 lastModified = file.lastModified()
             )
         } ?: emptyList()
+
+    /**
+     * [path]가 읽기 가능한 디렉터리인지 확인한다.
+     * @param path 확인할 디렉터리의 절대 경로
+     * @return 읽기 가능하면 true, 그렇지 않으면 false
+     */
+    fun canRead(path: String): Boolean = File(path).listFiles() != null
 }

@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
-import java.io.File
 
 /**
  * 로컬 파일 시스템만 탐색하는 FileNavigatorRepository 구현체. FTP 의존성이 없다.
@@ -31,7 +30,7 @@ class LocalFileExplorerRepositoryImpl(
     override suspend fun navigate(path: String) = setLocalPath(path)
 
     override suspend fun setLocalPath(path: String) {
-        if (File(path).listFiles() != null) navigateTo(path)
+        if (localFiles.canRead(path)) navigateTo(path)
     }
 
     // stub — not yet implemented
