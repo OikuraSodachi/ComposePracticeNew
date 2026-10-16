@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DOWNLOAD
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UPLOAD
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.operation.launchOperation
 import com.todokanai.composepracticenew.repository.FtpRepository
 
 /**
@@ -22,7 +21,6 @@ class RemoteFileOperationUseCase(
      * @param isDirectory 원격 경로가 디렉터리이면 true
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @param onError 다운로드 오류 시 호출되는 콜백 — 호출부마다 오류 라우팅이 다르므로 위임한다
      * @return Unit
      */
     fun download(
@@ -30,19 +28,11 @@ class RemoteFileOperationUseCase(
         localDestPath: String,
         isDirectory: Boolean,
         completionMessage: String,
-        onRefresh: suspend () -> Unit,
-        onError: (String) -> Unit
+        onRefresh: suspend () -> Unit
     ) {
-        val handle = orchestrator.progressHandle()
         val localFilePath = "$localDestPath/${remotePath.substringAfterLast("/")}"
-        orchestrator.appScope.launchOperation(
-            handle,
-            orchestrator.callback(completionMessage, ACTION_KEY_DOWNLOAD, onRefresh, onErrorOverride = onError)
-        ) {
-            ftpRepo.download(remotePath, localFilePath, isDirectory) { state ->
-                handle.set(state.copy(actionKey = ACTION_KEY_DOWNLOAD))
-                state.progress?.let { orchestrator.notifier.downloadProgressNoti(it, handle.instanceId) }
-            }.collect {}
+        orchestrator.launch(completionMessage, ACTION_KEY_DOWNLOAD, onRefresh) { onProgress ->
+            ftpRepo.download(remotePath, localFilePath, isDirectory, onProgress).collect {}
         }
     }
 
@@ -55,13 +45,9 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun upload(localPath: String, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
         val remoteFilePath = "$remoteDestPath/${localPath.substringAfterLast("/")}"
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, ACTION_KEY_UPLOAD, onRefresh)) {
-            ftpRepo.upload(localPath, remoteFilePath) { state ->
-                handle.set(state.copy(actionKey = ACTION_KEY_UPLOAD))
-                state.progress?.let { orchestrator.notifier.uploadProgressNoti(it, handle.instanceId) }
-            }.collect {}
+        orchestrator.launch(completionMessage, ACTION_KEY_UPLOAD, onRefresh) { onProgress ->
+            ftpRepo.upload(localPath, remoteFilePath, onProgress).collect {}
         }
     }
 
@@ -75,8 +61,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
+        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             val toPath = "${path.substringBeforeLast("/")}/$newName"
             if (!ftpRepo.rename(path, toPath)) throw Exception(errorMessage)
         }
@@ -92,8 +77,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
+        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             val ok = if (isDirectory) ftpRepo.removeDirectoryRecursive(path) else ftpRepo.deleteFile(path)
             if (!ok) throw Exception(errorMessage)
         }
@@ -109,8 +93,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
+        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             if (!ftpRepo.makeDirectory("$parentPath/$dirName")) throw Exception(errorMessage)
         }
     }

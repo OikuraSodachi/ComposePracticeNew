@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UNZIP
 import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_ZIP
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.operation.launchOperation
 import com.todokanai.composepracticenew.repository.FileActionRepository
 
 /**
@@ -33,20 +32,13 @@ class LocalFileOperationUseCase(
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    // TODO: progressHandle 할당 → launchOperation → handle.set → notifier 호출 배선이 모든 메서드에 반복된다.
-    //  orchestrator에 launch(completionMessage, actionKey, onRefresh, block) 메서드를 추가하면
-    //  UseCase는 레포 호출만 담당하고 인프라 배선은 orchestrator가 캡슐화할 수 있다.
     fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
             orchestrator.emitError("복사 실패: 출발지와 목적지가 동일합니다.")
             return
         }
-        val handle = orchestrator.progressHandle()
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, ACTION_KEY_COPY, onRefresh)) {
-            fileActionRepo.copyAction(files, destPath) { state ->
-                handle.set(state.copy(actionKey = ACTION_KEY_COPY))
-                state.progress?.let { orchestrator.notifier.copyProgressNoti(it, handle.instanceId) }
-            }
+        orchestrator.launch(completionMessage, ACTION_KEY_COPY, onRefresh) { onProgress ->
+            fileActionRepo.copyAction(files, destPath, onProgress)
         }
     }
 
@@ -58,16 +50,8 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, ACTION_KEY_DELETE, onRefresh)) {
-            files.forEach { path ->
-                fileActionRepo.deleteFile(path) { state ->
-                    handle.set(state.copy(actionKey = ACTION_KEY_DELETE))
-                    val idx = state.currentIndex ?: return@deleteFile
-                    val total = state.listSize ?: return@deleteFile
-                    orchestrator.notifier.deleteProgressNoti(idx, total, handle.instanceId)
-                }
-            }
+        orchestrator.launch(completionMessage, ACTION_KEY_DELETE, onRefresh) { onProgress ->
+            files.forEach { path -> fileActionRepo.deleteFile(path, onProgress) }
         }
     }
 
@@ -84,12 +68,8 @@ class LocalFileOperationUseCase(
             orchestrator.emitError("이동 실패: 출발지와 목적지가 동일합니다.")
             return
         }
-        val handle = orchestrator.progressHandle()
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, ACTION_KEY_MOVE, onRefresh)) {
-            fileActionRepo.moveFile(files, destPath) { state ->
-                handle.set(state.copy(actionKey = ACTION_KEY_MOVE))
-                state.progress?.let { orchestrator.notifier.moveProgressNoti(it, handle.instanceId) }
-            }
+        orchestrator.launch(completionMessage, ACTION_KEY_MOVE, onRefresh) { onProgress ->
+            fileActionRepo.moveFile(files, destPath, onProgress)
         }
     }
 
@@ -102,31 +82,23 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun zip(files: Set<String>, zipFilePath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, ACTION_KEY_ZIP, onRefresh)) {
-            fileActionRepo.zipAction(files, zipFilePath) { state ->
-                handle.set(state.copy(actionKey = ACTION_KEY_ZIP))
-                state.progress?.let { orchestrator.notifier.zipProgressNoti(it, handle.instanceId) }
-            }
+        orchestrator.launch(completionMessage, ACTION_KEY_ZIP, onRefresh) { onProgress ->
+            fileActionRepo.zipAction(files, zipFilePath, onProgress)
         }
     }
 
     /**
      * [zipFiles]를 [destPath]에 압축 해제한다.
-     * @param zipFiles 압축 해제할 zip 파일의 절대 경로 집합
+     * @param zipFiles 압축 해제할 zip/rar 파일의 절대 경로 집합
      * @param destPath 압축 해제 대상 디렉터리의 절대 경로
-     * @param unzipHere true이면 [destPath]에 직접 해제, false이면 zip 파일명 하위 폴더 생성 후 해제
+     * @param unzipHere true이면 [destPath]에 직접 해제, false이면 파일명 하위 폴더 생성 후 해제
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
     fun unzip(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle()
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, ACTION_KEY_UNZIP, onRefresh)) {
-            fileActionRepo.unzipAction(zipFiles, destPath, unzipHere) { state ->
-                handle.set(state.copy(actionKey = ACTION_KEY_UNZIP))
-                state.progress?.let { orchestrator.notifier.unzipProgressNoti(it, handle.instanceId) }
-            }
+        orchestrator.launch(completionMessage, ACTION_KEY_UNZIP, onRefresh) { onProgress ->
+            fileActionRepo.unzipAction(zipFiles, destPath, unzipHere, onProgress)
         }
     }
 
@@ -139,8 +111,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
+        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             fileActionRepo.renameFile(path, newName)
         }
     }
@@ -154,8 +125,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val handle = orchestrator.progressHandle() // progress 보고 없음 — 순간 작업
-        orchestrator.appScope.launchOperation(handle, orchestrator.callback(completionMessage, onRefresh = onRefresh)) {
+        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             fileActionRepo.makeDirectory(parentPath, name)
         }
     }

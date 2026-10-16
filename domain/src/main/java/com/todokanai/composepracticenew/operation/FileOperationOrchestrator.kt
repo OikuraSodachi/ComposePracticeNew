@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.operation
 
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CoroutineScope
 import java.util.concurrent.atomic.AtomicInteger
@@ -11,12 +12,9 @@ import java.util.concurrent.atomic.AtomicInteger
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
-    // TODO: notifier·appScope를 public val로 노출하면 UseCase가 내부 인프라에 직접 접근하게 된다.
-    //  private으로 내리고 launch(completionMessage, actionKey, onRefresh, block) 메서드를 추가해
-    //  UseCase가 스코프·알림 구현에 의존하지 않도록 개선 필요.
-    val notifier: FileOperationNotifier,
+    private val notifier: FileOperationNotifier,
     private val progressRepo: ProgressRepository,
-    val appScope: CoroutineScope
+    private val appScope: CoroutineScope
 ) {
     private val instanceCounter = AtomicInteger(0)
 
@@ -37,6 +35,30 @@ class FileOperationOrchestrator(
         onRefresh: suspend () -> Unit,
         onErrorOverride: ((String) -> Unit)? = null
     ) = OperationCallback(notifier, progressRepo, completionMessage, actionKey, onRefresh, onErrorOverride)
+
+    /**
+     * 파일 작업을 실행하고 진행 상태 보고·알림·완료 처리를 통합한다.
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param actionKey 작업 종류 식별 키. null이면 진행 알림 없음
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @param block 실제 IO 작업 코드. onProgress 콜백으로 진행 상태를 보고한다
+     * @return Unit
+     */
+    fun launch(
+        completionMessage: String,
+        actionKey: Int? = null,
+        onRefresh: suspend () -> Unit,
+        block: suspend (onProgress: (ProgressState) -> Unit) -> Unit
+    ) {
+        val handle = progressHandle()
+        appScope.launchOperation(handle, callback(completionMessage, actionKey, onRefresh)) {
+            block { state ->
+                val stateWithKey = state.copy(actionKey = actionKey)
+                handle.set(stateWithKey)
+                notifier.progressNoti(stateWithKey, handle.instanceId)
+            }
+        }
+    }
 
     /**
      * 오류 메시지를 progressRepo로 방출한다.
