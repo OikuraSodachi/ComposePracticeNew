@@ -2,13 +2,14 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
-import com.todokanai.composepracticenew.usecase.FtpUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
-import com.todokanai.composepracticenew.service.FtpServiceController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -20,13 +21,23 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * 스토리지 선택 화면의 로컬·원격 스토리지 목록과 진입(로컬 경로 설정·원격 연결)을 담당하는 ViewModel.
+ * @param storageVolumeUseCase 로컬 스토리지 볼륨 목록을 제공하는 UseCase
+ * @param remoteStorageUseCase 원격 접속 정보를 관리하는 UseCase
+ * @param remoteConnectionUseCase 원격 연결과 루트 이동을 수행하는 UseCase
+ * @param connectionServiceController 연결 유지 ForegroundService를 제어하는 컨트롤러
+ * @param connectionStateUseCase 원격 연결 진행 상태를 제공하는 UseCase
+ * @param localNavigator 선택한 로컬 스토리지 루트로 이동하는 UseCase
+ */
 @HiltViewModel
 class StorageViewModel @Inject constructor(
-    private val storageVolumeUseCase: StorageVolumeUseCase,
+    storageVolumeUseCase: StorageVolumeUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
     private val remoteConnectionUseCase: RemoteConnectionUseCase,
-    private val ftpServiceController: FtpServiceController,
-    private val ftpUseCase: FtpUseCase
+    private val connectionServiceController: ConnectionServiceController,
+    connectionStateUseCase: RemoteConnectionStateUseCase,
+    private val localNavigator: FileNavigatorUseCase
 ) : ViewModel() {
 
     /**
@@ -39,15 +50,15 @@ class StorageViewModel @Inject constructor(
         val remoteStorageList: List<RemoteStorageItem> = emptyList()
     )
 
-    /** FTP 연결 진행 중 여부. */
-    val isConnecting: StateFlow<Boolean> = ftpUseCase.isConnecting
+    /** 원격 연결 진행 중 여부. */
+    val isConnecting: StateFlow<Boolean> = connectionStateUseCase.isConnecting
 
     private val _connectionFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** FTP 연결 실패 이벤트. */
+    /** 원격 연결 실패 이벤트. */
     val connectionFailed: SharedFlow<Unit> = _connectionFailed.asSharedFlow()
 
     private val _connectionSucceeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** FTP 연결 성공 이벤트. */
+    /** 원격 연결 성공 이벤트. */
     val connectionSucceeded: SharedFlow<Unit> = _connectionSucceeded.asSharedFlow()
 
     val uiState: StateFlow<UiState> = combine(
@@ -64,10 +75,10 @@ class StorageViewModel @Inject constructor(
         initialValue = UiState()
     )
 
-    /** FileListFrag의 초기 경로값 */
-    fun setInitialPath(setPath: () -> Unit) {
+    /** 선택한 로컬 스토리지 루트([path])로 파일 탐색기의 현재 경로를 설정한다. */
+    fun openLocalStorage(path: String) {
         viewModelScope.launch {
-            setPath()
+            localNavigator.setPath(path)
         }
     }
 
@@ -99,12 +110,11 @@ class StorageViewModel @Inject constructor(
             val connected = remoteConnectionUseCase.connectAndNavigate(item.toDomain())
             if (connected) {
                 remoteStorageUseCase.saveLastConnectedId(item.id)
-                ftpServiceController.start(item.name)
+                connectionServiceController.start(item.name)
                 _connectionSucceeded.tryEmit(Unit)
             } else {
                 _connectionFailed.tryEmit(Unit)
             }
         }
     }
-
 }

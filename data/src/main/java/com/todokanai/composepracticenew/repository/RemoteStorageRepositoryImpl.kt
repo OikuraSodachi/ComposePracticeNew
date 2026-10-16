@@ -12,18 +12,18 @@ import javax.inject.Singleton
 @Singleton
 class RemoteStorageRepositoryImpl @Inject constructor(
     private val dao: RemoteStorageInfoDao
-) {
+) : RemoteStorageRepository {
 
-    fun getAll(): Flow<List<RemoteStorageItem>> =
+    override fun getAll(): Flow<List<RemoteStorageItem>> =
         dao.getAll().map { list -> list.map { it.toItem() } }
 
-    suspend fun insert(item: RemoteStorageItem) =
+    override suspend fun insert(item: RemoteStorageItem) =
         dao.insert(item.toEntity())
 
-    suspend fun delete(item: RemoteStorageItem) =
+    override suspend fun delete(item: RemoteStorageItem) =
         dao.delete(item.toEntity())
 
-    suspend fun getById(id: Long): RemoteStorageItem? =
+    override suspend fun getById(id: Long): RemoteStorageItem? =
         dao.getById(id)?.toItem()
 }
 

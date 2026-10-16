@@ -15,7 +15,7 @@ class RemoteConnectionUseCase(private val nav: RemoteFileNavigatorRepository) {
      */
     suspend fun connectAndNavigate(item: RemoteStorageItem): Boolean {
         val connected = nav.connectRemote(item)
-        if (connected) nav.setRemotePath(item.address)
+        if (connected) nav.navigateToRemoteRoot(item)
         return connected
     }
 }

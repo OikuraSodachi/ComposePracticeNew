@@ -2,16 +2,19 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** FTP 파일 명령(조회·변경·삭제·생성)을 FtpConnectionState의 공유 클라이언트를 통해 실행한다. */
+/**
+ * FTP 파일 명령(목록 조회·이름변경·삭제·생성)을 FtpSession을 통해 실행한다.
+ * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
+ */
 @Singleton
 class FtpCommandExecutor @Inject constructor(
-    private val cs: FtpConnectionState
+    private val session: FtpSession
 ) {
 
     /**
@@ -19,14 +22,12 @@ class FtpCommandExecutor @Inject constructor(
      * @param path ftp://server/path 형식의 절대 경로
      */
     suspend fun listFiles(path: String): List<FileEntry> {
-        val ftpPath = cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return emptyList()
-            extractFtpPath(path)
-        }
-        return cs.ioMutex.withLock {
+        if (!session.isReady()) return emptyList()
+        val ftpPath = extractFtpPath(path)
+        return session.withClient { client ->
             withContext(Dispatchers.IO) {
                 runCatching {
-                    cs.client.listFiles(ftpPath)
+                    client.listFiles(ftpPath)
                         ?.filter { it.name != "." && it.name != ".." }
                         ?.map { file ->
                             FileEntry(
@@ -38,30 +39,10 @@ class FtpCommandExecutor @Inject constructor(
                             )
                         } ?: emptyList()
                 }.onFailure { e ->
-                    if (e is FTPConnectionClosedException) cs.markConnectionDropped()
+                    if (e is FTPConnectionClosedException) session.markConnectionDropped()
                 }.getOrDefault(emptyList())
             }
         }
-    }
-
-    /** 현재 FTP 작업 디렉터리의 절대 경로를 반환한다. 미연결 시 빈 문자열을 반환한다. */
-    suspend fun getWorkingDirectory(): String {
-        cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return ""
-        }
-        return runFtpQuery("") { cs.client.printWorkingDirectory() ?: "" }
-    }
-
-    /**
-     * path로 FTP 작업 디렉터리를 변경한다. 미연결 시 false를 반환한다.
-     * @param path 이동할 원격 디렉터리의 절대 경로 (ftp://server/path 형식)
-     */
-    suspend fun changeDirectory(path: String): Boolean {
-        val ftpPath = cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return false
-            extractFtpPath(path)
-        }
-        return runFtpBoolean { cs.client.changeWorkingDirectory(ftpPath) }
     }
 
     /**
@@ -70,14 +51,10 @@ class FtpCommandExecutor @Inject constructor(
      * @param toPath 변경할 경로 (ftp://server/path 형식)
      */
     suspend fun rename(fromPath: String, toPath: String): Boolean {
-        var fromFtpPath = ""
-        var toFtpPath = ""
-        cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return false
-            fromFtpPath = extractFtpPath(fromPath)
-            toFtpPath = extractFtpPath(toPath)
-        }
-        return runFtpBoolean { cs.client.rename(fromFtpPath, toFtpPath) }
+        if (!session.isReady()) return false
+        val fromFtpPath = extractFtpPath(fromPath)
+        val toFtpPath = extractFtpPath(toPath)
+        return runFtpBoolean { it.rename(fromFtpPath, toFtpPath) }
     }
 
     /**
@@ -85,11 +62,9 @@ class FtpCommandExecutor @Inject constructor(
      * @param path 삭제할 원격 파일의 절대 경로 (ftp://server/path 형식)
      */
     suspend fun deleteFile(path: String): Boolean {
-        val ftpPath = cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return false
-            extractFtpPath(path)
-        }
-        return runFtpBoolean { cs.client.deleteFile(ftpPath) }
+        if (!session.isReady()) return false
+        val ftpPath = extractFtpPath(path)
+        return runFtpBoolean { it.deleteFile(ftpPath) }
     }
 
     /**
@@ -97,47 +72,9 @@ class FtpCommandExecutor @Inject constructor(
      * @param path 생성할 디렉터리의 절대 경로 (ftp://server/path 형식)
      */
     suspend fun makeDirectory(path: String): Boolean {
-        val ftpPath = cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return false
-            extractFtpPath(path)
-        }
-        return runFtpBoolean { cs.client.makeDirectory(ftpPath) }
-    }
-
-    /**
-     * path의 빈 디렉터리를 원격 서버에서 삭제한다. 미연결 시 false를 반환한다.
-     * @param path 삭제할 빈 디렉터리의 절대 경로 (ftp://server/path 형식)
-     */
-    suspend fun removeDirectory(path: String): Boolean {
-        val ftpPath = cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return false
-            extractFtpPath(path)
-        }
-        return runFtpBoolean { cs.client.removeDirectory(ftpPath) }
-    }
-
-    /**
-     * path 파일의 크기를 바이트 단위로 반환한다. 조회 실패 또는 미연결 시 -1을 반환한다.
-     * @param path 크기를 조회할 원격 파일의 절대 경로 (ftp://server/path 형식)
-     */
-    suspend fun getFileSize(path: String): Long {
-        val ftpPath = cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return -1L
-            extractFtpPath(path)
-        }
-        return runFtpQuery(-1L) { cs.client.mlistFile(ftpPath)?.size ?: -1L }
-    }
-
-    /**
-     * path 파일의 최종 수정 시각을 FTP MDTM 형식 문자열로 반환한다. 조회 실패 또는 미연결 시 빈 문자열을 반환한다.
-     * @param path 수정 시각을 조회할 원격 파일의 절대 경로 (ftp://server/path 형식)
-     */
-    suspend fun getModificationTime(path: String): String {
-        val ftpPath = cs.stateMutex.withLock {
-            if (!cs.client.isConnected || !cs.isLoggedIn) return ""
-            extractFtpPath(path)
-        }
-        return runFtpQuery("") { cs.client.getModificationTime(ftpPath) ?: "" }
+        if (!session.isReady()) return false
+        val ftpPath = extractFtpPath(path)
+        return runFtpBoolean { it.makeDirectory(ftpPath) }
     }
 
     /**
@@ -146,22 +83,21 @@ class FtpCommandExecutor @Inject constructor(
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
      */
     suspend fun removeDirectoryRecursive(path: String): Boolean =
-        withContext(cs.ftpIoJob + Dispatchers.IO) {
-            cs.stateMutex.withLock {
-                if (!cs.client.isConnected || !cs.isLoggedIn) return@withContext false
-            }
+        withContext(session.ioContext()) {
+            if (!session.isReady()) return@withContext false
             val allEntries = collectRemoteTree(path)
             var hasFailure = false
             for (entry in allEntries.reversed()) {
+                val entryFtpPath = extractFtpPath(entry.path)
                 val success = if (entry.isDirectory) {
-                    runFtpBoolean { cs.client.removeDirectory(extractFtpPath(entry.path)) }
+                    runFtpBoolean { it.removeDirectory(entryFtpPath) }
                 } else {
-                    runFtpBoolean { cs.client.deleteFile(extractFtpPath(entry.path)) }
+                    runFtpBoolean { it.deleteFile(entryFtpPath) }
                 }
                 if (!success) hasFailure = true
             }
             if (hasFailure) return@withContext false
-            runFtpBoolean { cs.client.removeDirectory(extractFtpPath(path)) }
+            runFtpBoolean { it.removeDirectory(extractFtpPath(path)) }
         }
 
     /** remoteDirPath 하위의 모든 항목을 깊이 우선으로 평탄화한 목록을 반환한다. 디렉터리는 자신의 자식보다 앞에 온다. */
@@ -177,21 +113,13 @@ class FtpCommandExecutor @Inject constructor(
         return result
     }
 
-    /** ioMutex 확보 후 IO 스레드에서 FTP 명령을 실행하며 접속 끊김 시 markConnectionDropped를 호출한다. */
-    private suspend fun runFtpBoolean(block: () -> Boolean): Boolean =
-        cs.ioMutex.withLock {
+    /** 세션 잠금 확보 후 IO 스레드에서 FTP 명령을 실행하며 접속 끊김 시 markConnectionDropped를 호출한다. */
+    private suspend fun runFtpBoolean(block: (FTPClient) -> Boolean): Boolean =
+        session.withClient { client ->
             withContext(Dispatchers.IO) {
-                runCatching(block)
-                    .onFailure { e -> if (e is FTPConnectionClosedException) cs.markConnectionDropped() }
+                runCatching { block(client) }
+                    .onFailure { e -> if (e is FTPConnectionClosedException) session.markConnectionDropped() }
                     .getOrDefault(false)
-            }
-        }
-
-    /** ioMutex 확보 후 IO 스레드에서 FTP 조회 명령을 실행한다. 실패 시 default를 반환한다. */
-    private suspend fun <T> runFtpQuery(default: T, block: () -> T): T =
-        cs.ioMutex.withLock {
-            withContext(Dispatchers.IO) {
-                runCatching(block).getOrDefault(default)
             }
         }
 }

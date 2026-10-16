@@ -10,7 +10,7 @@ package com.todokanai.composepracticenew.model
  * @param currentIndex 진행된 갯수
  * @param currentFileName 현재 작업중인 파일명
  * @param currentFileBytes 현재 작업중인 파일의 전체 용량(bytes)
- * @param actionKey OperationConstants.ACTION_KEY_* 값으로 진행 중인 작업 종류를 식별한다
+ * @param operationType 진행 중인 작업 종류
  * @param error non-null이면 해당 작업이 실패했음을 의미하며 오류 메시지를 담는다.
  */
 data class ProgressState(
@@ -22,6 +22,6 @@ data class ProgressState(
     val currentIndex: Int? = null,
     val currentFileName: String? = null,
     val currentFileBytes: Long? = null,
-    val actionKey: Int? = null,
+    val operationType: FileOperationType? = null,
     val error: String? = null
 )

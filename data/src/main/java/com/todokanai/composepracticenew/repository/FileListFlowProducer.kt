@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
-import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
@@ -14,12 +13,12 @@ import kotlinx.coroutines.flow.stateIn
 
 /**
  * currentPath·sortBy·refreshTrigger 세 Flow를 결합해 fileHolderItemList StateFlow를 생성하는 팩토리.
- * @param converter 파일 목록을 UI 모델로 변환하는 DataConverter
- * @param dsRepo 정렬 기준을 읽는 DataStoreRepository
+ * @param converter 파일 목록을 정렬·도메인 모델로 변환하는 DataConverter
+ * @param sortPreference 정렬 기준 Flow를 제공하는 SortPreferenceRepository
  */
 class FileListFlowProducer(
     private val converter: DataConverter,
-    private val dsRepo: DataStoreRepository
+    private val sortPreference: SortPreferenceRepository
 ) {
     /**
      * currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList StateFlow를 반환한다.
@@ -28,7 +27,7 @@ class FileListFlowProducer(
      * @param appScope StateFlow를 공유할 애플리케이션 수명 CoroutineScope
      * @param started StateFlow 공유 시작 전략
      * @param listFiles 경로를 받아 해당 디렉터리의 FileEntry 목록을 반환하는 suspend 함수
-     * @return 현재 경로의 파일 목록을 UI 모델로 변환해 방출하는 StateFlow
+     * @return 현재 경로의 파일 목록을 도메인 모델로 변환해 방출하는 StateFlow
      */
     @Suppress("OPT_IN_USAGE")
     fun produce(
@@ -38,7 +37,7 @@ class FileListFlowProducer(
         started: SharingStarted,
         listFiles: suspend (String) -> List<FileEntry>
     ): StateFlow<List<FileHolderItem>> =
-        combine(currentPath, dsRepo.sortBy, refreshTrigger) { path, sortMode, _ -> path to sortMode }
+        combine(currentPath, sortPreference.sortBy, refreshTrigger) { path, sortMode, _ -> path to sortMode }
             .flatMapLatest { (path, sortMode) ->
                 flow { emit(converter.fileHolderItemList(path?.let { listFiles(it) } ?: emptyList(), sortMode)) }
             }

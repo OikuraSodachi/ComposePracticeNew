@@ -4,24 +4,22 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
-import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.tools.CompletionMessageProvider
-import com.todokanai.composepracticenew.tools.AppExitHandler
+import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.PendingConflict
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
-import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOn
@@ -31,18 +29,27 @@ import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 
+/**
+ * 로컬 파일 목록 화면의 탐색·목록 상태와 로컬 파일 작업(충돌 확인 포함)을 담당하는 ViewModel.
+ * @param fileNavigatorUseCase 로컬 디렉터리 탐색 상태를 제공하는 UseCase
+ * @param progressUseCase 진행 중인 작업 상태를 제공하는 UseCase
+ * @param openFileUseCase 항목 열기(디렉터리 진입 포함)를 수행하는 UseCase
+ * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
+ * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
+ * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
+ * @param messages 작업 완료 메시지 제공자
+ * @param sorter 정렬 모드 선택 목록을 만드는 FileListSorter
+ */
 @HiltViewModel
 class FileListViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
-    private val progressUseCase: ProgressUseCase,
+    progressUseCase: ProgressUseCase,
     private val openFileUseCase: OpenFileUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val localFileOperationUseCase: LocalFileOperationUseCase,
-    private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
-    private val exitHandler: AppExitHandler,
-    private val messages: CompletionMessageProvider,
-    private val sorter: FileListSorter,
+    private val messages: OperationMessages,
+    sorter: FileListSorter,
 ) : ViewModel() {
 
     /**
@@ -71,14 +78,6 @@ class FileListViewModel @Inject constructor(
             initialValue = emptyMap()
         )
 
-    /** FTP 서비스를 중단하고 앱을 종료하라는 이벤트. NavController에서 수집해 exit_td를 호출한다. */
-    val exitEvent: Flow<Unit> = exitHandler.exitEvent
-
-    /** 로컬 파일 작업(복사·이동·압축 등) 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
-    val operationError: SharedFlow<String> = progressUseCase.operationErrors
-    /** 파일 작업 완료 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
-    val operationCompletion: SharedFlow<String> = progressUseCase.operationCompletions
-
     /** 현재 정렬 기준. DataStore에서 수집한다. */
     val sortMode: StateFlow<String> = sortModeUseCase.sortBy
         .stateIn(
@@ -87,32 +86,21 @@ class FileListViewModel @Inject constructor(
             initialValue = Constants.BY_DEFAULT
         )
 
-    /** 알림 클릭으로 로컬 작업 진행률 다이얼로그를 강제 재표시해야 하는지 여부. */
-    val showProgressDialog: StateFlow<Boolean> = progressUseCase.showProgressDialogForKey
-        .map { it != null }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false
-        )
-
-    /** 원격 전송(다운로드·업로드) 알림 클릭 시 REMOTE_FILE_LIST 화면의 진행률 다이얼로그를 다시 표시해야 하는지 여부. */
-    val showRemoteProgressDialog: StateFlow<Boolean> = progressUseCase.showRemoteProgressDialogForKey
-        .map { it != null }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = false
-        )
-
-    fun requestShowProgressDialog(actionKey: Int) = progressUseCase.requestShowDialog(actionKey)
-
-    fun onRemoteProgressDialogShown() = progressUseCase.onRemoteProgressDialogShown()
-
-    fun onProgressDialogShown() = progressUseCase.onProgressDialogShown()
-
     /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
     val sortModeCallbackList = sorter.getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
+
+    /** 경로 breadcrumb에 표시할 디렉터리 트리. */
+    val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
+        .map { list -> list.map { DirectoryItem(name = it.name, path = it.path) } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = emptyList()
+        )
+
+    private val conflictGate = ConflictGate()
+    /** 복사·이동·압축 해제 실행 전 사용자 확인을 기다리는 충돌. */
+    val pendingConflict: StateFlow<PendingConflict?> = conflictGate.pending
 
     /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
     fun newFolder(name: String) {
@@ -125,47 +113,11 @@ class FileListViewModel @Inject constructor(
         )
     }
 
-    /** pendingList 중 현재 로컬 디렉터리에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
-    fun getDownloadConflicts(pendingList: List<FileHolderItem>): List<FileHolderItem> {
-        val localNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
-        val conflictNames = conflictCheckUseCase.checkCopyMoveConflicts(pendingList.map { it.name }, localNames)
-        return pendingList.filter { it.name in conflictNames }
-    }
-
-    /** 경로 breadcrumb에 표시할 디렉터리 트리. */
-    val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
-        .map { list -> list.map { DirectoryItem(name = it.name, path = it.path) } }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList()
-        )
-
     /** 주어진 절대 경로로 현재 디렉터리를 이동한다. */
     fun updateCurrentPath(path: String) {
         viewModelScope.launch {
             fileNavigatorUseCase.setPath(path)
         }
-    }
-
-    /** items를 현재 로컬 경로에 다운로드한다. */
-    fun onDownload(items: List<FileHolderItem>) {
-        val localPath = fileNavigatorUseCase.currentPath.value ?: return
-        items.forEach { item ->
-            remoteFileOperationUseCase.download(
-                remotePath = item.path,
-                localDestPath = localPath,
-                isDirectory = item.isDirectory,
-                completionMessage = messages.notiDownloadComplete,
-                onRefresh = { fileNavigatorUseCase.refresh() }
-            )
-        }
-    }
-
-    /** pending 중 conflicts에 포함된 항목을 제외하고 다운로드한다. */
-    fun onDownloadSkipping(pending: List<FileHolderItem>, conflicts: List<FileHolderItem>) {
-        val skipPaths = conflicts.map { it.path }.toSet()
-        onDownload(pending.filter { it.path !in skipPaths })
     }
 
     /** 상위 디렉터리로 이동한다. 루트이면 toStorageFrag를 호출한다. */
@@ -175,72 +127,34 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    fun onItemClick(selected: FileHolderItem, selectMode: Int) {
+    /** 선택 모드에 따라 항목을 열거나(디렉터리 진입 포함) 무시한다. */
+    fun onItemClick(selected: FileHolderItem, selectMode: SelectMode) {
         viewModelScope.launch {
             when (selectMode) {
-                AppConstants.DEFAULT_MODE -> openFileUseCase.open(selected.toDomain())
-                AppConstants.MULTI_SELECT_MODE -> { }
-                else -> if (selected.isDirectory) openFileUseCase.open(selected.toDomain())
+                SelectMode.Default -> openFileUseCase.open(selected.toDomain())
+                SelectMode.MultiSelect -> { }
+                is SelectMode.Confirm -> if (selected.isDirectory) openFileUseCase.open(selected.toDomain())
             }
         }
     }
 
-    /** selectMode 작업의 목적지 경로에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
-    fun getConflicts(selectedList: List<FileHolderItem>, selectMode: Int): List<FileHolderItem> {
-        val destinationNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
-        return when (selectMode) {
-            AppConstants.CONFIRM_MODE_COPY, AppConstants.CONFIRM_MODE_MOVE -> {
-                val conflictNames = conflictCheckUseCase.checkCopyMoveConflicts(
-                    selectedList.map { it.name }, destinationNames
-                )
-                selectedList.filter { it.name in conflictNames }
-            }
-            AppConstants.CONFIRM_MODE_UNZIP, AppConstants.CONFIRM_MODE_UNZIP_HERE -> {
-                val conflictNames = conflictCheckUseCase.checkUnzipConflicts(
-                    selectedList.map { it.name }, destinationNames
-                )
-                selectedList.filter { it.name in conflictNames }
-            }
-            else -> emptyList()
+    /**
+     * [mode] 작업을 현재 경로에 실행한다. 목적지에 같은 이름이 있으면 실행하지 않고 [pendingConflict]로 확인을 요청한다.
+     * @param selectedList 작업 대상 항목
+     * @param mode 실행할 확인 모드
+     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했으면 false
+     */
+    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.Confirm): Boolean =
+        conflictGate.request(selectedList, conflictsFor(selectedList, mode)) { skip ->
+            execute(selectedList, mode, skip)
         }
-    }
 
-    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 selectMode에 맞는 파일 작업을 실행한다. @param skipFiles 충돌로 건너뛸 파일 목록 */
-    fun confirm(selectedList: List<FileHolderItem>, selectMode: Int, skipFiles: List<FileHolderItem> = emptyList()) {
-        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
-        val conflictPaths = skipFiles.map { it.path }.toSet()
-        val targets = selectedList.filterNot { it.path in conflictPaths }.map { it.path }.toSet()
-        if (targets.isEmpty()) return
-        val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
-        when (selectMode) {
-            AppConstants.CONFIRM_MODE_COPY -> localFileOperationUseCase.copy(
-                files = targets,
-                destPath = currentPath,
-                completionMessage = messages.notiComplete,
-                onRefresh = onRefresh
-            )
-            AppConstants.CONFIRM_MODE_MOVE -> localFileOperationUseCase.move(
-                files = targets,
-                destPath = currentPath,
-                completionMessage = messages.notiMoveComplete,
-                onRefresh = onRefresh
-            )
-            AppConstants.CONFIRM_MODE_UNZIP -> localFileOperationUseCase.unzip(
-                zipFiles = targets,
-                destPath = currentPath,
-                unzipHere = false,
-                completionMessage = messages.notiComplete,
-                onRefresh = onRefresh
-            )
-            AppConstants.CONFIRM_MODE_UNZIP_HERE -> localFileOperationUseCase.unzip(
-                zipFiles = targets,
-                destPath = currentPath,
-                unzipHere = true,
-                completionMessage = messages.notiComplete,
-                onRefresh = onRefresh
-            )
-        }
-    }
+    /**
+     * 대기 중인 충돌을 사용자의 선택대로 처리한다.
+     * @param resolution 덮어쓰기·건너뛰기·취소 중 사용자 선택
+     * @return 작업을 실행했으면 true
+     */
+    fun resolveConflict(resolution: ConflictResolution): Boolean = conflictGate.resolve(resolution)
 
     /** selectedList의 파일들을 [name].zip으로 압축한다. */
     fun zip(selectedList: List<FileHolderItem>, name: String) {
@@ -274,6 +188,55 @@ class FileListViewModel @Inject constructor(
         )
     }
 
-    /** FTP 서비스를 중단하고 앱 종료 이벤트를 발행한다. */
-    fun exit() = exitHandler.execute()
+    /** [mode] 작업의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다. */
+    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.Confirm): List<FileHolderItem> {
+        val destinationNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
+        val selectedNames = selectedList.map { it.name }
+        val conflictNames = when (mode) {
+            SelectMode.Confirm.Copy, SelectMode.Confirm.Move ->
+                conflictCheckUseCase.checkCopyMoveConflicts(selectedNames, destinationNames)
+            SelectMode.Confirm.Unzip, SelectMode.Confirm.UnzipHere ->
+                conflictCheckUseCase.checkUnzipConflicts(selectedNames, destinationNames)
+            SelectMode.Confirm.Download, SelectMode.Confirm.Upload -> emptySet()
+        }
+        return selectedList.filter { it.name in conflictNames }
+    }
+
+    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 [mode]에 맞는 파일 작업을 현재 경로에 실행한다. */
+    private fun execute(selectedList: List<FileHolderItem>, mode: SelectMode.Confirm, skipFiles: List<FileHolderItem>) {
+        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
+        val conflictPaths = skipFiles.map { it.path }.toSet()
+        val targets = selectedList.filterNot { it.path in conflictPaths }.map { it.path }.toSet()
+        if (targets.isEmpty()) return
+        val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
+        when (mode) {
+            SelectMode.Confirm.Copy -> localFileOperationUseCase.copy(
+                files = targets,
+                destPath = currentPath,
+                completionMessage = messages.notiComplete,
+                onRefresh = onRefresh
+            )
+            SelectMode.Confirm.Move -> localFileOperationUseCase.move(
+                files = targets,
+                destPath = currentPath,
+                completionMessage = messages.notiMoveComplete,
+                onRefresh = onRefresh
+            )
+            SelectMode.Confirm.Unzip -> localFileOperationUseCase.unzip(
+                zipFiles = targets,
+                destPath = currentPath,
+                unzipHere = false,
+                completionMessage = messages.notiComplete,
+                onRefresh = onRefresh
+            )
+            SelectMode.Confirm.UnzipHere -> localFileOperationUseCase.unzip(
+                zipFiles = targets,
+                destPath = currentPath,
+                unzipHere = true,
+                completionMessage = messages.notiComplete,
+                onRefresh = onRefresh
+            )
+            SelectMode.Confirm.Download, SelectMode.Confirm.Upload -> Unit
+        }
+    }
 }

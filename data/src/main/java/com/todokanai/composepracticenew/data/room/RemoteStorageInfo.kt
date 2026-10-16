@@ -24,5 +24,5 @@ data class RemoteStorageInfo(
     @ColumnInfo val port: Int,
     @ColumnInfo val userId: String,
     @ColumnInfo val password: String,
-    @ColumnInfo val encoding: String = Constants.FTP_ENCODING_DEFAULT
+    @ColumnInfo val encoding: String = Constants.REMOTE_ENCODING_DEFAULT
 )

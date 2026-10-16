@@ -1,14 +1,19 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.RemoteStorageItem
-import com.todokanai.composepracticenew.repository.LocalDataRepository
+import com.todokanai.composepracticenew.repository.LastConnectionRepository
+import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import kotlinx.coroutines.flow.Flow
 
 /**
  * 원격 스토리지 접속 정보의 조회·추가·수정·삭제를 담당하는 UseCase.
- * @param repo 원격 스토리지 접속 정보를 읽고 쓰는 LocalDataRepository 구현체
+ * @param repo 원격 스토리지 접속 정보를 읽고 쓰는 RemoteStorageRepository 구현체
+ * @param lastConnectionRepo 마지막 접속 서버 id를 저장하는 LastConnectionRepository 구현체
  */
-class RemoteStorageUseCase(private val repo: LocalDataRepository) {
+class RemoteStorageUseCase(
+    private val repo: RemoteStorageRepository,
+    private val lastConnectionRepo: LastConnectionRepository
+) {
     /**
      * 저장된 원격 스토리지 접속 정보 목록을 스트림으로 반환한다.
      * @return 원격 스토리지 항목 목록을 방출하는 Flow
@@ -47,7 +52,7 @@ class RemoteStorageUseCase(private val repo: LocalDataRepository) {
      * @param id 저장할 서버 id, null이면 마지막 연결 정보를 초기화한다
      * @return Unit
      */
-    fun saveLastConnectedId(id: Long?) = repo.setLastRemoteId(id)
+    fun saveLastConnectedId(id: Long?) = lastConnectionRepo.setLastRemoteId(id)
 
     /**
      * 삭제된 항목이 마지막 연결 서버인 경우 DataStore의 lastRemoteId를 초기화한다.
@@ -55,15 +60,6 @@ class RemoteStorageUseCase(private val repo: LocalDataRepository) {
      * @return Unit
      */
     suspend fun clearLastConnectedIfMatches(id: Long) {
-        if (repo.lastRemoteId() == id) repo.setLastRemoteId(null)
-    }
-
-    /**
-     * DataStore에 저장된 마지막 연결 서버 id로 RemoteStorageItem을 조회한다.
-     * @return 마지막 연결 서버 정보, 저장된 id가 없거나 해당 항목이 삭제된 경우 null
-     */
-    suspend fun getLastConnectedItem(): RemoteStorageItem? {
-        val id = repo.lastRemoteId() ?: return null
-        return repo.getRemoteById(id)
+        if (lastConnectionRepo.lastRemoteId() == id) lastConnectionRepo.setLastRemoteId(null)
     }
 }

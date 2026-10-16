@@ -19,5 +19,5 @@ data class RemoteStorageItem(
     val port: Int,
     val userId: String,
     val password: String,
-    val encoding: String = Constants.FTP_ENCODING_DEFAULT
+    val encoding: String = Constants.REMOTE_ENCODING_DEFAULT
 )

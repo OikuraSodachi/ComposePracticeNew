@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
-import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
 /**
@@ -64,8 +64,8 @@ private fun RemoteRenameDialogHost(
 @Composable
 fun RemoteBottomButtonListView(
     modifier: Modifier,
-    selectMode: Int,
-    onSelectModeChange: (Int) -> Unit,
+    selectMode: SelectMode,
+    onSelectModeChange: (SelectMode) -> Unit,
     onClearSelection: () -> Unit,
     selectedList: List<FileHolderItem>,
     onRename: (FileHolderItem, String) -> Unit,
@@ -87,7 +87,7 @@ fun RemoteBottomButtonListView(
     )
 
     when (selectMode) {
-        AppConstants.MULTI_SELECT_MODE -> {
+        SelectMode.MultiSelect -> {
             Row(
                 modifier = modifier
                     .fillMaxWidth()
@@ -97,35 +97,42 @@ fun RemoteBottomButtonListView(
             ) {
                 TextButton(onClick = {
                     onEnterDownloadMode(selectedList.toList())
-                    onSelectModeChange(AppConstants.DEFAULT_MODE)
+                    onSelectModeChange(SelectMode.Default)
                     onClearSelection()
                 }) { Text(strRemoteDownload) }
                 TextButton(onClick = {
                     selectedList.forEach { onDelete(it) }
-                    onSelectModeChange(AppConstants.DEFAULT_MODE)
+                    onSelectModeChange(SelectMode.Default)
                     onClearSelection()
                 }) { Text(strRemoteDelete) }
                 TextButton(
                     enabled = selectedList.size == 1,
                     onClick = {
                         renameTarget = selectedList.first()
-                        onSelectModeChange(AppConstants.DEFAULT_MODE)
+                        onSelectModeChange(SelectMode.Default)
                         onClearSelection()
                     }
                 ) { Text(strRemoteRename) }
             }
         }
-        AppConstants.CONFIRM_MODE_UPLOAD -> {
+        SelectMode.Confirm.Upload -> {
             ConfirmButtons(
                 modifier = modifier,
                 confirm = {
                     onConfirmUpload()
-                    onSelectModeChange(AppConstants.DEFAULT_MODE)
+                    onSelectModeChange(SelectMode.Default)
                     onClearSelection()
                 },
-                cancel = { onSelectModeChange(AppConstants.DEFAULT_MODE) },
-                mode = AppConstants.CONFIRM_MODE_UPLOAD
+                cancel = { onSelectModeChange(SelectMode.Default) },
+                mode = SelectMode.Confirm.Upload
             )
         }
+        // 원격 화면에서는 업로드 외의 확인 모드를 사용하지 않는다
+        SelectMode.Default,
+        SelectMode.Confirm.Copy,
+        SelectMode.Confirm.Move,
+        SelectMode.Confirm.Unzip,
+        SelectMode.Confirm.UnzipHere,
+        SelectMode.Confirm.Download -> Unit
     }
 }

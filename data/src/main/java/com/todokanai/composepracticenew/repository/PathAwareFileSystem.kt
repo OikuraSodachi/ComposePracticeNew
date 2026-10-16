@@ -5,6 +5,7 @@ import com.todokanai.fileexplorer.FileEntry
 /**
  * 경로 종류에 따라 파일 목록 조회·부모 계산·이동을 처리하는 파일 시스템 추상화.
  * FileExplorerRepositoryImpl이 스토리지 타입별 분기 없이 위임하기 위해 사용한다.
+ * 구현체는 Hilt `@IntoSet`으로 등록되며 순서가 보장되지 않으므로, 각 구현의 [handles]는 서로 배타적이어야 한다.
  */
 interface PathAwareFileSystem {
     /**

@@ -15,8 +15,8 @@ interface RemoteFileNavigatorRepository : FileNavigatorRepository {
     suspend fun connectRemote(item: RemoteStorageItem): Boolean
 
     /**
-     * 지정된 원격 경로로 탐색 위치를 이동시킨다.
-     * @param path 이동할 원격 경로
+     * [item] 서버의 루트 디렉터리로 탐색 위치를 이동시킨다. 루트 경로 형식은 연결 구현체가 결정한다.
+     * @param item 이동할 원격 스토리지 접속 정보
      */
-    suspend fun setRemotePath(path: String)
+    suspend fun navigateToRemoteRoot(item: RemoteStorageItem)
 }

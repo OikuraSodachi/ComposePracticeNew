@@ -23,7 +23,6 @@ import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
-import java.io.File
 import kotlinx.coroutines.launch
 
 // TODO(#143-review-4): RemoteFileListFrag.RemoteFileListConnectionEffects와 구조 동일 — Flow를 직접 받는 TwoFlowEffects 공통 함수로 추출 고려해볼 것
@@ -83,7 +82,6 @@ private fun StorageDialogHost(
  * @param modifier 레이아웃 수정자
  * @param exitStorageFrag 로컬 스토리지 선택 후 파일 목록 화면으로 이동하는 콜백
  * @param exitToRemoteFileFrag 원격 스토리지 연결 성공 후 원격 파일 목록 화면으로 이동하는 콜백
- * @param setInitialPath 선택한 로컬 스토리지의 루트 경로를 설정하는 콜백
  * @param onExit 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거).
  * @param viewModel 스토리지 선택 화면의 ViewModel
  */
@@ -92,7 +90,6 @@ fun StorageFrag(
     modifier: Modifier,
     exitStorageFrag: () -> Unit,
     exitToRemoteFileFrag: () -> Unit,
-    setInitialPath: (File) -> Unit,
     onExit: () -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {
@@ -125,7 +122,7 @@ fun StorageFrag(
                 items(uiState.value.storageList, key = { it.absolutePath }) { storage ->
                     StorageHolder(
                         modifier = Modifier.clickable {
-                            viewModel.setInitialPath({ setInitialPath(File(storage.absolutePath)) })
+                            viewModel.openLocalStorage(storage.absolutePath)
                             exitStorageFrag()
                         },
                         storage = storage
