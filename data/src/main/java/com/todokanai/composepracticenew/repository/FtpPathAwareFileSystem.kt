@@ -14,6 +14,7 @@ class FtpPathAwareFileSystem(private val ftpFiles: FtpRepository) : PathAwareFil
         return if (!withoutScheme.contains('/')) null
                else "ftp://" + withoutScheme.substringBeforeLast('/')
     }
+    // 원격 경로는 네트워크 I/O 없이 사전 접근성 검사를 할 수 없으므로 정규화만 수행하고 항상 non-null 반환
     override suspend fun resolveNavigationPath(path: String): String =
         "ftp://${path.removePrefix("ftp://")}"
 }

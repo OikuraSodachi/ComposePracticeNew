@@ -39,7 +39,7 @@ class FileExplorerRepositoryImpl(
     )
 
     private fun resolveFileSystem(path: String): PathAwareFileSystem =
-        fileSystems.firstOrNull { it.handles(path) } ?: fileSystems.last()
+        fileSystems.firstOrNull { it.handles(path) } ?: error("No file system handles path: $path")
 
     override fun getParent(path: String): String? = resolveFileSystem(path).getParent(path)
 
