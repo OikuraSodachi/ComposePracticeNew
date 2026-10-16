@@ -9,12 +9,13 @@ import com.todokanai.composepracticenew.myobjects.Constants.BY_SIZE_ASCENDING
 import com.todokanai.composepracticenew.myobjects.Constants.BY_SIZE_DESCENDING
 import com.todokanai.composepracticenew.myobjects.Constants.BY_TYPE_ASCENDING
 import com.todokanai.composepracticenew.myobjects.Constants.BY_TYPE_DESCENDING
+import javax.inject.Inject
 
 /** FileListSorter의 기본 구현체. */
-class FileListSorterImpl : FileListSorter {
+class FileListSorterImpl @Inject constructor() : FileListSorter {
 
     companion object {
-        val sortModeListOriginal = listOf(
+        private val sortModeListOriginal = listOf(
             BY_DEFAULT,
             BY_NAME_ASCENDING,
             BY_NAME_DESCENDING,
