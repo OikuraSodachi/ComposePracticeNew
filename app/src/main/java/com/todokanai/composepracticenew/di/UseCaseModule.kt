@@ -8,6 +8,8 @@ import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.repository.FtpRepository
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.variables.FileListSorter
+import com.todokanai.composepracticenew.variables.FileListSorterImpl
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
@@ -109,4 +111,7 @@ object UseCaseModule {
         orchestrator: FileOperationOrchestrator,
         ftpRepo: FtpRepository
     ) = RemoteFileOperationUseCase(orchestrator, ftpRepo)
+
+    @Provides @Singleton
+    fun provideFileListSorter(): FileListSorter = FileListSorterImpl()
 }

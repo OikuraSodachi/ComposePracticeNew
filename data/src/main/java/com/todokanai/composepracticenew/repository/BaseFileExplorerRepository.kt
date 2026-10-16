@@ -3,16 +3,11 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.model.FileHolderItem
-import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.stateIn
 
 /**
  * currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList를 구성하는 공통 Flow 로직을 보유한 기반 클래스.
@@ -23,26 +18,18 @@ import kotlinx.coroutines.flow.stateIn
  * @param initialPath 초기 탐색 경로; null이면 루트로 시작하지 않는다
  */
 abstract class BaseFileExplorerRepository(
-    private val converter: DataConverter,
-    private val dsRepo: DataStoreRepository,
+    converter: DataConverter,
+    dsRepo: DataStoreRepository,
     private val appScope: CoroutineScope,
     started: SharingStarted,
     initialPath: String? = null
 ) : StorageRepository(), FileNavigatorRepository {
 
     private val _refreshTrigger = MutableStateFlow(0L)
+    private val producer = FileListFlowProducer(converter, dsRepo)
 
-    @Suppress("OPT_IN_USAGE")
     override val fileHolderItemList: StateFlow<List<FileHolderItem>> =
-        combine(currentPath, dsRepo.sortBy, _refreshTrigger) { path, sortMode, _ -> path to sortMode }
-            .flatMapLatest { (path, sortMode) ->
-                flow { emit(converter.fileHolderItemList(path?.let { listFiles(it) } ?: emptyList(), sortMode)) }
-            }
-            .stateIn(
-                scope = appScope,
-                started = started,
-                initialValue = emptyList()
-            )
+        producer.produce(currentPath, _refreshTrigger, appScope, started) { listFiles(it) }
 
     init { initialPath?.let { navigateTo(it) } }
 

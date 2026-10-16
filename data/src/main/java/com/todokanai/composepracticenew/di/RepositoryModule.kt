@@ -4,6 +4,8 @@ import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
+import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSource
+import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSourceImpl
 import com.todokanai.composepracticenew.repository.FtpRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepository
 import com.todokanai.composepracticenew.repository.LocalDataRepositoryImpl
@@ -37,6 +39,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindStorageRepository(impl: StorageVolumeRepositoryImpl): StorageVolumeRepository
+
+    @Binds
+    abstract fun bindLocalFileOperationDataSource(impl: LocalFileOperationDataSourceImpl): LocalFileOperationDataSource
 
     @Binds
     abstract fun bindFileActionRepository(impl: FileActionRepositoryImpl): FileActionRepository

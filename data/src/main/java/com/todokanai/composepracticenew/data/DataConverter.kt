@@ -30,18 +30,18 @@ class DataConverter @Inject constructor() {
         return sortFiles(sortBy, files).map { it.toFileHolderItem() }
     }
 
-    private fun sortFiles(sortMode: String, files: List<FileEntry>): List<FileEntry> {
-        return when (sortMode) {
-            BY_DEFAULT -> files.sortedWith(compareBy({ !it.isDirectory }, { it.name }))
-            BY_NAME_ASCENDING -> files.sortedBy { it.name }
-            BY_NAME_DESCENDING -> files.sortedByDescending { it.name }
-            BY_SIZE_ASCENDING -> files.sortedBy { it.size }
-            BY_SIZE_DESCENDING -> files.sortedByDescending { it.size }
-            BY_TYPE_ASCENDING -> files.sortedBy { it.name.substringAfterLast('.', "") }
-            BY_TYPE_DESCENDING -> files.sortedByDescending { it.name.substringAfterLast('.', "") }
-            BY_DATE_ASCENDING -> files.sortedBy { it.lastModified }
-            BY_DATE_DESCENDING -> files.sortedByDescending { it.lastModified }
-            else -> files
-        }
-    }
+    private val sortFunctions: Map<String, (List<FileEntry>) -> List<FileEntry>> = mapOf(
+        BY_DEFAULT         to { files -> files.sortedWith(compareBy({ !it.isDirectory }, { it.name })) },
+        BY_NAME_ASCENDING  to { files -> files.sortedBy { it.name } },
+        BY_NAME_DESCENDING to { files -> files.sortedByDescending { it.name } },
+        BY_SIZE_ASCENDING  to { files -> files.sortedBy { it.size } },
+        BY_SIZE_DESCENDING to { files -> files.sortedByDescending { it.size } },
+        BY_TYPE_ASCENDING  to { files -> files.sortedBy { it.name.substringAfterLast('.', "") } },
+        BY_TYPE_DESCENDING to { files -> files.sortedByDescending { it.name.substringAfterLast('.', "") } },
+        BY_DATE_ASCENDING  to { files -> files.sortedBy { it.lastModified } },
+        BY_DATE_DESCENDING to { files -> files.sortedByDescending { it.lastModified } }
+    )
+
+    private fun sortFiles(sortMode: String, files: List<FileEntry>): List<FileEntry> =
+        sortFunctions[sortMode]?.invoke(files) ?: files
 }
