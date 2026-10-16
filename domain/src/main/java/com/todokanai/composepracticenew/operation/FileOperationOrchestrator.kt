@@ -26,18 +26,17 @@ class FileOperationOrchestrator(
      * @param completionMessage 완료 시 표시할 메시지
      * @param actionKey 완료 알림에 사용할 액션 키. null이면 알림 없음
      * @param onRefresh 완료·실패 후 디렉터리 목록을 갱신하는 콜백
-     * @param onErrorOverride 오류를 progressRepo 대신 직접 처리할 때 사용. null이면 progressRepo.emitError()로 통일
      * @return OperationCallback
      */
     fun callback(
         completionMessage: String,
         actionKey: Int? = null,
-        onRefresh: suspend () -> Unit,
-        onErrorOverride: ((String) -> Unit)? = null
-    ) = OperationCallback(notifier, progressRepo, completionMessage, actionKey, onRefresh, onErrorOverride)
+        onRefresh: suspend () -> Unit
+    ) = OperationCallback(notifier, progressRepo, completionMessage, actionKey, onRefresh)
 
     /**
      * 파일 작업을 실행하고 진행 상태 보고·알림·완료 처리를 통합한다.
+     * 순간 작업(onProgress 미사용)은 progressMap에 등록되지 않아 ForegroundService 보호 대상에서 제외된다.
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param actionKey 작업 종류 식별 키. null이면 진행 알림 없음
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
