@@ -13,6 +13,7 @@ import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
 import com.todokanai.composepracticenew.repository.LocalFileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.repository.StorageVolumeRepositoryImpl
@@ -49,6 +50,9 @@ abstract class RepositoryModule {
     @Binds
     abstract fun bindFileOperationNotifier(impl: MyNotification): FileOperationNotifier
 
+    @Binds @Singleton @RemoteNavigator
+    abstract fun bindRemoteNavigatorAsFileNavigator(impl: RemoteFileNavigatorRepository): FileNavigatorRepository
+
     companion object {
         @Provides @Singleton
         fun provideLocalFileNavigatorRepository(
@@ -61,13 +65,13 @@ abstract class RepositoryModule {
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
-        @Provides @Singleton @RemoteNavigator
+        @Provides @Singleton
         fun provideRemoteFileNavigatorRepository(
             converter: DataConverter,
             dsRepo: DataStoreRepository,
             @ApplicationScope appScope: CoroutineScope,
             localFiles: LocalFileDataSource,
             ftpFileSystem: FtpRepository
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, appScope, localFiles, ftpFileSystem)
+        ): RemoteFileNavigatorRepository = FileExplorerRepositoryImpl(converter, dsRepo, appScope, localFiles, ftpFileSystem)
     }
 }
