@@ -81,8 +81,8 @@ object UseCaseModule {
     fun provideFtpConnectionResilienceUseCase(
         ftpRepo: FtpRepository,
         localDataRepo: LocalDataRepository,
-        fileNavigatorRepo: RemoteFileNavigatorRepository
-    ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, fileNavigatorRepo)
+        remoteConnectionUseCase: RemoteConnectionUseCase
+    ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, remoteConnectionUseCase)
 
     @Provides @Singleton
     fun provideConflictCheckUseCase() = ConflictCheckUseCase()
