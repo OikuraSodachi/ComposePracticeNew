@@ -70,7 +70,6 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             ACTION_KEY_DELETE -> {
                 val idx = state.currentIndex ?: return
                 val total = state.listSize ?: return
-
                 val builder = NotificationCompat.Builder(context, channelId)
                     .setSmallIcon(icon)
                     .setContentTitle("Deleting")
@@ -78,7 +77,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
                     .setOngoing(true)
                     .setProgress(100, 100 * idx / total, false)
                     .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-                    .setContentIntent(buildClickIntent(ACTION_KEY_DELETE))
+                    .setContentIntent(progressHelper.buildClickIntent(ACTION_KEY_DELETE))
                 with(NotificationManagerCompat.from(context)) {
                     if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
                     notify(instanceId, builder.build())
@@ -86,48 +85,59 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             }
             else -> {
                 val progress = state.progress ?: return
-                showProgressNoti(titleFor(state.actionKey), "$progress %", progress, state.actionKey ?: 0, instanceId)
+                progressHelper.show(progressHelper.titleFor(state.actionKey), "$progress %", progress, state.actionKey ?: 0, instanceId)
             }
         }
     }
 
-    private fun titleFor(actionKey: Int?): String = when (actionKey) {
-        ACTION_KEY_COPY -> "Copying"
-        ACTION_KEY_MOVE -> "Moving"
-        ACTION_KEY_UNZIP -> "Unzipping"
-        ACTION_KEY_ZIP -> "Zipping"
-        ACTION_KEY_DOWNLOAD -> "Downloading"
-        ACTION_KEY_UPLOAD -> "Uploading"
-        else -> "Processing"
+    private val progressHelper = ProgressNotiHelper()
+
+    /** 진행률 알림의 제목 결정·클릭 인텐트 구성·UI 출력을 담당하는 헬퍼. */
+    private inner class ProgressNotiHelper {
+        fun titleFor(actionKey: Int?): String = when (actionKey) {
+            ACTION_KEY_COPY     -> "Copying"
+            ACTION_KEY_MOVE     -> "Moving"
+            ACTION_KEY_UNZIP    -> "Unzipping"
+            ACTION_KEY_ZIP      -> "Zipping"
+            ACTION_KEY_DOWNLOAD -> "Downloading"
+            ACTION_KEY_UPLOAD   -> "Uploading"
+            else                -> "Processing"
+        }
+
+        fun buildClickIntent(actionKey: Int): PendingIntent? {
+            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(EXTRA_ACTION_KEY, actionKey)
+            } ?: return null
+            return PendingIntent.getActivity(
+                context, actionKey, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        fun show(title: String, message: String, progress: Int, actionKey: Int, notifId: Int) {
+            val builder = NotificationCompat.Builder(context, channelId)
+                .setSmallIcon(icon)
+                .setContentTitle(title)
+                .setOngoing(progress < 100)
+                .setContentText(message)
+                .setProgress(100, progress, false)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setContentIntent(buildClickIntent(actionKey))
+            with(NotificationManagerCompat.from(context)) {
+                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+                notify(notifId, builder.build())
+            }
+        }
     }
 
-    private fun showProgressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int) {
-        val builder = NotificationCompat.Builder(context, channelId)
+    fun buildForegroundNotification(channelId: String, title: String, body: String): android.app.Notification =
+        NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
             .setContentTitle(title)
-            .setOngoing(progress < 100)
-            .setContentText(message)
-            .setProgress(100, progress, false)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(buildClickIntent(actionKey))
-        with(NotificationManagerCompat.from(context)) {
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-                return
-            }
-            notify(notifId, builder.build())
-        }
-    }
-
-    private fun buildClickIntent(actionKey: Int): PendingIntent? {
-        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            flags = android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_ACTION_KEY, actionKey)
-        } ?: return null
-        return PendingIntent.getActivity(
-            context, actionKey, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-    }
+            .setContentText(body)
+            .setOngoing(true)
+            .build()
 
     override fun completedNotification(title: String, message: String, actionKey: Int?, notifId: Int) {
         val builder = NotificationCompat.Builder(context, channelId)

@@ -42,6 +42,7 @@ class FileListViewModel @Inject constructor(
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val exitHandler: AppExitHandler,
     private val messages: CompletionMessageProvider,
+    private val sorter: FileListSorter,
 ) : ViewModel() {
 
     /**
@@ -111,7 +112,7 @@ class FileListViewModel @Inject constructor(
     fun onProgressDialogShown() = progressUseCase.onProgressDialogShown()
 
     /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
-    val sortModeCallbackList = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
+    val sortModeCallbackList = sorter.getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
 
     /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. */
     fun newFolder(name: String) {

@@ -8,6 +8,8 @@ import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.repository.FtpRepository
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.variables.FileListSorter
+import com.todokanai.composepracticenew.variables.FileListSorterImpl
 import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
@@ -25,6 +27,7 @@ import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
+import dagger.Binds
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,78 +38,84 @@ import javax.inject.Singleton
 /** Provides domain-layer UseCase instances as singletons. */
 @Module
 @InstallIn(SingletonComponent::class)
-object UseCaseModule {
+abstract class UseCaseModule {
 
-    @Provides @Singleton
-    fun provideOpenFileUseCase(nav: FileNavigatorRepository) =
-        OpenFileUseCase(nav) { _ -> } // stub — not yet implemented
+    @Binds
+    abstract fun bindFileListSorter(impl: FileListSorterImpl): FileListSorter
 
-    @Provides @Singleton
-    fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
-        GetStorageListUseCase(storageRepo)
+    companion object {
 
-    @Provides @Singleton
-    fun provideFileNavigatorUseCase(nav: FileNavigatorRepository) =
-        FileNavigatorUseCase(nav)
+        @Provides @Singleton
+        fun provideOpenFileUseCase(nav: FileNavigatorRepository) =
+            OpenFileUseCase(nav) { _ -> } // stub — not yet implemented
 
-    @Provides @Singleton @RemoteNavigator
-    fun provideRemoteFileNavigatorUseCase(@RemoteNavigator nav: FileNavigatorRepository) =
-        FileNavigatorUseCase(nav)
+        @Provides @Singleton
+        fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
+            GetStorageListUseCase(storageRepo)
 
-    @Provides @Singleton
-    fun provideRemoteStorageUseCase(repo: LocalDataRepository) =
-        RemoteStorageUseCase(repo)
+        @Provides @Singleton
+        fun provideFileNavigatorUseCase(nav: FileNavigatorRepository) =
+            FileNavigatorUseCase(nav)
 
-    @Provides @Singleton
-    fun provideStorageVolumeUseCase(repo: StorageVolumeRepository) =
-        StorageVolumeUseCase(repo)
+        @Provides @Singleton @RemoteNavigator
+        fun provideRemoteFileNavigatorUseCase(@RemoteNavigator nav: FileNavigatorRepository) =
+            FileNavigatorUseCase(nav)
 
-    @Provides @Singleton
-    fun provideSortModeUseCase(repo: LocalDataRepository) =
-        SortModeUseCase(repo)
+        @Provides @Singleton
+        fun provideRemoteStorageUseCase(repo: LocalDataRepository) =
+            RemoteStorageUseCase(repo)
 
-    @Provides @Singleton
-    fun provideProgressUseCase(repo: ProgressRepository) =
-        ProgressUseCase(repo)
+        @Provides @Singleton
+        fun provideStorageVolumeUseCase(repo: StorageVolumeRepository) =
+            StorageVolumeUseCase(repo)
 
-    @Provides @Singleton
-    fun provideFtpUseCase(repo: FtpRepository) =
-        FtpUseCase(repo)
+        @Provides @Singleton
+        fun provideSortModeUseCase(repo: LocalDataRepository) =
+            SortModeUseCase(repo)
 
-    @Provides @Singleton
-    fun provideRemoteConnectionUseCase(nav: RemoteFileNavigatorRepository) =
-        RemoteConnectionUseCase(nav)
+        @Provides @Singleton
+        fun provideProgressUseCase(repo: ProgressRepository) =
+            ProgressUseCase(repo)
 
-    @Provides @Singleton
-    fun provideFtpConnectionResilienceUseCase(
-        ftpRepo: FtpRepository,
-        localDataRepo: LocalDataRepository,
-        remoteConnectionUseCase: RemoteConnectionUseCase
-    ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, remoteConnectionUseCase)
+        @Provides @Singleton
+        fun provideFtpUseCase(repo: FtpRepository) =
+            FtpUseCase(repo)
 
-    @Provides @Singleton
-    fun provideConflictCheckUseCase() = ConflictCheckUseCase()
+        @Provides @Singleton
+        fun provideRemoteConnectionUseCase(nav: RemoteFileNavigatorRepository) =
+            RemoteConnectionUseCase(nav)
 
-    @Provides @Singleton
-    fun provideAppExitHandler(ftpServiceController: FtpServiceController) =
-        AppExitHandler(ftpServiceController)
+        @Provides @Singleton
+        fun provideFtpConnectionResilienceUseCase(
+            ftpRepo: FtpRepository,
+            localDataRepo: LocalDataRepository,
+            remoteConnectionUseCase: RemoteConnectionUseCase
+        ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, remoteConnectionUseCase)
 
-    @Provides @Singleton
-    fun provideFileOperationOrchestrator(
-        notifier: FileOperationNotifier,
-        progressRepo: ProgressRepository,
-        @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressRepo, appScope)
+        @Provides @Singleton
+        fun provideConflictCheckUseCase() = ConflictCheckUseCase()
 
-    @Provides @Singleton
-    fun provideLocalFileOperationUseCase(
-        orchestrator: FileOperationOrchestrator,
-        fileActionRepo: FileActionRepository
-    ) = LocalFileOperationUseCase(orchestrator, fileActionRepo)
+        @Provides @Singleton
+        fun provideAppExitHandler(ftpServiceController: FtpServiceController) =
+            AppExitHandler(ftpServiceController)
 
-    @Provides @Singleton
-    fun provideRemoteFileOperationUseCase(
-        orchestrator: FileOperationOrchestrator,
-        ftpRepo: FtpRepository
-    ) = RemoteFileOperationUseCase(orchestrator, ftpRepo)
+        @Provides @Singleton
+        fun provideFileOperationOrchestrator(
+            notifier: FileOperationNotifier,
+            progressRepo: ProgressRepository,
+            @ApplicationScope appScope: CoroutineScope
+        ) = FileOperationOrchestrator(notifier, progressRepo, appScope)
+
+        @Provides @Singleton
+        fun provideLocalFileOperationUseCase(
+            orchestrator: FileOperationOrchestrator,
+            fileActionRepo: FileActionRepository
+        ) = LocalFileOperationUseCase(orchestrator, fileActionRepo)
+
+        @Provides @Singleton
+        fun provideRemoteFileOperationUseCase(
+            orchestrator: FileOperationOrchestrator,
+            ftpRepo: FtpRepository
+        ) = RemoteFileOperationUseCase(orchestrator, ftpRepo)
+    }
 }

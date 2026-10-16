@@ -13,16 +13,15 @@ class CompletedNotiSorter(private val myNoti: MyNotification) {
         message = sorter(actionKey)
     )
 
-    private fun sorter(actionKey: Int): String {
-        when (actionKey) {
-            OperationConstants.ACTION_KEY_DELETE -> return deleteComplete()
-            OperationConstants.ACTION_KEY_UNZIP -> return unzipComplete()
-            OperationConstants.ACTION_KEY_COPY -> return copyComplete()
-            OperationConstants.ACTION_KEY_MOVE -> return moveComplete()
-            OperationConstants.ACTION_KEY_ZIP -> return zipComplete()
-            else -> return "Invalid Action Key!!"
-        }
-    }
+    private val messagesByKey: Map<Int, () -> String> = mapOf(
+        OperationConstants.ACTION_KEY_DELETE to ::deleteComplete,
+        OperationConstants.ACTION_KEY_UNZIP  to ::unzipComplete,
+        OperationConstants.ACTION_KEY_COPY   to ::copyComplete,
+        OperationConstants.ACTION_KEY_MOVE   to ::moveComplete,
+        OperationConstants.ACTION_KEY_ZIP    to ::zipComplete
+    )
+
+    private fun sorter(actionKey: Int): String = messagesByKey[actionKey]?.invoke() ?: "Invalid Action Key!!"
 
     private fun deleteComplete() = "Deleted"
     private fun copyComplete() = "Copied"

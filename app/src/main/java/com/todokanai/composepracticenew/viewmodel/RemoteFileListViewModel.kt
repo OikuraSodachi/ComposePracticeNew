@@ -38,7 +38,8 @@ class RemoteFileListViewModel @Inject constructor(
     private val sortModeUseCase: SortModeUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val ftpConnectionResilienceUseCase: FtpConnectionResilienceUseCase,
-    private val messages: CompletionMessageProvider
+    private val messages: CompletionMessageProvider,
+    private val sorter: FileListSorter,
 ) : ViewModel() {
 
     private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -119,7 +120,7 @@ class RemoteFileListViewModel @Inject constructor(
         )
 
     /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
-    val sortModeCallbackList = FileListSorter().getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
+    val sortModeCallbackList = sorter.getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
 
     /** breadcrumb 항목 클릭 시 해당 경로로 이동한다. */
     fun navigateToDir(entry: DirectoryItem) {
