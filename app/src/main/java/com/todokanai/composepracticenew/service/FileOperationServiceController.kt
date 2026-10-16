@@ -16,7 +16,11 @@ class FileOperationServiceController @Inject constructor(
 ) {
     /** FileOperationForegroundService를 시작한다. 이미 실행 중이면 onStartCommand만 재호출된다. */
     fun start() {
-        context.startForegroundService(Intent(context, FileOperationForegroundService::class.java))
+        try {
+            context.startForegroundService(Intent(context, FileOperationForegroundService::class.java))
+        } catch (e: IllegalStateException) {
+            // Android 12+ 백그라운드 시작 제한 — 서비스 보호 없이 작업만 계속 진행
+        }
     }
 
     /** FileOperationForegroundService를 종료한다. */
