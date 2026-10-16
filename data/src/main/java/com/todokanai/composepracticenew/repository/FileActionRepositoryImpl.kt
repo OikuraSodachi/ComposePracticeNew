@@ -1,13 +1,22 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.model.ProgressState
+import android.content.Context
 import android.system.Os
-import com.github.junrar.Archive
+import com.todokanai.composepracticenew.model.ProgressState
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.sf.sevenzipjbinding.ExtractAskMode
+import net.sf.sevenzipjbinding.ExtractOperationResult
+import net.sf.sevenzipjbinding.IArchiveExtractCallback
+import net.sf.sevenzipjbinding.ISequentialOutStream
+import net.sf.sevenzipjbinding.PropID
+import net.sf.sevenzipjbinding.SevenZip
+import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.zip.ZipEntry
@@ -18,7 +27,15 @@ import javax.inject.Singleton
 
 /** Implements file mutations (zip, copy, rename, delete, move) directly via Java I/O. */
 @Singleton
-class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
+class FileActionRepositoryImpl @Inject constructor(
+    @ApplicationContext private val context: Context
+) : FileActionRepository {
+
+    init {
+        if (!SevenZip.isInitializedSuccessfully()) {
+            SevenZip.initSevenZipFromPlatformJAR(context.cacheDir)
+        }
+    }
 
     override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         val roots = targetFiles.map(::File)
@@ -199,10 +216,14 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         var totalFileCount = 0
         zipFiles.forEach { path ->
             if (path.endsWith(".rar", ignoreCase = true)) {
-                Archive(File(path)).use { archive ->
-                    val headers = archive.fileHeaders.filter { !it.isDirectory }
-                    byteSizes += headers.sumOf { it.fullUnpackSize }
-                    totalFileCount += headers.size
+                RandomAccessFile(path, "r").use { raf ->
+                    SevenZip.openInArchive(null, RandomAccessFileInStream(raf)).use { archive ->
+                        for (i in 0 until archive.numberOfItems) {
+                            if (archive.getProperty(i, PropID.IS_FOLDER) as? Boolean == true) continue
+                            byteSizes += (archive.getProperty(i, PropID.SIZE) as? Long) ?: 0L
+                            totalFileCount++
+                        }
+                    }
                 }
             } else {
                 ZipFile(path).use { zf ->
@@ -225,22 +246,52 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             val root = if (unzipHere) File(destPath)
                        else File(destPath, File(zipFilePath).nameWithoutExtension).also { it.mkdirs() }
             if (zipFilePath.endsWith(".rar", ignoreCase = true)) {
-                Archive(File(zipFilePath)).use { archive ->
-                    archive.fileHeaders.forEach { header ->
-                        if (header.isDirectory) return@forEach
-                        val target = root.resolve(header.fileName.replace('\\', '/'))
-                        if (!isUnderRoot(target, root)) { skippedEntries++; return@forEach }
-                        target.parentFile?.mkdirs()
-                        fileIndex++
-                        archive.getInputStream(header).use { input ->
-                            target.outputStream().use { output ->
-                                val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
-                                    onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = header.fileName, currentFileBytes = header.fullUnpackSize))
-                                }
-                                writtenBytes = wb
-                                prevProgress = pp
+                RandomAccessFile(zipFilePath, "r").use { raf ->
+                    SevenZip.openInArchive(null, RandomAccessFileInStream(raf)).use { archive ->
+                        archive.extract(null, false, object : IArchiveExtractCallback {
+                            private var currentOutputStream: OutputStream? = null
+                            private var currentNormalizedName = ""
+                            private var currentItemSize = 0L
+                            private var skipCurrent = false
+
+                            override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? {
+                                skipCurrent = false
+                                if (extractAskMode != ExtractAskMode.EXTRACT) return null
+                                if (archive.getProperty(index, PropID.IS_FOLDER) as? Boolean == true) return null
+                                val rawName = archive.getProperty(index, PropID.PATH) as? String ?: return null
+                                currentNormalizedName = rawName.replace('\\', '/')
+                                currentItemSize = (archive.getProperty(index, PropID.SIZE) as? Long) ?: 0L
+                                val target = root.resolve(currentNormalizedName)
+                                if (!isUnderRoot(target, root)) { skipCurrent = true; skippedEntries++; return null }
+                                target.parentFile?.mkdirs()
+                                fileIndex++
+                                return try {
+                                    val out = target.outputStream()
+                                    currentOutputStream = out
+                                    ISequentialOutStream { data ->
+                                        out.write(data)
+                                        writtenBytes += data.size
+                                        val progress = (writtenBytes * 100 / totalBytes).toInt().coerceIn(0, 100)
+                                        if (progress != prevProgress) {
+                                            prevProgress = progress
+                                            onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = writtenBytes, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = currentNormalizedName, currentFileBytes = currentItemSize))
+                                        }
+                                        data.size
+                                    }
+                                } catch (e: Exception) { skipCurrent = true; skippedEntries++; null }
                             }
-                        }
+
+                            override fun prepareOperation(extractAskMode: ExtractAskMode) {}
+
+                            override fun setOperationResult(extractOperationResult: ExtractOperationResult) {
+                                currentOutputStream?.close()
+                                currentOutputStream = null
+                                if (!skipCurrent && extractOperationResult != ExtractOperationResult.OK) skippedEntries++
+                            }
+
+                            override fun setTotal(total: Long) {}
+                            override fun setCompleted(complete: Long) {}
+                        })
                     }
                 }
             } else {
