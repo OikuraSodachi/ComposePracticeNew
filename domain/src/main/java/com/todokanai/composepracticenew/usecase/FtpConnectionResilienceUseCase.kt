@@ -33,7 +33,7 @@ class FtpConnectionResilienceUseCase(
     suspend fun reconnectLast(): RemoteStorageItem? {
         val id = localDataRepo.lastRemoteId() ?: return null
         val item = localDataRepo.getRemoteById(id) ?: return null
-        val connected = fileNavigatorRepo.connectRemote(item.address, item.port, item.userId, item.password, item.encoding)
+        val connected = fileNavigatorRepo.connectRemote(item)
         if (connected) fileNavigatorRepo.setRemotePath(item.address)
         return if (connected) item else null
     }

@@ -57,8 +57,8 @@ class FileExplorerRepositoryImpl(
         if (localFiles.canRead(path)) navigateTo(path)
     }
 
-    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String, encoding: String): Boolean =
-        ftpFileSystem.connect(address, port, userId, password, encoding)
+    override suspend fun connectRemote(item: com.todokanai.composepracticenew.model.RemoteStorageItem): Boolean =
+        ftpFileSystem.connect(item.address, item.port, item.userId, item.password, item.encoding)
 
     override suspend fun setRemotePath(address: String) {
         navigateTo("ftp://${address.removePrefix("ftp://")}")
