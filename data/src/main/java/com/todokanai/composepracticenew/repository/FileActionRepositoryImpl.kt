@@ -1,12 +1,20 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.model.ProgressState
 import android.system.Os
+import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import net.sf.sevenzipjbinding.ExtractAskMode
+import net.sf.sevenzipjbinding.ExtractOperationResult
+import net.sf.sevenzipjbinding.IArchiveExtractCallback
+import net.sf.sevenzipjbinding.ISequentialOutStream
+import net.sf.sevenzipjbinding.PropID
+import net.sf.sevenzipjbinding.SevenZip
+import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.zip.ZipEntry
@@ -72,8 +80,6 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
-        // TODO: onProgress(0)이 checkDiskSpace 앞에 있어 디스크 부족 실패 시 progress bar가 순간 노출됨 — zipAction처럼 checkDiskSpace 이후로 이동 필요
-        onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         var totalBytesAcc = 0L
         val allFiles = roots.flatMap { root ->
@@ -84,6 +90,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         val totalBytes = totalBytesAcc.coerceAtLeast(1)
         checkDiskSpace(totalBytes, File(targetPath))
             ?.let { throw Exception(it) }
+        onProgress(ProgressState(progress = 0))
         val totalFileCount = allFiles.size
         var writtenBytes = 0L
         var prevProgress = -1
@@ -137,8 +144,6 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
-        // TODO: onProgress(0)이 checkDiskSpace 앞에 있어 디스크 부족 실패 시 progress bar가 순간 노출됨 — zipAction처럼 checkDiskSpace 이후로 이동 필요
-        onProgress(ProgressState(progress = 0))
         val roots = targetFiles.map(::File)
         val destDir = File(targetPath)
 
@@ -158,6 +163,7 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
             if (destDir.freeSpace == 0L) throw Exception("디스크 공간 부족: 여유 공간 없음")
             checkDiskSpace(crossBytes, destDir)?.let { throw Exception(it) }
         }
+        onProgress(ProgressState(progress = 0))
 
         var writtenBytes = 0L
         var prevProgress = -1
@@ -196,21 +202,30 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
     }
 
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
-        // TODO: onProgress(0)이 checkDiskSpace 앞에 있어 디스크 부족 실패 시 progress bar가 순간 노출됨 — zipAction처럼 checkDiskSpace 이후로 이동 필요
-        onProgress(ProgressState(progress = 0))
-
-        // 전체 zip 파일의 압축 해제 용량 합산
         val byteSizes = mutableListOf<Long>()
         var totalFileCount = 0
         zipFiles.forEach { path ->
-            ZipFile(path).use { zf ->
-                val entries = zf.entries().toList()
-                byteSizes += entries.sumOf { it.size }
-                totalFileCount += entries.count { !it.isDirectory }
+            if (path.endsWith(".rar", ignoreCase = true)) {
+                RandomAccessFile(path, "r").use { raf ->
+                    SevenZip.openInArchive(null, RandomAccessFileInStream(raf)).use { archive ->
+                        for (i in 0 until archive.numberOfItems) {
+                            if (archive.getProperty(i, PropID.IS_FOLDER) as? Boolean == true) continue
+                            byteSizes += (archive.getProperty(i, PropID.SIZE) as? Long) ?: 0L
+                            totalFileCount++
+                        }
+                    }
+                }
+            } else {
+                ZipFile(path).use { zf ->
+                    val entries = zf.entries().toList()
+                    byteSizes += entries.sumOf { it.size }
+                    totalFileCount += entries.count { !it.isDirectory }
+                }
             }
         }
         val totalBytes = sumBytesOrOne(byteSizes)
         checkDiskSpace(totalBytes, File(destPath))?.let { throw Exception(it) }
+        onProgress(ProgressState(progress = 0))
 
         var writtenBytes = 0L
         var prevProgress = -1
@@ -218,25 +233,76 @@ class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
         var skippedEntries = 0
 
         zipFiles.forEach { zipFilePath ->
-            ZipFile(zipFilePath).use { zf ->
-                val entries = zf.entries().toList()
-                val root = if (unzipHere) File(destPath)
-                           else File(destPath, File(zipFilePath).nameWithoutExtension).also { it.mkdirs() }
-                entries.forEach { entry ->
-                    val target = root.resolve(entry.name)
-                    if (!isUnderRoot(target, root)) { skippedEntries++; return@forEach }
-                    if (entry.isDirectory) {
-                        target.mkdirs()
-                    } else {
-                        target.parentFile?.mkdirs()
-                        fileIndex++
-                        zf.getInputStream(entry).use { input ->
-                            target.outputStream().use { output ->
-                                val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
-                                    onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = entry.name, currentFileBytes = entry.size))
+            val root = if (unzipHere) File(destPath)
+                       else File(destPath, File(zipFilePath).nameWithoutExtension).also { it.mkdirs() }
+            if (zipFilePath.endsWith(".rar", ignoreCase = true)) {
+                RandomAccessFile(zipFilePath, "r").use { raf ->
+                    SevenZip.openInArchive(null, RandomAccessFileInStream(raf)).use { archive ->
+                        archive.extract(null, false, object : IArchiveExtractCallback {
+                            private var currentOutputStream: OutputStream? = null
+                            private var currentNormalizedName = ""
+                            private var currentItemSize = 0L
+                            private var skipCurrent = false
+
+                            override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? {
+                                skipCurrent = false
+                                if (extractAskMode != ExtractAskMode.EXTRACT) return null
+                                if (archive.getProperty(index, PropID.IS_FOLDER) as? Boolean == true) return null
+                                val rawName = archive.getProperty(index, PropID.PATH) as? String ?: return null
+                                currentNormalizedName = rawName.replace('\\', '/')
+                                currentItemSize = (archive.getProperty(index, PropID.SIZE) as? Long) ?: 0L
+                                val target = root.resolve(currentNormalizedName)
+                                if (!isUnderRoot(target, root)) { skipCurrent = true; skippedEntries++; return null }
+                                target.parentFile?.mkdirs()
+                                fileIndex++
+                                return try {
+                                    val out = target.outputStream()
+                                    currentOutputStream = out
+                                    ISequentialOutStream { data ->
+                                        out.write(data)
+                                        writtenBytes += data.size
+                                        val progress = (writtenBytes * 100 / totalBytes).toInt().coerceIn(0, 100)
+                                        if (progress != prevProgress) {
+                                            prevProgress = progress
+                                            onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = writtenBytes, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = currentNormalizedName, currentFileBytes = currentItemSize))
+                                        }
+                                        data.size
+                                    }
+                                } catch (e: Exception) { skipCurrent = true; skippedEntries++; null }
+                            }
+
+                            override fun prepareOperation(extractAskMode: ExtractAskMode) {}
+
+                            override fun setOperationResult(extractOperationResult: ExtractOperationResult) {
+                                currentOutputStream?.close()
+                                currentOutputStream = null
+                                if (!skipCurrent && extractOperationResult != ExtractOperationResult.OK) skippedEntries++
+                            }
+
+                            override fun setTotal(total: Long) {}
+                            override fun setCompleted(complete: Long) {}
+                        })
+                    }
+                }
+            } else {
+                ZipFile(zipFilePath).use { zf ->
+                    val entries = zf.entries().toList()
+                    entries.forEach { entry ->
+                        val target = root.resolve(entry.name)
+                        if (!isUnderRoot(target, root)) { skippedEntries++; return@forEach }
+                        if (entry.isDirectory) {
+                            target.mkdirs()
+                        } else {
+                            target.parentFile?.mkdirs()
+                            fileIndex++
+                            zf.getInputStream(entry).use { input ->
+                                target.outputStream().use { output ->
+                                    val (wb, pp) = pumpBytes(input, output, totalBytes, writtenBytes, prevProgress) { written, progress ->
+                                        onProgress(ProgressState(progress = progress, totalBytes = totalBytes, writtenBytes = written, listSize = totalFileCount, currentIndex = fileIndex, currentFileName = entry.name, currentFileBytes = entry.size))
+                                    }
+                                    writtenBytes = wb
+                                    prevProgress = pp
                                 }
-                                writtenBytes = wb
-                                prevProgress = pp
                             }
                         }
                     }

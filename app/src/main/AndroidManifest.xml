@@ -51,6 +51,12 @@
             android:foregroundServiceType="dataSync"
             android:stopWithTask="true"
             android:exported="false" />
+
+        <service
+            android:name=".service.FileOperationForegroundService"
+            android:foregroundServiceType="dataSync"
+            android:stopWithTask="true"
+            android:exported="false" />
     </application>
 
 </manifest>

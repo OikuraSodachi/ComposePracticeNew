@@ -20,13 +20,10 @@ import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -75,10 +72,6 @@ class FileListViewModel @Inject constructor(
 
     /** FTP 서비스를 중단하고 앱을 종료하라는 이벤트. NavController에서 수집해 exit_td를 호출한다. */
     val exitEvent: Flow<Unit> = exitHandler.exitEvent
-
-    private val _downloadError = MutableSharedFlow<String>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-    /** 다운로드 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
-    val downloadError: SharedFlow<String> = _downloadError.asSharedFlow()
 
     /** 로컬 파일 작업(복사·이동·압축 등) 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
     val operationError: SharedFlow<String> = progressUseCase.operationErrors
@@ -154,9 +147,6 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    // TODO: onError = { msg -> _downloadError.tryEmit(msg) } 람다가 ViewModel 소유 SharedFlow를 캡처해
-    //  Singleton OperationCallback이 ViewModel 수명을 초과해 _downloadError를 참조한다.
-    //  download 오류를 progressRepo.emitError() 경로로 통일하면 ViewModel-scoped 객체 캡처를 제거할 수 있다.
     /** items를 현재 로컬 경로에 다운로드한다. */
     fun onDownload(items: List<FileHolderItem>) {
         val localPath = fileNavigatorUseCase.currentPath.value ?: return
@@ -166,8 +156,7 @@ class FileListViewModel @Inject constructor(
                 localDestPath = localPath,
                 isDirectory = item.isDirectory,
                 completionMessage = messages.notiDownloadComplete,
-                onRefresh = { fileNavigatorUseCase.refresh() },
-                onError = { msg -> _downloadError.tryEmit(msg) }
+                onRefresh = { fileNavigatorUseCase.refresh() }
             )
         }
     }

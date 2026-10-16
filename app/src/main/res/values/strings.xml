@@ -77,6 +77,13 @@
     <!-- FTP Foreground Service -->
     <string name="ftp_notification_channel_name">FTP 연결</string>
 
+    <!-- File Operation Foreground Service -->
+    <string name="file_operation_notification_channel_name">파일 작업</string>
+    <string name="file_operation_notification_text">파일 작업 진행 중</string>
+
+    <!-- File Manager Notification Channel -->
+    <string name="file_manager_notification_channel_name">파일 작업 알림</string>
+
     <!-- Notifications -->
     <string name="noti_move_complete">이동 완료</string>
     <string name="noti_delete_complete">삭제 완료</string>

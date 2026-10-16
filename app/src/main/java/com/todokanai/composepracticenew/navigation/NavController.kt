@@ -99,7 +99,7 @@ private fun FileListDestination(
     val localSelectedPaths by coordinator.localSelectedPaths.collectAsStateWithLifecycle()
     val downloadPendingList by coordinator.downloadPendingList.collectAsStateWithLifecycle()
 
-    ToastEffect(viewModel.downloadError, viewModel.operationError, viewModel.operationCompletion)
+    ToastEffect(viewModel.operationError, viewModel.operationCompletion)
 
     BackHandler {
         viewModel.onBackPressed { navController.popBackStack() }
