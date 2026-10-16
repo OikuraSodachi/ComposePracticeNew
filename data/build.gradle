@@ -36,5 +36,4 @@ dependencies {
     implementation 'commons-net:commons-net:3.10.0'
     implementation libs.zip4j
     implementation libs.sevenzipjbinding
-    implementation libs.sevenzipjbinding.platforms
 }

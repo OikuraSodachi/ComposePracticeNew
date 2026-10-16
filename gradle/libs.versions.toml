@@ -27,7 +27,7 @@ room = "2.6.1"
 datastore = "1.1.1"
 coroutines = "1.6.4"
 zip4j = "2.7.0"
-sevenzipjbinding = "16.02-2.01"
+sevenzipjbinding = "Release-16.02-2.03"
 
 junit = "4.13.2"
 junitExt = "1.1.5"
@@ -73,8 +73,7 @@ kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-cor
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 
 zip4j = { group = "net.lingala.zip4j", name = "zip4j", version.ref = "zip4j" }
-sevenzipjbinding = { group = "net.sf.sevenzipjbinding", name = "sevenzipjbinding", version.ref = "sevenzipjbinding" }
-sevenzipjbinding-platforms = { group = "net.sf.sevenzipjbinding", name = "sevenzipjbinding-all-platforms", version.ref = "sevenzipjbinding" }
+sevenzipjbinding = { group = "com.github.omicronapps", name = "7-Zip-JBinding-4Android", version.ref = "sevenzipjbinding" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitExt" }

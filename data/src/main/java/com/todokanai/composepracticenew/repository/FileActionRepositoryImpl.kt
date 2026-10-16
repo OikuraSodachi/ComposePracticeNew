@@ -1,9 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
-import android.content.Context
 import android.system.Os
 import com.todokanai.composepracticenew.model.ProgressState
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.sf.sevenzipjbinding.ExtractAskMode
@@ -27,15 +25,7 @@ import javax.inject.Singleton
 
 /** Implements file mutations (zip, copy, rename, delete, move) directly via Java I/O. */
 @Singleton
-class FileActionRepositoryImpl @Inject constructor(
-    @ApplicationContext private val context: Context
-) : FileActionRepository {
-
-    init {
-        if (!SevenZip.isInitializedSuccessfully()) {
-            SevenZip.initSevenZipFromPlatformJAR(context.cacheDir)
-        }
-    }
+class FileActionRepositoryImpl @Inject constructor() : FileActionRepository {
 
     override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         val roots = targetFiles.map(::File)
