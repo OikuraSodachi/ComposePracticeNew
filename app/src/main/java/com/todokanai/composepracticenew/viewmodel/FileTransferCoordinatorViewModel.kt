@@ -118,7 +118,8 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /**
      * 다운로드 대기 목록을 현재 로컬 경로로 다운로드한다. 이름 충돌이 있으면 [downloadConflict]로 확인을 요청한다.
-     * 실행 시 대기 목록을 비우고, 확인 취소 시에는 대기 목록을 유지한다.
+     * 실제로 실행됐을 때만 대기 목록을 비우고 로컬 선택 모드·선택 목록을 초기화한다.
+     * 확인을 취소하면 대기 목록과 다운로드 확인 모드가 유지되어 다시 확인할 수 있다.
      */
     fun confirmDownload() {
         val pending = _downloadPendingList.value
@@ -126,12 +127,14 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         downloadGate.request(pending, conflictsIn(pending, localNames)) { skip ->
             download(pending.excluding(skip))
             _downloadPendingList.value = emptyList()
+            resetLocalSelection()
         }
     }
 
     /**
      * 업로드 대기 목록을 현재 원격 경로로 업로드한다. 이름 충돌이 있으면 [uploadConflict]로 확인을 요청한다.
-     * 실행 시 대기 목록을 비우고, 확인 취소 시에는 대기 목록을 유지한다.
+     * 실제로 실행됐을 때만 대기 목록을 비우고 원격 선택 모드·선택 목록을 초기화한다.
+     * 확인을 취소하면 대기 목록과 업로드 확인 모드가 유지되어 다시 확인할 수 있다.
      */
     fun confirmUpload() {
         val pending = _uploadPendingList.value
@@ -139,7 +142,20 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         uploadGate.request(pending, conflictsIn(pending, remoteNames)) { skip ->
             upload(pending.excluding(skip))
             _uploadPendingList.value = emptyList()
+            resetRemoteSelection()
         }
+    }
+
+    /** 로컬 화면을 기본 모드로 되돌리고 선택 목록을 비운다. */
+    private fun resetLocalSelection() {
+        _localSelectMode.value = SelectMode.Default
+        _localSelectedList.value = emptyList()
+    }
+
+    /** 원격 화면을 기본 모드로 되돌리고 선택 목록을 비운다. */
+    private fun resetRemoteSelection() {
+        _remoteSelectMode.value = SelectMode.Default
+        _remoteSelectedList.value = emptyList()
     }
 
     /** 대기 중인 다운로드 충돌을 사용자 선택대로 처리한다. */

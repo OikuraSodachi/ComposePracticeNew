@@ -57,7 +57,6 @@ fun ModeAwareButtons(
             mode = selectMode,
             onConfirmWithConflictCheck = onConfirmWithConflictCheck,
             onCancel = { onSelectModeChange(SelectMode.Default) },
-            onResetSelection = onResetSelection,
             onConfirmDownload = onConfirmDownload
         )
     }
@@ -70,7 +69,6 @@ private fun LocalConfirmButtons(
     mode: SelectMode.Confirm,
     onConfirmWithConflictCheck: (SelectMode.Confirm) -> Unit,
     onCancel: () -> Unit,
-    onResetSelection: () -> Unit,
     onConfirmDownload: () -> Unit,
 ) {
     when (mode) {
@@ -83,12 +81,10 @@ private fun LocalConfirmButtons(
             cancel = onCancel,
             mode = mode
         )
+        // 선택 초기화는 실제 실행 시점에 coordinator가 담당 — 충돌 확인을 취소하면 다운로드 확인 모드가 유지된다
         SelectMode.Confirm.Download -> ConfirmButtons(
             modifier = modifier,
-            confirm = {
-                onConfirmDownload()
-                onResetSelection()
-            },
+            confirm = onConfirmDownload,
             cancel = onCancel,
             mode = mode
         )
