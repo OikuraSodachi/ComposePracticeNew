@@ -11,22 +11,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.hilt.navigation.compose.hiltViewModel
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.LocalSelectMode
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
+/** 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다. */
 @Composable
 fun FileListFrag(
     modifier: Modifier,
-    selectMode: Int,
+    selectMode: LocalSelectMode,
     selectedList: List<FileHolderItem>,
     selectedPaths: Set<String>,
-    onSelectModeChange: (Int) -> Unit,
+    onSelectModeChange: (LocalSelectMode) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit,
@@ -36,17 +37,17 @@ fun FileListFrag(
     onEnterUploadMode: () -> Unit = {},
     navigateToStorage: () -> Unit,
     onExit: () -> Unit,
-    // TODO: NavController의 activity-scoped FileListViewModel과 별개 인스턴스 — 동일 singleton Flow를 구독하므로 데이터는 일치하나, 인스턴스 통합 검토 필요
-    viewModel: FileListViewModel = hiltViewModel()
+    viewModel: FileListViewModel
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
+    val pendingConflict by viewModel.pendingConflict.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
     val sortModeCallbackList = viewModel.sortModeCallbackList
 
-    BackHandler(enabled = selectMode == AppConstants.MULTI_SELECT_MODE) {
-        onSelectModeChange(AppConstants.DEFAULT_MODE)
+    BackHandler(enabled = selectMode == SelectMode.MultiSelect) {
+        onSelectModeChange(SelectMode.Default)
         clearList()
     }
 
@@ -80,7 +81,7 @@ fun FileListFrag(
                 selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
-                onSelectModeChange = onSelectModeChange,
+                onStartMultiSelect = { onSelectModeChange(SelectMode.MultiSelect) },
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,
                 removeFromList = removeFromList,
@@ -96,8 +97,9 @@ fun FileListFrag(
             selectedList = selectedList,
             onConfirmDownload = onConfirmDownload,
             onEnterUploadMode = onEnterUploadMode,
-            onGetConflicts = viewModel::getConflicts,
-            onConfirm = { list, mode, skip -> viewModel.confirm(list, mode, skip) },
+            pendingConflict = pendingConflict,
+            onRequestConfirm = viewModel::requestConfirm,
+            onResolveConflict = viewModel::resolveConflict,
             onZip = viewModel::zip,
             onRename = viewModel::rename,
             onDelete = viewModel::delete

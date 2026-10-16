@@ -5,44 +5,48 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalSelectMode
+import com.todokanai.composepracticenew.ui.model.PendingConflict
+import com.todokanai.composepracticenew.ui.model.SelectMode
 
-/** 하단 파일 작업 버튼(ModeAwareButtons)과 관련 다이얼로그(BottomButtonDialogHost)를 조합한다. */
+/**
+ * 로컬 화면의 하단 파일 작업 버튼(ModeAwareButtons)과 관련 다이얼로그(BottomButtonDialogHost)를 조합한다.
+ * 충돌 검사와 실행 여부 판단은 ViewModel이 수행하며, 이 컴포저블은 결과에 따라 선택 상태만 초기화한다.
+ */
 @Composable
 fun BottomButtonListView(
     modifier: Modifier,
-    selectMode: Int,
-    onSelectModeChange: (Int) -> Unit,
+    selectMode: LocalSelectMode,
+    onSelectModeChange: (LocalSelectMode) -> Unit,
     onClearSelection: () -> Unit,
     selectedList: List<FileHolderItem>,
+    pendingConflict: PendingConflict?,
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
-    onGetConflicts: (List<FileHolderItem>, Int) -> List<FileHolderItem>,
-    onConfirm: (List<FileHolderItem>, Int, List<FileHolderItem>) -> Unit,
+    onRequestConfirm: (List<FileHolderItem>, SelectMode.LocalOperation) -> Boolean,
+    onResolveConflict: (ConflictResolution) -> Boolean,
     onZip: (List<FileHolderItem>, String) -> Unit,
     onRename: (FileHolderItem, String) -> Unit,
     onDelete: (List<FileHolderItem>) -> Unit,
 ) {
     val dialogState = rememberBottomButtonDialogState()
 
-    // rememberUpdatedState — 람다를 재생성하지 않고 실행 시점에 최신 값을 읽도록 보장
+    // rememberUpdatedState — 람다를 재생성하지 않고 실행 시점에 최신 선택 목록을 읽도록 보장
     val latestSelectedList by rememberUpdatedState(selectedList)
-    val latestSelectMode   by rememberUpdatedState(selectMode)
 
-    // selectedList·selectMode·dialogState를 연결하는 조율 람다 — ModeAwareButtons와 BottomButtonDialogHost 어느 쪽에도 귀속되지 않으므로 여기 유지
-    // 키 없음 — 캡처값은 rememberUpdatedState·안정 참조이므로 재생성 불필요
-    val onConfirmWithConflictCheck: () -> Unit = remember {
+    // 키 없음 — onSelectModeChange·onClearSelection은 ViewModel 메서드 참조라 안정적이므로 재생성 불필요
+    val onResetSelection: () -> Unit = remember {
         {
-            val conflicts = onGetConflicts(latestSelectedList, latestSelectMode)
-            if (conflicts.isEmpty()) {
-                onConfirm(latestSelectedList, latestSelectMode, emptyList())
-                onSelectModeChange(AppConstants.DEFAULT_MODE)
-                onClearSelection()
-            } else {
-                dialogState.openConflict(conflicts, latestSelectMode)
-            }
+            onSelectModeChange(SelectMode.Default)
+            onClearSelection()
         }
+    }
+
+    // 키 없음 — 선택 목록은 rememberUpdatedState로 실행 시점에 읽고, 나머지 캡처는 안정 참조
+    val onConfirmWithConflictCheck: (SelectMode.LocalOperation) -> Unit = remember {
+        { mode -> if (onRequestConfirm(latestSelectedList, mode)) onResetSelection() }
     }
 
     ModeAwareButtons(
@@ -52,18 +56,18 @@ fun BottomButtonListView(
         dialogState = dialogState,
         onConfirmWithConflictCheck = onConfirmWithConflictCheck,
         onSelectModeChange = onSelectModeChange,
-        onClearSelection = onClearSelection,
+        onResetSelection = onResetSelection,
         onConfirmDownload = onConfirmDownload,
         onEnterUploadMode = onEnterUploadMode,
     )
     BottomButtonDialogHost(
         dialogState = dialogState,
+        pendingConflict = pendingConflict,
         selectedList = selectedList,
-        onSelectModeChange = onSelectModeChange,
-        onClearSelection = onClearSelection,
+        onResetSelection = onResetSelection,
         onZip = onZip,
         onRename = onRename,
         onDelete = onDelete,
-        onConfirm = onConfirm,
+        onResolveConflict = onResolveConflict,
     )
 }

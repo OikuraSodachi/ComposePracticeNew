@@ -36,11 +36,11 @@ abstract class StorageRepository {
         return result
     }
 
-    /** Updates [currentPath] to [path]; pass null to return to the storage-root selection view. */
-    open fun navigateTo(path: String?) { _currentPath.value = path }
-
-    /** Navigates to the parent of [currentPath], or to null if already at a root. */
-    open fun toParent() { navigateTo(currentPath.value?.let { getParent(it) }) }
+    /**
+     * Updates [currentPath] to [path] without validation; pass null to return to the storage-root selection view.
+     * Protected so that external callers must go through a subclass's validated navigation entry point.
+     */
+    protected open fun navigateTo(path: String?) { _currentPath.value = path }
 
     /**
      * Returns files and subdirectories located at [path].

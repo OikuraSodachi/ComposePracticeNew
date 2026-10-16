@@ -36,13 +36,13 @@ fun AddRemoteStorageDialog(
     onCancel: () -> Unit,
     initialValue: RemoteStorageItem? = null
 ) {
-    val encodingOptions = Constants.FTP_ENCODING_OPTIONS
+    val encodingOptions = Constants.REMOTE_ENCODING_OPTIONS
     var name by remember { mutableStateOf(initialValue?.name ?: "") }
     var address by remember { mutableStateOf(initialValue?.address ?: "") }
     var port by remember { mutableStateOf(initialValue?.port?.toString() ?: "21") }
     var id by remember { mutableStateOf(initialValue?.userId ?: "") }
     var password by remember { mutableStateOf(initialValue?.password ?: "") }
-    var selectedEncoding by remember { mutableStateOf(initialValue?.encoding ?: Constants.FTP_ENCODING_DEFAULT) }
+    var selectedEncoding by remember { mutableStateOf(initialValue?.encoding ?: Constants.REMOTE_ENCODING_DEFAULT) }
     var encodingExpanded by remember { mutableStateOf(false) }
 
     AlertDialog(

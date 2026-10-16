@@ -10,21 +10,22 @@ import com.todokanai.composepracticenew.myobjects.Constants.BY_SIZE_ASCENDING
 import com.todokanai.composepracticenew.myobjects.Constants.BY_SIZE_DESCENDING
 import com.todokanai.composepracticenew.myobjects.Constants.BY_TYPE_ASCENDING
 import com.todokanai.composepracticenew.myobjects.Constants.BY_TYPE_DESCENDING
-import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import com.todokanai.fileexplorer.FileEntry
-import java.text.DateFormat
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Converts raw FileEntry lists into UI display models. */
+/** Sorts raw FileEntry lists and converts them into domain FileHolderItem models (raw values only, no display formatting). */
 @Singleton
 class DataConverter @Inject constructor() {
 
-    private fun FileEntry.toFileHolderItem(): FileHolderItem {
-        val lastModified = DateFormat.getDateTimeInstance().format(this.lastModified)
-        val size = if (this.isDirectory) "" else readableFileSize_td(this.size)
-        return FileHolderItem(this.path, this.isDirectory, this.name, size, lastModified, this.size)
-    }
+    private fun FileEntry.toFileHolderItem(): FileHolderItem =
+        FileHolderItem(
+            path = path,
+            isDirectory = isDirectory,
+            name = name,
+            sizeBytes = size,
+            lastModifiedMillis = lastModified
+        )
 
     fun fileHolderItemList(files: List<FileEntry>, sortBy: String): List<FileHolderItem> {
         return sortFiles(sortBy, files).map { it.toFileHolderItem() }

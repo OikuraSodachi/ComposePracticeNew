@@ -19,6 +19,7 @@ import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.compose.util.verticalScrollbar
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.data.R as DataR
 
 /** 스크롤바 터치 영역 너비 — Material 최소 터치 타겟(48dp), thumb 시각 너비(8dp)와 별개 */
@@ -45,9 +46,9 @@ fun FileListView(
     modifier: Modifier,
     fileHolderItemList: List<FileHolderItem>,
     selectedPaths: Set<String>,
-    selectMode: Int,
+    selectMode: SelectMode,
     onItemClick: (FileHolderItem) -> Unit,
-    onSelectModeChange: (Int) -> Unit,
+    onStartMultiSelect: () -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
@@ -71,7 +72,7 @@ fun FileListView(
                 listState = listState,
                 fileList = fileHolderItemList,
                 selectMode = selectMode,
-                onSelectModeChange = onSelectModeChange,
+                onStartMultiSelect = onStartMultiSelect,
                 onRangeSelect = onRangeSelect
             )
     ) {
@@ -90,7 +91,7 @@ fun FileListView(
 
                 val onClick = remember(fileHolderItem, selectMode, isSelected) {
                     {
-                        if (selectMode == AppConstants.MULTI_SELECT_MODE) {
+                        if (selectMode == SelectMode.MultiSelect) {
                             if (isSelected) removeFromList(fileHolderItem)
                             else addToList(fileHolderItem)
                         } else {

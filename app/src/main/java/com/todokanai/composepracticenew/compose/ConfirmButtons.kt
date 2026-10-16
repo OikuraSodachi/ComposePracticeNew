@@ -12,14 +12,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.ConfirmMode
+import com.todokanai.composepracticenew.ui.model.SelectMode
 
+/** 확인 모드에서 취소 버튼과, 모드가 보유한 라벨을 표시하는 확인 버튼을 제공한다. */
 @Composable
 fun ConfirmButtons(
     modifier: Modifier,
     confirm:()->Unit,
     cancel:()->Unit,
-    mode:Int
+    mode: ConfirmMode
 ) {
     Row(
         modifier = modifier
@@ -36,23 +38,7 @@ fun ConfirmButtons(
             onClick = confirm,
             Modifier.weight(1f)
         ) {
-            when(mode){
-                AppConstants.CONFIRM_MODE_MOVE ->{
-                    Text(stringResource(R.string.btn_move))
-                }
-                AppConstants.CONFIRM_MODE_COPY ->{
-                    Text(stringResource(R.string.btn_copy))
-                }
-                AppConstants.CONFIRM_MODE_UNZIP ->{
-                    Text(stringResource(R.string.btn_unzip))
-                }
-                AppConstants.CONFIRM_MODE_DOWNLOAD -> {
-                    Text(stringResource(R.string.btn_download))
-                }
-                AppConstants.CONFIRM_MODE_UPLOAD -> {
-                    Text(stringResource(R.string.btn_upload_confirm))
-                }
-            }
+            Text(stringResource(mode.labelRes))
         }
     }
 }
@@ -65,7 +51,7 @@ private fun ConfirmButtonsPreview(){
             modifier = Modifier,
             confirm = {},
             cancel = {},
-            mode = AppConstants.CONFIRM_MODE_UNZIP
+            mode = SelectMode.LocalOperation.Unzip
         )
     }
 }

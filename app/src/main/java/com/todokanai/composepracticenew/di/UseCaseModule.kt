@@ -1,32 +1,33 @@
 package com.todokanai.composepracticenew.di
 
-import com.todokanai.composepracticenew.repository.LocalDataRepository
+import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
+import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
+import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
+import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
+import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
+import com.todokanai.composepracticenew.repository.RemoteStorageRepository
+import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
-import com.todokanai.composepracticenew.repository.FtpRepository
+import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.composepracticenew.variables.FileListSorter
-import com.todokanai.composepracticenew.variables.FileListSorterImpl
-import com.todokanai.composepracticenew.usecase.FtpUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
+import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
-import com.todokanai.composepracticenew.di.RemoteNavigator
-import com.todokanai.composepracticenew.operation.FileOperationNotifier
-import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.service.FtpServiceController
-import com.todokanai.composepracticenew.tools.AppExitHandler
-import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
-import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
-import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
-import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
-import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
+import com.todokanai.composepracticenew.variables.FileListSorter
+import com.todokanai.composepracticenew.variables.FileListSorterImpl
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -62,15 +63,15 @@ abstract class UseCaseModule {
             FileNavigatorUseCase(nav)
 
         @Provides @Singleton
-        fun provideRemoteStorageUseCase(repo: LocalDataRepository) =
-            RemoteStorageUseCase(repo)
+        fun provideRemoteStorageUseCase(repo: RemoteStorageRepository, lastConnectionRepo: LastConnectionRepository) =
+            RemoteStorageUseCase(repo, lastConnectionRepo)
 
         @Provides @Singleton
         fun provideStorageVolumeUseCase(repo: StorageVolumeRepository) =
             StorageVolumeUseCase(repo)
 
         @Provides @Singleton
-        fun provideSortModeUseCase(repo: LocalDataRepository) =
+        fun provideSortModeUseCase(repo: SortPreferenceRepository) =
             SortModeUseCase(repo)
 
         @Provides @Singleton
@@ -78,26 +79,23 @@ abstract class UseCaseModule {
             ProgressUseCase(repo)
 
         @Provides @Singleton
-        fun provideFtpUseCase(repo: FtpRepository) =
-            FtpUseCase(repo)
+        fun provideRemoteConnectionStateUseCase(repo: RemoteConnectionRepository) =
+            RemoteConnectionStateUseCase(repo)
 
         @Provides @Singleton
         fun provideRemoteConnectionUseCase(nav: RemoteFileNavigatorRepository) =
             RemoteConnectionUseCase(nav)
 
         @Provides @Singleton
-        fun provideFtpConnectionResilienceUseCase(
-            ftpRepo: FtpRepository,
-            localDataRepo: LocalDataRepository,
+        fun provideRemoteConnectionResilienceUseCase(
+            connectionRepo: RemoteConnectionRepository,
+            lastConnectionRepo: LastConnectionRepository,
+            remoteStorageRepo: RemoteStorageRepository,
             remoteConnectionUseCase: RemoteConnectionUseCase
-        ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, remoteConnectionUseCase)
+        ) = RemoteConnectionResilienceUseCase(connectionRepo, lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
 
         @Provides @Singleton
         fun provideConflictCheckUseCase() = ConflictCheckUseCase()
-
-        @Provides @Singleton
-        fun provideAppExitHandler(ftpServiceController: FtpServiceController) =
-            AppExitHandler(ftpServiceController)
 
         @Provides @Singleton
         fun provideFileOperationOrchestrator(
@@ -115,7 +113,8 @@ abstract class UseCaseModule {
         @Provides @Singleton
         fun provideRemoteFileOperationUseCase(
             orchestrator: FileOperationOrchestrator,
-            ftpRepo: FtpRepository
-        ) = RemoteFileOperationUseCase(orchestrator, ftpRepo)
+            transferRepo: RemoteFileTransferRepository,
+            mutationRepo: RemoteFileMutationRepository
+        ) = RemoteFileOperationUseCase(orchestrator, transferRepo, mutationRepo)
     }
 }

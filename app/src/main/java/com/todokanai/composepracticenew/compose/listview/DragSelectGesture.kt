@@ -13,7 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -23,16 +23,16 @@ import kotlinx.coroutines.isActive
  *
  * @param listState 대상 LazyColumn의 스크롤 상태
  * @param fileList 현재 표시 중인 파일 항목 목록
- * @param selectMode 현재 선택 모드 — DEFAULT_MODE일 때만 드래그 선택이 시작된다
- * @param onSelectModeChange 드래그 시작 시 MULTI_SELECT_MODE로 전환 요청
+ * @param selectMode 현재 선택 모드 — SelectMode.Default일 때만 드래그 선택이 시작된다
+ * @param onStartMultiSelect 드래그 시작 시 다중 선택 모드로 전환을 요청하는 콜백
  * @param onRangeSelect anchor~현재 인덱스 범위의 항목 목록을 전달
  */
 @Composable
 fun Modifier.dragSelectGesture(
     listState: LazyListState,
     fileList: List<FileHolderItem>,
-    selectMode: Int,
-    onSelectModeChange: (Int) -> Unit,
+    selectMode: SelectMode,
+    onStartMultiSelect: () -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit
 ): Modifier {
     var anchorIndex     by remember { mutableStateOf(0) }
@@ -72,7 +72,7 @@ fun Modifier.dragSelectGesture(
 
         detectDragGesturesAfterLongPress(
             onDragStart = { offset ->
-                if (latestSelectMode != AppConstants.DEFAULT_MODE) return@detectDragGesturesAfterLongPress
+                if (latestSelectMode != SelectMode.Default) return@detectDragGesturesAfterLongPress
                 val idx = listState.itemIndexAtOffset(offset.y)
                     ?.coerceIn(0, latestFileList.lastIndex)
                     ?: return@detectDragGesturesAfterLongPress
@@ -80,7 +80,7 @@ fun Modifier.dragSelectGesture(
                 currentFingerY  = offset.y
                 isDragSelecting = true
                 onRangeSelect(listOf(latestFileList[idx]))
-                onSelectModeChange(AppConstants.MULTI_SELECT_MODE)
+                onStartMultiSelect()
             },
             onDrag = { change, _ ->
                 if (isDragSelecting) {

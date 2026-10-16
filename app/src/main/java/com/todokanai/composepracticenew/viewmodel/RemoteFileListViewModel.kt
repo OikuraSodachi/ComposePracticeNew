@@ -7,15 +7,14 @@ import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.myobjects.Constants
-import com.todokanai.composepracticenew.myobjects.OperationConstants
-import com.todokanai.composepracticenew.service.FtpServiceController
-import com.todokanai.composepracticenew.tools.CompletionMessageProvider
+import com.todokanai.composepracticenew.service.ConnectionServiceController
+import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
-import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
+import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,17 +28,28 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** 원격 파일 목록 화면의 UI 상태, 네비게이션, 파일 조작(다운로드·업로드·이름변경·삭제·새폴더)을 관리하는 ViewModel. */
+/**
+ * 원격 파일 목록 화면의 UI 상태, 네비게이션, 연결 유지, 원격 파일 조작(이름변경·삭제·새폴더)을 관리하는 ViewModel.
+ * 다운로드·업로드 실행은 FileTransferCoordinatorViewModel이 담당한다.
+ * @param fileNavigatorUseCase 원격 디렉터리 탐색 상태를 제공하는 UseCase
+ * @param connectionServiceController 연결 유지 ForegroundService를 제어하는 컨트롤러
+ * @param progressUseCase 진행 중인 작업 상태를 제공하는 UseCase
+ * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
+ * @param remoteFileOperationUseCase 원격 파일 조작을 실행하는 UseCase
+ * @param connectionResilienceUseCase 연결 끊김 감지·자동 재연결 UseCase
+ * @param messages 작업 완료 메시지 제공자
+ * @param sorter 정렬 모드 선택 목록을 만드는 FileListSorter
+ */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
-    private val ftpServiceController: FtpServiceController,
-    private val progressUseCase: ProgressUseCase,
+    private val connectionServiceController: ConnectionServiceController,
+    progressUseCase: ProgressUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
-    private val ftpConnectionResilienceUseCase: FtpConnectionResilienceUseCase,
-    private val messages: CompletionMessageProvider,
-    private val sorter: FileListSorter,
+    private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
+    private val messages: OperationMessages,
+    sorter: FileListSorter,
 ) : ViewModel() {
 
     private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -47,13 +57,13 @@ class RemoteFileListViewModel @Inject constructor(
     val reconnectFailed: SharedFlow<Unit> = _reconnectFailed.asSharedFlow()
 
     private val _connectionLost = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** 서버 측 연결 종료(idle timeout 등)로 FTP 연결이 끊겼을 때 발행된다. */
+    /** 서버 측 연결 종료(idle timeout 등)로 원격 연결이 끊겼을 때 발행된다. */
     val connectionLost: SharedFlow<Unit> = _connectionLost.asSharedFlow()
 
-    /** 진행 중인 원격 전송 작업의 진행률 맵. ProgressDialog 표시에 사용한다. DOWNLOAD·UPLOAD 키로 필터링해 로컬 IO 항목을 제외한다. */
+    /** 진행 중인 원격 전송 작업의 진행률 맵. ProgressDialog 표시에 사용한다. 원격 작업만 남겨 로컬 IO 항목을 제외한다. */
     val remoteProgressMap: StateFlow<Map<Int, ProgressStateModel>> = progressUseCase.progressMap
         .map { map ->
-            map.filter { (_, state) -> OperationConstants.isRemoteOperation(state.actionKey) }
+            map.filter { (_, state) -> state.operationType?.isRemote == true }
                 .mapValues { (_, state) -> state.toModel() }
         }
         .stateIn(
@@ -67,10 +77,10 @@ class RemoteFileListViewModel @Inject constructor(
         Log.d(TAG, "init — currentPath=$path")
         if (path == null) {
             viewModelScope.launch {
-                val item = ftpConnectionResilienceUseCase.reconnectLast()
+                val item = connectionResilienceUseCase.reconnectLast()
                 if (item != null) {
                     Log.d(TAG, "reconnectLast — 재연결 성공: ${item.name}")
-                    ftpServiceController.start(item.name)
+                    connectionServiceController.start(item.name)
                 } else {
                     Log.w(TAG, "reconnectLast — 재연결 실패")
                     _reconnectFailed.tryEmit(Unit)
@@ -78,9 +88,9 @@ class RemoteFileListViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            ftpConnectionResilienceUseCase.connectionDropped.collect {
+            connectionResilienceUseCase.connectionDropped.collect {
                 Log.w(TAG, "연결 끊김 감지 — 서비스 중지 및 이벤트 발행")
-                ftpServiceController.stop()
+                connectionServiceController.stop()
                 _connectionLost.emit(Unit)
             }
         }
@@ -141,32 +151,6 @@ class RemoteFileListViewModel @Inject constructor(
         viewModelScope.launch {
             fileNavigatorUseCase.navigateBack(toStorageFrag)
         }
-    }
-
-    /** pendingList 중 현재 원격 디렉터리에 이미 같은 이름으로 존재하는 파일 목록을 반환한다. */
-    fun getUploadConflicts(pendingList: List<FileHolderItem>): List<FileHolderItem> {
-        val remoteFiles = uiState.value.fileHolderItemList
-        return pendingList.filter { local -> remoteFiles.any { remote -> remote.name == local.name } }
-    }
-
-    /** pending 중 conflicts에 포함된 항목을 제외하고 업로드한다. */
-    fun onUploadSkipping(pending: List<FileHolderItem>, conflicts: List<FileHolderItem>) {
-        val skipPaths = conflicts.map { it.path }.toSet()
-        pending.filter { it.path !in skipPaths }.forEach { onUpload(it.path) }
-    }
-
-    /**
-     * localPath의 파일을 현재 원격 경로에 업로드한다.
-     * @param localPath 업로드할 로컬 파일의 절대 경로
-     */
-    fun onUpload(localPath: String) {
-        val remotePath = fileNavigatorUseCase.currentPath.value ?: return
-        remoteFileOperationUseCase.upload(
-            localPath = localPath,
-            remoteDestPath = remotePath,
-            completionMessage = messages.notiUploadComplete,
-            onRefresh = { fileNavigatorUseCase.refresh() }
-        )
     }
 
     /**

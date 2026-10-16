@@ -1,10 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_COPY
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_DELETE
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_MOVE
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_UNZIP
-import com.todokanai.composepracticenew.myobjects.OperationConstants.ACTION_KEY_ZIP
+import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
 
@@ -37,7 +33,7 @@ class LocalFileOperationUseCase(
             orchestrator.emitError("복사 실패: 출발지와 목적지가 동일합니다.")
             return
         }
-        orchestrator.launch(completionMessage, ACTION_KEY_COPY, onRefresh) { onProgress ->
+        orchestrator.launch(completionMessage, FileOperationType.COPY, onRefresh) { onProgress ->
             fileActionRepo.copyAction(files, destPath, onProgress)
         }
     }
@@ -50,7 +46,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, ACTION_KEY_DELETE, onRefresh) { onProgress ->
+        orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
             files.forEach { path -> fileActionRepo.deleteFile(path, onProgress) }
         }
     }
@@ -68,7 +64,7 @@ class LocalFileOperationUseCase(
             orchestrator.emitError("이동 실패: 출발지와 목적지가 동일합니다.")
             return
         }
-        orchestrator.launch(completionMessage, ACTION_KEY_MOVE, onRefresh) { onProgress ->
+        orchestrator.launch(completionMessage, FileOperationType.MOVE, onRefresh) { onProgress ->
             fileActionRepo.moveFile(files, destPath, onProgress)
         }
     }
@@ -82,7 +78,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun zip(files: Set<String>, zipFilePath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, ACTION_KEY_ZIP, onRefresh) { onProgress ->
+        orchestrator.launch(completionMessage, FileOperationType.ZIP, onRefresh) { onProgress ->
             fileActionRepo.zipAction(files, zipFilePath, onProgress)
         }
     }
@@ -97,7 +93,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun unzip(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, ACTION_KEY_UNZIP, onRefresh) { onProgress ->
+        orchestrator.launch(completionMessage, FileOperationType.UNZIP, onRefresh) { onProgress ->
             fileActionRepo.unzipAction(zipFiles, destPath, unzipHere, onProgress)
         }
     }

@@ -10,9 +10,8 @@ interface FileNavigatorRepository {
     val currentPath: StateFlow<String?>
     val dirTree: Flow<List<FileEntry>>
     val fileHolderItemList: StateFlow<List<FileHolderItem>>
-    /** 경로가 원격인지 로컬인지를 구현체가 판단하여 이동한다. */
+    /** 경로 이동의 단일 진입점. 경로 종류 판단과 접근성 검증은 구현체가 수행한다. */
     suspend fun navigate(path: String)
-    suspend fun setLocalPath(path: String)
     fun refresh()
     /** 주어진 경로의 부모 경로를 반환한다. 루트이면 null을 반환한다. */
     fun getParentPath(path: String): String?

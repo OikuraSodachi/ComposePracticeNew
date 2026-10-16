@@ -8,28 +8,34 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.todokanai.composepracticenew.myobjects.Constants.BY_DEFAULT
+import com.todokanai.composepracticenew.repository.LastConnectionRepository
+import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * Preferences DataStore 기반으로 정렬 기준과 마지막 접속 서버 id를 저장하는 구현체.
+ * 소비자는 [SortPreferenceRepository] / [LastConnectionRepository] 인터페이스로만 의존한다.
+ * @param context DataStore 파일 접근에 사용하는 애플리케이션 Context
+ */
 @Singleton
-class DataStoreRepository @Inject constructor(@ApplicationContext private val context: Context) {
+class DataStoreRepository @Inject constructor(
+    @ApplicationContext private val context: Context
+) : SortPreferenceRepository, LastConnectionRepository {
     companion object {
         val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "mydatastore")
         val DATASTORE_SORT_BY = stringPreferencesKey("datastore_sort_by")
         val DATASTORE_LAST_REMOTE_ID = longPreferencesKey("datastore_last_remote_id")
     }
 
-    fun saveSortBy(value: String) {
+    override fun saveSortBy(value: String) {
         CoroutineScope(Dispatchers.IO).launch {
             context.dataStore.edit {
                 it[DATASTORE_SORT_BY] = value
@@ -37,23 +43,11 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
         }
     }
 
-    suspend fun sortBy(): String {
-        return context.dataStore.data.first()[DATASTORE_SORT_BY] ?: BY_DEFAULT
-    }
-
-    val sortBy: Flow<String> = context.dataStore.data.map {
+    override val sortBy: Flow<String> = context.dataStore.data.map {
         it[DATASTORE_SORT_BY] ?: BY_DEFAULT
     }
 
-    val sortBy_unstable: StateFlow<String> = context.dataStore.data.map {
-        it[DATASTORE_SORT_BY] ?: BY_DEFAULT
-    }.stateIn(
-        scope = CoroutineScope(Dispatchers.IO),
-        started = SharingStarted.WhileSubscribed(0),
-        initialValue = BY_DEFAULT
-    )
-
-    fun saveLastRemoteId(id: Long?) {
+    override fun setLastRemoteId(id: Long?) {
         CoroutineScope(Dispatchers.IO).launch {
             context.dataStore.edit {
                 if (id != null) it[DATASTORE_LAST_REMOTE_ID] = id
@@ -62,7 +56,6 @@ class DataStoreRepository @Inject constructor(@ApplicationContext private val co
         }
     }
 
-    suspend fun lastRemoteId(): Long? =
+    override suspend fun lastRemoteId(): Long? =
         context.dataStore.data.first()[DATASTORE_LAST_REMOTE_ID]
-
 }

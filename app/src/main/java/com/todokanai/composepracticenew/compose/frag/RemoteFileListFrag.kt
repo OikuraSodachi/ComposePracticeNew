@@ -14,13 +14,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
-import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
@@ -49,10 +49,10 @@ private fun RemoteFileListConnectionEffects(
 @Composable
 fun RemoteFileListFrag(
     modifier: Modifier,
-    selectMode: Int,
+    selectMode: RemoteSelectMode,
     selectedList: List<FileHolderItem>,
     selectedPaths: Set<String>,
-    onSelectModeChange: (Int) -> Unit,
+    onSelectModeChange: (RemoteSelectMode) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit,
@@ -65,7 +65,7 @@ fun RemoteFileListFrag(
     onExit: () -> Unit,
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
-    viewModel: RemoteFileListViewModel = hiltViewModel()
+    viewModel: RemoteFileListViewModel
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
@@ -83,8 +83,8 @@ fun RemoteFileListFrag(
         },
     )
 
-    BackHandler(enabled = selectMode == AppConstants.MULTI_SELECT_MODE) {
-        onSelectModeChange(AppConstants.DEFAULT_MODE)
+    BackHandler(enabled = selectMode == SelectMode.MultiSelect) {
+        onSelectModeChange(SelectMode.Default)
         clearList()
     }
 
@@ -114,7 +114,7 @@ fun RemoteFileListFrag(
                 selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
-                onSelectModeChange = onSelectModeChange,
+                onStartMultiSelect = { onSelectModeChange(SelectMode.MultiSelect) },
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,
                 removeFromList = removeFromList,

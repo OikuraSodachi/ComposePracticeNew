@@ -48,31 +48,29 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 Calling `nav.setCurrentPath(file)` is the canonical way to navigate — it updates `currentPath`, `dirTree`, and `fileHolderItemList` atomically.
 
-### UI Modes (`Constants`)
+### UI Modes (`ui/model/SelectMode`)
+
+선택 모드는 sealed 타입이다. 화면별로 가능한 모드는 `LocalSelectMode` / `RemoteSelectMode`로, 확인 버튼을 갖는 모드는 `ConfirmMode`(라벨 `labelRes`)로 타입을 좁혀 불가능한 조합을 컴파일 단계에서 배제한다.
 
 ```
-DEFAULT_MODE (10)          — normal browsing
-MULTI_SELECT_MODE (11)     — checkbox selection active
-CONFIRM_MODE_COPY (12)     — navigate to paste destination, then confirm
-CONFIRM_MODE_MOVE (13)     — same for move
-CONFIRM_MODE_UNZIP (14/15) — navigate to extract destination
+SelectMode.Default / MultiSelect          — 두 화면 공통 (일반 탐색 / 다중 선택)
+SelectMode.LocalOperation.Copy/Move/Unzip/UnzipHere — 로컬 화면, 목적지 확인 후 실행 (충돌 검사)
+SelectMode.Download                       — 로컬 화면, 다운로드 목적지 확인
+SelectMode.Upload                         — 원격 화면, 업로드 목적지 확인
 ```
 
-### File Operations — `FileAction`
+### File Operations
 
-`FileAction` (data module, `data/.../tools/FileAction.kt`) is the single point of entry for all file mutations, implementing `FileActionRepository`. ViewModels call it via UseCase wrappers:
-
-- Each method wraps its body in `CoroutineScope(Dispatchers.IO).launch { ... }.invokeOnCompletion { onComplete(...) }`
-- `onComplete` refreshes the current directory listing and fires a completion notification via `CompletedNotiSorter`
-- Progress is reported via `ProgressTracker.setProgressState()`
-
-Individual operation classes (`CopyAction`, `MoveAction`, `DeleteAction`, `RenameAction`, `NewFolderAction`, `ZipAction`, `UnzipAction`) live in `data/.../tools/fileaction/`. `OpenAction` lives in `app/.../tools/fileaction/`.
+- 로컬: `LocalFileOperationUseCase` → `FileActionRepository` → `LocalFileOperationDataSource`. 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalZipCompressor`, `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet), `LocalEntryMutator`)로 나뉜다.
+- 원격: `RemoteFileOperationUseCase` → `RemoteFileTransferRepository` / `RemoteFileMutationRepository` (FTP 구현: `FtpRepositoryImpl`).
+- 실행·진행 보고·완료/실패 처리는 `FileOperationOrchestrator`가 담당하며, 작업 인스턴스 ID도 여기서만 발급한다.
+- 작업 종류는 `FileOperationType` enum이며, 레이어별 표시 문자열은 enum에 대한 exhaustive `when`으로 매핑한다.
 
 ### Data Layer
 
 - **Room** (`data/room/`): `MyDatabase` + `UserDao` / `User` entity. Provided as a singleton via `di/DatabaseModule`.
-- **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `lastRemoteId` (long) preferences. Injected via Hilt `@ApplicationContext`.
-- **`DataConverter`**: Transforms raw `File` arrays into `FileHolderItem` / `StorageHolderItem` display models, applying the current sort order.
+- **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `lastRemoteId` (long) preferences. 소비자는 `SortPreferenceRepository` / `LastConnectionRepository` 인터페이스로만 의존한다.
+- **`DataConverter`**: Sorts raw `FileEntry` lists and maps them to domain `FileHolderItem` (원시값만 보유). 크기·날짜 표시 문자열 포맷은 app 레이어 UI 모델(`ui/model/FileHolderItem.from`, `StorageHolderItem.from`)이 담당한다.
 
 ### `MyApplication`
 
@@ -99,6 +97,6 @@ See [ROADMAP.md](ROADMAP.md).
 ## Key Conventions
 
 - Sort mode constants are strings defined in `Constants` (e.g., `BY_NAME_ASCENDING`).
-- Action key constants (`ACTION_KEY_COPY` etc.) are integers used to route progress notifications in `FileListViewModel.progressNoti`.
+- 작업 종류는 `FileOperationType` enum. 알림 Intent extra(`EXTRA_ACTION_KEY`)와 PendingIntent requestCode에는 `FileOperationType.id`를 사용한다.
 - Compose "fragments" (`*Frag`) are stateless composables that receive a ViewModel; they are not Android `Fragment` classes.
 - Compose "holders" (`*Holder`) are item-level composables for list rows.

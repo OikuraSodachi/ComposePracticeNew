@@ -21,11 +21,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelStoreOwner
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.navigation.AppNavHost
 import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
-import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
@@ -34,12 +34,11 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var activityResult: ActivityResultLauncher<String>
     private val mViewModel: MainViewModel by viewModels()
-    private val fViewModel: FileListViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            HomeScreen(activity = this)
+            HomeScreen(viewModelStoreOwner = this, onExitApp = ::finishAndRemoveTask)
         }
 
         checkAndRequestPermissions()
@@ -98,18 +97,19 @@ class MainActivity : ComponentActivity() {
 
     private fun handleProgressIntent(intent: Intent?) {
         val actionKey = intent?.getIntExtra(EXTRA_ACTION_KEY, -1) ?: return
-        if (actionKey != -1) fViewModel.requestShowProgressDialog(actionKey)
+        if (actionKey != -1) mViewModel.requestShowProgressDialog(actionKey)
     }
 }
 
+/** 앱 테마를 적용하고 navigation host를 표시하는 루트 화면. */
 @Composable
-private fun HomeScreen(activity: MainActivity) {
+private fun HomeScreen(viewModelStoreOwner: ViewModelStoreOwner, onExitApp: () -> Unit) {
     ComposePracticeTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            AppNavHost(activity = activity)
+            AppNavHost(viewModelStoreOwner = viewModelStoreOwner, onExitApp = onExitApp)
         }
     }
 }
