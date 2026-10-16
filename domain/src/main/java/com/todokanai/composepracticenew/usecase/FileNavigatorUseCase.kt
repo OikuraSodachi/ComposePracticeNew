@@ -27,6 +27,12 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     fun refresh() = nav.refresh()
 
     /**
+     * 현재 디렉터리에 있는 항목들의 이름 집합을 반환한다. 충돌 판정처럼 이름만 필요한 소비자가 도메인 모델에 의존하지 않게 한다.
+     * @return 현재 디렉터리 항목 이름 집합
+     */
+    fun currentEntryNames(): Set<String> = nav.fileHolderItemList.value.mapTo(HashSet()) { it.name }
+
+    /**
      * 상위 디렉터리로 이동한다. 현재 경로가 루트이면 toRoot를 호출한다.
      * @param toRoot 상위 경로가 없을 때 호출되는 콜백 — currentPath가 null이면 호출되지 않는다
      * @return Unit

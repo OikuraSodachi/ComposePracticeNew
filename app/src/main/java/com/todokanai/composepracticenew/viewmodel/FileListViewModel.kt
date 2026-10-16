@@ -10,6 +10,7 @@ import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingConflict
+import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -98,6 +99,7 @@ class FileListViewModel @Inject constructor(
             initialValue = emptyList()
         )
 
+    /** 로컬 작업의 "충돌 검사 → 즉시 실행 / 사용자 확인 대기" 흐름을 관리한다. */
     private val conflictGate = ConflictGate()
     /** 복사·이동·압축 해제 실행 전 사용자 확인을 기다리는 충돌. */
     val pendingConflict: StateFlow<PendingConflict?> = conflictGate.pending
@@ -128,12 +130,12 @@ class FileListViewModel @Inject constructor(
     }
 
     /** 선택 모드에 따라 항목을 열거나(디렉터리 진입 포함) 무시한다. */
-    fun onItemClick(selected: FileHolderItem, selectMode: SelectMode) {
+    fun onItemClick(selected: FileHolderItem, selectMode: LocalSelectMode) {
         viewModelScope.launch {
             when (selectMode) {
                 SelectMode.Default -> openFileUseCase.open(selected.toDomain())
                 SelectMode.MultiSelect -> { }
-                is SelectMode.Confirm -> if (selected.isDirectory) openFileUseCase.open(selected.toDomain())
+                is SelectMode.LocalOperation, SelectMode.Download -> if (selected.isDirectory) openFileUseCase.open(selected.toDomain())
             }
         }
     }
@@ -141,10 +143,10 @@ class FileListViewModel @Inject constructor(
     /**
      * [mode] 작업을 현재 경로에 실행한다. 목적지에 같은 이름이 있으면 실행하지 않고 [pendingConflict]로 확인을 요청한다.
      * @param selectedList 작업 대상 항목
-     * @param mode 실행할 확인 모드
-     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했으면 false
+     * @param mode 실행할 로컬 작업 모드
+     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이라 거부됐으면 false
      */
-    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.Confirm): Boolean =
+    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean =
         conflictGate.request(selectedList, conflictsFor(selectedList, mode)) { skip ->
             execute(selectedList, mode, skip)
         }
@@ -189,54 +191,50 @@ class FileListViewModel @Inject constructor(
     }
 
     /** [mode] 작업의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다. */
-    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.Confirm): List<FileHolderItem> {
+    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): List<FileHolderItem> {
         val destinationNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
-        val selectedNames = selectedList.map { it.name }
-        val conflictNames = when (mode) {
-            SelectMode.Confirm.Copy, SelectMode.Confirm.Move ->
-                conflictCheckUseCase.checkCopyMoveConflicts(selectedNames, destinationNames)
-            SelectMode.Confirm.Unzip, SelectMode.Confirm.UnzipHere ->
-                conflictCheckUseCase.checkUnzipConflicts(selectedNames, destinationNames)
-            SelectMode.Confirm.Download, SelectMode.Confirm.Upload -> emptySet()
+        return when (mode) {
+            SelectMode.LocalOperation.Copy, SelectMode.LocalOperation.Move ->
+                conflictCheckUseCase.findCopyMoveConflicts(selectedList, destinationNames) { it.name }
+            SelectMode.LocalOperation.Unzip, SelectMode.LocalOperation.UnzipHere ->
+                conflictCheckUseCase.findUnzipConflicts(selectedList, destinationNames) { it.name }
         }
-        return selectedList.filter { it.name in conflictNames }
     }
 
     /** 선택 목록에서 skipFiles를 제외한 대상에 대해 [mode]에 맞는 파일 작업을 현재 경로에 실행한다. */
-    private fun execute(selectedList: List<FileHolderItem>, mode: SelectMode.Confirm, skipFiles: List<FileHolderItem>) {
+    private fun execute(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation, skipFiles: List<FileHolderItem>) {
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         val conflictPaths = skipFiles.map { it.path }.toSet()
         val targets = selectedList.filterNot { it.path in conflictPaths }.map { it.path }.toSet()
         if (targets.isEmpty()) return
         val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
         when (mode) {
-            SelectMode.Confirm.Copy -> localFileOperationUseCase.copy(
+            SelectMode.LocalOperation.Copy -> localFileOperationUseCase.copy(
                 files = targets,
                 destPath = currentPath,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
-            SelectMode.Confirm.Move -> localFileOperationUseCase.move(
+            SelectMode.LocalOperation.Move -> localFileOperationUseCase.move(
                 files = targets,
                 destPath = currentPath,
                 completionMessage = messages.notiMoveComplete,
                 onRefresh = onRefresh
             )
-            SelectMode.Confirm.Unzip -> localFileOperationUseCase.unzip(
+            SelectMode.LocalOperation.Unzip -> localFileOperationUseCase.unzip(
                 zipFiles = targets,
                 destPath = currentPath,
                 unzipHere = false,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
-            SelectMode.Confirm.UnzipHere -> localFileOperationUseCase.unzip(
+            SelectMode.LocalOperation.UnzipHere -> localFileOperationUseCase.unzip(
                 zipFiles = targets,
                 destPath = currentPath,
                 unzipHere = true,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
-            SelectMode.Confirm.Download, SelectMode.Confirm.Upload -> Unit
         }
     }
 }

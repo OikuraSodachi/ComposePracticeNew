@@ -50,14 +50,13 @@ Calling `nav.setCurrentPath(file)` is the canonical way to navigate — it updat
 
 ### UI Modes (`ui/model/SelectMode`)
 
-선택 모드는 sealed 타입이다. 모드별 속성(확인 버튼 라벨 `labelRes`)은 하위 타입이 보유하고, 모드별 동작은 exhaustive `when`으로 분기한다.
+선택 모드는 sealed 타입이다. 화면별로 가능한 모드는 `LocalSelectMode` / `RemoteSelectMode`로, 확인 버튼을 갖는 모드는 `ConfirmMode`(라벨 `labelRes`)로 타입을 좁혀 불가능한 조합을 컴파일 단계에서 배제한다.
 
 ```
-SelectMode.Default            — normal browsing
-SelectMode.MultiSelect        — checkbox selection active
-SelectMode.Confirm.Copy/Move  — navigate to paste destination, then confirm
-SelectMode.Confirm.Unzip/UnzipHere — navigate to extract destination
-SelectMode.Confirm.Download/Upload — remote transfer destination
+SelectMode.Default / MultiSelect          — 두 화면 공통 (일반 탐색 / 다중 선택)
+SelectMode.LocalOperation.Copy/Move/Unzip/UnzipHere — 로컬 화면, 목적지 확인 후 실행 (충돌 검사)
+SelectMode.Download                       — 로컬 화면, 다운로드 목적지 확인
+SelectMode.Upload                         — 원격 화면, 업로드 목적지 확인
 ```
 
 ### File Operations

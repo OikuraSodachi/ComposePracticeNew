@@ -16,6 +16,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
@@ -23,10 +24,10 @@ import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 @Composable
 fun FileListFrag(
     modifier: Modifier,
-    selectMode: SelectMode,
+    selectMode: LocalSelectMode,
     selectedList: List<FileHolderItem>,
     selectedPaths: Set<String>,
-    onSelectModeChange: (SelectMode) -> Unit,
+    onSelectModeChange: (LocalSelectMode) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit,
@@ -80,7 +81,7 @@ fun FileListFrag(
                 selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
-                onSelectModeChange = onSelectModeChange,
+                onStartMultiSelect = { onSelectModeChange(SelectMode.MultiSelect) },
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,
                 removeFromList = removeFromList,

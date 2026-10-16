@@ -19,6 +19,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
+import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -48,10 +49,10 @@ private fun RemoteFileListConnectionEffects(
 @Composable
 fun RemoteFileListFrag(
     modifier: Modifier,
-    selectMode: SelectMode,
+    selectMode: RemoteSelectMode,
     selectedList: List<FileHolderItem>,
     selectedPaths: Set<String>,
-    onSelectModeChange: (SelectMode) -> Unit,
+    onSelectModeChange: (RemoteSelectMode) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     clearList: () -> Unit,
@@ -113,7 +114,7 @@ fun RemoteFileListFrag(
                 selectedPaths = selectedPaths,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
-                onSelectModeChange = onSelectModeChange,
+                onStartMultiSelect = { onSelectModeChange(SelectMode.MultiSelect) },
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,
                 removeFromList = removeFromList,

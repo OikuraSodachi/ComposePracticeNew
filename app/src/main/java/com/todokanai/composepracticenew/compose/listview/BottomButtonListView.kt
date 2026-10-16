@@ -7,24 +7,25 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
 
 /**
- * 하단 파일 작업 버튼(ModeAwareButtons)과 관련 다이얼로그(BottomButtonDialogHost)를 조합한다.
+ * 로컬 화면의 하단 파일 작업 버튼(ModeAwareButtons)과 관련 다이얼로그(BottomButtonDialogHost)를 조합한다.
  * 충돌 검사와 실행 여부 판단은 ViewModel이 수행하며, 이 컴포저블은 결과에 따라 선택 상태만 초기화한다.
  */
 @Composable
 fun BottomButtonListView(
     modifier: Modifier,
-    selectMode: SelectMode,
-    onSelectModeChange: (SelectMode) -> Unit,
+    selectMode: LocalSelectMode,
+    onSelectModeChange: (LocalSelectMode) -> Unit,
     onClearSelection: () -> Unit,
     selectedList: List<FileHolderItem>,
     pendingConflict: PendingConflict?,
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
-    onRequestConfirm: (List<FileHolderItem>, SelectMode.Confirm) -> Boolean,
+    onRequestConfirm: (List<FileHolderItem>, SelectMode.LocalOperation) -> Boolean,
     onResolveConflict: (ConflictResolution) -> Boolean,
     onZip: (List<FileHolderItem>, String) -> Unit,
     onRename: (FileHolderItem, String) -> Unit,
@@ -44,7 +45,7 @@ fun BottomButtonListView(
     }
 
     // 키 없음 — 선택 목록은 rememberUpdatedState로 실행 시점에 읽고, 나머지 캡처는 안정 참조
-    val onConfirmWithConflictCheck: (SelectMode.Confirm) -> Unit = remember {
+    val onConfirmWithConflictCheck: (SelectMode.LocalOperation) -> Unit = remember {
         { mode -> if (onRequestConfirm(latestSelectedList, mode)) onResetSelection() }
     }
 

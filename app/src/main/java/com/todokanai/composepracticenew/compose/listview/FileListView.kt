@@ -48,7 +48,7 @@ fun FileListView(
     selectedPaths: Set<String>,
     selectMode: SelectMode,
     onItemClick: (FileHolderItem) -> Unit,
-    onSelectModeChange: (SelectMode) -> Unit,
+    onStartMultiSelect: () -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
@@ -72,7 +72,7 @@ fun FileListView(
                 listState = listState,
                 fileList = fileHolderItemList,
                 selectMode = selectMode,
-                onSelectModeChange = onSelectModeChange,
+                onStartMultiSelect = onStartMultiSelect,
                 onRangeSelect = onRangeSelect
             )
     ) {

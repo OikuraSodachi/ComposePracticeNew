@@ -24,7 +24,7 @@ import kotlinx.coroutines.isActive
  * @param listState 대상 LazyColumn의 스크롤 상태
  * @param fileList 현재 표시 중인 파일 항목 목록
  * @param selectMode 현재 선택 모드 — SelectMode.Default일 때만 드래그 선택이 시작된다
- * @param onSelectModeChange 드래그 시작 시 SelectMode.MultiSelect로 전환 요청
+ * @param onStartMultiSelect 드래그 시작 시 다중 선택 모드로 전환을 요청하는 콜백
  * @param onRangeSelect anchor~현재 인덱스 범위의 항목 목록을 전달
  */
 @Composable
@@ -32,7 +32,7 @@ fun Modifier.dragSelectGesture(
     listState: LazyListState,
     fileList: List<FileHolderItem>,
     selectMode: SelectMode,
-    onSelectModeChange: (SelectMode) -> Unit,
+    onStartMultiSelect: () -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit
 ): Modifier {
     var anchorIndex     by remember { mutableStateOf(0) }
@@ -80,7 +80,7 @@ fun Modifier.dragSelectGesture(
                 currentFingerY  = offset.y
                 isDragSelecting = true
                 onRangeSelect(listOf(latestFileList[idx]))
-                onSelectModeChange(SelectMode.MultiSelect)
+                onStartMultiSelect()
             },
             onDrag = { change, _ ->
                 if (isDragSelecting) {

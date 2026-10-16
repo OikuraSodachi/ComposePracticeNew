@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
+import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
@@ -64,8 +65,8 @@ private fun RemoteRenameDialogHost(
 @Composable
 fun RemoteBottomButtonListView(
     modifier: Modifier,
-    selectMode: SelectMode,
-    onSelectModeChange: (SelectMode) -> Unit,
+    selectMode: RemoteSelectMode,
+    onSelectModeChange: (RemoteSelectMode) -> Unit,
     onClearSelection: () -> Unit,
     selectedList: List<FileHolderItem>,
     onRename: (FileHolderItem, String) -> Unit,
@@ -115,21 +116,15 @@ fun RemoteBottomButtonListView(
                 ) { Text(strRemoteRename) }
             }
         }
-        SelectMode.Confirm.Upload -> {
+        SelectMode.Upload -> {
             ConfirmButtons(
                 modifier = modifier,
                 // 선택 초기화는 실제 실행 시점에 coordinator가 담당 — 충돌 확인을 취소하면 업로드 확인 모드가 유지된다
                 confirm = onConfirmUpload,
                 cancel = { onSelectModeChange(SelectMode.Default) },
-                mode = SelectMode.Confirm.Upload
+                mode = SelectMode.Upload
             )
         }
-        // 원격 화면에서는 업로드 외의 확인 모드를 사용하지 않는다
-        SelectMode.Default,
-        SelectMode.Confirm.Copy,
-        SelectMode.Confirm.Move,
-        SelectMode.Confirm.Unzip,
-        SelectMode.Confirm.UnzipHere,
-        SelectMode.Confirm.Download -> Unit
+        SelectMode.Default -> Unit
     }
 }

@@ -21,6 +21,7 @@ import kotlin.coroutines.CoroutineContext
 @Singleton
 class FtpSession @Inject constructor() {
 
+    /** 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. */
     private val client = FTPClient()
     /** isLoggedIn, _isConnected, _isConnecting 갱신을 직렬화한다. */
     private val stateMutex = Mutex()
@@ -28,6 +29,7 @@ class FtpSession @Inject constructor() {
     private val ioMutex = Mutex()
     /** 진행 중인 모든 FTP IO 작업의 루트 Job — 연결 끊김 시 취소해 자식 코루틴을 일괄 중단한다. */
     @Volatile private var ioJob: CompletableJob = SupervisorJob()
+    /** 로그인까지 완료된 상태인지 여부. stateMutex로 보호한다. */
     private var isLoggedIn = false
 
     private val _isConnected = MutableStateFlow(false)

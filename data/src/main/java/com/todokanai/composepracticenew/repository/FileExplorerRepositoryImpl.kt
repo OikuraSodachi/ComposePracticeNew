@@ -30,14 +30,19 @@ class FileExplorerRepositoryImpl(
         private const val TAG = "FileExplorerRepo"
     }
 
-    private fun resolveFileSystem(path: String): PathAwareFileSystem =
-        fileSystems.firstOrNull { it.handles(path) } ?: error("No file system handles path: $path")
+    /**
+     * [path]를 처리하는 파일 시스템을 반환한다. 처리자가 없는 경로는 크래시 대신 경고 로그를 남기고 null을 반환해
+     * 호출부가 "목록 없음·부모 없음·이동 무시"로 다루게 한다.
+     */
+    private fun resolveFileSystem(path: String): PathAwareFileSystem? =
+        fileSystems.firstOrNull { it.handles(path) }
+            ?: null.also { Log.w(TAG, "No file system handles path: $path") }
 
-    override fun getParent(path: String): String? = resolveFileSystem(path).getParent(path)
+    override fun getParent(path: String): String? = resolveFileSystem(path)?.getParent(path)
 
     override suspend fun listFiles(path: String): List<FileEntry> {
         Log.d(TAG, "fileList 갱신 — path=$path")
-        return resolveFileSystem(path).listFiles(path).also {
+        return (resolveFileSystem(path)?.listFiles(path) ?: emptyList()).also {
             Log.d(TAG, "fileList 결과 — path=$path size=${it.size}")
         }
     }
@@ -45,7 +50,7 @@ class FileExplorerRepositoryImpl(
     override fun getParentPath(path: String): String? = getParent(path)
 
     override suspend fun navigate(path: String) {
-        resolveFileSystem(path).resolveNavigationPath(path)?.let { navigateTo(it) }
+        resolveFileSystem(path)?.resolveNavigationPath(path)?.let { navigateTo(it) }
     }
 
     override suspend fun connectRemote(item: RemoteStorageItem): Boolean = connection.connect(item)

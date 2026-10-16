@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.isUnderRoot
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
@@ -58,9 +59,13 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
         /** 경로 검증 실패·쓰기 실패·추출 오류로 건너뛴 항목 수. */
         var skippedEntries = 0
             private set
+        /** 현재 항목을 쓰고 있는 출력 스트림. 항목 완료 시 닫고 null로 되돌린다. */
         private var currentOutputStream: OutputStream? = null
+        /** 현재 항목의 '/' 구분 정규화 경로. */
         private var currentNormalizedName = ""
+        /** 현재 항목의 압축 해제 후 크기(bytes). */
         private var currentItemSize = 0L
+        /** 현재 항목을 건너뛰었는지 여부 — 이미 집계한 항목을 결과 단계에서 중복 집계하지 않기 위해 쓴다. */
         private var skipCurrent = false
 
         override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? {

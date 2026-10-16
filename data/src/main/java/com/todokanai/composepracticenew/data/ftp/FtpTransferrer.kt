@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -17,7 +18,7 @@ import javax.inject.Singleton
 /**
  * FTP 파일 다운로드와 업로드를 스트리밍으로 수행하며 진행률을 보고한다.
  * 전송의 한쪽 끝이 로컬 파일이므로 로컬 스트림 개폐는 이 클래스가 담당하고,
- * 스트림 획득 실패 처리·전송 완료 확인은 공통 private 함수로, 디렉터리 진행률 정책은 [DirectoryTransferProgress]로 분리한다.
+ * 스트림 획득 실패 처리·전송 완료 확인은 공통 private 함수로, 디렉터리 진행률은 로컬 작업과 공유하는 [ByteProgressTracker]로 계산한다.
  * @param session 전송에 사용할 FTPClient와 잠금을 소유한 FTP 세션
  * @param cmd 디렉터리 다운로드 시 원격 트리를 수집하는 FtpCommandExecutor
  */
@@ -102,7 +103,7 @@ class FtpTransferrer @Inject constructor(
     ) {
         val allEntries = cmd.collectRemoteTree(remotePath)
         val fileEntries = allEntries.filter { !it.isDirectory }
-        val progress = DirectoryTransferProgress(fileEntries.sumOf { it.size }.coerceAtLeast(1), fileEntries.size, onProgress)
+        val progress = directoryProgress(fileEntries.sumOf { it.size }.coerceAtLeast(1), fileEntries.size, onProgress)
         File(localPath).mkdirs()
         allEntries.forEach { entry ->
             val relativePath = entry.path.removePrefix(remotePath).trimStart('/')
@@ -116,7 +117,7 @@ class FtpTransferrer @Inject constructor(
                     localTarget.parentFile?.mkdirs()
                     downloadOne(
                         client, entryFtpPath, localTarget, errorSuffix = " entry=${entry.name}", send = send,
-                        onChunk = { bytesRead -> progress.onBytes(bytesRead, entry.name, entry.size) },
+                        onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entry.size) },
                         onAcked = { progress.onFileCompleted(entry.name, entry.size) }
                     )
                 }
@@ -156,7 +157,7 @@ class FtpTransferrer @Inject constructor(
     ) {
         val allEntries = localDir.walkTopDown().toList()
         val fileEntries = allEntries.filter { it.isFile }
-        val progress = DirectoryTransferProgress(fileEntries.sumOf { it.length() }.coerceAtLeast(1), fileEntries.size, onProgress)
+        val progress = directoryProgress(fileEntries.sumOf { it.length() }.coerceAtLeast(1), fileEntries.size, onProgress)
         allEntries.forEach { entry ->
             val relativePath = localDir.toPath().relativize(entry.toPath()).toString().replace("\\", "/")
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
@@ -168,7 +169,7 @@ class FtpTransferrer @Inject constructor(
                 session.withClient { client ->
                     uploadOne(
                         client, entryFtpPath, entry, errorSuffix = " entry=${entry.name}", send = send,
-                        onChunk = { bytesRead -> progress.onBytes(bytesRead, entry.name, entryBytes) },
+                        onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
                         // 마지막 파일 인덱스 기준으로 100% 보고 — 0바이트 파일 포함 시 바이트 비교 오판 방지
                         onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
                     )
@@ -293,6 +294,15 @@ class FtpTransferrer @Inject constructor(
             onChunk(bytesRead)
         }
     }
+
+    /**
+     * 디렉터리 전송용 누적 진행률 계산기를 만든다. 서버 ACK 전 100% 조기 보고를 막기 위해 100%는 마지막 파일 완료 시에만 보고한다.
+     * @param totalBytes 전송 대상 전체 바이트 수
+     * @param totalCount 전송 대상 파일 개수
+     * @param onProgress 진행 상태를 수신하는 콜백
+     */
+    private fun directoryProgress(totalBytes: Long, totalCount: Int, onProgress: (ProgressState) -> Unit) =
+        ByteProgressTracker(totalBytes, totalCount, onProgress, holdBelow100 = true, reportProgressFloat = true)
 
     private fun buildProgressState(totalBytes: Long, writtenBytes: Long, fileName: String) = ProgressState(
         totalBytes = totalBytes,

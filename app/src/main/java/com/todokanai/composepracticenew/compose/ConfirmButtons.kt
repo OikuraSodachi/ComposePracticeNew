@@ -12,6 +12,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.ui.model.ConfirmMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 
 /** 확인 모드에서 취소 버튼과, 모드가 보유한 라벨을 표시하는 확인 버튼을 제공한다. */
@@ -20,7 +21,7 @@ fun ConfirmButtons(
     modifier: Modifier,
     confirm:()->Unit,
     cancel:()->Unit,
-    mode: SelectMode.Confirm
+    mode: ConfirmMode
 ) {
     Row(
         modifier = modifier
@@ -50,7 +51,7 @@ private fun ConfirmButtonsPreview(){
             modifier = Modifier,
             confirm = {},
             cancel = {},
-            mode = SelectMode.Confirm.Unzip
+            mode = SelectMode.LocalOperation.Unzip
         )
     }
 }
