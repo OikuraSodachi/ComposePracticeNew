@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
+import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 
 /**
  * 로컬 및 FTP 원격 경로를 모두 탐색할 수 있는 FileNavigatorRepository 구현체.
@@ -24,7 +25,7 @@ class FileExplorerRepositoryImpl(
     private val localFiles: LocalFileDataSource,
     private val ftpFileSystem: FtpRepository,
     initialPath: String? = null
-) : BaseFileExplorerRepository(converter, dsRepo, appScope, SharingStarted.Lazily, initialPath) {
+) : BaseFileExplorerRepository(converter, dsRepo, appScope, SharingStarted.Lazily, initialPath), RemoteFileNavigatorRepository {
 
     companion object {
         private const val TAG = "FileExplorerRepo"
@@ -56,8 +57,8 @@ class FileExplorerRepositoryImpl(
         if (localFiles.canRead(path)) navigateTo(path)
     }
 
-    override suspend fun connectRemote(address: String, port: Int, userId: String, password: String, encoding: String): Boolean =
-        ftpFileSystem.connect(address, port, userId, password, encoding)
+    override suspend fun connectRemote(item: com.todokanai.composepracticenew.model.RemoteStorageItem): Boolean =
+        ftpFileSystem.connect(item.address, item.port, item.userId, item.password, item.encoding)
 
     override suspend fun setRemotePath(address: String) {
         navigateTo("ftp://${address.removePrefix("ftp://")}")

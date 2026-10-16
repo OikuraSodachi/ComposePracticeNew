@@ -2,11 +2,10 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
-import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.FtpUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.service.FtpServiceController
@@ -25,7 +24,7 @@ import javax.inject.Inject
 class StorageViewModel @Inject constructor(
     private val storageVolumeUseCase: StorageVolumeUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
-    @RemoteNavigator private val remoteFileNavigatorUseCase: FileNavigatorUseCase,
+    private val remoteConnectionUseCase: RemoteConnectionUseCase,
     private val ftpServiceController: FtpServiceController,
     private val ftpUseCase: FtpUseCase
 ) : ViewModel() {
@@ -97,7 +96,7 @@ class StorageViewModel @Inject constructor(
     /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 ForegroundService를 시작하고 connectionSucceeded를 emit한다. */
     fun setPath(item: RemoteStorageItem) {
         viewModelScope.launch {
-            val connected = remoteFileNavigatorUseCase.setPath(item.toDomain())
+            val connected = remoteConnectionUseCase.connectAndNavigate(item.toDomain())
             if (connected) {
                 remoteStorageUseCase.saveLastConnectedId(item.id)
                 ftpServiceController.start(item.name)

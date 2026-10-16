@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.di
 import com.todokanai.composepracticenew.repository.LocalDataRepository
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.repository.FtpRepository
@@ -21,6 +22,7 @@ import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FtpConnectionResilienceUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import dagger.Module
@@ -72,11 +74,15 @@ object UseCaseModule {
         FtpUseCase(repo)
 
     @Provides @Singleton
+    fun provideRemoteConnectionUseCase(nav: RemoteFileNavigatorRepository) =
+        RemoteConnectionUseCase(nav)
+
+    @Provides @Singleton
     fun provideFtpConnectionResilienceUseCase(
         ftpRepo: FtpRepository,
         localDataRepo: LocalDataRepository,
-        @RemoteNavigator fileNavigatorRepo: FileNavigatorRepository
-    ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, fileNavigatorRepo)
+        remoteConnectionUseCase: RemoteConnectionUseCase
+    ) = FtpConnectionResilienceUseCase(ftpRepo, localDataRepo, remoteConnectionUseCase)
 
     @Provides @Singleton
     fun provideConflictCheckUseCase() = ConflictCheckUseCase()

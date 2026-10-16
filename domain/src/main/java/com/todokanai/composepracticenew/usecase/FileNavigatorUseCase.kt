@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.FileHolderItem
-import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.Flow
@@ -21,16 +20,6 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
      * @return Unit
      */
     suspend fun setPath(path: String) = nav.navigate(path)
-    /**
-     * FTP 서버에 연결하고 루트 경로로 이동한다.
-     * @param item 연결할 원격 스토리지 접속 정보
-     * @return 연결 성공이면 true, 실패이면 false
-     */
-    suspend fun setPath(item: RemoteStorageItem): Boolean {
-        val connected = nav.connectRemote(item.address, item.port, item.userId, item.password, item.encoding)
-        if (connected) nav.setRemotePath(item.address)
-        return connected
-    }
     /**
      * 현재 디렉터리의 파일 목록을 강제로 새로 고침한다.
      * @return Unit
