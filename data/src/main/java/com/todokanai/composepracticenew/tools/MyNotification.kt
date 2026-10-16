@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.tools
 
 import android.Manifest
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -29,15 +28,11 @@ import javax.inject.Singleton
 class MyNotification @Inject constructor(@ApplicationContext private val context: Context) : FileOperationNotifier {
     private val channelId = CHANNEL_ID
     private val icon = android.R.drawable.stat_sys_upload
-    private val channel = NotificationChannel(channelId, "My Channel", NotificationManager.IMPORTANCE_DEFAULT).apply {
-        description = "This is my notification channel"
-    }
     private val notificationManager: NotificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
     fun createNotification(title: String, message: String) {
         val isNotiEnabled = notificationManager.areNotificationsEnabled()
         if (isNotiEnabled) {
-            notificationManager.createNotificationChannel(channel)
             val builder = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(icon)
                 .setContentTitle(title)
@@ -55,7 +50,6 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     fun createOngoingNotification(title: String, message: String) {
         val isNotiEnabled = notificationManager.areNotificationsEnabled()
         if (isNotiEnabled) {
-            notificationManager.createNotificationChannel(channel)
             val builder = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(icon)
                 .setContentTitle(title)
@@ -76,7 +70,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             ACTION_KEY_DELETE -> {
                 val idx = state.currentIndex ?: return
                 val total = state.listSize ?: return
-                notificationManager.createNotificationChannel(channel)
+
                 val builder = NotificationCompat.Builder(context, channelId)
                     .setSmallIcon(icon)
                     .setContentTitle("Deleting")
@@ -108,7 +102,6 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     private fun showProgressNoti(title: String, message: String, progress: Int, actionKey: Int, notifId: Int) {
-        notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
             .setContentTitle(title)
@@ -137,7 +130,6 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     override fun completedNotification(title: String, message: String, actionKey: Int?, notifId: Int) {
-        notificationManager.createNotificationChannel(channel)
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
             .setContentTitle(title)

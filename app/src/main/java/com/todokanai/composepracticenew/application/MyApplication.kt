@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FileOperationServiceController
 import com.todokanai.composepracticenew.service.FtpForegroundService
@@ -56,6 +57,13 @@ class MyApplication : Application() {
                 FileOperationForegroundService.CHANNEL_ID,
                 getString(R.string.file_operation_notification_channel_name),
                 NotificationManager.IMPORTANCE_LOW
+            )
+        )
+        manager.createNotificationChannel(
+            NotificationChannel(
+                OperationConstants.CHANNEL_ID,
+                getString(R.string.file_manager_notification_channel_name),
+                NotificationManager.IMPORTANCE_DEFAULT
             )
         )
     }
