@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +18,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.ConfirmButtons
+import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -58,7 +60,7 @@ private fun RemoteRenameDialogHost(
  * @param onClearSelection 선택 목록 초기화 콜백
  * @param selectedList 현재 선택된 파일 목록
  * @param onRename 이름 변경 실행 콜백
- * @param onDelete 단일 파일 삭제 실행 콜백
+ * @param onDelete 선택 파일 일괄 삭제 실행 콜백
  * @param onEnterDownloadMode 다운로드 모드 진입 콜백
  * @param onConfirmUpload 업로드 확인 콜백
  */
@@ -70,11 +72,13 @@ fun RemoteBottomButtonListView(
     onClearSelection: () -> Unit,
     selectedList: List<FileHolderItem>,
     onRename: (FileHolderItem, String) -> Unit,
-    onDelete: (FileHolderItem) -> Unit,
+    onDelete: (List<FileHolderItem>) -> Unit,
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
     onConfirmUpload: () -> Unit = {},
 ) {
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
+    // 삭제 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다
+    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 
     val strRemoteDownload = stringResource(R.string.btn_remote_download)
     val strRemoteDelete   = stringResource(R.string.btn_remote_delete)
@@ -86,6 +90,16 @@ fun RemoteBottomButtonListView(
         onRename     = onRename,
         title        = strRemoteRename,
     )
+    if (showDeleteDialog) {
+        DeleteDialog(
+            onConfirm = {
+                onDelete(selectedList.toList())
+                onSelectModeChange(SelectMode.Default)
+                onClearSelection()
+            },
+            onCancel  = { showDeleteDialog = false }
+        )
+    }
 
     when (selectMode) {
         SelectMode.MultiSelect -> {
@@ -101,11 +115,10 @@ fun RemoteBottomButtonListView(
                     onSelectModeChange(SelectMode.Default)
                     onClearSelection()
                 }) { Text(strRemoteDownload) }
-                TextButton(onClick = {
-                    selectedList.forEach { onDelete(it) }
-                    onSelectModeChange(SelectMode.Default)
-                    onClearSelection()
-                }) { Text(strRemoteDelete) }
+                TextButton(
+                    enabled = selectedList.isNotEmpty(),
+                    onClick = { showDeleteDialog = true }
+                ) { Text(strRemoteDelete) }
                 TextButton(
                     enabled = selectedList.size == 1,
                     onClick = {

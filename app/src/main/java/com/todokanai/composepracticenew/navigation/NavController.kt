@@ -139,6 +139,7 @@ private fun FileListDestination(
         progressMap = viewModel.progressMap,
         forceShowTrigger = mainViewModel.showProgressDialog,
         onDialogShown = mainViewModel::onProgressDialogShown,
+        // TODO: 작업 취소 연결 예정
         onCancel = {}
     )
 

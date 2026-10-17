@@ -30,6 +30,7 @@ import com.todokanai.composepracticenew.model.ProgressStateModel
 /**
  * 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것.
  *
+ * @param onDismissRequest 다이얼로그 바깥 탭·뒤로가기·닫기 버튼의 콜백. 작업은 계속 진행된다.
  * @param onCancel 진행 중인 파일 작업을 취소하는 버튼의 콜백.
  */
 @Composable
@@ -51,7 +52,11 @@ fun CustomProgressDialog(
                 }
             }
         },
-        confirmButton = {},
+        confirmButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(stringResource(R.string.btn_dismiss))
+            }
+        },
         dismissButton = {
             TextButton(onClick = onCancel) {
                 Text(stringResource(R.string.btn_cancel))

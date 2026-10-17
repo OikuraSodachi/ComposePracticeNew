@@ -168,15 +168,15 @@ class RemoteFileListViewModel @Inject constructor(
     }
 
     /**
-     * item을 원격 서버에서 삭제한다.
-     * @param item 삭제할 원격 파일 또는 디렉터리 항목
+     * items를 원격 서버에서 하나의 작업으로 삭제한다.
+     * @param items 삭제할 원격 파일 또는 디렉터리 항목
      */
-    fun onDelete(item: FileHolderItem) {
+    fun onDelete(items: List<FileHolderItem>) {
+        if (items.isEmpty()) return
         remoteFileOperationUseCase.deleteRemote(
-            path = item.path,
-            isDirectory = item.isDirectory,
+            targets = items.associate { it.path to it.isDirectory },
             completionMessage = messages.notiDeleteComplete,
-            errorMessage = "삭제 실패: ${item.path.substringAfterLast("/")}",
+            errorMessage = { path -> "삭제 실패: ${path.substringAfterLast("/")}" },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -198,7 +198,7 @@ class RemoteFileListViewModel @Inject constructor(
 
     /** 진행 중인 원격 전송(다운로드·업로드) 작업을 취소한다. */
     fun onCancelTransfer() {
-        // stub — not yet implemented
+        // TODO: 작업 취소 연결 예정
     }
 
     companion object {

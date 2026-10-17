@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
+import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
@@ -46,17 +47,21 @@ private fun StorageConnectionEffects(
 }
 
 /**
- * dialogState 플래그에 따라 원격 스토리지 추가·편집 다이얼로그를 조건부 렌더링한다.
+ * dialogState 플래그에 따라 원격 스토리지 추가·편집·삭제 다이얼로그를 조건부 렌더링한다.
  *
  * @param dialogState 다이얼로그 open/close 상태 홀더
  * @param onAdd 추가 확인 시 실행할 콜백
  * @param onUpdate 편집 확인 시 수정된 RemoteStorageItem을 전달하는 콜백
+ * @param remoteStorageList deletingId로 삭제 대상을 찾을 원격 스토리지 목록
+ * @param onDelete 삭제 확인 시 대상 RemoteStorageItem을 전달하는 콜백
  */
 @Composable
 private fun StorageDialogHost(
     dialogState: StorageDialogState,
+    remoteStorageList: List<RemoteStorageItem>,
     onAdd: (String, String, Int, String, String, String) -> Unit,
     onUpdate: (RemoteStorageItem) -> Unit,
+    onDelete: (RemoteStorageItem) -> Unit,
 ) {
     if (dialogState.showAddDialog) {
         AddRemoteStorageDialog(
@@ -73,6 +78,12 @@ private fun StorageDialogHost(
                 onUpdate(target.copy(name = name, address = address, port = port, userId = id, password = password, encoding = encoding))
             },
             onCancel = { dialogState.dismissEdit() }
+        )
+    }
+    dialogState.deletingId?.let { id -> remoteStorageList.find { it.id == id } }?.let { target ->
+        DeleteDialog(
+            onConfirm = { onDelete(target) },
+            onCancel = { dialogState.dismissDelete() }
         )
     }
 }
@@ -105,10 +116,12 @@ fun StorageFrag(
     )
     StorageDialogHost(
         dialogState = dialogState,
+        remoteStorageList = uiState.value.remoteStorageList,
         onAdd    = { name, address, port, id, password, encoding ->
             viewModel.addRemoteStorage(name, address, port, id, password, encoding)
         },
         onUpdate = { viewModel.updateRemoteStorage(it) },
+        onDelete = { viewModel.deleteRemoteStorage(it) },
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -133,7 +146,7 @@ fun StorageFrag(
                         modifier = Modifier.clickable { viewModel.setPath(remote) },
                         item = remote,
                         onEdit   = { dialogState.openEdit(remote) },
-                        onDelete = { viewModel.deleteRemoteStorage(remote) }
+                        onDelete = { dialogState.openDelete(remote) }
                     )
                 }
             }

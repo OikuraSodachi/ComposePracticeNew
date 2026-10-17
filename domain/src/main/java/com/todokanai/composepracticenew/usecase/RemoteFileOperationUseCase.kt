@@ -70,18 +70,19 @@ class RemoteFileOperationUseCase(
     }
 
     /**
-     * [path]의 원격 파일 또는 디렉터리를 삭제한다.
-     * @param path 삭제할 원격 파일 또는 디렉터리의 경로
-     * @param isDirectory 삭제 대상이 디렉터리이면 true
+     * [targets]의 원격 파일·디렉터리를 하나의 작업으로 삭제한다. 실패한 항목에서 중단한다.
+     * @param targets 삭제할 원격 경로 → 디렉터리 여부
      * @param completionMessage 작업 완료 시 표시할 메시지
-     * @param errorMessage 삭제 실패 시 표시할 메시지
+     * @param errorMessage 삭제에 실패한 경로를 받아 표시할 메시지를 만드는 함수
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun deleteRemote(path: String, isDirectory: Boolean, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+    fun deleteRemote(targets: Map<String, Boolean>, completionMessage: String, errorMessage: (String) -> String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            val ok = if (isDirectory) mutationRepo.removeDirectoryRecursive(path) else mutationRepo.deleteFile(path)
-            if (!ok) throw Exception(errorMessage)
+            targets.forEach { (path, isDirectory) ->
+                val ok = if (isDirectory) mutationRepo.removeDirectoryRecursive(path) else mutationRepo.deleteFile(path)
+                if (!ok) throw Exception(errorMessage(path))
+            }
         }
     }
 
