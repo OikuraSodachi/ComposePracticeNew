@@ -62,7 +62,7 @@ class FileListViewModel @Inject constructor(
     )
 
     val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
-        .map { list -> UiState(list.map { FileHolderItem.from(it) }) }
+        .map { list -> UiState(FileHolderItem.fromList(list)) }
         .flowOn(Dispatchers.IO) // from() 항목마다 File().toUri() 문자열화 비용 → 메인 스레드 밖으로 오프로딩
         .stateIn(
             scope = viewModelScope,
@@ -73,6 +73,7 @@ class FileListViewModel @Inject constructor(
     /** 동시에 진행 중인 파일 작업들의 progress 상태. 작업 인스턴스 ID(instanceId)를 키로 사용한다. */
     val progressMap: StateFlow<Map<Int, ProgressStateModel>> = progressUseCase.progressMap
         .map { map -> map.mapValues { (_, state) -> state.toModel() } }
+        .flowOn(Dispatchers.Default) // 크기 문자열 포맷을 메인 스레드 밖에서 수행
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
