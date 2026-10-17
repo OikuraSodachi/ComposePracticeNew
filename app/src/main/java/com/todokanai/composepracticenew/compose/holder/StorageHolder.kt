@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.compose.holder
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,7 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.constraintlayout.compose.ConstraintLayout
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
 
 @Composable
@@ -26,43 +24,39 @@ fun StorageHolder(
     val total = storage.total
     val used = storage.used
 
-    ConstraintLayout(
+    // 단일 Column으로 구성 — 제약 없는 ConstraintLayout 래퍼는 레이아웃 패스만 추가하므로 제거
+    Column(
         modifier = modifier
             .fillMaxWidth()
             .height(100.dp)
             .padding(20.dp)
+            .padding(2.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
-                .padding(2.dp)
-                .fillMaxSize()
+                .height(30.dp)
         ) {
-            Row(
+            Text(
                 modifier = Modifier
-                    .height(30.dp)
-            ) {
-                Text(
-                    modifier = Modifier
-                        .weight(1f),
-                    text = storage.absolutePath
-                )
+                    .weight(1f),
+                text = storage.absolutePath
+            )
 
-                Text(
-                    modifier = Modifier
-                        .weight(1f),
-                    text = "${used}/${total}",
-                    textAlign = TextAlign.End
-                )
-            }
-            LinearProgressIndicator(
+            Text(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp),
-                progress = progress,
-                trackColor = Color.LightGray,
-                color = Color.Red
+                    .weight(1f),
+                text = "${used}/${total}",
+                textAlign = TextAlign.End
             )
         }
+        LinearProgressIndicator(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp),
+            progress = progress,
+            trackColor = Color.LightGray,
+            color = Color.Red
+        )
     }
 
 }
