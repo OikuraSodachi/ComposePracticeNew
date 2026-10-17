@@ -29,8 +29,7 @@ fun StorageHolder(
         modifier = modifier
             .fillMaxWidth()
             .height(100.dp)
-            .padding(20.dp)
-            .padding(2.dp)
+            .padding(22.dp)
     ) {
         Row(
             modifier = Modifier

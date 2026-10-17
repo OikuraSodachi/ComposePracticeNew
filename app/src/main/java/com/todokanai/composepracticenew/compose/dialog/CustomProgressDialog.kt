@@ -17,12 +17,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -147,9 +149,13 @@ private fun ProgressLinearIndicator(
             .clip(clipShape)
             .background(backgroundColor)
             .drawBehind {
+                val filledWidth = size.width * progress.coerceIn(0f, 1f)
+                // 레이아웃 방향의 시작점부터 채운다 — RTL에서는 오른쪽에서 왼쪽으로
+                val startX = if (layoutDirection == LayoutDirection.Rtl) size.width - filledWidth else 0f
                 drawRect(
                     color = progressColor,
-                    size = Size(width = size.width * progress.coerceIn(0f, 1f), height = size.height)
+                    topLeft = Offset(x = startX, y = 0f),
+                    size = Size(width = filledWidth, height = size.height)
                 )
             }
     )

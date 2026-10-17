@@ -5,7 +5,8 @@ import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.pow
 
-private val FILE_SIZE_UNITS = arrayOf("B", "kB", "MB", "GB", "TB")
+/** readableFileSize_td가 1024 단위 자릿수 그룹에 대응해 붙이는 단위 접미사. */
+private val FILE_SIZE_UNITS =arrayOf("B", "kB", "MB", "GB", "TB")
 
 /** 스레드별 DecimalFormat 캐시 — DecimalFormat은 스레드 안전하지 않고 생성 비용이 커서 호출마다 만들지 않는다. 기본 Locale이 바뀌면 다시 만든다. */
 private val fileSizeFormat = ThreadLocal<Pair<Locale, DecimalFormat>>()

@@ -22,6 +22,7 @@ import kotlinx.coroutines.isActive
  * 드래그 선택 진행 중 값 — composition에서 읽지 않으므로 State가 아닌 일반 필드로 둬 포인터 이벤트마다 snapshot write가 생기지 않게 한다.
  */
 private class DragSelectProgress {
+    /** 드래그를 시작한 항목 인덱스 — 범위 선택의 고정 끝점 */
     var anchorIndex = 0
     /** 가장 최근 드래그 Y 좌표 — 엣지 스크롤 후 항목 재평가에 사용 */
     var currentFingerY = 0f

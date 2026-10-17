@@ -44,11 +44,11 @@ data class FileHolderItem(
             return domains.map { from(it, isLocalFile, dateFormat) }
         }
 
-        /** domain 모듈의 FileHolderItem을 앱 레이어 모델로 변환하며 크기·날짜를 표시용 문자열로 포맷한다. */
-        fun from(
+        /** domain 모듈의 FileHolderItem을 앱 레이어 모델로 변환하며 크기·날짜를 표시용 문자열로 포맷한다. 포맷터 재사용을 위해 [fromList]로만 호출한다. */
+        private fun from(
             domain: DomainFileHolderItem,
-            isLocalFile: Boolean = true,
-            dateFormat: DateFormat = DateFormat.getDateTimeInstance()
+            isLocalFile: Boolean,
+            dateFormat: DateFormat
         ) = FileHolderItem(
             path = domain.path,
             isDirectory = domain.isDirectory,
