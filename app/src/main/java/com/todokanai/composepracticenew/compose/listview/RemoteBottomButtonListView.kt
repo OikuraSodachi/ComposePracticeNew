@@ -58,7 +58,7 @@ private fun RemoteRenameDialogHost(
  * @param selectMode 현재 선택 모드
  * @param onSelectModeChange 선택 모드 변경 요청 콜백
  * @param onClearSelection 선택 목록 초기화 콜백
- * @param selectedList 현재 선택된 파일 목록
+ * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
  * @param onRename 이름 변경 실행 콜백
  * @param onDelete 선택 파일 일괄 삭제 실행 콜백
  * @param onEnterDownloadMode 다운로드 모드 진입 콜백
@@ -70,12 +70,13 @@ fun RemoteBottomButtonListView(
     selectMode: RemoteSelectMode,
     onSelectModeChange: (RemoteSelectMode) -> Unit,
     onClearSelection: () -> Unit,
-    selectedList: List<FileHolderItem>,
+    selectedList: () -> List<FileHolderItem>,
     onRename: (FileHolderItem, String) -> Unit,
     onDelete: (List<FileHolderItem>) -> Unit,
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
     onConfirmUpload: () -> Unit = {},
 ) {
+    val currentSelectedList = selectedList()
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
     // 삭제 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -93,7 +94,7 @@ fun RemoteBottomButtonListView(
     if (showDeleteDialog) {
         DeleteDialog(
             onConfirm = {
-                onDelete(selectedList.toList())
+                onDelete(currentSelectedList.toList())
                 onSelectModeChange(SelectMode.Default)
                 onClearSelection()
             },
@@ -111,18 +112,18 @@ fun RemoteBottomButtonListView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TextButton(onClick = {
-                    onEnterDownloadMode(selectedList.toList())
+                    onEnterDownloadMode(currentSelectedList.toList())
                     onSelectModeChange(SelectMode.Default)
                     onClearSelection()
                 }) { Text(strRemoteDownload) }
                 TextButton(
-                    enabled = selectedList.isNotEmpty(),
+                    enabled = currentSelectedList.isNotEmpty(),
                     onClick = { showDeleteDialog = true }
                 ) { Text(strRemoteDelete) }
                 TextButton(
-                    enabled = selectedList.size == 1,
+                    enabled = currentSelectedList.size == 1,
                     onClick = {
-                        renameTarget = selectedList.first()
+                        renameTarget = currentSelectedList.first()
                         onSelectModeChange(SelectMode.Default)
                         onClearSelection()
                     }
