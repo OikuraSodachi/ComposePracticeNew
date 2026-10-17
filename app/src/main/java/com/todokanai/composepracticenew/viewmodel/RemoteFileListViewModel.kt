@@ -198,7 +198,7 @@ class RemoteFileListViewModel @Inject constructor(
 
     /** 진행 중인 원격 전송(다운로드·업로드) 작업을 취소한다. */
     fun onCancelTransfer() {
-        // stub — not yet implemented
+        // TODO: 작업 취소 연결 예정
     }
 
     companion object {
