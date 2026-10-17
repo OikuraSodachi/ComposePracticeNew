@@ -52,11 +52,13 @@ private fun StorageConnectionEffects(
  * @param dialogState 다이얼로그 open/close 상태 홀더
  * @param onAdd 추가 확인 시 실행할 콜백
  * @param onUpdate 편집 확인 시 수정된 RemoteStorageItem을 전달하는 콜백
+ * @param remoteStorageList deletingId로 삭제 대상을 찾을 원격 스토리지 목록
  * @param onDelete 삭제 확인 시 대상 RemoteStorageItem을 전달하는 콜백
  */
 @Composable
 private fun StorageDialogHost(
     dialogState: StorageDialogState,
+    remoteStorageList: List<RemoteStorageItem>,
     onAdd: (String, String, Int, String, String, String) -> Unit,
     onUpdate: (RemoteStorageItem) -> Unit,
     onDelete: (RemoteStorageItem) -> Unit,
@@ -78,7 +80,7 @@ private fun StorageDialogHost(
             onCancel = { dialogState.dismissEdit() }
         )
     }
-    dialogState.deletingItem?.let { target ->
+    dialogState.deletingId?.let { id -> remoteStorageList.find { it.id == id } }?.let { target ->
         DeleteDialog(
             onConfirm = { onDelete(target) },
             onCancel = { dialogState.dismissDelete() }
@@ -114,6 +116,7 @@ fun StorageFrag(
     )
     StorageDialogHost(
         dialogState = dialogState,
+        remoteStorageList = uiState.value.remoteStorageList,
         onAdd    = { name, address, port, id, password, encoding ->
             viewModel.addRemoteStorage(name, address, port, id, password, encoding)
         },

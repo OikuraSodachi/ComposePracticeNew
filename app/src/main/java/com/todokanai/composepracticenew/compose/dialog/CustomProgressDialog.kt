@@ -54,7 +54,7 @@ fun CustomProgressDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismissRequest) {
-                Text(stringResource(R.string.btn_close))
+                Text(stringResource(R.string.btn_dismiss))
             }
         },
         dismissButton = {

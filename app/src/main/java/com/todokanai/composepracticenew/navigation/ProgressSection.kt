@@ -20,29 +20,25 @@ internal fun ProgressSection(
     onCancel: () -> Unit
 ) {
     val progressMap by progressMap.collectAsStateWithLifecycle()
-    val isProgressActive = progressMap.isNotEmpty()
-    var userDismissed by remember { mutableStateOf(false) }
+    // 닫을 당시 진행 중이던 작업 ID — 이 목록에 없는 새 작업이 시작되면 다이얼로그를 다시 표시한다
+    var dismissedIds by remember { mutableStateOf(emptySet<Int>()) }
     val forceShow by forceShowTrigger.collectAsStateWithLifecycle()
 
-    // isProgressActive를 키로 사용 — 새 작업 시작(true 전환) 시에만 userDismissed를 초기화해 다이얼로그를 다시 표시한다
-    LaunchedEffect(isProgressActive) {
-        if (isProgressActive) userDismissed = false
-    }
     // forceShow를 키로 사용 — 알림 클릭으로 true가 될 때만 다이얼로그를 강제 표시한다
     LaunchedEffect(forceShow) {
         if (forceShow) {
-            userDismissed = false
+            dismissedIds = emptySet()
             onDialogShown()
         }
     }
 
     val activeProgressMap = progressMap.filter { (_, state) -> state.progress < 100 }
-    val showProgress = activeProgressMap.isNotEmpty() && !userDismissed
+    val showProgress = activeProgressMap.keys.any { it !in dismissedIds }
 
     if (showProgress) {
         CustomProgressDialog(
             progressMap = activeProgressMap,
-            onDismissRequest = { userDismissed = true },
+            onDismissRequest = { dismissedIds = activeProgressMap.keys },
             onCancel = onCancel
         )
     }

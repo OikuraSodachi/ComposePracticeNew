@@ -36,7 +36,6 @@
     <string name="btn_skip_conflicts">건너뛰기</string>
     <string name="btn_confirm">Confirm</string>
     <string name="btn_dismiss">Dismiss</string>
-    <string name="btn_close">Close</string>
     <string name="btn_storage">Storage</string>
     <string name="btn_create_new_folder">Create New Folder</string>
     <string name="btn_sort">Sort</string>
