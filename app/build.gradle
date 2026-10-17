@@ -27,7 +27,8 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -55,7 +56,6 @@ dependencies {
     implementation project(':data')
     implementation project(':fileExplorer')
 
-    implementation libs.androidx.legacy.support.v4
     implementation libs.androidx.core.ktx
     implementation libs.androidx.lifecycle.runtime.ktx
     implementation libs.androidx.activity.compose
@@ -64,16 +64,15 @@ dependencies {
     implementation libs.androidx.compose.ui.graphics
     implementation libs.androidx.compose.ui.tooling.preview
     implementation libs.androidx.compose.material3
-    implementation libs.androidx.compose.runtime.livedata
 
     implementation libs.androidx.lifecycle.runtime.compose
     implementation libs.androidx.hilt.navigation.compose
 
     implementation libs.androidx.navigation.compose
     implementation libs.coil.compose
+    // Compose 등 라이브러리에 포함된 Baseline Profile을 Play 외 설치 경로에서도 적용
+    implementation libs.androidx.profileinstaller
 
-    implementation libs.androidx.lifecycle.livedata.ktx
-    implementation libs.androidx.constraintlayout.compose
     testImplementation libs.junit
     androidTestImplementation libs.androidx.test.ext.junit
     androidTestImplementation libs.androidx.test.espresso.core
@@ -81,10 +80,7 @@ dependencies {
     androidTestImplementation libs.androidx.compose.ui.test.junit4
     debugImplementation libs.androidx.compose.ui.tooling
     debugImplementation libs.androidx.compose.ui.test.manifest
-    implementation libs.androidx.appcompat
 
-    implementation libs.glide
-    annotationProcessor libs.glide.compiler
     implementation libs.hilt.android
     kapt libs.hilt.android.compiler
 }
