@@ -33,13 +33,28 @@ data class FileHolderItem(
     val data: String? = null
 ) : Parcelable {
     companion object {
-        /** domain 모듈의 FileHolderItem을 앱 레이어 모델로 변환하며 크기·날짜를 표시용 문자열로 포맷한다. */
-        fun from(domain: DomainFileHolderItem, isLocalFile: Boolean = true) = FileHolderItem(
+        /**
+         * domain 모델 목록을 앱 레이어 모델 목록으로 변환한다. 날짜 포맷터는 목록당 1개만 만들어 재사용한다.
+         * @param domains 변환할 domain 모델 목록
+         * @param isLocalFile 로컬 파일이면 true — URI 문자열(data)을 채운다
+         */
+        fun fromList(domains: List<DomainFileHolderItem>, isLocalFile: Boolean = true): List<FileHolderItem> {
+            // DateFormat은 스레드 안전하지 않으므로 공유하지 않고 변환 1회 범위에서만 재사용
+            val dateFormat = DateFormat.getDateTimeInstance()
+            return domains.map { from(it, isLocalFile, dateFormat) }
+        }
+
+        /** domain 모듈의 FileHolderItem을 앱 레이어 모델로 변환하며 크기·날짜를 표시용 문자열로 포맷한다. 포맷터 재사용을 위해 [fromList]로만 호출한다. */
+        private fun from(
+            domain: DomainFileHolderItem,
+            isLocalFile: Boolean,
+            dateFormat: DateFormat
+        ) = FileHolderItem(
             path = domain.path,
             isDirectory = domain.isDirectory,
             name = domain.name,
             size = if (domain.isDirectory) "" else readableFileSize_td(domain.sizeBytes),
-            lastModified = DateFormat.getDateTimeInstance().format(domain.lastModifiedMillis),
+            lastModified = dateFormat.format(domain.lastModifiedMillis),
             sizeBytes = domain.sizeBytes,
             lastModifiedMillis = domain.lastModifiedMillis,
             data = if (isLocalFile) File(domain.path).toUri().toString() else null

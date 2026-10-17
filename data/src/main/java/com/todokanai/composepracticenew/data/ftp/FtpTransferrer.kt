@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.data.progress.ProgressThrottle
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
@@ -67,7 +68,10 @@ class FtpTransferrer @Inject constructor(
         }.join()
     }
 
-    /** 단일 원격 파일을 [localFile]로 다운로드한다. 크기 미확인 시 바이트마다, 확인 시 100% 미만까지만 보고한다. */
+    /**
+     * 단일 원격 파일을 [localFile]로 다운로드한다. 크기 확인 시 100% 미만까지만 보고하며,
+     * 청크 단위 보고는 [ProgressThrottle]로 퍼센트 변경 또는 일정 시간 경과 시에만 전달한다.
+     */
     private suspend fun downloadFile(
         remotePath: String,
         localFile: File,
@@ -79,12 +83,16 @@ class FtpTransferrer @Inject constructor(
             localFile.parentFile?.mkdirs()
             val totalBytes = runCatching { client.mlistFile(ftpPath)?.size ?: -1L }.getOrDefault(-1L)
             var writtenBytes = 0L
+            val throttle = ProgressThrottle()
             downloadOne(
                 client, ftpPath, localFile, errorSuffix = "", send = send,
                 onChunk = { bytesRead ->
                     writtenBytes += bytesRead
-                    // ACK 전 100% 조기 발행 방지 — totalBytes 미확인 시는 항상 보고
-                    if (totalBytes <= 0 || writtenBytes < totalBytes) onProgress(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                    // ACK 전 100% 조기 발행 방지 — totalBytes 미확인 시는 시간 기준으로만 보고
+                    if (totalBytes <= 0 || writtenBytes < totalBytes) {
+                        val state = buildProgressState(totalBytes, writtenBytes, localFile.name)
+                        if (throttle.shouldReport(state.progress)) onProgress(state)
+                    }
                 },
                 onAcked = {
                     // totalBytes > 0 인 경우에만 100% 보고 — 크기 미확인 시 progress=null이므로 생략
@@ -126,7 +134,10 @@ class FtpTransferrer @Inject constructor(
         progress.reportIfEmpty()
     }
 
-    /** 단일 로컬 파일을 [ftpPath]로 업로드한다. 서버 확인 전까지 100% 미만만 보고한다. */
+    /**
+     * 단일 로컬 파일을 [ftpPath]로 업로드한다. 서버 확인 전까지 100% 미만만 보고하며,
+     * 청크 단위 보고는 [ProgressThrottle]로 퍼센트 변경 또는 일정 시간 경과 시에만 전달한다.
+     */
     private suspend fun uploadFile(
         localFile: File,
         ftpPath: String,
@@ -136,12 +147,16 @@ class FtpTransferrer @Inject constructor(
         session.withClient { client ->
             val totalBytes = localFile.length()
             var writtenBytes = 0L
+            val throttle = ProgressThrottle()
             uploadOne(
                 client, ftpPath, localFile, errorSuffix = "", send = send,
                 onChunk = { bytesRead ->
                     writtenBytes += bytesRead
                     // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onAcked에서 보고
-                    if (writtenBytes < totalBytes) onProgress(buildProgressState(totalBytes, writtenBytes, localFile.name))
+                    if (writtenBytes < totalBytes) {
+                        val state = buildProgressState(totalBytes, writtenBytes, localFile.name)
+                        if (throttle.shouldReport(state.progress)) onProgress(state)
+                    }
                 },
                 onAcked = { onProgress(buildProgressState(totalBytes, totalBytes, localFile.name)) }
             )

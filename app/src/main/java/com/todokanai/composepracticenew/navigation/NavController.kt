@@ -97,8 +97,8 @@ private fun FileListDestination(
     val coordinator = rememberGraphCoordinator(navController)
 
     val localSelectMode by coordinator.localSelectMode.collectAsStateWithLifecycle()
-    val localSelectedList by coordinator.localSelectedList.collectAsStateWithLifecycle()
-    val localSelectedPaths by coordinator.localSelectedPaths.collectAsStateWithLifecycle()
+    // State 객체만 보관하고 값은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
+    val localSelectedList = coordinator.localSelectedList.collectAsStateWithLifecycle()
     val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
 
     ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
@@ -110,8 +110,7 @@ private fun FileListDestination(
     FileListFrag(
         modifier = Modifier,
         selectMode = localSelectMode,
-        selectedList = localSelectedList,
-        selectedPaths = localSelectedPaths,
+        selectedList = { localSelectedList.value },
         onSelectModeChange = coordinator::setLocalSelectMode,
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,
@@ -165,8 +164,8 @@ private fun RemoteFileListDestination(
     val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
 
     val remoteSelectMode by coordinator.remoteSelectMode.collectAsStateWithLifecycle()
-    val remoteSelectedList by coordinator.remoteSelectedList.collectAsStateWithLifecycle()
-    val remoteSelectedPaths by coordinator.remoteSelectedPaths.collectAsStateWithLifecycle()
+    // State 객체만 보관하고 값은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
+    val remoteSelectedList = coordinator.remoteSelectedList.collectAsStateWithLifecycle()
     val uploadConflict by coordinator.uploadConflict.collectAsStateWithLifecycle()
 
     ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
@@ -178,8 +177,7 @@ private fun RemoteFileListDestination(
     RemoteFileListFrag(
         modifier = Modifier,
         selectMode = remoteSelectMode,
-        selectedList = remoteSelectedList,
-        selectedPaths = remoteSelectedPaths,
+        selectedList = { remoteSelectedList.value },
         onSelectModeChange = coordinator::setRemoteSelectMode,
         addToList = coordinator::addToRemoteList,
         removeFromList = coordinator::removeFromRemoteList,

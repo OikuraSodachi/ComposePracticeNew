@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,11 +16,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -140,18 +143,22 @@ private fun ProgressLinearIndicator(
     backgroundColor: Color = Color.Red.copy(0.24f),
     clipShape: Shape = RoundedCornerShape(16.dp)
 ) {
+    // 진행 막대를 draw 단계에서 그린다 — 진행률이 바뀌어도 measure/layout 없이 다시 그리기만 한다
     Box(
         modifier = modifier
             .clip(clipShape)
             .background(backgroundColor)
-    ) {
-        Box(
-            modifier = Modifier
-                .background(progressColor)
-                .fillMaxHeight()
-                .fillMaxWidth(progress)
-        )
-    }
+            .drawBehind {
+                val filledWidth = size.width * progress.coerceIn(0f, 1f)
+                // 레이아웃 방향의 시작점부터 채운다 — RTL에서는 오른쪽에서 왼쪽으로
+                val startX = if (layoutDirection == LayoutDirection.Rtl) size.width - filledWidth else 0f
+                drawRect(
+                    color = progressColor,
+                    topLeft = Offset(x = startX, y = 0f),
+                    size = Size(width = filledWidth, height = size.height)
+                )
+            }
+    )
 }
 
 @Preview

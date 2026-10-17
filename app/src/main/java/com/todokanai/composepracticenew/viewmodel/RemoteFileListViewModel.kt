@@ -18,11 +18,13 @@ import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -66,6 +68,7 @@ class RemoteFileListViewModel @Inject constructor(
             map.filter { (_, state) -> state.operationType?.isRemote == true }
                 .mapValues { (_, state) -> state.toModel() }
         }
+        .flowOn(Dispatchers.Default) // 크기 문자열 포맷을 메인 스레드 밖에서 수행
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -105,7 +108,8 @@ class RemoteFileListViewModel @Inject constructor(
     )
 
     val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
-        .map { list -> UiState(list.map { FileHolderItem.from(it, isLocalFile = false) }) }
+        .map { list -> UiState(FileHolderItem.fromList(list, isLocalFile = false)) }
+        .flowOn(Dispatchers.Default) // 항목 수에 비례하는 날짜·크기 포맷을 메인 스레드 밖에서 수행
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),

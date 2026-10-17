@@ -20,13 +20,15 @@ import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
-/** 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다. */
+/**
+ * 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다.
+ * @param selectedList 선택 목록을 반환하는 함수 — 값을 실제로 쓰는 하위 컴포저블에서 읽어 선택 변경 시 리컴포지션 범위를 좁힌다
+ */
 @Composable
 fun FileListFrag(
     modifier: Modifier,
     selectMode: LocalSelectMode,
-    selectedList: List<FileHolderItem>,
-    selectedPaths: Set<String>,
+    selectedList: () -> List<FileHolderItem>,
     onSelectModeChange: (LocalSelectMode) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
@@ -78,7 +80,7 @@ fun FileListFrag(
                 modifier = Modifier
                     .weight(1f),
                 fileHolderItemList = uiState.value.fileHolderItemList,
-                selectedPaths = selectedPaths,
+                selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
                 onStartMultiSelect = { onSelectModeChange(SelectMode.MultiSelect) },
