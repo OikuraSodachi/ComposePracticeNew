@@ -7,10 +7,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
-/** StorageFrag의 원격 스토리지 추가·편집 다이얼로그 open/close 상태를 보유한다. */
+/** StorageFrag의 원격 스토리지 추가·편집·삭제 다이얼로그 open/close 상태를 보유한다. */
 class StorageDialogState {
     var showAddDialog by mutableStateOf(false); private set
     var editingItem   by mutableStateOf<RemoteStorageItem?>(null); private set
+    var deletingItem  by mutableStateOf<RemoteStorageItem?>(null); private set
 
     fun openAdd()    { showAddDialog = true }
     fun dismissAdd() { showAddDialog = false }
@@ -18,6 +19,10 @@ class StorageDialogState {
     /** 편집할 항목을 설정하고 편집 다이얼로그를 표시한다. */
     fun openEdit(item: RemoteStorageItem) { editingItem = item }
     fun dismissEdit() { editingItem = null }
+
+    /** 삭제할 항목을 설정하고 삭제 확인 다이얼로그를 표시한다. */
+    fun openDelete(item: RemoteStorageItem) { deletingItem = item }
+    fun dismissDelete() { deletingItem = null }
 }
 
 /**

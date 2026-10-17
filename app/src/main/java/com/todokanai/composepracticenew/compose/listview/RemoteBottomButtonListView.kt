@@ -17,6 +17,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.ConfirmButtons
+import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -75,6 +76,8 @@ fun RemoteBottomButtonListView(
     onConfirmUpload: () -> Unit = {},
 ) {
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
+    // 선택 목록은 버튼 클릭 시 초기화되므로 삭제 대상을 별도로 보관한다
+    var deleteTargets by remember { mutableStateOf<List<FileHolderItem>?>(null) }
 
     val strRemoteDownload = stringResource(R.string.btn_remote_download)
     val strRemoteDelete   = stringResource(R.string.btn_remote_delete)
@@ -86,6 +89,12 @@ fun RemoteBottomButtonListView(
         onRename     = onRename,
         title        = strRemoteRename,
     )
+    deleteTargets?.let { targets ->
+        DeleteDialog(
+            onConfirm = { targets.forEach(onDelete) },
+            onCancel  = { deleteTargets = null }
+        )
+    }
 
     when (selectMode) {
         SelectMode.MultiSelect -> {
@@ -102,7 +111,7 @@ fun RemoteBottomButtonListView(
                     onClearSelection()
                 }) { Text(strRemoteDownload) }
                 TextButton(onClick = {
-                    selectedList.forEach { onDelete(it) }
+                    deleteTargets = selectedList.toList()
                     onSelectModeChange(SelectMode.Default)
                     onClearSelection()
                 }) { Text(strRemoteDelete) }
