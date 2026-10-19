@@ -15,6 +15,7 @@ import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -53,7 +54,7 @@ class DataStoreRepository @Inject constructor(
 
     override val sortBy: Flow<SortMode> = context.dataStore.data.map {
         SortMode.fromId(it[DATASTORE_SORT_BY])
-    }
+    }.distinctUntilChanged() // lastRemoteId 등 다른 키 저장 시에도 data가 재방출되므로, 정렬 모드가 같으면 하류(목록 재조회)로 전달하지 않음
 
     override fun setLastRemoteId(id: Long?) {
         appScope.launch {

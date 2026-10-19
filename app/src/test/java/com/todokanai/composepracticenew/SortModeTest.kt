@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.SortMode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+/** [SortMode]의 저장 식별자 호환성, 복원 폴백, 모드별 정렬 규칙을 검증하는 단위 테스트. */
 class SortModeTest {
 
     private val dirB = item(name = "b", isDirectory = true, size = 0, modified = 30)

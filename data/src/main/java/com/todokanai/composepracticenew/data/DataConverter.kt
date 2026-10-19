@@ -6,7 +6,7 @@ import com.todokanai.fileexplorer.FileEntry
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Sorts raw FileEntry lists and converts them into domain FileHolderItem models (raw values only, no display formatting). */
+/** Converts raw FileEntry lists into domain FileHolderItem models (raw values only, no display formatting) and sorts them by SortMode. */
 @Singleton
 class DataConverter @Inject constructor() {
 
