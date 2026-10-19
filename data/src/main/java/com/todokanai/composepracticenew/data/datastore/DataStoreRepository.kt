@@ -9,12 +9,13 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.todokanai.composepracticenew.di.ApplicationScope
-import com.todokanai.composepracticenew.myobjects.Constants.BY_DEFAULT
+import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -39,11 +40,11 @@ class DataStoreRepository @Inject constructor(
         val DATASTORE_LAST_REMOTE_ID = longPreferencesKey("datastore_last_remote_id")
     }
 
-    override fun saveSortBy(value: String) {
+    override fun saveSortBy(value: SortMode) {
         appScope.launch {
             try {
                 context.dataStore.edit {
-                    it[DATASTORE_SORT_BY] = value
+                    it[DATASTORE_SORT_BY] = value.id
                 }
             } catch (e: IOException) {
                 Log.w(TAG, "saveSortBy 실패", e)
@@ -51,9 +52,9 @@ class DataStoreRepository @Inject constructor(
         }
     }
 
-    override val sortBy: Flow<String> = context.dataStore.data.map {
-        it[DATASTORE_SORT_BY] ?: BY_DEFAULT
-    }
+    override val sortBy: Flow<SortMode> = context.dataStore.data.map {
+        SortMode.fromId(it[DATASTORE_SORT_BY])
+    }.distinctUntilChanged() // lastRemoteId 등 다른 키 저장 시에도 data가 재방출되므로, 정렬 모드가 같으면 하류(목록 재조회)로 전달하지 않음
 
     override fun setLastRemoteId(id: Long?) {
         appScope.launch {

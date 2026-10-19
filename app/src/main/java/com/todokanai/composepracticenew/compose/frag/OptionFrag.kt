@@ -23,6 +23,7 @@ import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
 import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
+import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 
 @Composable
@@ -31,7 +32,7 @@ fun OptionFrag(
     navigateToStorage: () -> Unit,
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
-    sortMode: String,
+    sortMode: SortMode,
     sortModeCallbackList: List<Pair<String, () -> Unit>>,
     onNewFolder: (String) -> Unit,
     onExit: () -> Unit,
@@ -53,7 +54,7 @@ fun OptionFrag(
     if (showSortDialog) {
         SortDialog(
             items = sortModeCallbackList,
-            selectedItem = sortMode,
+            selectedItem = sortMode.id,
             onCancel = {
                 showSortDialog = false
             }

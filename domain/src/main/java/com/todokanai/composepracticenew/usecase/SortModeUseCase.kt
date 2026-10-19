@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import kotlinx.coroutines.flow.Flow
 
@@ -9,12 +10,12 @@ import kotlinx.coroutines.flow.Flow
  */
 class SortModeUseCase(private val repo: SortPreferenceRepository) {
     /** 현재 정렬 기준을 방출한다. */
-    val sortBy: Flow<String> = repo.sortBy
+    val sortBy: Flow<SortMode> = repo.sortBy
 
     /**
      * 정렬 기준을 저장한다.
-     * @param value 저장할 정렬 기준(Constants.BY_*)
+     * @param value 저장할 정렬 기준
      * @return Unit
      */
-    fun saveSortBy(value: String) = repo.saveSortBy(value)
+    fun saveSortBy(value: SortMode) = repo.saveSortBy(value)
 }

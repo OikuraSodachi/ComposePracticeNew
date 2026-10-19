@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.toModel
-import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
@@ -81,11 +81,11 @@ class FileListViewModel @Inject constructor(
         )
 
     /** 현재 정렬 기준. DataStore에서 수집한다. */
-    val sortMode: StateFlow<String> = sortModeUseCase.sortBy
+    val sortMode: StateFlow<SortMode> = sortModeUseCase.sortBy
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = Constants.BY_DEFAULT
+            initialValue = SortMode.BY_DEFAULT
         )
 
     /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
