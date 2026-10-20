@@ -46,7 +46,7 @@ private fun RemoteRenameDialogHost(
             defaultText = target.name,
             initialText = target.name,
             onConfirm = { newName -> onRename(target, newName) },
-            onCancel = onDismiss,
+            onDismiss = onDismiss,
         )
     }
 }
@@ -98,7 +98,7 @@ fun RemoteBottomButtonListView(
                 onSelectModeChange(SelectMode.Default)
                 onClearSelection()
             },
-            onCancel  = { showDeleteDialog = false }
+            onDismiss = { showDeleteDialog = false }
         )
     }
 

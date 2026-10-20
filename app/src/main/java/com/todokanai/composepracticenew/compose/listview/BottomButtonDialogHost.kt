@@ -39,13 +39,13 @@ fun BottomButtonDialogHost(
                 onZip(selectedList, it)
                 onResetSelection()
             },
-            onCancel = { dialogState.dismissZip() }
+            onDismiss = { dialogState.dismissZip() }
         )
     }
     if (dialogState.renameDialog) {
         RenameDialog(
             onConfirm = { onRename(selectedList.first(), it) },
-            onCancel = { dialogState.dismissRename() }
+            onDismiss = { dialogState.dismissRename() }
         )
     }
     if (dialogState.infoDialog) {
@@ -60,7 +60,7 @@ fun BottomButtonDialogHost(
                 onDelete(selectedList)
                 onResetSelection()
             },
-            onCancel = { dialogState.dismissDelete() }
+            onDismiss = { dialogState.dismissDelete() }
         )
     }
     pendingConflict?.let { conflict ->

@@ -43,11 +43,9 @@ fun OptionFrag(
             modifier = Modifier,
             title = stringResource(R.string.dialog_new_folder_title),
             defaultText = stringResource(R.string.dialog_new_folder_hint),
-            onConfirm = {
-                showEditTextDialog = false
-                onNewFolder(it)
-            },
-        ) { showEditTextDialog = false }
+            onConfirm = { onNewFolder(it) },
+            onDismiss = { showEditTextDialog = false },
+        )
     }
 
     var showSortDialog by remember { mutableStateOf(false) }
@@ -55,7 +53,7 @@ fun OptionFrag(
         SortDialog(
             selected = sortMode,
             onSelect = onSortModeSelected,
-            onCancel = {
+            onDismiss = {
                 showSortDialog = false
             }
         )

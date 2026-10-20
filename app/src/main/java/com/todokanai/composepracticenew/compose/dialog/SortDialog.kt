@@ -12,12 +12,13 @@ import com.todokanai.composepracticenew.model.SortMode
  * 정렬 기준을 고르는 다이얼로그.
  *
  * 선택지는 [SortMode] 선언 순서대로 표시한다.
+ * 선택은 누르는 즉시 반영된다([SelectDialog] 참고).
  */
 @Composable
 fun SortDialog(
     selected: SortMode,
     onSelect: (SortMode) -> Unit,
-    onCancel: () -> Unit
+    onDismiss: () -> Unit
 ){
     SelectDialog(
         modifier = Modifier,
@@ -26,9 +27,7 @@ fun SortDialog(
         selected = selected,
         label = { sortModeLabel(it) },
         onSelect = onSelect,
-        onDismissRequest = onCancel,
-        onConfirm = null,
-        onCancel = onCancel
+        onDismiss = onDismiss
     )
 }
 
@@ -56,6 +55,6 @@ private fun SortDialogPreview(){
     SortDialog(
         selected = SortMode.BY_NAME_ASCENDING,
         onSelect = {},
-        onCancel = {}
+        onDismiss = {}
     )
 }
