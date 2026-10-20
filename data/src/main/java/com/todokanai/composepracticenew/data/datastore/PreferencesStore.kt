@@ -46,6 +46,15 @@ class PreferencesStore @Inject constructor(
     /**
      * [transform]을 appScope에서 비동기로 DataStore에 반영한다(fire-and-forget).
      * 저장 실패(IOException) 시 기존 값이 유지되므로 앱을 중단시키지 않고 무시한다.
+     *
+     * 알려진 한계(PR #199 리뷰 CLEANUP 2, 미해결):
+     * - 호출마다 별도 코루틴을 launch하고, appScope는 멀티스레드 Dispatchers.IO이므로 각 코루틴이 edit에 도달하는 순서가
+     *   호출 순서와 다를 수 있다. DataStore는 도착 순서대로 직렬 처리하므로 먼저 호출한 값이 나중에 덮어쓸 수 있다
+     *   (예: 정렬 항목 연속 선택 시 앞선 선택이 최종 저장됨).
+     * - 호출자는 저장이 언제 반영되는지 알 수 없어, 저장 직후의 읽기-후-조건부-쓰기가 반영 전 값을 볼 수 있다
+     *   (RemoteStorageUseCase.clearLastConnectedIfMatches 참조).
+     * - Mutex는 락 도착 순서도 같은 경쟁이라 해결되지 않는다. 대응안: Channel(UNLIMITED) + 단일 소비자 코루틴으로
+     *   호출 스레드에서 즉시 큐잉해 순서를 보장하고, 조건부 쓰기는 edit 트랜잭션 안에서 확인하도록 옮긴다.
      * @param transform 저장할 값을 MutablePreferences에 기록하는 편집 람다
      */
     fun launchEdit(transform: (MutablePreferences) -> Unit) {
