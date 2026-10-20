@@ -36,4 +36,7 @@ dependencies {
     implementation 'commons-net:commons-net:3.10.0'
     implementation libs.zip4j
     implementation libs.sevenzipjbinding
+
+    testImplementation libs.junit
+    testImplementation libs.kotlinx.coroutines.test
 }
