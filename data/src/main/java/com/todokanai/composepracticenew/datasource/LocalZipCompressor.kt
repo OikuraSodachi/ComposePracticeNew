@@ -40,9 +40,7 @@ class LocalZipCompressor @Inject constructor() {
         ZipOutputStream(output.outputStream()).use { zos ->
             allFiles.forEach { (root, sFile) ->
                 tracker.startFile()
-                val entryName = root.toPath().relativize(sFile.toPath())
-                    .toString().replace("\\", "/")
-                zos.putNextEntry(ZipEntry(entryName))
+                zos.putNextEntry(ZipEntry(entryNameOf(root, sFile)))
                 sFile.inputStream().use { input ->
                     tracker.pump(input, zos, sFile.name, sFile.length())
                 }
@@ -50,6 +48,19 @@ class LocalZipCompressor @Inject constructor() {
             }
         }
         tracker.reportComplete()
+    }
+
+    /**
+     * [file]의 zip 항목 이름을 선택 항목 [root]의 부모 폴더 기준 상대 경로로 만든다.
+     * 선택한 파일은 `a.txt`, 선택한 폴더의 하위 파일은 `src/a.txt`처럼 선택 항목 이름부터 시작한다.
+     * @param root 사용자가 선택한 압축 대상(파일 또는 폴더)
+     * @param file [root] 자신 또는 그 하위 파일
+     * @return `/`로 구분한 zip 항목 이름
+     */
+    private fun entryNameOf(root: File, file: File): String {
+        // 부모가 없는 경우는 파일시스템 루트를 선택한 것뿐이므로 루트 자신을 기준으로 한다
+        val base = (root.absoluteFile.parentFile ?: root.absoluteFile).toPath()
+        return base.relativize(file.absoluteFile.toPath()).toString().replace("\\", "/")
     }
 
     /**

@@ -4,13 +4,12 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import java.util.zip.ZipFile
 
-/** [LocalZipCompressor]가 기존 파일을 덮어쓰지 않고 번호를 붙인 새 이름으로 압축 파일을 만드는지 검증하는 단위 테스트. */
+/** [LocalZipCompressor]의 항목 이름 규칙(선택 항목 이름부터 시작)과, 기존 파일을 덮어쓰지 않고 번호를 붙인 새 이름으로 만드는 동작을 검증하는 단위 테스트. */
 class LocalZipCompressorTest {
 
     private val dir: File = Files.createTempDirectory("zip-test").toFile()
@@ -27,7 +26,30 @@ class LocalZipCompressorTest {
 
         compressor.zip(setOf(src.path), File(dir, "out.zip").path) {}
 
-        assertEquals(listOf("a.txt"), entriesOf(File(dir, "out.zip")))
+        assertEquals(listOf("src/a.txt"), entriesOf(File(dir, "out.zip")))
+    }
+
+    @Test
+    fun `여러 파일을 직접 선택하면 각 파일 이름을 항목 이름으로 담는다`() = runBlocking {
+        val a = File(dir, "a.txt").apply { writeText("hello") }
+        val b = File(dir, "b.txt").apply { writeText("world") }
+
+        compressor.zip(setOf(a.path, b.path), File(dir, "out.zip").path) {}
+
+        val out = File(dir, "out.zip")
+        assertEquals(listOf("a.txt", "b.txt"), entriesOf(out))
+        ZipFile(out).use { zip -> assertEquals("world", zip.getInputStream(zip.getEntry("b.txt")).reader().readText()) }
+    }
+
+    @Test
+    fun `폴더와 파일을 함께 선택하면 폴더 이름을 경로에 포함한다`() = runBlocking {
+        val src = folderWith("a.txt", "hello")
+        File(src, "sub").mkdirs(); File(src, "sub/c.txt").writeText("deep")
+        val b = File(dir, "b.txt").apply { writeText("world") }
+
+        compressor.zip(setOf(src.path, b.path), File(dir, "out.zip").path) {}
+
+        assertEquals(listOf("b.txt", "src/a.txt", "src/sub/c.txt"), entriesOf(File(dir, "out.zip")))
     }
 
     @Test
@@ -40,19 +62,21 @@ class LocalZipCompressorTest {
 
         assertEquals("original", existing.readText())
         assertEquals("also taken", taken.readText())
-        assertEquals(listOf("a.txt"), entriesOf(File(dir, "photos (2).zip")))
+        assertEquals(listOf("src/a.txt"), entriesOf(File(dir, "photos (2).zip")))
     }
 
     @Test
-    fun `압축 대상 자신과 같은 이름이어도 원본을 잘라내지 않는다`() = runBlocking {
+    fun `압축 대상 자신과 같은 이름이어도 원본을 잘라내지 않고 원본 내용을 그대로 담는다`() = runBlocking {
         val bytes = ByteArray(4096) { it.toByte() }
         val self = File(dir, "photos.zip").apply { writeBytes(bytes) }
+        val a = File(dir, "a.txt").apply { writeText("hello") }
 
-        compressor.zip(setOf(self.path), self.path) {}
+        compressor.zip(setOf(self.path, a.path), self.path) {}
 
         assertArrayEquals(bytes, self.readBytes())
-        val created = File(dir, "photos (1).zip")
-        assertTrue(created.exists() && created.length() > 0)
+        ZipFile(File(dir, "photos (1).zip")).use { zip ->
+            assertArrayEquals(bytes, zip.getInputStream(zip.getEntry("photos.zip")).readBytes())
+        }
     }
 
     /** [dir] 아래 src 폴더에 [name] 파일을 [content] 내용으로 만들고 그 폴더를 반환한다. */
