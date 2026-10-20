@@ -12,7 +12,6 @@ import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
@@ -41,7 +40,6 @@ import javax.inject.Inject
  * @param remoteFileOperationUseCase 원격 파일 조작을 실행하는 UseCase
  * @param connectionResilienceUseCase 연결 끊김 감지·자동 재연결 UseCase
  * @param messages 작업 완료 메시지 제공자
- * @param fileNameUseCase 원격 새 폴더·이름 변경의 이름 규칙을 검증하는 UseCase
  */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
@@ -52,7 +50,6 @@ class RemoteFileListViewModel @Inject constructor(
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
     private val messages: OperationMessages,
-    private val fileNameUseCase: FileNameUseCase,
 ) : ViewModel() {
 
     private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -160,15 +157,14 @@ class RemoteFileListViewModel @Inject constructor(
         }
     }
 
-    /** 원격 새 폴더·이름 변경에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. */
-    fun validateEntryName(name: String): Set<FileNameError> = fileNameUseCase.validate(name)
+    /** 원격 새 폴더·이름 변경에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
+    fun validateEntryName(name: String): Set<FileNameError> = remoteFileOperationUseCase.validateEntryName(name)
 
     /**
-     * item을 newName으로 이름 변경한다. 규칙을 위반한 이름이면 아무것도 하지 않는다.
+     * item을 newName으로 이름 변경한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
      */
     fun onRename(item: FileHolderItem, newName: String) {
-        if (validateEntryName(newName).isNotEmpty()) return
         remoteFileOperationUseCase.renameRemote(
             path = item.path,
             newName = newName,
@@ -193,11 +189,10 @@ class RemoteFileListViewModel @Inject constructor(
     }
 
     /**
-     * 현재 원격 경로 아래에 dirName 이름의 새 디렉터리를 생성한다. 규칙을 위반한 이름이면 아무것도 하지 않는다.
+     * 현재 원격 경로 아래에 dirName 이름의 새 디렉터리를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      * @param dirName 생성할 디렉터리 이름
      */
     fun onMakeDirectory(dirName: String) {
-        if (validateEntryName(dirName).isNotEmpty()) return
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         remoteFileOperationUseCase.makeDirectoryRemote(
             parentPath = currentPath,

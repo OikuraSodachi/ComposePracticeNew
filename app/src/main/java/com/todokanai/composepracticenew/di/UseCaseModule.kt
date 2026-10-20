@@ -103,13 +103,15 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideLocalFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
-        fileActionRepo: FileActionRepository
-    ) = LocalFileOperationUseCase(orchestrator, fileActionRepo)
+        fileActionRepo: FileActionRepository,
+        fileNameUseCase: FileNameUseCase
+    ) = LocalFileOperationUseCase(orchestrator, fileActionRepo, fileNameUseCase)
 
     @Provides @Singleton
     fun provideRemoteFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
         transferRepo: RemoteFileTransferRepository,
-        mutationRepo: RemoteFileMutationRepository
-    ) = RemoteFileOperationUseCase(orchestrator, transferRepo, mutationRepo)
+        mutationRepo: RemoteFileMutationRepository,
+        fileNameUseCase: FileNameUseCase
+    ) = RemoteFileOperationUseCase(orchestrator, transferRepo, mutationRepo, fileNameUseCase)
 }

@@ -14,7 +14,6 @@ import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
-import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
@@ -40,7 +39,6 @@ import javax.inject.Inject
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
  * @param messages 작업 완료 메시지 제공자
- * @param fileNameUseCase 새 폴더·이름 변경·압축 파일명의 규칙을 검증하는 UseCase
  */
 @HiltViewModel
 class FileListViewModel @Inject constructor(
@@ -51,7 +49,6 @@ class FileListViewModel @Inject constructor(
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: OperationMessages,
-    private val fileNameUseCase: FileNameUseCase,
 ) : ViewModel() {
 
     /**
@@ -108,15 +105,14 @@ class FileListViewModel @Inject constructor(
     /** 복사·이동·압축 해제 실행 전 사용자 확인을 기다리는 충돌. */
     val pendingConflict: StateFlow<PendingConflict?> = conflictGate.pending
 
-    /** 새 폴더·이름 변경에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. */
-    fun validateEntryName(name: String): Set<FileNameError> = fileNameUseCase.validate(name)
+    /** 새 폴더·이름 변경에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
+    fun validateEntryName(name: String): Set<FileNameError> = localFileOperationUseCase.validateEntryName(name)
 
-    /** 압축 파일 이름([name].zip)을 검증해 위반한 규칙 집합을 반환한다. 길이 한도는 ".zip"을 포함해 판정한다. */
-    fun validateZipName(name: String): Set<FileNameError> = fileNameUseCase.validate(name, suffix = ZIP_SUFFIX)
+    /** 압축 파일 이름([name].zip)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
+    fun validateZipName(name: String): Set<FileNameError> = localFileOperationUseCase.validateZipName(name)
 
-    /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. 규칙을 위반한 이름이면 아무것도 하지 않는다. */
+    /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
     fun newFolder(name: String) {
-        if (validateEntryName(name).isNotEmpty()) return
         val currentPath = fileNavigatorUseCase.currentPath.value ?: return
         localFileOperationUseCase.makeDirectory(
             parentPath = currentPath,
@@ -169,22 +165,21 @@ class FileListViewModel @Inject constructor(
      */
     fun resolveConflict(resolution: ConflictResolution): Boolean = conflictGate.resolve(resolution)
 
-    /** selectedList의 파일들을 [name].zip으로 압축한다. 규칙을 위반한 이름이면 아무것도 하지 않는다. */
+    /** selectedList의 파일들을 [name].zip으로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
     fun zip(selectedList: List<FileHolderItem>, name: String) {
-        if (validateZipName(name).isNotEmpty()) return
         val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
         val targets = selectedList.map { it.path }.toSet()
         localFileOperationUseCase.zip(
             files = targets,
-            zipFilePath = "$parent/$name$ZIP_SUFFIX",
+            parentPath = parent,
+            name = name,
             completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
 
-    /** [item]의 이름을 [name]으로 변경한다. 규칙을 위반한 이름이면 아무것도 하지 않는다. */
+    /** [item]의 이름을 [name]으로 변경한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
     fun rename(item: FileHolderItem, name: String) {
-        if (validateEntryName(name).isNotEmpty()) return
         localFileOperationUseCase.rename(
             path = item.path,
             newName = name,
@@ -249,10 +244,5 @@ class FileListViewModel @Inject constructor(
                 onRefresh = onRefresh
             )
         }
-    }
-
-    private companion object {
-        /** 압축 파일 이름 뒤에 붙는 확장자. */
-        const val ZIP_SUFFIX = ".zip"
     }
 }
