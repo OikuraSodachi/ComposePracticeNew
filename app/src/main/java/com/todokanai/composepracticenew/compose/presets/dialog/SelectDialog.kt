@@ -24,6 +24,7 @@ import com.todokanai.composepracticenew.R
  * 선택지 중 하나를 라디오 버튼으로 고르는 범용 다이얼로그.
  *
  * 선택 상태는 호출부가 소유하며, 이 다이얼로그는 [selected]를 표시하고 선택 이벤트를 [onSelect]로만 올려보낸다.
+ * 항목을 누르는 즉시 선택이 반영되므로 확정할 값이 없어 확인 버튼을 두지 않고, 하단 버튼은 닫기 하나뿐이다.
  */
 @Composable
 fun <T> SelectDialog(
@@ -34,16 +35,13 @@ fun <T> SelectDialog(
     label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
     onDismiss: () -> Unit,
-    confirmText: String = stringResource(R.string.btn_confirm),
-    dismissText: String = stringResource(R.string.btn_cancel),
-    onConfirm:(()->Unit)? =null
+    dismissText: String = stringResource(R.string.btn_dismiss)
 ){
     ConfirmCancelDialog(
         modifier = modifier,
         title = title,
-        onConfirm = onConfirm,
+        onConfirm = null,
         onDismiss = onDismiss,
-        confirmText = confirmText,
         dismissText = dismissText
     ) {
         LazyColumn(modifier = Modifier.selectableGroup()) {
@@ -100,8 +98,6 @@ private fun SelectDialogPreview(){
         selected = "Item2",
         label = { it },
         onSelect = {},
-        onDismiss = {},
-        dismissText = "test",
-        onConfirm = {}
+        onDismiss = {}
     )
 }

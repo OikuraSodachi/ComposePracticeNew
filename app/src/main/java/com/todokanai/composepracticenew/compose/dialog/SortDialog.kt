@@ -12,7 +12,7 @@ import com.todokanai.composepracticenew.model.SortMode
  * 정렬 기준을 고르는 다이얼로그.
  *
  * 선택지는 [SortMode] 선언 순서대로 표시한다.
- * 선택은 즉시 반영되어 되돌릴 수 없으므로, 하단 버튼은 '취소'가 아닌 '닫기' 라벨을 쓴다.
+ * 선택은 누르는 즉시 반영된다([SelectDialog] 참고).
  */
 @Composable
 fun SortDialog(
@@ -27,9 +27,7 @@ fun SortDialog(
         selected = selected,
         label = { sortModeLabel(it) },
         onSelect = onSelect,
-        onDismiss = onDismiss,
-        dismissText = stringResource(R.string.btn_dismiss),
-        onConfirm = null
+        onDismiss = onDismiss
     )
 }
 
