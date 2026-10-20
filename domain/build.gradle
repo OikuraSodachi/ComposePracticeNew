@@ -10,4 +10,6 @@ dependencies {
     implementation libs.kotlinx.coroutines.core
     implementation project(':fileExplorer')
     compileOnly 'javax.inject:javax.inject:1'
+
+    testImplementation libs.junit
 }
