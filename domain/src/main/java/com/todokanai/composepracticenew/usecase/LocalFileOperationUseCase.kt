@@ -89,6 +89,7 @@ class LocalFileOperationUseCase(
 
     /**
      * [files]를 [parentPath] 아래 [name][ZIP_EXTENSION] 파일로 압축한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
+     * 같은 이름의 파일이 이미 있으면 저장소가 `이름 (n).zip` 형태의 새 이름으로 만든다(기존 파일은 덮어쓰지 않는다).
      * @param files 압축할 파일의 절대 경로 집합
      * @param parentPath zip 파일을 생성할 디렉터리의 절대 경로
      * @param name 생성할 zip 파일 이름(확장자 제외)

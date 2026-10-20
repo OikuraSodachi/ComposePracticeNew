@@ -9,7 +9,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 interface LocalFileOperationDataSource {
     /**
      * @param targetFiles 압축 대상 파일 경로 집합
-     * @param zipFile 생성할 ZIP 파일의 절대 경로
+     * @param zipFile 생성할 ZIP 파일의 절대 경로. 이미 있으면 덮어쓰지 않고 `이름 (n).zip` 형태의 새 이름으로 만든다
      * @param onProgress 진행 상태를 수신하는 콜백
      */
     suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit)

@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 interface FileActionRepository {
 
     // Compresses [targetFiles] into a new zip file at [zipFile], reporting progress via [onProgress].
+    // Never overwrites: if [zipFile] already exists, a numbered name such as "name (1).zip" is used instead.
     suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit = {})
 
     // Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
