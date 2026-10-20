@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.compose.dialog.ZipDialog
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingConflict
+import com.todokanai.composepracticenew.ui.model.SelectionSummary
 
 /**
  * dialogState 플래그와 ViewModel의 충돌 상태에 따라 파일 작업 다이얼로그를 조건부 렌더링한다.
@@ -16,6 +17,7 @@ import com.todokanai.composepracticenew.ui.model.PendingConflict
  * @param dialogState 입력·확인용 다이얼로그 open/close 상태 홀더
  * @param pendingConflict ViewModel이 보유한 사용자 확인 대기 충돌. null이면 충돌 다이얼로그를 표시하지 않음
  * @param selectedList 현재 선택된 파일 목록
+ * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
  * @param onResetSelection 작업 실행 후 선택 모드·선택 목록을 초기화하는 콜백
  * @param onZip 압축 실행 콜백
  * @param onRename 이름 변경 실행 콜백
@@ -27,6 +29,7 @@ fun BottomButtonDialogHost(
     dialogState: BottomButtonDialogState,
     pendingConflict: PendingConflict?,
     selectedList: List<FileHolderItem>,
+    selectionSummary: () -> SelectionSummary,
     onResetSelection: () -> Unit,
     onZip: (List<FileHolderItem>, String) -> Unit,
     onRename: (FileHolderItem, String) -> Unit,
@@ -50,7 +53,7 @@ fun BottomButtonDialogHost(
     }
     if (dialogState.infoDialog) {
         InfoDialog(
-            files = selectedList,
+            summary = selectionSummary(),
             onDismiss = { dialogState.dismissInfo() }
         )
     }

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
@@ -9,13 +10,17 @@ import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
@@ -48,6 +53,15 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private val _localSelectedList = MutableStateFlow<List<FileHolderItem>>(emptyList())
     /** 로컬 화면에서 선택된 파일 항목 목록. */
     val localSelectedList: StateFlow<List<FileHolderItem>> = _localSelectedList.asStateFlow()
+
+    /** 로컬 선택 목록의 요약(개수·총 크기 표시 문자열). 정보 다이얼로그가 표시하며, 선택이 바뀔 때만 다시 계산한다. */
+    val localSelectionSummary: StateFlow<SelectionSummary> = _localSelectedList
+        .map(SelectionSummary::from)
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = SelectionSummary.from(emptyList())
+        )
 
     private val _remoteSelectedList = MutableStateFlow<List<FileHolderItem>>(emptyList())
     /** 원격 화면에서 선택된 파일 항목 목록. */

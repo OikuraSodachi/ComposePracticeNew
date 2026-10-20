@@ -99,6 +99,8 @@ private fun FileListDestination(
     val localSelectMode by coordinator.localSelectMode.collectAsStateWithLifecycle()
     // State 객체만 보관하고 값은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
     val localSelectedList = coordinator.localSelectedList.collectAsStateWithLifecycle()
+    // 선택 요약도 State 객체만 보관 — 값은 정보 다이얼로그가 열렸을 때 그 안에서만 읽는다
+    val localSelectionSummary = coordinator.localSelectionSummary.collectAsStateWithLifecycle()
     val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
 
     ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
@@ -111,6 +113,7 @@ private fun FileListDestination(
         modifier = Modifier,
         selectMode = localSelectMode,
         selectedList = { localSelectedList.value },
+        selectionSummary = { localSelectionSummary.value },
         onSelectModeChange = coordinator::setLocalSelectMode,
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,

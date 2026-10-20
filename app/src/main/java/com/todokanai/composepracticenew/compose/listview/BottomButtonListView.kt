@@ -10,11 +10,13 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.SelectionSummary
 
 /**
  * 로컬 화면의 하단 파일 작업 버튼(ModeAwareButtons)과 관련 다이얼로그(BottomButtonDialogHost)를 조합한다.
  * 충돌 검사와 실행 여부 판단은 ViewModel이 수행하며, 이 컴포저블은 결과에 따라 선택 상태만 초기화한다.
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
+ * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
  */
 @Composable
 fun BottomButtonListView(
@@ -23,6 +25,7 @@ fun BottomButtonListView(
     onSelectModeChange: (LocalSelectMode) -> Unit,
     onClearSelection: () -> Unit,
     selectedList: () -> List<FileHolderItem>,
+    selectionSummary: () -> SelectionSummary,
     pendingConflict: PendingConflict?,
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
@@ -66,6 +69,7 @@ fun BottomButtonListView(
         dialogState = dialogState,
         pendingConflict = pendingConflict,
         selectedList = currentSelectedList,
+        selectionSummary = selectionSummary,
         onResetSelection = onResetSelection,
         onZip = onZip,
         onRename = onRename,
