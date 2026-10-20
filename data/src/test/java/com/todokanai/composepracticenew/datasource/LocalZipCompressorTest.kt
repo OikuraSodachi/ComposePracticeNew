@@ -1,15 +1,17 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import java.util.zip.ZipFile
 
-/** [LocalZipCompressor]의 항목 이름 규칙(선택 항목 이름부터 시작)과, 기존 파일을 덮어쓰지 않고 번호를 붙인 새 이름으로 만드는 동작을 검증하는 단위 테스트. */
+/** [LocalZipCompressor]의 항목 이름 규칙(선택 항목 이름부터 시작), 빈 폴더 보존, 기존 파일을 덮어쓰지 않고 번호를 붙인 새 이름으로 만드는 동작을 검증하는 단위 테스트. */
 class LocalZipCompressorTest {
 
     private val dir: File = Files.createTempDirectory("zip-test").toFile()
@@ -26,7 +28,7 @@ class LocalZipCompressorTest {
 
         compressor.zip(setOf(src.path), File(dir, "out.zip").path) {}
 
-        assertEquals(listOf("src/a.txt"), entriesOf(File(dir, "out.zip")))
+        assertEquals(listOf("src/", "src/a.txt"), entriesOf(File(dir, "out.zip")))
     }
 
     @Test
@@ -49,7 +51,33 @@ class LocalZipCompressorTest {
 
         compressor.zip(setOf(src.path, b.path), File(dir, "out.zip").path) {}
 
-        assertEquals(listOf("b.txt", "src/a.txt", "src/sub/c.txt"), entriesOf(File(dir, "out.zip")))
+        assertEquals(listOf("b.txt", "src/", "src/a.txt", "src/sub/", "src/sub/c.txt"), entriesOf(File(dir, "out.zip")))
+    }
+
+    @Test
+    fun `빈 폴더도 항목으로 담아 압축 해제 시 그대로 복원된다`() = runBlocking {
+        val emptyAlone = File(dir, "empty").apply { mkdirs() }
+        val src = folderWith("a.txt", "hello")
+        File(src, "blank/deeper").mkdirs()
+
+        compressor.zip(setOf(emptyAlone.path, src.path), File(dir, "out.zip").path) {}
+
+        val out = File(dir, "out.zip")
+        assertEquals(listOf("empty/", "src/", "src/a.txt", "src/blank/", "src/blank/deeper/"), entriesOf(out))
+        val restored = File(dir, "restored").apply { mkdirs() }
+        ZipArchiveExtractor().extract(out.path, restored, ByteProgressTracker(1, 1, onProgress = {}))
+        assertTrue(File(restored, "empty").isDirectory)
+        assertTrue(File(restored, "src/blank/deeper").isDirectory)
+        assertEquals("hello", File(restored, "src/a.txt").readText())
+    }
+
+    @Test
+    fun `빈 폴더만 선택해도 압축한다`() = runBlocking {
+        val emptyAlone = File(dir, "empty").apply { mkdirs() }
+
+        compressor.zip(setOf(emptyAlone.path), File(dir, "out.zip").path) {}
+
+        assertEquals(listOf("empty/"), entriesOf(File(dir, "out.zip")))
     }
 
     @Test
@@ -62,7 +90,7 @@ class LocalZipCompressorTest {
 
         assertEquals("original", existing.readText())
         assertEquals("also taken", taken.readText())
-        assertEquals(listOf("src/a.txt"), entriesOf(File(dir, "photos (2).zip")))
+        assertEquals(listOf("src/", "src/a.txt"), entriesOf(File(dir, "photos (2).zip")))
     }
 
     @Test
