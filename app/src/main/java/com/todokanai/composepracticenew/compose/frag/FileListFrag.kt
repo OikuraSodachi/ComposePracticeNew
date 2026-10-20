@@ -46,6 +46,7 @@ fun FileListFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val pendingConflict by viewModel.pendingConflict.collectAsStateWithLifecycle()
+    val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
@@ -109,7 +110,10 @@ fun FileListFrag(
             onZip = viewModel::zip,
             validateZipName = viewModel::validateZipName,
             onRename = viewModel::rename,
-            validateEntryName = viewModel::validateEntryName,
+            validateRename = viewModel::validateRename,
+            pendingRename = pendingRename,
+            onConfirmRename = viewModel::confirmRename,
+            onCancelRename = viewModel::cancelRename,
             onDelete = viewModel::delete
         )
 

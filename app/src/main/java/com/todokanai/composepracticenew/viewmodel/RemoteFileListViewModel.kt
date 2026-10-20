@@ -6,12 +6,15 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.PendingRename
+import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
@@ -39,6 +42,7 @@ import javax.inject.Inject
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param remoteFileOperationUseCase 원격 파일 조작을 실행하는 UseCase
  * @param connectionResilienceUseCase 연결 끊김 감지·자동 재연결 UseCase
+ * @param conflictCheckUseCase 이름 변경 시 같은 이름 항목과의 겹침을 판정하는 UseCase
  * @param messages 작업 완료 메시지 제공자
  */
 @HiltViewModel
@@ -49,6 +53,7 @@ class RemoteFileListViewModel @Inject constructor(
     private val sortModeUseCase: SortModeUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
+    private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: OperationMessages,
 ) : ViewModel() {
 
@@ -160,19 +165,60 @@ class RemoteFileListViewModel @Inject constructor(
     /** 원격 새 폴더·이름 변경에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
     fun validateEntryName(name: String): Set<FileNameError> = remoteFileOperationUseCase.validateEntryName(name)
 
+    /** 이름 변경의 "충돌 판정 → 즉시 실행 / 덮어쓰기 확인 대기" 흐름을 관리한다. */
+    private val renameGate = RenameConfirmGate()
+    /** 같은 이름의 항목이 있어 덮어쓰기 확인을 기다리는 원격 이름 변경. */
+    val pendingRename: StateFlow<PendingRename?> = renameGate.pending
+
     /**
-     * item을 newName으로 이름 변경한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
+     * [item]을 [name]으로 바꿀 때의 위반 규칙 집합을 반환한다. 이름 규칙에 더해, 같은 폴더에 종류가 다른 같은 이름 항목이 있으면
+     * [FileNameError.EXISTS_AS_OTHER_TYPE]을 포함한다. 같은 종류의 겹침은 오류가 아니라 확인 대상이다.
+     * @param item 이름을 바꿀 원격 항목
+     * @param name 사용자가 입력한 새 이름
+     * @return 위반한 규칙의 집합. 비어 있으면 확인 버튼을 누를 수 있다
+     */
+    fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
+        val errors = remoteFileOperationUseCase.validateEntryName(name)
+        return if (renameConflictOf(item, name) == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
+    }
+
+    /**
+     * item을 newName으로 이름 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
+     * 확인 후에도 RNTO만 보내며, 덮어쓸지는 서버 동작에 따른다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
      */
     fun onRename(item: FileHolderItem, newName: String) {
-        remoteFileOperationUseCase.renameRemote(
-            path = item.path,
-            newName = newName,
-            completionMessage = messages.notiComplete,
-            errorMessage = "rename 실패: ${item.path.substringAfterLast("/")}",
-            onRefresh = { fileNavigatorUseCase.refresh() }
-        )
+        renameGate.request(item, newName, renameConflictOf(item, newName)) { _ ->
+            remoteFileOperationUseCase.renameRemote(
+                path = item.path,
+                newName = newName,
+                completionMessage = messages.notiComplete,
+                errorMessage = "rename 실패: ${item.path.substringAfterLast("/")}",
+                onRefresh = { fileNavigatorUseCase.refresh() }
+            )
+        }
     }
+
+    /** 확인을 기다리는 원격 이름 변경을 실행한다. */
+    fun confirmRename() = renameGate.confirm()
+
+    /** 확인을 기다리는 원격 이름 변경을 취소한다. */
+    fun cancelRename() = renameGate.cancel()
+
+    /**
+     * [item]을 [name]으로 바꿀 때 현재 원격 폴더의 기존 항목과 겹치는 방식을 판정한다.
+     * 서버의 대소문자 구분 여부를 알 수 없으므로, 대부분인 Unix 계열 서버에 맞춰 대소문자를 구분해 비교한다.
+     */
+    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict =
+        conflictCheckUseCase.findRenameConflict(
+            target = item,
+            newName = name,
+            siblings = uiState.value.fileHolderItemList,
+            ignoreCase = false,
+            pathOf = { it.path },
+            nameOf = { it.name },
+            isDirectoryOf = { it.isDirectory },
+        )
 
     /**
      * items를 원격 서버에서 하나의 작업으로 삭제한다.

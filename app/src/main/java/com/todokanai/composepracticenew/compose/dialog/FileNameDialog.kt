@@ -53,6 +53,7 @@ private fun fileNameErrorMessage(error: FileNameError): String = when (error) {
     FileNameError.CONTAINS_CONTROL_CHAR -> stringResource(R.string.error_file_name_control_char)
     FileNameError.RESERVED_NAME -> stringResource(R.string.error_file_name_reserved)
     FileNameError.TOO_LONG -> stringResource(R.string.error_file_name_too_long)
+    FileNameError.EXISTS_AS_OTHER_TYPE -> stringResource(R.string.error_file_name_other_type)
 }
 
 /** FileNameDialog의 빈 입력 모양을 확인하는 프리뷰. */

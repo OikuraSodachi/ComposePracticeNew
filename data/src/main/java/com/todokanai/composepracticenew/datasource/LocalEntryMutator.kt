@@ -4,6 +4,8 @@ import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 
 /** 단일 로컬 항목의 이름변경·삭제·폴더 생성을 수행한다. */
@@ -11,14 +13,85 @@ class LocalEntryMutator @Inject constructor() {
 
     /**
      * [targetFile]의 이름을 [newName]으로 변경한다.
+     * 같은 이름의 다른 항목이 있으면 [overwrite]가 false일 때 실패한다. true면 파일은 기존 파일을 교체하고,
+     * 폴더는 기존 폴더에 합친다(겹치는 항목은 덮어쓰고 나머지는 유지). 파일↔폴더처럼 종류가 다르면 항상 실패한다.
      * @param targetFile 이름을 변경할 파일의 절대 경로
      * @param newName 변경할 새 이름
+     * @param overwrite 같은 이름의 항목을 덮어쓸지 여부
      */
-    suspend fun rename(targetFile: String, newName: String) = withContext(Dispatchers.IO) {
-        val file = File(targetFile)
-        val success = file.renameTo(File("${file.parent}/$newName"))
-        if (!success) throw Exception("이름 변경 실패: ${file.name} → $newName")
+    suspend fun rename(targetFile: String, newName: String, overwrite: Boolean) = withContext(Dispatchers.IO) {
+        val source = File(targetFile)
+        val dest = File(source.parentFile, newName)
+        // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다
+        if (isSameEntry(source, dest)) {
+            if (!source.renameTo(dest)) throw Exception("이름 변경 실패: ${source.name} → $newName")
+            return@withContext
+        }
+        if (!dest.exists()) {
+            // REPLACE_EXISTING 없이 이동 — 확인 직후 같은 이름이 생겨도 덮어쓰지 않고 실패한다
+            runCatching { Files.move(source.toPath(), dest.toPath()) }
+                .onFailure { e -> throw Exception("이름 변경 실패: ${source.name} → $newName (${e.message})") }
+            return@withContext
+        }
+        if (!overwrite) throw Exception("이름 변경 실패: 같은 이름의 항목이 이미 있습니다 ($newName)")
+        when {
+            source.isDirectory && dest.isDirectory -> mergeDirectory(source, dest)
+            !source.isDirectory && !dest.isDirectory ->
+                Files.move(source.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            else -> throw Exception("이름 변경 실패: 종류가 다른 항목이 같은 이름으로 있습니다 ($newName)")
+        }
     }
+
+    /**
+     * [source] 폴더의 내용을 [dest] 폴더에 합친 뒤 비게 된 [source]를 지운다. 겹치는 파일은 덮어쓰고 겹치지 않는 [dest]의 항목은 유지한다.
+     * 하위 어디에서든 파일↔폴더 종류가 겹치면 아무것도 바꾸기 전에 실패한다.
+     * @param source 이름을 바꿀 폴더
+     * @param dest 같은 이름의 기존 폴더
+     */
+    private fun mergeDirectory(source: File, dest: File) {
+        findTypeMismatch(source, dest)?.let { relative ->
+            throw Exception("이름 변경 실패: 종류가 다른 항목이 같은 이름으로 있습니다 (${dest.name}/$relative)")
+        }
+        mergeInto(source, dest)
+    }
+
+    /**
+     * [source] 트리를 [dest]에 겹쳐 보았을 때 파일↔폴더 종류가 다른 첫 항목을 찾는다.
+     * @param source 합칠 폴더
+     * @param dest 합쳐질 기존 폴더
+     * @return 종류가 겹치는 항목의 [source] 기준 상대 경로, 없으면 null
+     */
+    private fun findTypeMismatch(source: File, dest: File): String? =
+        source.walkTopDown().drop(1).firstNotNullOfOrNull { entry ->
+            val relative = source.toPath().relativize(entry.toPath())
+            val counterpart = dest.toPath().resolve(relative).toFile()
+            relative.toString().replace("\\", "/").takeIf { counterpart.exists() && counterpart.isDirectory != entry.isDirectory }
+        }
+
+    /**
+     * [source]의 각 항목을 [dest]로 옮긴다. 없는 항목은 그대로 옮기고, 겹치는 폴더는 재귀로 합치며, 겹치는 파일은 교체한다.
+     * @param source 비울 폴더
+     * @param dest 항목을 받을 폴더
+     */
+    private fun mergeInto(source: File, dest: File) {
+        source.listFiles().orEmpty().forEach { child ->
+            val target = File(dest, child.name)
+            when {
+                !target.exists() -> Files.move(child.toPath(), target.toPath())
+                child.isDirectory -> mergeInto(child, target)
+                else -> Files.move(child.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        }
+        if (!source.delete()) throw Exception("이름 변경 실패: 합친 뒤 원래 폴더를 지우지 못했습니다 (${source.name})")
+    }
+
+    /**
+     * 두 경로가 같은 항목(같은 inode)을 가리키는지 확인한다.
+     * @param a 비교할 경로
+     * @param b 비교할 경로
+     * @return 같은 항목이면 true
+     */
+    private fun isSameEntry(a: File, b: File): Boolean = runCatching { Files.isSameFile(a.toPath(), b.toPath()) }.getOrDefault(false)
 
     /**
      * [targetFile]과 하위 항목을 리프부터 삭제하며 항목 수 기준으로 진행률을 보고한다.

@@ -44,7 +44,7 @@ class FileNameEnforcementTest {
 
     @Test
     fun `로컬 이름 변경·새 폴더·압축은 규칙 위반 이름을 거부하고 오류를 방출한다`() {
-        local.rename("/dir/a.txt", "x/y", "done") {}
+        local.rename("/dir/a.txt", "x/y", false, "done") {}
         local.makeDirectory("/dir", "..", "done") {}
         local.zip(setOf("/dir/a.txt"), "/dir", " archive", "done") {}
 
@@ -68,7 +68,7 @@ class FileNameEnforcementTest {
 
     @Test
     fun `규칙을 지킨 이름은 오류 없이 실행 단계로 넘어간다`() {
-        local.rename("/dir/a.txt", "a.md", "done") {}
+        local.rename("/dir/a.txt", "a.md", false, "done") {}
         local.makeDirectory("/dir", "new folder", "done") {}
         remote.renameRemote("/r/a.txt", "b.txt", "done", "fail") {}
 
@@ -98,7 +98,7 @@ class FileNameEnforcementTest {
         val calls = mutableListOf<String>()
         override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) { calls += "zip" }
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) { calls += "copy" }
-        override suspend fun renameFile(targetFile: String, newName: String) { calls += "rename" }
+        override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) { calls += "rename" }
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) { calls += "delete" }
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) { calls += "move" }
         override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) { calls += "unzip" }

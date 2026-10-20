@@ -54,6 +54,7 @@
     <string name="error_file_name_control_char">제어 문자는 사용할 수 없습니다</string>
     <string name="error_file_name_reserved">“.”와 “..”는 이름으로 사용할 수 없습니다</string>
     <string name="error_file_name_too_long">이름이 너무 깁니다 (최대 255바이트)</string>
+    <string name="error_file_name_other_type">같은 이름의 다른 종류 항목(파일↔폴더)이 있어 사용할 수 없습니다</string>
 
     <!-- Sort dialog -->
     <string name="sort_by_default">기본</string>
@@ -69,6 +70,13 @@
     <!-- File conflict dialog -->
     <string name="dialog_file_conflict_title">파일 충돌</string>
     <string name="dialog_file_conflict_message">동일한 이름의 파일이 이미 존재합니다. 덮어쓰시겠습니까?</string>
+
+    <!-- Rename conflict dialog -->
+    <string name="dialog_rename_conflict_title">이름 충돌</string>
+    <string name="dialog_rename_conflict_file">“%1$s” 파일이 이미 있습니다. 덮어쓰시겠습니까?</string>
+    <string name="dialog_rename_conflict_folder">“%1$s” 폴더가 이미 있습니다. 두 폴더를 합치면 겹치는 항목은 덮어쓰고 나머지는 그대로 둡니다. 합치시겠습니까?</string>
+    <string name="dialog_rename_conflict_remote">“%1$s”이(가) 이미 있습니다. 덮어쓰시겠습니까? 결과는 서버 동작에 따라 다르며, 서버가 거부하면 실패합니다.</string>
+    <string name="btn_merge">합치기</string>
 
     <!-- File list -->
     <string name="empty_directory">Empty Directory</string>

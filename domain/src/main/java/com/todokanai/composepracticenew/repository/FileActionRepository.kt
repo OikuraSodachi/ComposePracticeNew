@@ -13,7 +13,9 @@ interface FileActionRepository {
     suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {})
 
     // Renames the file at [targetFile] to [newName].
-    suspend fun renameFile(targetFile: String, newName: String)
+    // If another entry already has [newName]: fails unless [overwrite]. With [overwrite], a file replaces a file and a folder
+    // is merged into a folder (clashing entries replaced, others kept); a file/folder type mismatch always fails.
+    suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean = false)
 
     // Deletes the file at [targetFile], reporting progress via [onProgress].
     suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit = {})

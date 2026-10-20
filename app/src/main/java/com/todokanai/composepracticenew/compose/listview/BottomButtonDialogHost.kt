@@ -4,12 +4,14 @@ import androidx.compose.runtime.Composable
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.InfoDialog
+import com.todokanai.composepracticenew.compose.dialog.RenameConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingConflict
+import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
 
 /**
@@ -23,7 +25,10 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param onZip 압축 실행 콜백
  * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onRename 이름 변경 실행 콜백
- * @param validateEntryName 이름 변경에 쓸 이름을 검증해 위반한 규칙 집합을 반환하는 함수
+ * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
+ * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
+ * @param onConfirmRename 이름 변경 덮어쓰기(합치기) 확인 콜백
+ * @param onCancelRename 이름 변경 덮어쓰기 취소 콜백
  * @param onDelete 삭제 실행 콜백
  * @param onResolveConflict 충돌 처리 방법을 전달하는 콜백 — 작업을 실행했으면 true를 반환
  */
@@ -37,7 +42,10 @@ fun BottomButtonDialogHost(
     onZip: (List<FileHolderItem>, String) -> Unit,
     validateZipName: (String) -> Set<FileNameError>,
     onRename: (FileHolderItem, String) -> Unit,
-    validateEntryName: (String) -> Set<FileNameError>,
+    validateRename: (FileHolderItem, String) -> Set<FileNameError>,
+    pendingRename: PendingRename?,
+    onConfirmRename: () -> Unit,
+    onCancelRename: () -> Unit,
     onDelete: (List<FileHolderItem>) -> Unit,
     onResolveConflict: (ConflictResolution) -> Boolean,
 ) {
@@ -55,7 +63,15 @@ fun BottomButtonDialogHost(
         RenameDialog(
             onConfirm = { onRename(selectedList.first(), it) },
             onDismiss = { dialogState.dismissRename() },
-            validate = validateEntryName
+            validate = { name -> validateRename(selectedList.first(), name) }
+        )
+    }
+    pendingRename?.let { pending ->
+        RenameConflictDialog(
+            pending = pending,
+            isRemote = false,
+            onConfirm = onConfirmRename,
+            onDismiss = onCancelRename
         )
     }
     if (dialogState.infoDialog) {

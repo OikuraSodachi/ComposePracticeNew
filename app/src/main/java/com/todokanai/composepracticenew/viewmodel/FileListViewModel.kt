@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.tools.OperationMessages
@@ -11,6 +12,7 @@ import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingConflict
+import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
@@ -105,8 +107,25 @@ class FileListViewModel @Inject constructor(
     /** 복사·이동·압축 해제 실행 전 사용자 확인을 기다리는 충돌. */
     val pendingConflict: StateFlow<PendingConflict?> = conflictGate.pending
 
-    /** 새 폴더·이름 변경에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
+    /** 이름 변경의 "충돌 판정 → 즉시 실행 / 덮어쓰기 확인 대기" 흐름을 관리한다. */
+    private val renameGate = RenameConfirmGate()
+    /** 같은 이름의 항목이 있어 덮어쓰기(폴더는 합치기) 확인을 기다리는 이름 변경. */
+    val pendingRename: StateFlow<PendingRename?> = renameGate.pending
+
+    /** 새 폴더에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
     fun validateEntryName(name: String): Set<FileNameError> = localFileOperationUseCase.validateEntryName(name)
+
+    /**
+     * [item]을 [name]으로 바꿀 때의 위반 규칙 집합을 반환한다. 이름 규칙에 더해, 같은 폴더에 종류가 다른 같은 이름 항목이 있으면
+     * [FileNameError.EXISTS_AS_OTHER_TYPE]을 포함한다. 같은 종류의 겹침은 오류가 아니라 확인 대상이다.
+     * @param item 이름을 바꿀 항목
+     * @param name 사용자가 입력한 새 이름
+     * @return 위반한 규칙의 집합. 비어 있으면 확인 버튼을 누를 수 있다
+     */
+    fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
+        val errors = localFileOperationUseCase.validateEntryName(name)
+        return if (renameConflictOf(item, name) == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
+    }
 
     /** 압축 파일 이름([name].zip)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
     fun validateZipName(name: String): Set<FileNameError> = localFileOperationUseCase.validateZipName(name)
@@ -178,15 +197,42 @@ class FileListViewModel @Inject constructor(
         )
     }
 
-    /** [item]의 이름을 [name]으로 변경한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
+    /**
+     * [item]의 이름을 [name]으로 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
+     * 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
+     */
     fun rename(item: FileHolderItem, name: String) {
-        localFileOperationUseCase.rename(
-            path = item.path,
-            newName = name,
-            completionMessage = messages.notiComplete,
-            onRefresh = { fileNavigatorUseCase.refresh() }
-        )
+        renameGate.request(item, name, renameConflictOf(item, name)) { overwrite ->
+            localFileOperationUseCase.rename(
+                path = item.path,
+                newName = name,
+                overwrite = overwrite,
+                completionMessage = messages.notiComplete,
+                onRefresh = { fileNavigatorUseCase.refresh() }
+            )
+        }
     }
+
+    /** 확인을 기다리는 이름 변경을 덮어쓰기(폴더는 합치기)로 실행한다. */
+    fun confirmRename() = renameGate.confirm()
+
+    /** 확인을 기다리는 이름 변경을 취소한다. */
+    fun cancelRename() = renameGate.cancel()
+
+    /**
+     * [item]을 [name]으로 바꿀 때 현재 폴더의 기존 항목과 겹치는 방식을 판정한다.
+     * 로컬 공용 저장소(/storage/emulated, SD 카드)는 대소문자를 구분하지 않으므로 대소문자 무시로 비교한다.
+     */
+    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict =
+        conflictCheckUseCase.findRenameConflict(
+            target = item,
+            newName = name,
+            siblings = uiState.value.fileHolderItemList,
+            ignoreCase = true,
+            pathOf = { it.path },
+            nameOf = { it.name },
+            isDirectoryOf = { it.isDirectory },
+        )
 
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {

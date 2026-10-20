@@ -122,16 +122,18 @@ class LocalFileOperationUseCase(
 
     /**
      * [path]의 파일 이름을 [newName]으로 변경한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
+     * 같은 이름의 항목이 이미 있으면 [overwrite]가 true일 때만 덮어쓴다(파일은 교체, 폴더는 합침). false면 실패를 알린다.
      * @param path 이름을 변경할 파일의 절대 경로
      * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
+     * @param overwrite 사용자가 덮어쓰기를 확인했으면 true
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun rename(path: String, newName: String, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun rename(path: String, newName: String, overwrite: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsInvalidName(validateEntryName(newName), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            fileActionRepo.renameFile(path, newName)
+            fileActionRepo.renameFile(path, newName, overwrite)
         }
     }
 

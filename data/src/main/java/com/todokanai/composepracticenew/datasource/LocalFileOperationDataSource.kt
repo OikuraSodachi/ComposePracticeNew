@@ -22,8 +22,9 @@ interface LocalFileOperationDataSource {
     /**
      * @param targetFile 이름을 변경할 파일의 절대 경로
      * @param newName 변경할 새 이름
+     * @param overwrite 같은 이름의 항목이 있을 때 덮어쓸지 여부. false면 실패한다. true면 파일은 교체하고 폴더는 합친다(종류가 다르면 실패)
      */
-    suspend fun renameFile(targetFile: String, newName: String)
+    suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean)
     /**
      * @param targetFile 삭제할 파일 또는 디렉터리의 절대 경로
      * @param onProgress 진행 상태를 수신하는 콜백
