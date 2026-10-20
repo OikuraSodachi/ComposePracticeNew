@@ -23,12 +23,14 @@ fun EditTextDialog(
 ) {
     // 키 없음 — 다이얼로그가 떠 있는 동안 사용자 입력을 유지하고, initialText가 바뀌어도 입력 중인 값을 덮어쓰지 않음
     var text by remember { mutableStateOf(initialText) }
+    // text를 추적 — isNotBlank 결과가 바뀔 때만 본문을 무효화해 글자 입력마다의 본문 재실행을 막음
+    val isValid by remember { derivedStateOf { text.isNotBlank() } }
     ConfirmCancelDialog(
         modifier = modifier,
         title = title,
         onConfirm = { onConfirm(text) },
         onDismiss = onDismiss,
-        confirmEnabled = text.isNotBlank(),
+        confirmEnabled = isValid,
         confirmText = confirmText,
         dismissText = dismissText
     ) {
