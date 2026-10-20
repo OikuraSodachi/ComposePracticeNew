@@ -15,7 +15,7 @@ fun DeleteDialog(
         modifier = Modifier,
         onConfirm = onConfirm,
         onDismiss = onDismiss,
-        title = "",
+        title = null,
         message = stringResource(R.string.dialog_delete_message)
     )
 }
