@@ -71,7 +71,7 @@ private fun StorageDialogHost(
             onDismiss = { dialogState.dismissAdd() }
         )
     }
-    dialogState.editingItem?.let { target ->
+    remoteStorageList.findById(dialogState.editingId)?.let { target ->
         AddRemoteStorageDialog(
             initialValue = target,
             onConfirm = { name, address, port, id, password, encoding ->
@@ -80,13 +80,17 @@ private fun StorageDialogHost(
             onDismiss = { dialogState.dismissEdit() }
         )
     }
-    dialogState.deletingId?.let { id -> remoteStorageList.find { it.id == id } }?.let { target ->
+    remoteStorageList.findById(dialogState.deletingId)?.let { target ->
         DeleteDialog(
             onConfirm = { onDelete(target) },
             onDismiss = { dialogState.dismissDelete() }
         )
     }
 }
+
+/** 다이얼로그 상태가 보관한 id로 대상 원격 스토리지를 찾는다. id가 null이거나 목록에 없으면 null. */
+private fun List<RemoteStorageItem>.findById(id: Long?): RemoteStorageItem? =
+    id?.let { target -> find { it.id == target } }
 
 /**
  * 스토리지 선택 화면. 로컬/원격 스토리지 목록을 표시하고 탐색 진입점을 제공한다.

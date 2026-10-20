@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -36,12 +37,14 @@ fun AddRemoteStorageDialog(
     initialValue: RemoteStorageItem? = null
 ) {
     val encodingOptions = Constants.REMOTE_ENCODING_OPTIONS
-    var name by remember { mutableStateOf(initialValue?.name ?: "") }
-    var address by remember { mutableStateOf(initialValue?.address ?: "") }
-    var port by remember { mutableStateOf(initialValue?.port?.toString() ?: "21") }
-    var id by remember { mutableStateOf(initialValue?.userId ?: "") }
-    var password by remember { mutableStateOf(initialValue?.password ?: "") }
-    var selectedEncoding by remember { mutableStateOf(initialValue?.encoding ?: Constants.REMOTE_ENCODING_DEFAULT) }
+    // 입력 필드 6개는 rememberSaveable — 키 없음: 화면 회전 등 구성 변경 후에도 입력 중인 값을 보존하고, initialValue는 최초 진입 시에만 초기값으로 사용
+    var name by rememberSaveable { mutableStateOf(initialValue?.name ?: "") }
+    var address by rememberSaveable { mutableStateOf(initialValue?.address ?: "") }
+    var port by rememberSaveable { mutableStateOf(initialValue?.port?.toString() ?: "21") }
+    var id by rememberSaveable { mutableStateOf(initialValue?.userId ?: "") }
+    var password by rememberSaveable { mutableStateOf(initialValue?.password ?: "") }
+    var selectedEncoding by rememberSaveable { mutableStateOf(initialValue?.encoding ?: Constants.REMOTE_ENCODING_DEFAULT) }
+    // 드롭다운 펼침은 일시적 UI 상태라 구성 변경 시 닫혀도 무방 — remember로 충분
     var encodingExpanded by remember { mutableStateOf(false) }
 
     ConfirmCancelDialog(
