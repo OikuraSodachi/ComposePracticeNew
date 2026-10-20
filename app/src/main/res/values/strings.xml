@@ -47,6 +47,14 @@
     <string name="dialog_new_folder_title">Name of the new folder</string>
     <string name="dialog_new_folder_hint">folder name</string>
 
+    <!-- File name validation -->
+    <string name="error_file_name_blank">이름을 입력하세요</string>
+    <string name="error_file_name_edge_whitespace">이름 앞뒤에는 공백을 둘 수 없습니다</string>
+    <string name="error_file_name_path_separator">“/”와 “\\”는 사용할 수 없습니다</string>
+    <string name="error_file_name_control_char">제어 문자는 사용할 수 없습니다</string>
+    <string name="error_file_name_reserved">“.”와 “..”는 이름으로 사용할 수 없습니다</string>
+    <string name="error_file_name_too_long">이름이 너무 깁니다 (최대 255바이트)</string>
+
     <!-- Sort dialog -->
     <string name="sort_by_default">기본</string>
     <string name="sort_by_name_ascending">이름 오름차순</string>

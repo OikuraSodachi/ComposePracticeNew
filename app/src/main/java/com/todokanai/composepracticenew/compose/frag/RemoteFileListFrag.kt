@@ -98,6 +98,7 @@ fun RemoteFileListFrag(
             sortMode = sortMode,
             onSortModeSelected = viewModel::onSortModeSelected,
             onNewFolder = viewModel::onMakeDirectory,
+            validateFolderName = viewModel::validateEntryName,
             onExit = onExit
         )
         if (uiState.value.fileHolderItemList.isEmpty()) {
@@ -130,6 +131,7 @@ fun RemoteFileListFrag(
             onClearSelection = clearList,
             selectedList = selectedList,
             onRename = viewModel::onRename,
+            validateEntryName = viewModel::validateEntryName,
             onDelete = viewModel::onDelete,
             onEnterDownloadMode = onEnterDownloadMode,
             onConfirmUpload = onConfirmUpload,

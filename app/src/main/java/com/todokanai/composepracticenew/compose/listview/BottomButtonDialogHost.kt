@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.InfoDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
+import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingConflict
@@ -20,7 +21,9 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
  * @param onResetSelection 작업 실행 후 선택 모드·선택 목록을 초기화하는 콜백
  * @param onZip 압축 실행 콜백
+ * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onRename 이름 변경 실행 콜백
+ * @param validateEntryName 이름 변경에 쓸 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onDelete 삭제 실행 콜백
  * @param onResolveConflict 충돌 처리 방법을 전달하는 콜백 — 작업을 실행했으면 true를 반환
  */
@@ -32,7 +35,9 @@ fun BottomButtonDialogHost(
     selectionSummary: () -> SelectionSummary,
     onResetSelection: () -> Unit,
     onZip: (List<FileHolderItem>, String) -> Unit,
+    validateZipName: (String) -> Set<FileNameError>,
     onRename: (FileHolderItem, String) -> Unit,
+    validateEntryName: (String) -> Set<FileNameError>,
     onDelete: (List<FileHolderItem>) -> Unit,
     onResolveConflict: (ConflictResolution) -> Boolean,
 ) {
@@ -42,13 +47,15 @@ fun BottomButtonDialogHost(
                 onZip(selectedList, it)
                 onResetSelection()
             },
-            onDismiss = { dialogState.dismissZip() }
+            onDismiss = { dialogState.dismissZip() },
+            validate = validateZipName
         )
     }
     if (dialogState.renameDialog) {
         RenameDialog(
             onConfirm = { onRename(selectedList.first(), it) },
-            onDismiss = { dialogState.dismissRename() }
+            onDismiss = { dialogState.dismissRename() },
+            validate = validateEntryName
         )
     }
     if (dialogState.infoDialog) {

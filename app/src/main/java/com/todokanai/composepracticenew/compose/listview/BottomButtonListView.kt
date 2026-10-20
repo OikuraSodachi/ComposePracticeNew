@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
@@ -17,6 +18,8 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * 충돌 검사와 실행 여부 판단은 ViewModel이 수행하며, 이 컴포저블은 결과에 따라 선택 상태만 초기화한다.
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
  * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
+ * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
+ * @param validateEntryName 이름 변경에 쓸 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  */
 @Composable
 fun BottomButtonListView(
@@ -32,7 +35,9 @@ fun BottomButtonListView(
     onRequestConfirm: (List<FileHolderItem>, SelectMode.LocalOperation) -> Boolean,
     onResolveConflict: (ConflictResolution) -> Boolean,
     onZip: (List<FileHolderItem>, String) -> Unit,
+    validateZipName: (String) -> Set<FileNameError>,
     onRename: (FileHolderItem, String) -> Unit,
+    validateEntryName: (String) -> Set<FileNameError>,
     onDelete: (List<FileHolderItem>) -> Unit,
 ) {
     val dialogState = rememberBottomButtonDialogState()
@@ -72,7 +77,9 @@ fun BottomButtonListView(
         selectionSummary = selectionSummary,
         onResetSelection = onResetSelection,
         onZip = onZip,
+        validateZipName = validateZipName,
         onRename = onRename,
+        validateEntryName = validateEntryName,
         onDelete = onDelete,
         onResolveConflict = onResolveConflict,
     )

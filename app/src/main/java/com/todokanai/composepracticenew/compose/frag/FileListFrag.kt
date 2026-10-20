@@ -67,6 +67,7 @@ fun FileListFrag(
             sortMode = sortMode,
             onSortModeSelected = viewModel::onSortModeSelected,
             onNewFolder = viewModel::newFolder,
+            validateFolderName = viewModel::validateEntryName,
             onExit = onExit
         )
         if (uiState.value.fileHolderItemList.isEmpty()) {
@@ -106,7 +107,9 @@ fun FileListFrag(
             onRequestConfirm = viewModel::requestConfirm,
             onResolveConflict = viewModel::resolveConflict,
             onZip = viewModel::zip,
+            validateZipName = viewModel::validateZipName,
             onRename = viewModel::rename,
+            validateEntryName = viewModel::validateEntryName,
             onDelete = viewModel::delete
         )
 
