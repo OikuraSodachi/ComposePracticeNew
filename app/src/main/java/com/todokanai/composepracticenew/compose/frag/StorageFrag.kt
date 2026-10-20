@@ -83,7 +83,7 @@ private fun StorageDialogHost(
     dialogState.deletingId?.let { id -> remoteStorageList.find { it.id == id } }?.let { target ->
         DeleteDialog(
             onConfirm = { onDelete(target) },
-            onCancel = { dialogState.dismissDelete() }
+            onDismiss = { dialogState.dismissDelete() }
         )
     }
 }

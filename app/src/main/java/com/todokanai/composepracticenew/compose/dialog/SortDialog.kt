@@ -17,7 +17,7 @@ import com.todokanai.composepracticenew.model.SortMode
 fun SortDialog(
     selected: SortMode,
     onSelect: (SortMode) -> Unit,
-    onCancel: () -> Unit
+    onDismiss: () -> Unit
 ){
     SelectDialog(
         modifier = Modifier,
@@ -26,9 +26,8 @@ fun SortDialog(
         selected = selected,
         label = { sortModeLabel(it) },
         onSelect = onSelect,
-        onDismissRequest = onCancel,
-        onConfirm = null,
-        onCancel = onCancel
+        onDismiss = onDismiss,
+        onConfirm = null
     )
 }
 
@@ -56,6 +55,6 @@ private fun SortDialogPreview(){
     SortDialog(
         selected = SortMode.BY_NAME_ASCENDING,
         onSelect = {},
-        onCancel = {}
+        onDismiss = {}
     )
 }

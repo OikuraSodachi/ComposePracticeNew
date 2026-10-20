@@ -10,14 +10,14 @@ import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 @Composable
 fun RenameDialog(
     onConfirm: (text:String) -> Unit,
-    onCancel: () -> Unit
+    onDismiss: () -> Unit
 ){
     EditTextDialog(
         modifier = Modifier,
         title = stringResource(R.string.dialog_rename_title),
         defaultText = stringResource(R.string.dialog_rename_hint),
         onConfirm = {onConfirm(it)},
-        onCancel = {onCancel()}
+        onDismiss = {onDismiss()}
     )
 }
 
@@ -26,6 +26,6 @@ fun RenameDialog(
 private fun RenameDialogPreview(){
     RenameDialog(
         onConfirm = {},
-        onCancel = {}
+        onDismiss = {}
     )
 }

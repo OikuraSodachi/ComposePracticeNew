@@ -8,17 +8,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.todokanai.composepracticenew.R
 
 /**
  * 선택지 중 하나를 라디오 버튼으로 고르는 범용 다이얼로그.
@@ -33,54 +33,29 @@ fun <T> SelectDialog(
     selected: T,
     label: @Composable (T) -> String,
     onSelect: (T) -> Unit,
-    onDismissRequest:()->Unit,
-    confirmText:String ?=null,
-    dismissText:String ?=null,
-    onConfirm:(()->Unit)? =null,
-    onCancel:(()->Unit)? =null
+    onDismiss: () -> Unit,
+    confirmText: String = stringResource(R.string.btn_confirm),
+    dismissText: String = stringResource(R.string.btn_cancel),
+    onConfirm:(()->Unit)? =null
 ){
-    AlertDialog(
+    ConfirmCancelDialog(
         modifier = modifier,
-        onDismissRequest = onDismissRequest,
-        title = {
-            title?.let{
-                Text(title)
-            }
-                },
-        text = {
-            LazyColumn(modifier = Modifier.selectableGroup()) {
-                items(options) { option ->
-                    SelectOptionRow(
-                        label = label(option),
-                        isSelected = option == selected,
-                        onSelect = { onSelect(option) }
-                    )
-                }
-            }
-               },
-        confirmButton = {
-            onConfirm?.let{
-                Button(
-                    onClick = { onConfirm() }
-                ) {
-                    confirmText?.let{
-                        Text(confirmText)
-                    }
-                }
-            }
-        },
-        dismissButton = {
-            onCancel?.let{
-                Button(
-                    onClick = { onCancel() }
-                ) {
-                    dismissText?.let{
-                        Text(dismissText)
-                    }
-                }
+        title = title,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        confirmText = confirmText,
+        dismissText = dismissText
+    ) {
+        LazyColumn(modifier = Modifier.selectableGroup()) {
+            items(options) { option ->
+                SelectOptionRow(
+                    label = label(option),
+                    isSelected = option == selected,
+                    onSelect = { onSelect(option) }
+                )
             }
         }
-    )
+    }
 }
 
 /**
@@ -125,10 +100,8 @@ private fun SelectDialogPreview(){
         selected = "Item2",
         label = { it },
         onSelect = {},
-        onDismissRequest = {},
+        onDismiss = {},
         dismissText = "test",
-        confirmText = null,
-        onConfirm = {},
-        onCancel = {}
+        onConfirm = {}
     )
 }

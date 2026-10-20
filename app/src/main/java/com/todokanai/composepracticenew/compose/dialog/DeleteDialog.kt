@@ -9,12 +9,12 @@ import com.todokanai.composepracticenew.compose.presets.dialog.BooleanDialog
 @Composable
 fun DeleteDialog(
     onConfirm: ()->Unit,
-    onCancel:()->Unit
+    onDismiss:()->Unit
 ){
     BooleanDialog(
         modifier = Modifier,
         onConfirm = onConfirm,
-        onCancel = onCancel,
+        onDismiss = onDismiss,
         title = "",
         message = stringResource(R.string.dialog_delete_message)
     )
