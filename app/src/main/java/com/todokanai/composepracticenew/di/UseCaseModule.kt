@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
+import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
@@ -88,6 +89,9 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideConflictCheckUseCase() = ConflictCheckUseCase()
+
+    @Provides @Singleton
+    fun provideFileNameUseCase() = FileNameUseCase()
 
     @Provides @Singleton
     fun provideFileOperationOrchestrator(
