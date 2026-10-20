@@ -32,9 +32,10 @@ fun <E> EditTextDialog(
     onConfirm: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    // 키 없음 — 다이얼로그가 떠 있는 동안 사용자 입력을 유지하고, initialText가 바뀌어도 입력 중인 값을 덮어쓰지 않음
-    var text by remember { mutableStateOf(initialText) }
-    // 키 없음 — 구성 변경 후에도 이미 보이던 오류 표시가 사라지지 않도록 편집 여부를 보존
+    // 입력값과 편집 여부는 같은 rememberSaveable로 함께 보존 — 키 없음: initialText가 바뀌어도 입력 중인 값을 덮어쓰지 않음.
+    // 호스트가 표시 상태를 저장하면 구성 변경 후 입력값과 오류 표시가 짝을 이뤄 복원되고(한쪽만 복원되어 빈 입력에 오류가 뜨는 일 방지),
+    // 호스트 표시 상태가 remember라 다이얼로그가 닫히는 경우에는 함께 버려진다.
+    var text by rememberSaveable { mutableStateOf(initialText) }
     var edited by rememberSaveable { mutableStateOf(false) }
     // rememberUpdatedState — 아래 derivedStateOf가 재생성 없이 항상 최신 validate를 호출하도록 보장
     val currentValidate by rememberUpdatedState(validate)
