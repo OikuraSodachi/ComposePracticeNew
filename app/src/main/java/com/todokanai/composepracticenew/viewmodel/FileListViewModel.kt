@@ -18,7 +18,6 @@ import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
-import com.todokanai.composepracticenew.variables.FileListSorter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
@@ -39,7 +38,6 @@ import javax.inject.Inject
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
  * @param messages 작업 완료 메시지 제공자
- * @param sorter 정렬 모드 선택 목록을 만드는 FileListSorter
  */
 @HiltViewModel
 class FileListViewModel @Inject constructor(
@@ -50,7 +48,6 @@ class FileListViewModel @Inject constructor(
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: OperationMessages,
-    sorter: FileListSorter,
 ) : ViewModel() {
 
     /**
@@ -88,8 +85,10 @@ class FileListViewModel @Inject constructor(
             initialValue = SortMode.BY_DEFAULT
         )
 
-    /** 정렬 모드 선택 목록과 각 항목 선택 시 실행할 콜백을 반환한다. */
-    val sortModeCallbackList = sorter.getSortModeCallbackList { sortModeUseCase.saveSortBy(it) }
+    /** 정렬 다이얼로그에서 선택된 정렬 기준을 저장한다. */
+    fun onSortModeSelected(mode: SortMode) {
+        sortModeUseCase.saveSortBy(mode)
+    }
 
     /** 경로 breadcrumb에 표시할 디렉터리 트리. */
     val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
