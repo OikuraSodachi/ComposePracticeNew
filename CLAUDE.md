@@ -96,7 +96,7 @@ See [ROADMAP.md](ROADMAP.md).
 
 ## Key Conventions
 
-- Sort mode constants are strings defined in `Constants` (e.g., `BY_NAME_ASCENDING`).
+- 정렬 모드는 domain `SortMode` enum이다. `SortMode.id`는 DataStore 저장 전용(변경 금지)이며, 표시 문구는 app 레이어 exhaustive `when` → 문자열 리소스로 매핑한다.
 - 작업 종류는 `FileOperationType` enum. 알림 Intent extra(`EXTRA_ACTION_KEY`)와 PendingIntent requestCode에는 `FileOperationType.id`를 사용한다.
 - Compose "fragments" (`*Frag`) are stateless composables that receive a ViewModel; they are not Android `Fragment` classes.
 - Compose "holders" (`*Holder`) are item-level composables for list rows.
