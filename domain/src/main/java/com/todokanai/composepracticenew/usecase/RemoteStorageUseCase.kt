@@ -60,6 +60,9 @@ class RemoteStorageUseCase(
      * @return Unit
      */
     suspend fun clearLastConnectedIfMatches(id: Long) {
+        // 알려진 한계(PR #199 리뷰 CLEANUP 2, 미해결): 읽기와 쓰기가 분리된 check-then-act다. setLastRemoteId는 fire-and-forget이라
+        // 직전 saveLastConnectedId(id)가 아직 반영되지 않았으면 확인이 false가 되어 초기화를 건너뛰고, 이후 저장이 반영되어
+        // 삭제된 서버 id가 남을 수 있다. 대응안: 확인과 삭제를 하나의 DataStore edit 트랜잭션으로 합친다(예: clearLastRemoteIdIf(id)).
         if (lastConnectionRepo.lastRemoteId() == id) lastConnectionRepo.setLastRemoteId(null)
     }
 }
