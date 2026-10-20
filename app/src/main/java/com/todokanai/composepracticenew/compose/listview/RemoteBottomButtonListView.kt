@@ -19,8 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
-import com.todokanai.composepracticenew.compose.dialog.fileNameErrorMessage
-import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
+import com.todokanai.composepracticenew.compose.dialog.FileNameDialog
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -44,13 +43,11 @@ private fun RemoteRenameDialogHost(
     title: String,
 ) {
     renameTarget?.let { target ->
-        EditTextDialog(
-            modifier = Modifier,
+        FileNameDialog(
             title = title,
-            defaultText = target.name,
+            hint = target.name,
             initialText = target.name,
             validate = validateEntryName,
-            errorMessage = { fileNameErrorMessage(it) },
             onConfirm = { newName -> onRename(target, newName) },
             onDismiss = onDismiss,
         )
