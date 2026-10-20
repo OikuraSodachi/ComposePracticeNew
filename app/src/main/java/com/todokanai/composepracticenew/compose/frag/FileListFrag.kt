@@ -18,17 +18,20 @@ import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
 /**
  * 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다.
  * @param selectedList 선택 목록을 반환하는 함수 — 값을 실제로 쓰는 하위 컴포저블에서 읽어 선택 변경 시 리컴포지션 범위를 좁힌다
+ * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
  */
 @Composable
 fun FileListFrag(
     modifier: Modifier,
     selectMode: LocalSelectMode,
     selectedList: () -> List<FileHolderItem>,
+    selectionSummary: () -> SelectionSummary,
     onSelectModeChange: (LocalSelectMode) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
@@ -96,6 +99,7 @@ fun FileListFrag(
             onSelectModeChange = onSelectModeChange,
             onClearSelection = clearList,
             selectedList = selectedList,
+            selectionSummary = selectionSummary,
             onConfirmDownload = onConfirmDownload,
             onEnterUploadMode = onEnterUploadMode,
             pendingConflict = pendingConflict,

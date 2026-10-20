@@ -22,6 +22,7 @@ import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
+import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import kotlinx.coroutines.launch
@@ -54,6 +55,7 @@ private fun StorageConnectionEffects(
  * @param onUpdate 편집 확인 시 수정된 RemoteStorageItem을 전달하는 콜백
  * @param remoteStorageList deletingId로 삭제 대상을 찾을 원격 스토리지 목록
  * @param onDelete 삭제 확인 시 대상 RemoteStorageItem을 전달하는 콜백
+ * @param validate 추가·편집 입력값(이름, 주소, 포트 문자열)을 검증해 위반한 규칙 집합을 반환하는 함수
  */
 @Composable
 private fun StorageDialogHost(
@@ -62,31 +64,38 @@ private fun StorageDialogHost(
     onAdd: (String, String, Int, String, String, String) -> Unit,
     onUpdate: (RemoteStorageItem) -> Unit,
     onDelete: (RemoteStorageItem) -> Unit,
+    validate: (name: String, address: String, port: String) -> Set<RemoteStorageInputError>,
 ) {
     if (dialogState.showAddDialog) {
         AddRemoteStorageDialog(
             onConfirm = { name, address, port, id, password, encoding ->
                 onAdd(name, address, port, id, password, encoding)
             },
-            onCancel = { dialogState.dismissAdd() }
+            onDismiss = { dialogState.dismissAdd() },
+            validate = validate
         )
     }
-    dialogState.editingItem?.let { target ->
+    remoteStorageList.findById(dialogState.editingId)?.let { target ->
         AddRemoteStorageDialog(
             initialValue = target,
             onConfirm = { name, address, port, id, password, encoding ->
                 onUpdate(target.copy(name = name, address = address, port = port, userId = id, password = password, encoding = encoding))
             },
-            onCancel = { dialogState.dismissEdit() }
+            onDismiss = { dialogState.dismissEdit() },
+            validate = validate
         )
     }
-    dialogState.deletingId?.let { id -> remoteStorageList.find { it.id == id } }?.let { target ->
+    remoteStorageList.findById(dialogState.deletingId)?.let { target ->
         DeleteDialog(
             onConfirm = { onDelete(target) },
             onDismiss = { dialogState.dismissDelete() }
         )
     }
 }
+
+/** 다이얼로그 상태가 보관한 id로 대상 원격 스토리지를 찾는다. id가 null이거나 목록에 없으면 null. */
+private fun List<RemoteStorageItem>.findById(id: Long?): RemoteStorageItem? =
+    id?.let { target -> find { it.id == target } }
 
 /**
  * 스토리지 선택 화면. 로컬/원격 스토리지 목록을 표시하고 탐색 진입점을 제공한다.
@@ -122,6 +131,7 @@ fun StorageFrag(
         },
         onUpdate = { viewModel.updateRemoteStorage(it) },
         onDelete = { viewModel.deleteRemoteStorage(it) },
+        validate = viewModel::validateRemoteStorageInput,
     )
 
     Box(modifier = Modifier.fillMaxSize()) {

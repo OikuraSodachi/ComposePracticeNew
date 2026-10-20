@@ -6,13 +6,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 
-/** 메시지를 보여주고 확인 또는 취소를 받는 다이얼로그. */
+/** 메시지를 보여주고 확인 또는 취소를 받는 다이얼로그. [title]이 null이면 제목 영역을 두지 않는다. */
 @Composable
 fun BooleanDialog(
     modifier:Modifier,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    title: String,
+    title: String?,
     message: String,
 ) {
     ConfirmCancelDialog(

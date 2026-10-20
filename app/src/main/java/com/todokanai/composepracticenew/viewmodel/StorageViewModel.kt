@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
@@ -81,6 +82,10 @@ class StorageViewModel @Inject constructor(
             localNavigator.setPath(path)
         }
     }
+
+    /** 원격 스토리지 추가·수정 입력값을 검증해 위반한 규칙의 집합을 반환한다. 비어 있으면 유효한 입력이다. */
+    fun validateRemoteStorageInput(name: String, address: String, port: String): Set<RemoteStorageInputError> =
+        remoteStorageUseCase.validateInput(name, address, port)
 
     /** 원격 스토리지를 추가한다. */
     fun addRemoteStorage(name: String, address: String, port: Int, id: String, password: String, encoding: String) {
