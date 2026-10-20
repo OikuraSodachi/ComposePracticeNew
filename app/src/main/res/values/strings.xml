@@ -44,6 +44,17 @@
     <string name="dialog_new_folder_title">Name of the new folder</string>
     <string name="dialog_new_folder_hint">folder name</string>
 
+    <!-- Sort dialog -->
+    <string name="sort_by_default">기본</string>
+    <string name="sort_by_name_ascending">이름 오름차순</string>
+    <string name="sort_by_name_descending">이름 내림차순</string>
+    <string name="sort_by_size_ascending">크기 오름차순</string>
+    <string name="sort_by_size_descending">크기 내림차순</string>
+    <string name="sort_by_type_ascending">형식 오름차순</string>
+    <string name="sort_by_type_descending">형식 내림차순</string>
+    <string name="sort_by_date_ascending">수정일 오름차순</string>
+    <string name="sort_by_date_descending">수정일 내림차순</string>
+
     <!-- File conflict dialog -->
     <string name="dialog_file_conflict_title">파일 충돌</string>
     <string name="dialog_file_conflict_message">동일한 이름의 파일이 이미 존재합니다. 덮어쓰시겠습니까?</string>

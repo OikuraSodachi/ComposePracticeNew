@@ -33,7 +33,7 @@ fun OptionFrag(
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
     sortMode: SortMode,
-    sortModeCallbackList: List<Pair<String, () -> Unit>>,
+    onSortModeSelected: (SortMode) -> Unit,
     onNewFolder: (String) -> Unit,
     onExit: () -> Unit,
 ) {
@@ -53,8 +53,8 @@ fun OptionFrag(
     var showSortDialog by remember { mutableStateOf(false) }
     if (showSortDialog) {
         SortDialog(
-            items = sortModeCallbackList,
-            selectedItem = sortMode.id,
+            selected = sortMode,
+            onSelect = onSortModeSelected,
             onCancel = {
                 showSortDialog = false
             }
