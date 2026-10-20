@@ -32,7 +32,17 @@ class FileNameUseCase {
     private fun isPathSeparator(c: Char): Boolean = c == '/' || c == '\\'
 
     /** 제어 문자(U+0000~U+001F, U+007F)인지 판별한다. */
-    private fun isControlChar(c: Char): Boolean = c.code < 0x20 || c.code == 0x7F
+    private fun isControlChar(c: Char): Boolean {
+        // 알려진 한계(PR #207 리뷰 4번, 미해결):
+        // 1) C1 제어 문자(U+0080~U+009F)는 검사하지 않아 통과한다. 대응안: c.isISOControl()로 C0·DEL·C1을 함께 거부.
+        // 2) bidi 서식 문자(U+061C, U+200E/U+200F, U+202A~U+202E, U+2066~U+2069)를 통과시켜 표시 이름 위장이 가능하다.
+        //    예: "report‮fdp.apk"는 화면에 "reportkpa.pdf"로 보이지만 실제 확장자는 .apk라, 열면 설치 화면이 뜰 수 있다.
+        //    대응안: 위 목록만 명시 거부(BIDI_CONTROLS). Unicode Cf 범주 전체 거부는 이모지 ZWJ(U+200D) 등 정상 이름까지 막으므로 쓰지 않는다.
+        //    이 정책은 사용자가 입력하는 이름에만 적용되므로, 서버·외부 앱이 이미 만든 위장 이름의 표시는 목록 표시 레이어의 별도 과제다.
+        // 3) 로컬·원격 공통 규칙이라 FAT/exFAT(SD 카드·USB) 금지 문자(" * : < > ? |)와 끝의 '.'은 검사하지 않는다(작성자 결정).
+        //    해당 저장소에서는 검증 통과 후 mkdir/renameTo 단계에서 실패 알림으로 끝난다. 대응안: 저장소 종류별 정책 분리.
+        return c.code < 0x20 || c.code == 0x7F
+    }
 
     /** 이름 전체가 '.' 또는 '..'인지 판별한다. */
     private fun isReservedName(name: String): Boolean = name == "." || name == ".."
