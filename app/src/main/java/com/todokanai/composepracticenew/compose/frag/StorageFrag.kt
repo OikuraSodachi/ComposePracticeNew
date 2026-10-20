@@ -68,7 +68,7 @@ private fun StorageDialogHost(
             onConfirm = { name, address, port, id, password, encoding ->
                 onAdd(name, address, port, id, password, encoding)
             },
-            onCancel = { dialogState.dismissAdd() }
+            onDismiss = { dialogState.dismissAdd() }
         )
     }
     dialogState.editingItem?.let { target ->
@@ -77,7 +77,7 @@ private fun StorageDialogHost(
             onConfirm = { name, address, port, id, password, encoding ->
                 onUpdate(target.copy(name = name, address = address, port = port, userId = id, password = password, encoding = encoding))
             },
-            onCancel = { dialogState.dismissEdit() }
+            onDismiss = { dialogState.dismissEdit() }
         )
     }
     dialogState.deletingId?.let { id -> remoteStorageList.find { it.id == id } }?.let { target ->

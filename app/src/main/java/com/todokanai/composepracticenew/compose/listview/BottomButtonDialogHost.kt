@@ -51,7 +51,7 @@ fun BottomButtonDialogHost(
     if (dialogState.infoDialog) {
         InfoDialog(
             files = selectedList,
-            onCancel = { dialogState.dismissInfo() }
+            onDismiss = { dialogState.dismissInfo() }
         )
     }
     if (dialogState.deleteDialog) {

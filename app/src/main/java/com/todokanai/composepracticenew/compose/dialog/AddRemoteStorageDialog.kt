@@ -4,8 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -25,6 +23,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.presets.dialog.ConfirmCancelDialog
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
@@ -33,7 +32,7 @@ import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 @Composable
 fun AddRemoteStorageDialog(
     onConfirm: (name: String, address: String, port: Int, id: String, password: String, encoding: String) -> Unit,
-    onCancel: () -> Unit,
+    onDismiss: () -> Unit,
     initialValue: RemoteStorageItem? = null
 ) {
     val encodingOptions = Constants.REMOTE_ENCODING_OPTIONS
@@ -45,99 +44,85 @@ fun AddRemoteStorageDialog(
     var selectedEncoding by remember { mutableStateOf(initialValue?.encoding ?: Constants.REMOTE_ENCODING_DEFAULT) }
     var encodingExpanded by remember { mutableStateOf(false) }
 
-    AlertDialog(
-        onDismissRequest = onCancel,
-        title = { Text(stringResource(R.string.dialog_add_remote_storage_title)) },
-        text = {
-            Column {
+    ConfirmCancelDialog(
+        modifier = Modifier,
+        title = stringResource(R.string.dialog_add_remote_storage_title),
+        onConfirm = { onConfirm(name, address, port.toIntOrNull() ?: 0, id, password, selectedEncoding) },
+        onDismiss = onDismiss
+    ) {
+        Column {
+            TextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = name,
+                placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_name_hint)) },
+                onValueChange = { name = it },
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = address,
+                placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_address_hint)) },
+                onValueChange = { address = it },
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = port,
+                placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_port_hint)) },
+                onValueChange = { port = it },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = id,
+                placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_id_hint)) },
+                onValueChange = { id = it },
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            TextField(
+                modifier = Modifier.fillMaxWidth(),
+                value = password,
+                placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_pw_hint)) },
+                onValueChange = { password = it },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            ExposedDropdownMenuBox(
+                expanded = encodingExpanded,
+                onExpandedChange = { encodingExpanded = it }
+            ) {
                 TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = name,
-                    placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_name_hint)) },
-                    onValueChange = { name = it },
-                    singleLine = true
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    value = selectedEncoding,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.dialog_add_remote_storage_encoding_label)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = encodingExpanded) },
+                    colors = ExposedDropdownMenuDefaults.textFieldColors()
                 )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = address,
-                    placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_address_hint)) },
-                    onValueChange = { address = it },
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = port,
-                    placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_port_hint)) },
-                    onValueChange = { port = it },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = id,
-                    placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_id_hint)) },
-                    onValueChange = { id = it },
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = password,
-                    placeholder = { Text(stringResource(R.string.dialog_add_remote_storage_pw_hint)) },
-                    onValueChange = { password = it },
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ExposedDropdownMenuBox(
+                ExposedDropdownMenu(
                     expanded = encodingExpanded,
-                    onExpandedChange = { encodingExpanded = it }
+                    onDismissRequest = { encodingExpanded = false }
                 ) {
-                    TextField(
-                        modifier = Modifier.fillMaxWidth().menuAnchor(),
-                        value = selectedEncoding,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(R.string.dialog_add_remote_storage_encoding_label)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = encodingExpanded) },
-                        colors = ExposedDropdownMenuDefaults.textFieldColors()
-                    )
-                    ExposedDropdownMenu(
-                        expanded = encodingExpanded,
-                        onDismissRequest = { encodingExpanded = false }
-                    ) {
-                        encodingOptions.forEach { option ->
-                            DropdownMenuItem(
-                                text = { Text(option) },
-                                onClick = {
-                                    selectedEncoding = option
-                                    encodingExpanded = false
-                                }
-                            )
-                        }
+                    encodingOptions.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option) },
+                            onClick = {
+                                selectedEncoding = option
+                                encodingExpanded = false
+                            }
+                        )
                     }
                 }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onConfirm(name, address, port.toIntOrNull() ?: 0, id, password, selectedEncoding)
-                    onCancel()
-                }
-            ) {
-                Text(stringResource(R.string.btn_confirm))
-            }
-        },
-        dismissButton = {
-            Button(onClick = onCancel) {
-                Text(stringResource(R.string.btn_cancel))
-            }
         }
-    )
+    }
 }
 
 @Preview
@@ -145,6 +130,6 @@ fun AddRemoteStorageDialog(
 private fun AddRemoteStorageDialogPreview() {
     AddRemoteStorageDialog(
         onConfirm = { _, _, _, _, _, _ -> },
-        onCancel = {}
+        onDismiss = {}
     )
 }
