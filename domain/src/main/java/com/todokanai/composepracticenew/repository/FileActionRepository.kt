@@ -6,13 +6,16 @@ import com.todokanai.composepracticenew.model.ProgressState
 interface FileActionRepository {
 
     // Compresses [targetFiles] into a new zip file at [zipFile], reporting progress via [onProgress].
+    // Never overwrites: if [zipFile] already exists, a numbered name such as "name (1).zip" is used instead.
     suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit = {})
 
     // Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
     suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {})
 
     // Renames the file at [targetFile] to [newName].
-    suspend fun renameFile(targetFile: String, newName: String)
+    // If another entry already has [newName]: fails unless [overwrite]. With [overwrite], a file replaces a file and a folder
+    // is merged into a folder (clashing entries replaced, others kept); a file/folder type mismatch always fails.
+    suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean = false)
 
     // Deletes the file at [targetFile], reporting progress via [onProgress].
     suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit = {})

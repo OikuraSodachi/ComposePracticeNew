@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
+import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
@@ -90,6 +91,9 @@ object UseCaseModule {
     fun provideConflictCheckUseCase() = ConflictCheckUseCase()
 
     @Provides @Singleton
+    fun provideFileNameUseCase() = FileNameUseCase()
+
+    @Provides @Singleton
     fun provideFileOperationOrchestrator(
         notifier: FileOperationNotifier,
         progressRepo: ProgressRepository,
@@ -99,13 +103,15 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideLocalFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
-        fileActionRepo: FileActionRepository
-    ) = LocalFileOperationUseCase(orchestrator, fileActionRepo)
+        fileActionRepo: FileActionRepository,
+        fileNameUseCase: FileNameUseCase
+    ) = LocalFileOperationUseCase(orchestrator, fileActionRepo, fileNameUseCase)
 
     @Provides @Singleton
     fun provideRemoteFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
         transferRepo: RemoteFileTransferRepository,
-        mutationRepo: RemoteFileMutationRepository
-    ) = RemoteFileOperationUseCase(orchestrator, transferRepo, mutationRepo)
+        mutationRepo: RemoteFileMutationRepository,
+        fileNameUseCase: FileNameUseCase
+    ) = RemoteFileOperationUseCase(orchestrator, transferRepo, mutationRepo, fileNameUseCase)
 }

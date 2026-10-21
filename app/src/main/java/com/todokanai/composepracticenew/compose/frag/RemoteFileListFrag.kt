@@ -71,6 +71,7 @@ fun RemoteFileListFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
+    val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     RemoteFileListConnectionEffects(
@@ -98,6 +99,7 @@ fun RemoteFileListFrag(
             sortMode = sortMode,
             onSortModeSelected = viewModel::onSortModeSelected,
             onNewFolder = viewModel::onMakeDirectory,
+            validateFolderName = viewModel::validateEntryName,
             onExit = onExit
         )
         if (uiState.value.fileHolderItemList.isEmpty()) {
@@ -130,6 +132,10 @@ fun RemoteFileListFrag(
             onClearSelection = clearList,
             selectedList = selectedList,
             onRename = viewModel::onRename,
+            validateRename = viewModel::validateRename,
+            pendingRename = pendingRename,
+            onConfirmRename = viewModel::confirmRename,
+            onCancelRename = viewModel::cancelRename,
             onDelete = viewModel::onDelete,
             onEnterDownloadMode = onEnterDownloadMode,
             onConfirmUpload = onConfirmUpload,

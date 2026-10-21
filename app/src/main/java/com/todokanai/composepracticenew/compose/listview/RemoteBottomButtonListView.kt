@@ -19,7 +19,10 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
-import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
+import com.todokanai.composepracticenew.compose.dialog.FileNameDialog
+import com.todokanai.composepracticenew.compose.dialog.RenameConflictDialog
+import com.todokanai.composepracticenew.model.FileNameError
+import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -30,6 +33,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
  * @param renameTarget 이름을 변경할 대상 파일, null이면 다이얼로그를 표시하지 않음
  * @param onDismiss 다이얼로그 닫기 콜백
  * @param onRename 이름 변경 확인 시 실행할 콜백
+ * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param title 다이얼로그 제목 문자열
  */
 @Composable
@@ -37,14 +41,15 @@ private fun RemoteRenameDialogHost(
     renameTarget: FileHolderItem?,
     onDismiss: () -> Unit,
     onRename: (FileHolderItem, String) -> Unit,
+    validateRename: (FileHolderItem, String) -> Set<FileNameError>,
     title: String,
 ) {
     renameTarget?.let { target ->
-        EditTextDialog(
-            modifier = Modifier,
+        FileNameDialog(
             title = title,
-            defaultText = target.name,
+            hint = target.name,
             initialText = target.name,
+            validate = { name -> validateRename(target, name) },
             onConfirm = { newName -> onRename(target, newName) },
             onDismiss = onDismiss,
         )
@@ -60,6 +65,10 @@ private fun RemoteRenameDialogHost(
  * @param onClearSelection 선택 목록 초기화 콜백
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
  * @param onRename 이름 변경 실행 콜백
+ * @param validateRename 이름을 바꿀 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
+ * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
+ * @param onConfirmRename 이름 변경 덮어쓰기 확인 콜백
+ * @param onCancelRename 이름 변경 덮어쓰기 취소 콜백
  * @param onDelete 선택 파일 일괄 삭제 실행 콜백
  * @param onEnterDownloadMode 다운로드 모드 진입 콜백
  * @param onConfirmUpload 업로드 확인 콜백
@@ -72,6 +81,10 @@ fun RemoteBottomButtonListView(
     onClearSelection: () -> Unit,
     selectedList: () -> List<FileHolderItem>,
     onRename: (FileHolderItem, String) -> Unit,
+    validateRename: (FileHolderItem, String) -> Set<FileNameError>,
+    pendingRename: PendingRename?,
+    onConfirmRename: () -> Unit,
+    onCancelRename: () -> Unit,
     onDelete: (List<FileHolderItem>) -> Unit,
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
     onConfirmUpload: () -> Unit = {},
@@ -89,8 +102,17 @@ fun RemoteBottomButtonListView(
         renameTarget = renameTarget,
         onDismiss    = { renameTarget = null },
         onRename     = onRename,
+        validateRename = validateRename,
         title        = strRemoteRename,
     )
+    pendingRename?.let { pending ->
+        RenameConflictDialog(
+            pending = pending,
+            isRemote = true,
+            onConfirm = onConfirmRename,
+            onDismiss = onCancelRename
+        )
+    }
     if (showDeleteDialog) {
         DeleteDialog(
             onConfirm = {

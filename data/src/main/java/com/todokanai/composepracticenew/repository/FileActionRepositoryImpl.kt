@@ -15,7 +15,7 @@ class FileActionRepositoryImpl @Inject constructor(
 ) : FileActionRepository {
     override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = dataSource.zipAction(targetFiles, zipFile, onProgress)
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = dataSource.copyAction(targetFiles, targetPath, onProgress)
-    override suspend fun renameFile(targetFile: String, newName: String) = dataSource.renameFile(targetFile, newName)
+    override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = dataSource.renameFile(targetFile, newName, overwrite)
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = dataSource.deleteFile(targetFile, onProgress)
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = dataSource.moveFile(targetFiles, targetPath, onProgress)
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = dataSource.unzipAction(zipFiles, destPath, unzipHere, onProgress)

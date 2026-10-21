@@ -19,10 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.dialog.FileNameDialog
 import com.todokanai.composepracticenew.compose.dialog.SortDialog
 import com.todokanai.composepracticenew.compose.holder.DirectoryHolder
-import com.todokanai.composepracticenew.compose.presets.dialog.EditTextDialog
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
+import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 
@@ -35,14 +36,15 @@ fun OptionFrag(
     sortMode: SortMode,
     onSortModeSelected: (SortMode) -> Unit,
     onNewFolder: (String) -> Unit,
+    validateFolderName: (String) -> Set<FileNameError>,
     onExit: () -> Unit,
 ) {
     var showEditTextDialog by remember { mutableStateOf(false) }
     if (showEditTextDialog) {
-        EditTextDialog(
-            modifier = Modifier,
+        FileNameDialog(
             title = stringResource(R.string.dialog_new_folder_title),
-            defaultText = stringResource(R.string.dialog_new_folder_hint),
+            hint = stringResource(R.string.dialog_new_folder_hint),
+            validate = validateFolderName,
             onConfirm = { onNewFolder(it) },
             onDismiss = { showEditTextDialog = false },
         )

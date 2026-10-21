@@ -25,8 +25,8 @@ class LocalFileOperationDataSourceImpl @Inject constructor(
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) =
         treeTransfer.copy(targetFiles, targetPath, onProgress)
 
-    override suspend fun renameFile(targetFile: String, newName: String) =
-        entryMutator.rename(targetFile, newName)
+    override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) =
+        entryMutator.rename(targetFile, newName, overwrite)
 
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) =
         entryMutator.delete(targetFile, onProgress)
