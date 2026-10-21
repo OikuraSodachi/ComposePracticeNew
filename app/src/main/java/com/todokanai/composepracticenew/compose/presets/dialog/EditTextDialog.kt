@@ -15,7 +15,8 @@ import com.todokanai.composepracticenew.R
  *
  * 검증 규칙은 [validate]로, 오류 사유의 표시 문구는 [errorMessage]로 주입받는다. 이 다이얼로그는 결과에 따라
  * 확인 버튼 활성 여부와 입력란 오류 표시만 담당하며, 규칙 자체는 알지 못한다.
- * 오류는 사용자가 입력을 한 번이라도 바꾼 뒤에만 표시해, 빈 입력으로 열자마자 오류가 보이지 않게 한다.
+ * 빈 입력으로 열면 오류는 사용자가 입력을 한 번이라도 바꾼 뒤에만 표시해, 열자마자 오류가 보이지 않게 한다.
+ * [initialText]로 미리 채워 열면 처음부터 표시해, 미리 채운 값이 규칙을 어길 때 확인 버튼이 이유 없이 비활성으로 보이지 않게 한다.
  *
  * @param E 검증 오류 사유의 타입
  */
@@ -36,7 +37,8 @@ fun <E> EditTextDialog(
     // 호스트가 표시 상태를 저장하면 구성 변경 후 입력값과 오류 표시가 짝을 이뤄 복원되고(한쪽만 복원되어 빈 입력에 오류가 뜨는 일 방지),
     // 호스트 표시 상태가 remember라 다이얼로그가 닫히는 경우에는 함께 버려진다.
     var text by rememberSaveable { mutableStateOf(initialText) }
-    var edited by rememberSaveable { mutableStateOf(false) }
+    // 미리 채운 값이 있으면 처음부터 편집된 것으로 보아 오류를 바로 표시한다
+    var edited by rememberSaveable { mutableStateOf(initialText.isNotEmpty()) }
     // rememberUpdatedState — 아래 derivedStateOf가 재생성 없이 항상 최신 validate를 호출하도록 보장
     val currentValidate by rememberUpdatedState(validate)
     // text·currentValidate를 추적 — 입력이 바뀔 때만 재검증하고, 결과 집합이 같으면 본문을 무효화하지 않음
