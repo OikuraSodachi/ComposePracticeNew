@@ -3,8 +3,10 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
+import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
+import kotlinx.coroutines.CancellationException
 
 /**
  * 원격 파일 작업(다운로드·업로드·이름변경·삭제·새폴더)을 조율하는 단일 진입점 UseCase.
@@ -45,7 +47,7 @@ class RemoteFileOperationUseCase(
     ) {
         val localFilePath = "$localDestPath/${remotePath.substringAfterLast("/")}"
         orchestrator.launch(completionMessage, FileOperationType.DOWNLOAD, onRefresh) { onProgress ->
-            transferRepo.download(remotePath, localFilePath, isDirectory, onProgress).collect {}
+            transferRepo.download(remotePath, localFilePath, isDirectory, onProgress)
         }
     }
 
@@ -60,7 +62,7 @@ class RemoteFileOperationUseCase(
     fun upload(localPath: String, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         val remoteFilePath = "$remoteDestPath/${localPath.substringAfterLast("/")}"
         orchestrator.launch(completionMessage, FileOperationType.UPLOAD, onRefresh) { onProgress ->
-            transferRepo.upload(localPath, remoteFilePath, onProgress).collect {}
+            transferRepo.upload(localPath, remoteFilePath, onProgress)
         }
     }
 
@@ -77,23 +79,22 @@ class RemoteFileOperationUseCase(
         if (rejectsInvalidName(validateEntryName(newName), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             val toPath = "${path.substringBeforeLast("/")}/$newName"
-            if (!mutationRepo.rename(path, toPath)) throw Exception(errorMessage)
+            rethrowAs(errorMessage) { mutationRepo.rename(path, toPath) }
         }
     }
 
     /**
-     * [targets]의 원격 파일·디렉터리를 하나의 작업으로 삭제한다. 실패한 항목에서 중단한다.
+     * [targets]의 원격 파일·디렉터리를 하나의 작업으로 삭제한다.
+     * 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다. 연결이 끊기면 즉시 중단한다.
      * @param targets 삭제할 원격 경로 → 디렉터리 여부
      * @param completionMessage 작업 완료 시 표시할 메시지
-     * @param errorMessage 삭제에 실패한 경로를 받아 표시할 메시지를 만드는 함수
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun deleteRemote(targets: Map<String, Boolean>, completionMessage: String, errorMessage: (String) -> String, onRefresh: suspend () -> Unit) {
+    fun deleteRemote(targets: Map<String, Boolean>, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            targets.forEach { (path, isDirectory) ->
-                val ok = if (isDirectory) mutationRepo.removeDirectoryRecursive(path) else mutationRepo.deleteFile(path)
-                if (!ok) throw Exception(errorMessage(path))
+            forEachCollectingFailures(targets.entries, "삭제 실패", nameOf = { it.key.substringAfterLast("/") }) { (path, isDirectory) ->
+                if (isDirectory) mutationRepo.removeDirectoryRecursive(path) else mutationRepo.deleteFile(path)
             }
         }
     }
@@ -110,7 +111,23 @@ class RemoteFileOperationUseCase(
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsInvalidName(validateEntryName(dirName), dirName, "디렉터리 생성 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            if (!mutationRepo.makeDirectory("$parentPath/$dirName")) throw Exception(errorMessage)
+            rethrowAs(errorMessage) { mutationRepo.makeDirectory("$parentPath/$dirName") }
+        }
+    }
+
+    /**
+     * [block]이 실패하면 [message]를 메시지로, 원래 예외를 원인으로 하는 예외로 바꿔 던진다. 취소는 그대로 전파한다.
+     * @param message 실패 시 표시할 메시지
+     * @param block 실행할 원격 작업
+     * @return Unit
+     */
+    private suspend fun rethrowAs(message: String, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            throw Exception(message, e)
         }
     }
 

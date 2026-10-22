@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.data.ftp.FtpSession
 import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,17 +38,17 @@ class FtpRepositoryImpl @Inject constructor(
     override fun rootPathOf(item: RemoteStorageItem): String =
         FTP_SCHEME + item.address.removePrefix(FTP_SCHEME)
 
-    override fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): Flow<ProgressState> =
+    override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) =
         transferrer.download(remotePath, localPath, isDirectory, onProgress)
 
-    override fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit): Flow<ProgressState> =
+    override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit) =
         transferrer.upload(localPath, remotePath, onProgress)
 
-    override suspend fun rename(fromPath: String, toPath: String): Boolean = commandExecutor.rename(fromPath, toPath)
+    override suspend fun rename(fromPath: String, toPath: String) = commandExecutor.rename(fromPath, toPath)
 
-    override suspend fun deleteFile(path: String): Boolean = commandExecutor.deleteFile(path)
+    override suspend fun deleteFile(path: String) = commandExecutor.deleteFile(path)
 
-    override suspend fun makeDirectory(path: String): Boolean = commandExecutor.makeDirectory(path)
+    override suspend fun makeDirectory(path: String) = commandExecutor.makeDirectory(path)
 
-    override suspend fun removeDirectoryRecursive(path: String): Boolean = commandExecutor.removeDirectoryRecursive(path)
+    override suspend fun removeDirectoryRecursive(path: String) = commandExecutor.removeDirectoryRecursive(path)
 }

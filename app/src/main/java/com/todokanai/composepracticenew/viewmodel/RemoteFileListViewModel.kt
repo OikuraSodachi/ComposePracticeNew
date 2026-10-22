@@ -229,7 +229,6 @@ class RemoteFileListViewModel @Inject constructor(
         remoteFileOperationUseCase.deleteRemote(
             targets = items.associate { it.path to it.isDirectory },
             completionMessage = messages.notiDeleteComplete,
-            errorMessage = { path -> "삭제 실패: ${path.substringAfterLast("/")}" },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }

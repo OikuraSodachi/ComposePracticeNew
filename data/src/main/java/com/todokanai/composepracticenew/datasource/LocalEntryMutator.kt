@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import javax.inject.Inject
@@ -95,23 +97,43 @@ class LocalEntryMutator @Inject constructor() {
 
     /**
      * [targetFile]과 하위 항목을 리프부터 삭제하며 항목 수 기준으로 진행률을 보고한다.
+     * 지우지 못한 항목이 있어도 나머지를 끝까지 삭제한 뒤 지우지 못한 항목을 모아 예외로 알린다.
      * @param targetFile 삭제할 파일 또는 디렉터리의 절대 경로
      * @param onProgress 진행 상태를 수신하는 콜백
      */
     suspend fun delete(targetFile: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
-        val files = File(targetFile).walkBottomUp().toList()
+        val root = File(targetFile)
+        val files = root.walkBottomUp().toList()
         val total = files.size.coerceAtLeast(1)
-        files.forEachIndexed { index, file ->
-            file.delete()
+        var processed = 0
+        forEachCollectingFailures(files, "삭제하지 못함", nameOf = { root.relativeNameOf(it) }) { file ->
+            val deleted = deleteEntry(file)
+            processed++
             onProgress(ProgressState(
-                progress = (index + 1) * 100 / total,
+                progress = processed * 100 / total,
                 listSize = total,
-                currentIndex = index + 1,
+                currentIndex = processed,
                 currentFileName = file.name
             ))
+            if (!deleted) throw IOException()
         }
     }
+
+    /**
+     * 항목 하나를 삭제한다. 이미 없는 항목은 삭제된 것으로 본다.
+     * @param file 삭제할 파일 또는 빈 디렉터리
+     * @return 삭제했거나 이미 없으면 true
+     */
+    private fun deleteEntry(file: File): Boolean = file.delete() || !file.exists()
+
+    /**
+     * 하위 항목을 이 항목 기준 '/' 구분 상대 경로로 바꾼다. 자기 자신이면 자신의 이름이다.
+     * @param entry 이 항목 아래의 항목 또는 자기 자신
+     * @return 표시용 상대 경로
+     */
+    private fun File.relativeNameOf(entry: File): String =
+        toPath().relativize(entry.toPath()).toString().replace("\\", "/").ifEmpty { name }
 
     /**
      * [parentPath] 아래에 [name] 디렉터리를 생성한다.

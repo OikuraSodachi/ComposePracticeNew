@@ -13,7 +13,6 @@ import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
  * @param currentFileName 현재 작업중인 파일명
  * @param currentFileSize 현재 작업중인 파일의 전체 용량
  * @param operationType 작업 종류
- * @param error non-null이면 해당 작업이 실패했음을 의미하며 오류 메시지를 담는다
  */
 @Immutable
 data class ProgressStateModel(
@@ -24,8 +23,7 @@ data class ProgressStateModel(
     val currentIndex: Int? = null,
     val currentFileName: String? = null,
     val currentFileSize: String? = null,
-    val operationType: FileOperationType? = null,
-    val error: String? = null
+    val operationType: FileOperationType? = null
 )
 
 /** ProgressState → ProgressStateModel 변환. bytes 값을 사람이 읽을 수 있는 문자열로 변환한다. */
@@ -37,6 +35,5 @@ fun ProgressState.toModel(): ProgressStateModel = ProgressStateModel(
     currentIndex = this.currentIndex,
     currentFileName = this.currentFileName,
     currentFileSize = this.currentFileBytes?.let { readableFileSize_td(it) },
-    operationType = this.operationType,
-    error = this.error
+    operationType = this.operationType
 )

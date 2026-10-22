@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
+import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.FileActionRepository
 
 /**
@@ -57,7 +58,7 @@ class LocalFileOperationUseCase(
     }
 
     /**
-     * [files]를 삭제한다.
+     * [files]를 삭제한다. 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다.
      * @param files 삭제할 파일의 절대 경로 집합
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
@@ -65,7 +66,9 @@ class LocalFileOperationUseCase(
      */
     fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
-            files.forEach { path -> fileActionRepo.deleteFile(path, onProgress) }
+            forEachCollectingFailures(files, "삭제 실패", nameOf = { it.substringAfterLast('/') }) { path ->
+                fileActionRepo.deleteFile(path, onProgress)
+            }
         }
     }
 
