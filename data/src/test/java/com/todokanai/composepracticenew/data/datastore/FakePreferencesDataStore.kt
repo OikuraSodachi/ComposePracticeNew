@@ -2,13 +2,10 @@ package com.todokanai.composepracticenew.data.datastore
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.TestScope
 import java.io.IOException
 
 /**
@@ -31,6 +28,9 @@ internal class FakePreferencesDataStore(
 ) : DataStore<Preferences> {
     /** 현재 저장값. */
     val state = MutableStateFlow(initial)
+    /** updateData가 호출된 횟수(실패한 호출 포함). */
+    var writeCount = 0
+        private set
 
     override val data: Flow<Preferences> = flow {
         if (failingReads > 0) {
@@ -41,6 +41,7 @@ internal class FakePreferencesDataStore(
     }
 
     override suspend fun updateData(transform: suspend (t: Preferences) -> Preferences): Preferences {
+        writeCount++
         writeDelays.removeFirstOrNull()?.let { delay(it) }
         writeError?.let { throw it }
         if (failingWrites > 0) {
@@ -50,9 +51,3 @@ internal class FakePreferencesDataStore(
         return transform(state.value).also { state.value = it }
     }
 }
-
-/**
- * [PreferencesStore]의 소비자 코루틴을 돌릴 스코프. 소비자는 끝나지 않으므로 runTest의 자식이 아닌 별도 스코프로 두되,
- * 같은 스케줄러를 써서 advanceUntilIdle 등으로 함께 진행되게 한다. 테스트 종료 시 cancel해야 한다.
- */
-internal fun TestScope.storeScope(): CoroutineScope = CoroutineScope(StandardTestDispatcher(testScheduler))

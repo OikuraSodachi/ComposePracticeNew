@@ -51,9 +51,10 @@ class PreferencesStore @Inject constructor(
     private val pendingEdits = Channel<(MutablePreferences) -> Unit>(Channel.UNLIMITED)
 
     init {
-        // 소비자는 하나뿐이고 앞선 edit이 끝나야 다음을 꺼내므로, 반영 순서가 대기열에 넣은 순서(= launchEdit 호출 순서)와 같다
+        // 소비자는 하나뿐이고 앞선 edit이 끝나야 다음을 꺼내므로, 반영 순서가 대기열에 넣은 순서(= launchEdit 호출 순서)와 같다.
+        // 그 사이 쌓인 편집은 한꺼번에 꺼내 한 번의 edit(파일 쓰기 1회)으로 반영한다
         appScope.launch {
-            for (transform in pendingEdits) applyEdit(transform)
+            for (first in pendingEdits) applyEdits(drainPendingAfter(first))
         }
     }
 
@@ -69,12 +70,23 @@ class PreferencesStore @Inject constructor(
     }
 
     /**
-     * 편집 하나를 DataStore에 반영한다. IOException은 기존 값이 유지되므로 무시해, 소비자 코루틴이 다음 편집을 계속 처리하게 한다.
-     * @param transform 반영할 편집 람다
+     * [first] 뒤로 지금 대기열에 쌓여 있는 편집을 기다리지 않고 모두 꺼내, [first]부터 넣은 순서대로 담아 반환한다.
+     * @param first 대기열에서 막 꺼낸 편집
+     * @return 한 번에 반영할 편집 목록(넣은 순서)
      */
-    private suspend fun applyEdit(transform: (MutablePreferences) -> Unit) {
+    private fun drainPendingAfter(first: (MutablePreferences) -> Unit): List<(MutablePreferences) -> Unit> = buildList {
+        add(first)
+        while (true) add(pendingEdits.tryReceive().getOrNull() ?: break)
+    }
+
+    /**
+     * [transforms]를 넣은 순서대로 하나의 DataStore edit 안에서 적용한다. 최종 상태는 하나씩 반영한 것과 같고 파일 쓰기는 한 번이다.
+     * IOException은 기존 값이 유지되므로 무시해, 소비자 코루틴이 다음 편집을 계속 처리하게 한다(함께 묶인 편집은 함께 반영되지 않는다).
+     * @param transforms 반영할 편집 람다 목록
+     */
+    private suspend fun applyEdits(transforms: List<(MutablePreferences) -> Unit>) {
         try {
-            dataStore.edit(transform)
+            dataStore.edit { prefs -> transforms.forEach { it(prefs) } }
         } catch (_: IOException) {
             // 저장 실패 시 기존 값이 유지되므로 무시한다.
         }
