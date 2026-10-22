@@ -113,12 +113,19 @@ private fun OptionTopBar(
         ) {
             Text(stringResource(R.string.btn_more))
 
+            val newFolderLabel = stringResource(R.string.btn_create_new_folder)
+            val sortLabel = stringResource(R.string.btn_sort)
+            val exitLabel = stringResource(R.string.btn_exit)
+            // 문구 3개·콜백 3개를 키로 — List는 불안정 타입이라 인스턴스로 비교되므로, 값이 같으면 같은 목록을 넘겨 MyDropdownMenu가 스킵되게 한다
+            val menuItems = remember(newFolderLabel, sortLabel, exitLabel, onNewFolderClick, onSortClick, onExit) {
+                listOf(
+                    Pair(newFolderLabel, onNewFolderClick),
+                    Pair(sortLabel, onSortClick),
+                    Pair(exitLabel, onExit)
+                )
+            }
             MyDropdownMenu(
-                contents = listOf(
-                    Pair(stringResource(R.string.btn_create_new_folder), onNewFolderClick),
-                    Pair(stringResource(R.string.btn_sort), onSortClick),
-                    Pair(stringResource(R.string.btn_exit), onExit)
-                ),
+                contents = menuItems,
                 expanded = moreButtonExpanded
             )
         }
