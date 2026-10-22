@@ -3,20 +3,20 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.RemoteConnectionLostException
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.FileEntry
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPReply
+import org.apache.commons.net.ftp.parser.ParserInitializationException
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * FTP 파일 명령(목록 조회·이름변경·삭제·생성)을 FtpSession을 통해 실행한다.
- * 목록 조회([listFiles])를 제외한 명령은 실패를 예외로 알리며, 연결이 없거나 끊기면 [RemoteConnectionLostException]을 던진다.
+ * 모든 명령은 실패를 예외로 알리며, 연결이 없거나 끊기면 [RemoteConnectionLostException]을 던진다.
  * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
  */
 @Singleton
@@ -25,18 +25,24 @@ class FtpCommandExecutor @Inject constructor(
 ) {
 
     /**
-     * 주어진 원격 경로의 파일 목록을 반환한다. 미연결이거나 조회에 실패하면 빈 목록을 반환한다.
-     * 화면 목록 표시용이며, 실패와 빈 폴더를 구분해야 하는 작업은 [collectRemoteTree]를 쓴다.
+     * 주어진 원격 경로의 파일 목록을 조회한다. 화면 목록과 작업용 트리 수집([collectRemoteTree])이 같은 조회를 써서 둘이 보는 항목이 같다.
+     * 서버가 FEAT에 MLST를 알리면(RFC 3659 §7.8: MLSD 지원 포함) MLSD로, 아니면 LIST로 조회한다.
+     * MLSD는 없는 경로·권한 없음을 550으로 정하고 있어 빈 폴더와 실패가 구분된다.
+     * LIST는 빈 폴더에 오류 응답을 주는 비표준 서버를 구분할 수 없으므로, 조용히 빠뜨리지 않도록 오류 응답을 실패로 본다.
      * @param path ftp://server/path 형식의 절대 경로
+     * @return 원격 경로의 파일 목록. 비어 있으면 실제로 빈 디렉터리다
+     * @throws RemoteConnectionLostException 연결이 없거나 끊겼을 때
+     * @throws java.io.IOException 서버가 목록 조회를 거부했을 때
      */
-    suspend fun listFiles(path: String): List<FileEntry> =
-        try {
-            listFilesOrThrow(path)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            emptyList()
+    suspend fun listFiles(path: String): List<FileEntry> {
+        val ftpPath = extractFtpPath(path)
+        return session.withConnectedClient { client ->
+            withContext(Dispatchers.IO) {
+                if (client.hasFeature(FTPCmd.MLST)) listWithMlsd(client, ftpPath, path)
+                else listWithList(client, ftpPath, path)
+            }
         }
+    }
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.
@@ -92,12 +98,11 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * remoteDirPath 하위의 모든 항목을 깊이 우선으로 평탄화한 목록을 반환한다. 디렉터리는 자신의 자식보다 앞에 온다.
-     * 폴더 다운로드·삭제 같은 작업용이므로 빈 폴더와 조회 실패를 구분할 수 있는 [listForOperationOrThrow]로 조회하며,
-     * 어느 하위 디렉터리라도 조회에 실패하면 일부만 담긴 목록 대신 예외를 던진다.
+     * 어느 하위 디렉터리라도 조회([listFiles])에 실패하면 일부만 담긴 목록 대신 예외를 던진다.
      */
     internal suspend fun collectRemoteTree(remoteDirPath: String): List<FileEntry> {
         val result = mutableListOf<FileEntry>()
-        val entries = listForOperationOrThrow(remoteDirPath)
+        val entries = listFiles(remoteDirPath)
         for (entry in entries) {
             result.add(entry)
             if (entry.isDirectory) {
@@ -108,43 +113,20 @@ class FtpCommandExecutor @Inject constructor(
     }
 
     /**
-     * 화면 목록용으로 주어진 원격 경로의 파일 목록을 LIST로 조회한다. 실패는 응답 코드로 판별해 예외로 알린다.
-     * @param path ftp://server/path 형식의 절대 경로
-     * @return 원격 경로의 파일 목록
-     */
-    private suspend fun listFilesOrThrow(path: String): List<FileEntry> {
-        val ftpPath = extractFtpPath(path)
-        return session.withConnectedClient { client ->
-            withContext(Dispatchers.IO) { listWithList(client, ftpPath, path) }
-        }
-    }
-
-    /**
-     * 작업용으로 주어진 원격 경로의 파일 목록을 조회한다. 서버가 FEAT에 MLST를 알리면(RFC 3659 §7.8: MLSD 지원 포함) MLSD로,
-     * 아니면 LIST로 조회한다. MLSD는 없는 경로·권한 없음을 550으로 정하고 있어 빈 폴더와 실패가 구분된다.
-     * LIST는 빈 폴더에 오류 응답을 주는 비표준 서버를 구분할 수 없으므로, 조용히 빠뜨리지 않도록 오류 응답을 실패로 본다.
-     * @param path ftp://server/path 형식의 절대 경로
-     * @return 원격 경로의 파일 목록
-     */
-    private suspend fun listForOperationOrThrow(path: String): List<FileEntry> {
-        val ftpPath = extractFtpPath(path)
-        return session.withConnectedClient { client ->
-            withContext(Dispatchers.IO) {
-                if (client.hasFeature(FTPCmd.MLST)) listWithMlsd(client, ftpPath, path)
-                else listWithList(client, ftpPath, path)
-            }
-        }
-    }
-
-    /**
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답 코드로 실패를 판별한다.
+     * 서버의 SYST 응답에 맞는 목록 해석기가 없으면 commons-net이 LIST를 보내기 전에 ParserInitializationException을 던진다.
+     * 제어 채널은 그대로이므로 세션을 끊지 않는 항목 실패로 바꾼다.
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @return 디렉터리의 항목 목록
      */
     private fun listWithList(client: FTPClient, ftpPath: String, path: String): List<FileEntry> {
-        val files = client.listFiles(ftpPath)
+        val files = try {
+            client.listFiles(ftpPath)
+        } catch (e: ParserInitializationException) {
+            throw FtpItemFailure("LIST 실패: 서버 목록 형식을 해석할 수 없습니다", e)
+        }
         if (!FTPReply.isPositiveCompletion(client.replyCode)) throw replyFailure(client, "LIST")
         return toFileEntries(files?.filter { it.name != "." && it.name != ".." }.orEmpty(), path)
     }

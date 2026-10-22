@@ -42,11 +42,17 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 | Repository | Key State | Purpose |
 |---|---|---|
-| `FileNavigator` | `currentPath`, `fileHolderItemList`, `dirTree` | Navigation and directory listing |
+| `FileNavigator` | `currentPath`, `directoryListing`, `dirTree` | Navigation and directory listing |
 | `ProgressTracker` | `progressState` | Ongoing operation progress |
 | `StorageRepositoryImpl` | `storageList` | Available storage volumes |
 
-Calling `nav.setCurrentPath(file)` is the canonical way to navigate — it updates `currentPath`, `dirTree`, and `fileHolderItemList` atomically.
+`navigate(path)` is the canonical way to navigate — it sets `currentPath` (and thus `dirTree`) and a new `ListingRequest`; `directoryListing` follows asynchronously as the result of that request.
+
+`directoryListing` is a `DirectoryListing` state (`NoPath` / `Loading` / `Loaded` / `Failed`), never a bare list: a listing failure must not appear as an empty directory.
+
+- 목록 상태는 `ListingRequest(path, generation)`에 묶인다. 이동·새로고침·재연결·공유 재시작마다 새 요청이 되며, 같은 경로라도 이전 요청의 `Loaded`는 현재 목록이 아니다. 같은 경로를 다시 조회하는 동안의 직전 목록은 `Loading.stale`(표시 전용)이다.
+- 정렬은 조회 결과 위에 적용한다(정렬 변경으로 다시 조회하지 않는다).
+- 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedItems()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
 
 ### UI Modes (`ui/model/SelectMode`)
 

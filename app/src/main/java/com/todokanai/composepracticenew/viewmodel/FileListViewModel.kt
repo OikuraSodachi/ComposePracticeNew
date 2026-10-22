@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.RenameConflict
@@ -11,6 +12,8 @@ import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ListingUiState
+import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
@@ -25,6 +28,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -53,17 +58,25 @@ class FileListViewModel @Inject constructor(
     private val messages: OperationMessages,
 ) : ViewModel() {
 
+    private companion object {
+        /** 로컬 공용 저장소(/storage/emulated, SD 카드)는 대소문자를 구분하지 않으므로 이름 변경 겹침을 대소문자 무시로 비교한다. */
+        const val LOCAL_IGNORE_CASE = true
+    }
+
     /**
      * 파일 목록 화면에 필요한 UI 상태를 담는 클래스.
-     * @param fileHolderItemList 현재 디렉터리의 파일 목록
+     * @param listing 현재 디렉터리의 목록 상태(조회 중·완료·실패)
      */
     data class UiState(
-        val fileHolderItemList: List<FileHolderItem> = emptyList()
+        val listing: ListingUiState = ListingUiState.NoPath
     )
 
-    val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
-        .map { list -> UiState(FileHolderItem.fromList(list)) }
-        .flowOn(Dispatchers.IO) // from() 항목마다 File().toUri() 문자열화 비용 → 메인 스레드 밖으로 오프로딩
+    val uiState: StateFlow<UiState> = flow {
+        // 수집마다 변환기를 새로 만든다 — 변환기는 직전 변환 결과를 기억하므로 하나의 수집 코루틴 안에서만 써야 한다
+        val mapper = ListingUiStateMapper(isLocalFile = true)
+        emitAll(fileNavigatorUseCase.listing.map { listing -> UiState(mapper.map(listing)) })
+    }
+        .flowOn(Dispatchers.IO) // 항목마다 File().toUri() 문자열화 비용 → 메인 스레드 밖으로 오프로딩
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
@@ -124,7 +137,14 @@ class FileListViewModel @Inject constructor(
      */
     fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
         val errors = localFileOperationUseCase.validateEntryName(name)
-        return if (renameConflictOf(item, name) == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
+        val conflict = conflictCheckUseCase.previewRenameConflict(
+            targetPath = item.path,
+            targetIsDirectory = item.isDirectory,
+            newName = name,
+            folder = fileNavigatorUseCase,
+            ignoreCase = LOCAL_IGNORE_CASE,
+        )
+        return if (conflict == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
     }
 
     /** 압축 파일 이름([name].zip)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
@@ -140,6 +160,9 @@ class FileListViewModel @Inject constructor(
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
+
+    /** 현재 디렉터리의 목록을 다시 조회한다. 목록 조회 실패 화면의 다시 시도에 쓴다. */
+    fun retryListing() = fileNavigatorUseCase.refresh()
 
     /** 주어진 절대 경로로 현재 디렉터리를 이동한다. */
     fun updateCurrentPath(path: String) {
@@ -167,15 +190,18 @@ class FileListViewModel @Inject constructor(
     }
 
     /**
-     * [mode] 작업을 현재 경로에 실행한다. 목적지에 같은 이름이 있으면 실행하지 않고 [pendingConflict]로 확인을 요청한다.
+     * [mode] 작업을 현재 경로(충돌을 판정한 확인된 목록의 경로)에 실행한다. 목적지에 같은 이름이 있으면 실행하지 않고 [pendingConflict]로 확인을 요청한다.
+     * 목적지 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
      * @param selectedList 작업 대상 항목
      * @param mode 실행할 로컬 작업 모드
-     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이라 거부됐으면 false
+     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이거나 목적지 목록을 확인하지 못해 거부됐으면 false
      */
-    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean =
-        conflictGate.request(selectedList, conflictsFor(selectedList, mode)) { skip ->
-            execute(selectedList, mode, skip)
+    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean {
+        val checked = conflictsFor(selectedList, mode) ?: return false
+        return conflictGate.request(selectedList, checked.conflicts) { skip ->
+            execute(selectedList, mode, skip, checked.destinationPath)
         }
+    }
 
     /**
      * 대기 중인 충돌을 사용자의 선택대로 처리한다.
@@ -199,10 +225,12 @@ class FileListViewModel @Inject constructor(
 
     /**
      * [item]의 이름을 [name]으로 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
+     * 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
      * 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      */
     fun rename(item: FileHolderItem, name: String) {
-        renameGate.request(item, name, renameConflictOf(item, name)) { overwrite ->
+        val conflict = renameConflictOf(item, name) ?: return
+        renameGate.request(item, name, conflict) { overwrite ->
             localFileOperationUseCase.rename(
                 path = item.path,
                 newName = name,
@@ -221,17 +249,15 @@ class FileListViewModel @Inject constructor(
 
     /**
      * [item]을 [name]으로 바꿀 때 현재 폴더의 기존 항목과 겹치는 방식을 판정한다.
-     * 로컬 공용 저장소(/storage/emulated, SD 카드)는 대소문자를 구분하지 않으므로 대소문자 무시로 비교한다.
+     * @return 겹치는 방식. 폴더 목록을 확인하지 못했으면 판정할 수 없으므로 null(거부 알림은 ConflictCheckUseCase가 한다)
      */
-    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict =
+    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict? =
         conflictCheckUseCase.findRenameConflict(
-            target = item,
+            targetPath = item.path,
+            targetIsDirectory = item.isDirectory,
             newName = name,
-            siblings = uiState.value.fileHolderItemList,
-            ignoreCase = true,
-            pathOf = { it.path },
-            nameOf = { it.name },
-            isDirectoryOf = { it.isDirectory },
+            folder = fileNavigatorUseCase,
+            ignoreCase = LOCAL_IGNORE_CASE,
         )
 
     /** selectedList의 파일들을 삭제한다. */
@@ -244,20 +270,20 @@ class FileListViewModel @Inject constructor(
         )
     }
 
-    /** [mode] 작업의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다. */
-    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): List<FileHolderItem> {
-        val destinationNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
-        return when (mode) {
+    /**
+     * [mode] 작업의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다.
+     * @return 판정한 목적지 경로와 충돌 항목. 현재 경로의 목록을 확인하지 못했으면 판정할 수 없으므로 null
+     */
+    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): DestinationConflicts<FileHolderItem>? =
+        when (mode) {
             SelectMode.LocalOperation.Copy, SelectMode.LocalOperation.Move ->
-                conflictCheckUseCase.findCopyMoveConflicts(selectedList, destinationNames) { it.name }
+                conflictCheckUseCase.findCopyMoveConflicts(selectedList, fileNavigatorUseCase) { it.name }
             SelectMode.LocalOperation.Unzip, SelectMode.LocalOperation.UnzipHere ->
-                conflictCheckUseCase.findUnzipConflicts(selectedList, destinationNames) { it.name }
+                conflictCheckUseCase.findUnzipConflicts(selectedList, fileNavigatorUseCase) { it.name }
         }
-    }
 
-    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 [mode]에 맞는 파일 작업을 현재 경로에 실행한다. */
-    private fun execute(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation, skipFiles: List<FileHolderItem>) {
-        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
+    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 [mode]에 맞는 파일 작업을 [destPath]에 실행한다. */
+    private fun execute(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation, skipFiles: List<FileHolderItem>, destPath: String) {
         val conflictPaths = skipFiles.map { it.path }.toSet()
         val targets = selectedList.filterNot { it.path in conflictPaths }.map { it.path }.toSet()
         if (targets.isEmpty()) return
@@ -265,26 +291,26 @@ class FileListViewModel @Inject constructor(
         when (mode) {
             SelectMode.LocalOperation.Copy -> localFileOperationUseCase.copy(
                 files = targets,
-                destPath = currentPath,
+                destPath = destPath,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
             SelectMode.LocalOperation.Move -> localFileOperationUseCase.move(
                 files = targets,
-                destPath = currentPath,
+                destPath = destPath,
                 completionMessage = messages.notiMoveComplete,
                 onRefresh = onRefresh
             )
             SelectMode.LocalOperation.Unzip -> localFileOperationUseCase.unzip(
                 zipFiles = targets,
-                destPath = currentPath,
+                destPath = destPath,
                 unzipHere = false,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
             SelectMode.LocalOperation.UnzipHere -> localFileOperationUseCase.unzip(
                 zipFiles = targets,
-                destPath = currentPath,
+                destPath = destPath,
                 unzipHere = true,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
