@@ -39,6 +39,11 @@ class DataStoreRepository @Inject constructor(
         else it.remove(DATASTORE_LAST_REMOTE_ID)
     }
 
+    override fun clearLastRemoteIdIf(id: Long) = store.launchEdit {
+        // 현재 값 확인을 편집 안에서 해, 앞선 setLastRemoteId가 반영된 값을 기준으로 판단한다
+        if (it[DATASTORE_LAST_REMOTE_ID] == id) it.remove(DATASTORE_LAST_REMOTE_ID)
+    }
+
     override suspend fun lastRemoteId(): Long? =
         store.data.first()[DATASTORE_LAST_REMOTE_ID]
 }

@@ -71,15 +71,11 @@ class RemoteStorageUseCase(
 
     /**
      * 삭제된 항목이 마지막 연결 서버인 경우 DataStore의 lastRemoteId를 초기화한다.
+     * 확인과 초기화는 저장소의 한 번의 저장 안에서 처리되어, 직전 [saveLastConnectedId]가 반영된 값을 기준으로 판단한다.
      * @param id 삭제된 항목의 서버 id
      * @return Unit
      */
-    suspend fun clearLastConnectedIfMatches(id: Long) {
-        // 알려진 한계(PR #199 리뷰 CLEANUP 2, 미해결): 읽기와 쓰기가 분리된 check-then-act다. setLastRemoteId는 fire-and-forget이라
-        // 직전 saveLastConnectedId(id)가 아직 반영되지 않았으면 확인이 false가 되어 초기화를 건너뛰고, 이후 저장이 반영되어
-        // 삭제된 서버 id가 남을 수 있다. 대응안: 확인과 삭제를 하나의 DataStore edit 트랜잭션으로 합친다(예: clearLastRemoteIdIf(id)).
-        if (lastConnectionRepo.lastRemoteId() == id) lastConnectionRepo.setLastRemoteId(null)
-    }
+    fun clearLastConnectedIfMatches(id: Long) = lastConnectionRepo.clearLastRemoteIdIf(id)
 
     /** [port]가 [PORT_RANGE] 안의 정수인지 판별한다. */
     private fun isValidPort(port: String): Boolean = port.toIntOrNull()?.let { it in PORT_RANGE } ?: false
