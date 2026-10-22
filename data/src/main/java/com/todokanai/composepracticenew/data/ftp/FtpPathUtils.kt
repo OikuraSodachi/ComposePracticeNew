@@ -9,3 +9,11 @@ internal fun extractFtpPath(path: String): String {
     val slashIndex = withoutScheme.indexOf('/')
     return if (slashIndex == -1) "/" else withoutScheme.substring(slashIndex)
 }
+
+/**
+ * 원격 트리 항목 경로를 기준 디렉터리에 대한 상대 경로로 바꾼다.
+ * @param entryPath 원격 트리 항목의 경로
+ * @param rootPath 기준 원격 디렉터리 경로
+ * @return 기준 디렉터리 아래 상대 경로
+ */
+internal fun relativeRemotePath(entryPath: String, rootPath: String): String = entryPath.removePrefix(rootPath).trimStart('/')

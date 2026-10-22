@@ -2,12 +2,14 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.ProgressThrottle
+import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionLostException
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.commons.net.MalformedServerReplyException
 import org.apache.commons.net.ftp.FTPClient
 import java.io.Closeable
 import java.io.File
@@ -73,7 +75,7 @@ class FtpTransferrer @Inject constructor(
         val ftpPath = extractFtpPath(remotePath)
         session.withConnectedClient { client ->
             localFile.parentFile?.mkdirs()
-            val totalBytes = runCatching { client.mlistFile(ftpPath)?.size ?: -1L }.getOrDefault(-1L)
+            val totalBytes = remoteFileSize(client, ftpPath)
             var writtenBytes = 0L
             val throttle = ProgressThrottle()
             downloadOne(
@@ -104,8 +106,8 @@ class FtpTransferrer @Inject constructor(
         val fileEntries = allEntries.filter { !it.isDirectory }
         val progress = directoryProgress(fileEntries.sumOf { it.size }.coerceAtLeast(1), fileEntries.size, onProgress)
         File(localPath).mkdirs()
-        forEachCollectingFailures(allEntries, "다운로드 실패", nameOf = { relativePathOf(it.path, remotePath) }) { entry ->
-            val localTarget = File(localPath, relativePathOf(entry.path, remotePath))
+        forEachCollectingFailures(allEntries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
+            val localTarget = File(localPath, relativeRemotePath(entry.path, remotePath))
             if (entry.isDirectory) {
                 localTarget.mkdirs()
             } else {
@@ -164,8 +166,8 @@ class FtpTransferrer @Inject constructor(
         val allEntries = localDir.walkTopDown().toList()
         val fileEntries = allEntries.filter { it.isFile }
         val progress = directoryProgress(fileEntries.sumOf { it.length() }.coerceAtLeast(1), fileEntries.size, onProgress)
-        forEachCollectingFailures(allEntries, "업로드 실패", nameOf = { localDir.relativePathOf(it).ifEmpty { it.name } }) { entry ->
-            val relativePath = localDir.relativePathOf(entry)
+        forEachCollectingFailures(allEntries, "업로드 실패", nameOf = { localDir.slashRelativePathOf(it).ifEmpty { it.name } }) { entry ->
+            val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
             if (entry.isDirectory) {
                 session.withConnectedClient { client -> client.makeDirectory(entryFtpPath) }
@@ -229,28 +231,26 @@ class FtpTransferrer @Inject constructor(
     }
 
     /**
-     * FTP 데이터 스트림을 연다. 열지 못하면 응답을 정리하고, 5xx(영구 오류)가 아니면 연결 끊김으로 간주해 세션을 끊김 상태로 바꾼 뒤
-     * 서버 응답을 담아 예외를 던진다. 세션이 끊김 상태가 되었으므로 [FtpSession.withConnectedClient]가 이를 연결 끊김으로 알린다.
+     * FTP 데이터 스트림을 연다. 열지 못하면 서버 응답을 담아 이 항목만의 실패([FtpItemFailure])를 던진다.
+     * 스트림을 열지 못한 경우는 PASV·REST 실패나 RETR/STOR의 1xx 아닌 응답뿐이고, 그 응답을 정상적으로 읽었으므로 제어 채널은 살아 있다.
+     * 그래서 응답 코드(4xx 일시 거부·5xx 영구 거부)와 관계없이 세션은 유지한다. 실제 연결 끊김(421·EOF·응답 읽기 실패)은
+     * commons-net이 예외로 던지고, 감싸지 않고 전파해 [FtpSession.withConnectedClient]가 처리한다.
+     * 기다릴 응답이 없으므로 completePendingCommand는 호출하지 않는다 — 호출하면 오지 않을 응답을 soTimeout까지 기다리며 세션 잠금을 쥔다.
      * @param client 잠금을 확보한 FTPClient
      * @param commandName 실패 메시지에 표시할 명령 이름
      * @param open 스트림을 여는 FTP 명령. 실패하면 null을 반환한다
      * @return 열린 스트림
      */
-    private suspend fun <T : Any> openStreamOrThrow(
+    private fun <T : Any> openStreamOrThrow(
         client: FTPClient,
         commandName: String,
         open: (FTPClient) -> T?
-    ): T {
-        open(client)?.let { return it }
-        val replyCode = client.replyCode
-        val replyString = client.replyString.trim()
-        runCatching { client.completePendingCommand() }
-        if (replyCode !in 500..599) session.markConnectionDropped()
-        throw IOException("$commandName 실패: $replyString")
-    }
+    ): T = open(client) ?: throw FtpItemFailure("$commandName 실패: ${client.replyString.trim()}")
 
     /**
-     * FTP 스트림 전송을 실행하고 채널을 정리한다. 전송 중 예외는 그대로 전파하고, 서버가 전송 완료를 확인하지 않으면 예외를 던진다.
+     * FTP 스트림 전송을 실행하고 채널을 정리한다. 서버가 전송 완료를 확인하지 않으면 예외를 던진다.
+     * 전송(데이터 스트림·로컬 파일) 중 예외는 제어 채널과 무관하므로, 완료 응답까지 정상적으로 읽었다면 이 항목만의 실패([FtpItemFailure])로 전파한다.
+     * 완료 응답을 읽다 실패하면 제어 채널을 더 쓸 수 없으므로 그 예외를 전파해 [FtpSession.withConnectedClient]가 세션을 종료하게 한다(전송 예외는 suppressed로 붙인다).
      * 취소 시 onCancel을 실행하고 CancellationException을 재전파한다.
      * @param client 잠금을 확보한 FTPClient
      * @param stream 전송에 사용한 데이터 스트림 — 끝나면 닫는다
@@ -265,19 +265,57 @@ class FtpTransferrer @Inject constructor(
         onAcked: suspend () -> Unit,
         block: suspend () -> Unit
     ) {
-        var completed = false
         try {
             block()
         } catch (e: CancellationException) {
             onCancel()
+            // 취소는 예외로 세션 종료를 알릴 수 없으므로, 완료 응답을 읽지 못했으면 여기서 세션을 종료한다
+            closeAndAwaitCompletion(client, stream).exceptionOrNull()?.let { session.endUnusableSession() }
             throw e
-        } finally {
-            runCatching { stream.close() }
-            completed = runCatching { client.completePendingCommand() }.getOrDefault(false)
+        } catch (e: Exception) {
+            closeAndAwaitCompletion(client, stream).exceptionOrNull()?.let { controlFailure ->
+                controlFailure.addSuppressed(e)
+                throw controlFailure
+            }
+            throw FtpItemFailure(e.message ?: "전송 실패", e)
         }
-        if (!completed) throw IOException("전송 미완료: ${client.replyString.trim()}")
+        val completion = closeAndAwaitCompletion(client, stream)
+        completion.exceptionOrNull()?.let { throw it }
+        if (!completion.getOrDefault(false)) throw FtpItemFailure("전송 미완료: ${client.replyString.trim()}")
         onAcked()
     }
+
+    /**
+     * 데이터 스트림을 닫고 서버의 전송 완료 응답을 확인한다.
+     * 응답을 읽다 실패하면(연결 끊김·타임아웃 등) 그 예외를 실패로 돌려준다 — 호출부가 전파해 세션을 종료하게 한다.
+     * @param client 잠금을 확보한 FTPClient
+     * @param stream 닫을 데이터 스트림
+     * @return 완료 확인 결과 — 성공이면 서버가 완료를 확인했는지 여부, 응답을 읽지 못했으면 그 예외를 담은 실패
+     */
+    private fun closeAndAwaitCompletion(client: FTPClient, stream: Closeable): Result<Boolean> {
+        runCatching { stream.close() }
+        return try {
+            Result.success(client.completePendingCommand())
+        } catch (e: IOException) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * 진행률 계산용으로 원격 파일 크기를 조회한다. 서버가 MLST를 지원하지 않거나(오류 응답) 응답 형식을 해석하지 못하면 크기를 모르는 것(-1)으로 본다.
+     * 응답을 읽다 실패한 예외(연결 끊김·타임아웃 등)는 크기 조회 실패가 아니므로 삼키지 않고 전파해 [FtpSession.withConnectedClient]가 세션을 종료하게 한다.
+     * @param client 잠금을 확보한 FTPClient
+     * @param ftpPath 크기를 조회할 원격 파일의 FTP 경로
+     * @return 파일 크기(bytes), 알 수 없으면 -1
+     */
+    private fun remoteFileSize(client: FTPClient, ftpPath: String): Long =
+        try {
+            client.mlistFile(ftpPath)?.size ?: -1L
+        } catch (e: MalformedServerReplyException) {
+            -1L
+        } catch (e: RuntimeException) {
+            -1L
+        }
 
     /** [input]을 버퍼 단위로 [output]에 복사하며 청크마다 [onChunk]에 읽은 바이트 수를 전달한다. */
     private inline fun pump(input: InputStream, output: OutputStream, onChunk: (Int) -> Unit) {
@@ -288,21 +326,6 @@ class FtpTransferrer @Inject constructor(
             onChunk(bytesRead)
         }
     }
-
-    /**
-     * 원격 트리 항목 경로를 기준 디렉터리에 대한 상대 경로로 바꾼다.
-     * @param entryPath 원격 트리 항목의 경로
-     * @param rootPath 다운로드 기준 원격 디렉터리 경로
-     * @return 기준 디렉터리 아래 상대 경로
-     */
-    private fun relativePathOf(entryPath: String, rootPath: String): String = entryPath.removePrefix(rootPath).trimStart('/')
-
-    /**
-     * 로컬 트리 항목을 이 디렉터리에 대한 '/' 구분 상대 경로로 바꾼다. 자기 자신이면 빈 문자열이다.
-     * @param entry 이 디렉터리 아래의 항목
-     * @return '/' 구분 상대 경로
-     */
-    private fun File.relativePathOf(entry: File): String = toPath().relativize(entry.toPath()).toString().replace("\\", "/")
 
     /**
      * 디렉터리 전송용 누적 진행률 계산기를 만든다. 서버 ACK 전 100% 조기 보고를 막기 위해 100%는 마지막 파일 완료 시에만 보고한다.
