@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.RemoteConnectionLostException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -7,7 +8,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import org.apache.commons.net.ftp.FTPConnectionClosedException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -31,11 +31,11 @@ class FtpKeepAlive @Inject constructor(
         job = scope.launch {
             while (isActive && session.isConnected.value) {
                 delay(KEEPALIVE_INTERVAL_MS)
-                session.withClient { client ->
-                    runCatching { client.sendNoOp() }
-                        .onFailure { e ->
-                            if (e is FTPConnectionClosedException) session.markConnectionDropped()
-                        }
+                try {
+                    // NOOP 응답을 읽지 못하면(끊김·타임아웃) 세션이 응답 순서를 잃으므로 withConnectedClient가 세션을 종료한다
+                    session.withConnectedClient { client -> client.sendNoOp() }
+                } catch (e: RemoteConnectionLostException) {
+                    // 세션이 끊김 상태가 되어 다음 루프 조건(isConnected)에서 종료된다
                 }
             }
         }

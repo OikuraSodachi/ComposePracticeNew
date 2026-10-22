@@ -61,8 +61,8 @@ class LocalZipCompressor @Inject constructor() {
      */
     private fun entryNameOf(root: File, file: File): String {
         // 부모가 없는 경우는 파일시스템 루트를 선택한 것뿐이므로 루트 자신을 기준으로 한다
-        val base = (root.absoluteFile.parentFile ?: root.absoluteFile).toPath()
-        return base.relativize(file.absoluteFile.toPath()).toString().replace("\\", "/")
+        val base = root.absoluteFile.parentFile ?: root.absoluteFile
+        return base.slashRelativePathOf(file.absoluteFile)
     }
 
     /**

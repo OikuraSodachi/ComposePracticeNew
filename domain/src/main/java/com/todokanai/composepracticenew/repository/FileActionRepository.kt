@@ -17,7 +17,8 @@ interface FileActionRepository {
     // is merged into a folder (clashing entries replaced, others kept); a file/folder type mismatch always fails.
     suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean = false)
 
-    // Deletes the file at [targetFile], reporting progress via [onProgress].
+    // Deletes the file or directory tree at [targetFile], reporting progress via [onProgress].
+    // Keeps deleting the remaining entries when one fails, then throws once naming the entries that could not be deleted.
     suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit = {})
 
     // Moves [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
