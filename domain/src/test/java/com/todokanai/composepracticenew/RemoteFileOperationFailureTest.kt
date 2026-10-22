@@ -2,9 +2,8 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.PartialFailureException
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.RemoteConnectionLostException
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -43,7 +42,7 @@ class RemoteFileOperationFailureTest {
 
     @Test
     fun `다운로드가 실패하면 완료 대신 오류를 알린다`() {
-        transferRepo.failure = java.io.IOException("retrieveFileStream 실패: 550 No such file")
+        transferRepo.failure = IoResult.ItemFailed("retrieveFileStream 실패: 550 No such file")
 
         remote.download("ftp://h/r/a.txt", "/local", isDirectory = false, completionMessage = "done") {}
 
@@ -53,7 +52,7 @@ class RemoteFileOperationFailureTest {
 
     @Test
     fun `업로드 중 연결이 끊기면 완료 대신 오류를 알린다`() {
-        transferRepo.failure = RemoteConnectionLostException("FTP 서버와의 연결이 끊겼습니다")
+        transferRepo.failure = IoResult.ConnectionLost("FTP 서버와의 연결이 끊겼습니다")
 
         remote.upload("/local/a.txt", "ftp://h/r", completionMessage = "done") {}
 
@@ -100,7 +99,7 @@ class RemoteFileOperationFailureTest {
     @Test
     fun `원격 폴더 삭제의 하위 항목 실패는 대상 이름 아래 경로로 평탄화해 머리말 하나로 알린다`() {
         mutationRepo.partialFailures["ftp://h/r/dir"] =
-            PartialFailureException("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", java.io.IOException("DELE 실패: 550"))))
+            IoResult.PartiallyFailed("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", "DELE 실패: 550")))
 
         remote.deleteRemote(targets = linkedMapOf("ftp://h/r/dir" to true), completionMessage = "done") {}
 
@@ -111,7 +110,7 @@ class RemoteFileOperationFailureTest {
     fun `여러 대상이 실패하면 안쪽 실패 경로까지 모아 개수와 함께 알린다`() {
         mutationRepo.failingPaths += "ftp://h/r/a.txt"
         mutationRepo.partialFailures["ftp://h/r/dir"] =
-            PartialFailureException("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", java.io.IOException("DELE 실패: 550"))))
+            IoResult.PartiallyFailed("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", "DELE 실패: 550")))
 
         remote.deleteRemote(
             targets = linkedMapOf("ftp://h/r/a.txt" to false, "ftp://h/r/dir" to true, "ftp://h/r/ok.txt" to false),
@@ -134,14 +133,14 @@ class RemoteFileOperationFailureTest {
         override fun emitCompletion(message: String) { completions += message }
     }
 
-    /** [failure]가 있으면 전송 시 그 예외를 던지는 테스트용 원격 전송 저장소. */
+    /** [failure]가 있으면 전송 시 그 실패를 돌려주는 테스트용 원격 전송 저장소. */
     private class FakeTransferRepository : RemoteFileTransferRepository {
-        var failure: Exception? = null
-        override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) {
-            failure?.let { throw it }
+        var failure: IoResult.Failure? = null
+        override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+            return failure ?: IoResult.Done
         }
-        override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit) {
-            failure?.let { throw it }
+        override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+            return failure ?: IoResult.Done
         }
     }
 
@@ -149,19 +148,19 @@ class RemoteFileOperationFailureTest {
     private class FakeMutationRepository : RemoteFileMutationRepository {
         val calls = mutableListOf<String>()
         val failingPaths = mutableSetOf<String>()
-        /** 경로 → 그 경로 작업이 던질 부분 실패. 폴더 삭제 중 하위 항목 실패를 재현한다. */
-        val partialFailures = mutableMapOf<String, PartialFailureException>()
+        /** 경로 → 그 경로 작업이 돌려줄 부분 실패. 폴더 삭제 중 하위 항목 실패를 재현한다. */
+        val partialFailures = mutableMapOf<String, IoResult.PartiallyFailed>()
         var connectionLostAt: String? = null
-        override suspend fun rename(fromPath: String, toPath: String) { record("rename", fromPath) }
-        override suspend fun deleteFile(path: String) { record("delete", path) }
-        override suspend fun makeDirectory(path: String) { record("mkdir", path) }
-        override suspend fun removeDirectoryRecursive(path: String) { record("rmdir", path) }
+        override suspend fun rename(fromPath: String, toPath: String) = record("rename", fromPath)
+        override suspend fun deleteFile(path: String) = record("delete", path)
+        override suspend fun makeDirectory(path: String) = record("mkdir", path)
+        override suspend fun removeDirectoryRecursive(path: String) = record("rmdir", path)
 
-        private fun record(command: String, path: String) {
+        private fun record(command: String, path: String): IoResult<Unit> {
             calls += "$command ${path.substringAfterLast('/')}"
-            if (path == connectionLostAt) throw RemoteConnectionLostException("끊김")
-            partialFailures[path]?.let { throw it }
-            if (path in failingPaths) throw java.io.IOException("$command 실패: 550")
+            if (path == connectionLostAt) return IoResult.ConnectionLost("끊김")
+            partialFailures[path]?.let { return it }
+            return if (path in failingPaths) IoResult.ItemFailed("$command 실패: 550") else IoResult.Done
         }
     }
 

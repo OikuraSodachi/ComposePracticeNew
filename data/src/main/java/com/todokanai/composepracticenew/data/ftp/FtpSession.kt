@@ -1,11 +1,14 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import com.todokanai.composepracticenew.model.RemoteConnectionLostException
+import com.todokanai.composepracticenew.model.IoResult
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import java.io.IOException
@@ -53,34 +56,41 @@ class FtpSession internal constructor(private val client: FTPClient) {
     suspend fun <T> withClient(block: suspend (FTPClient) -> T): T = ioMutex.withLock { block(client) }
 
     /**
-     * 연결된 상태에서만 [withClient]로 [block]을 실행하고, 세션을 더 쓸 수 없게 된 실패를 [RemoteConnectionLostException]으로 바꿔 던진다.
-     * 잠금을 얻은 시점에 미연결이면 실행하지 않는다. [FtpItemFailure]는 제어 채널의 응답 순서가 유지된 실패이므로 그대로 전파한다.
-     * 그 밖의 IOException은 서버가 연결을 닫았거나([FTPConnectionClosedException]) 응답을 읽다 실패(타임아웃 등)한 것이다.
-     * 늦게 온 응답이 다음 명령의 응답으로 읽혀 순서가 어긋날 수 있고 commons-net에는 이를 다시 맞출 방법이 없으므로, 세션을 종료한다.
+     * 연결된 상태에서만 [withClient]로 [block]을 실행한다. FTP 명령 실패의 의미를 정하는 경계이며, 규칙은 다음 하나뿐이다.
+     * - [block]이 돌려준 결과: 서버 거부 응답·데이터 스트림·로컬 파일 실패처럼 제어 채널의 응답 순서가 유지된 결과다. 그대로 돌려준다
+     * - [block]이 던진 IOException: 서버가 연결을 닫았거나([FTPConnectionClosedException]) 응답을 읽다 실패(타임아웃 등)한 것이다.
+     *   늦게 온 응답이 다음 명령의 응답으로 읽혀 순서가 어긋날 수 있고 commons-net에는 이를 다시 맞출 방법이 없으므로, 세션을 종료하고 [IoResult.ConnectionLost]를 돌려준다
+     * - 그 밖의 예외(구현 오류): 명령이 어디까지 진행됐는지 알 수 없어 응답 순서를 보장할 수 없으므로, 세션을 종료하고 그대로 전파한다
+     * 그래서 [block] 안에서 세션을 유지할 실패는 예외로 던지지 말고 결과로 돌려줘야 한다.
+     * 잠금을 얻은 시점에 미연결이면 실행하지 않고 [IoResult.ConnectionLost]를 돌려준다. 취소는 그대로 전파한다.
      * @param block 잠금 안에서 실행할 FTP 명령
-     * @return block의 반환값
+     * @return block의 결과, 또는 연결 끊김
      */
-    suspend fun <T> withConnectedClient(block: suspend (FTPClient) -> T): T = withClient { client ->
-        if (!isReady()) throw RemoteConnectionLostException(NOT_CONNECTED_MESSAGE)
+    suspend fun <T> withConnectedClient(block: suspend (FTPClient) -> IoResult<T>): IoResult<T> = withClient { client ->
+        if (!isReady()) return@withClient IoResult.ConnectionLost(NOT_CONNECTED_MESSAGE)
         try {
             block(client)
-        } catch (e: RemoteConnectionLostException) {
-            throw e
-        } catch (e: FtpItemFailure) {
-            throw e
         } catch (e: IOException) {
             endUnusableSession()
-            throw RemoteConnectionLostException(unusableSessionMessage(e), e)
+            IoResult.ConnectionLost(unusableSessionMessage(e))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            endUnusableSession()
+            throw e
         }
     }
 
     /**
      * 응답 순서를 알 수 없게 된 세션을 끊김 상태로 바꾸고, 그 제어 채널을 다시 쓰지 않도록 소켓을 닫는다.
      * 예외로 전파할 수 없는 경로(취소 정리 중 응답을 읽지 못한 경우 등)에서도 호출한다. ioMutex를 쥔 상태에서 호출한다.
+     * 취소된 코루틴에서도 끝까지 실행한다 — 상태 잠금을 기다리다 취소로 멈추면 쓸 수 없는 세션이 로그인 상태로 남는다.
      */
     internal suspend fun endUnusableSession() {
-        markConnectionDropped()
-        runCatching { client.disconnect() }
+        withContext(NonCancellable) {
+            markConnectionDropped()
+            runCatching { client.disconnect() }
+        }
     }
 
     /**

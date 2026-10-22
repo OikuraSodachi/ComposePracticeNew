@@ -2,11 +2,11 @@ package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
-import kotlinx.coroutines.CancellationException
 
 /**
  * 원격 파일 작업(다운로드·업로드·이름변경·삭제·새폴더)을 조율하는 단일 진입점 UseCase.
@@ -79,7 +79,7 @@ class RemoteFileOperationUseCase(
         if (rejectsInvalidName(validateEntryName(newName), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             val toPath = "${path.substringBeforeLast("/")}/$newName"
-            rethrowAs(errorMessage) { mutationRepo.rename(path, toPath) }
+            failingWith(errorMessage) { mutationRepo.rename(path, toPath) }
         }
     }
 
@@ -111,25 +111,23 @@ class RemoteFileOperationUseCase(
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsInvalidName(validateEntryName(dirName), dirName, "디렉터리 생성 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            rethrowAs(errorMessage) { mutationRepo.makeDirectory("$parentPath/$dirName") }
+            failingWith(errorMessage) { mutationRepo.makeDirectory("$parentPath/$dirName") }
         }
     }
 
     /**
-     * [block]이 실패하면 [message]를 메시지로, 원래 예외를 원인으로 하는 예외로 바꿔 던진다. 취소는 그대로 전파한다.
+     * [block]이 실패하면 실패의 종류는 그대로 두고 메시지만 [message]로 바꾼다.
+     * 연결 끊김은 연결 끊김으로 남겨, 여러 대상을 처리하는 호출부가 남은 대상을 시도하지 않게 한다.
      * @param message 실패 시 표시할 메시지
      * @param block 실행할 원격 작업
-     * @return Unit
+     * @return 성공이면 [block]의 결과, 실패면 같은 종류의 [message]를 담은 실패
      */
-    private suspend fun rethrowAs(message: String, block: suspend () -> Unit) {
-        try {
-            block()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            throw Exception(message, e)
+    private suspend fun failingWith(message: String, block: suspend () -> IoResult<Unit>): IoResult<Unit> =
+        when (val result = block()) {
+            is IoResult.Success -> result
+            is IoResult.ConnectionLost -> IoResult.ConnectionLost(message)
+            is IoResult.ItemFailed, is IoResult.PartiallyFailed -> IoResult.ItemFailed(message)
         }
-    }
 
     /**
      * 검증 결과에 위반이 있으면 오류를 방출하고 작업을 중단해야 함을 알린다.

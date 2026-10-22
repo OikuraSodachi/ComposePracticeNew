@@ -2,11 +2,12 @@ package com.todokanai.composepracticenew.repository
 
 import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
-import java.io.IOException
 
 /**
  * 로컬 및 원격 경로를 모두 탐색할 수 있는 FileNavigatorRepository 구현체.
@@ -43,10 +44,10 @@ class FileExplorerRepositoryImpl(
 
     override fun getParent(path: String): String? = resolveFileSystem(path)?.getParent(path)
 
-    override suspend fun listFiles(path: String): List<FileEntry> {
+    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> {
         Log.d(TAG, "fileList 갱신 — path=$path")
-        val fileSystem = resolveFileSystem(path) ?: throw IOException(UNSUPPORTED_PATH_MESSAGE)
-        return fileSystem.listFiles(path).also {
+        val fileSystem = resolveFileSystem(path) ?: return IoResult.ItemFailed(UNSUPPORTED_PATH_MESSAGE)
+        return fileSystem.listFiles(path).onSuccess {
             Log.d(TAG, "fileList 결과 — path=$path size=${it.size}")
         }
     }

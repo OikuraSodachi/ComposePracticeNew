@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CoroutineScope
@@ -42,14 +43,14 @@ class FileOperationOrchestrator(
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param operationType 작업 종류. null이면 진행 알림 없음
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @param block 실제 IO 작업 코드. onProgress 콜백으로 진행 상태를 보고한다
+     * @param block 실제 IO 작업 코드. onProgress 콜백으로 진행 상태를 보고하고, 실패는 결과로 돌려준다
      * @return Unit
      */
     fun launch(
         completionMessage: String,
         operationType: FileOperationType? = null,
         onRefresh: suspend () -> Unit,
-        block: suspend (onProgress: (ProgressState) -> Unit) -> Unit
+        block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) {
         val handle = progressHandle()
         appScope.launchOperation(handle, callback(completionMessage, operationType, onRefresh)) {

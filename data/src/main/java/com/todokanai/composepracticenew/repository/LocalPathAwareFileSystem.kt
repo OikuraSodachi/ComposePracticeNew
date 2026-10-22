@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
 import javax.inject.Inject
@@ -14,7 +15,7 @@ class LocalPathAwareFileSystem @Inject constructor(
     private val localFiles: LocalFileDataSource
 ) : PathAwareFileSystem {
     override fun handles(path: String): Boolean = !path.contains(SCHEME_SEPARATOR)
-    override suspend fun listFiles(path: String): List<FileEntry> = localFiles.listFiles(path)
+    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = localFiles.listFiles(path)
     override fun getParent(path: String): String? = StorageRepository.defaultParentPath(path)
     override suspend fun resolveNavigationPath(path: String): String? =
         if (localFiles.canRead(path)) path else null

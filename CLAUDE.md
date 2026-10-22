@@ -71,6 +71,10 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 - 원격: `RemoteFileOperationUseCase` → `RemoteFileTransferRepository` / `RemoteFileMutationRepository` (FTP 구현: `FtpRepositoryImpl`).
 - 실행·진행 보고·완료/실패 처리는 `FileOperationOrchestrator`가 담당하며, 작업 인스턴스 ID도 여기서만 발급한다.
 - 작업 종류는 `FileOperationType` enum이며, 레이어별 표시 문자열은 enum에 대한 exhaustive `when`으로 매핑한다.
+- 파일 입출력(로컬·원격 작업, 목록 조회)의 실패는 예외가 아니라 domain `IoResult`(`Success` / `ItemFailed` / `PartiallyFailed` / `ConnectionLost`)로 돌려준다. 받는 쪽은 exhaustive `when`으로 처리한다. 예외는 취소·구현 오류에만 쓰며, 앱 수명 흐름을 지키기 위해 결과로 바꾸는 곳은 `launchOperation`과 `FileListFlowProducer.load` 두 경계뿐이다.
+- 여러 항목 작업은 `forEachCollectingFailures`로 실패를 모은다. `ConnectionLost`면 남은 항목을 시도하지 않는다.
+- FTP: 서버 응답 해석(명령·조회 목적별 예외 규칙 포함, 예: 화면 목록의 LIST가 데이터 전송 전에 받은 450 = 빈 목록, 트리 수집에서는 실패)은 `FtpReplyRules`에만 둔다. `FtpSession.withConnectedClient`가 명령 실패의 의미를 정하는 유일한 경계다. 블록이 돌려준 결과는 세션 유지, 던진 IOException은 연결 끊김(세션 종료), 그 밖의 예외는 세션 종료 후 전파한다. 세션을 유지할 실패는 블록 안에서 던지지 말고 결과로 돌려준다. 명령·서버 동작 조합은 `FtpCommandContractTest` 행렬로 검증한다.
+- 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다.
 
 ### Data Layer
 

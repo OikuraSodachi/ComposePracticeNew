@@ -1,11 +1,10 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import com.todokanai.composepracticenew.model.RemoteConnectionLostException
+import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -16,6 +15,7 @@ import java.nio.file.Files
 /**
  * 제어 채널의 응답을 읽다 실패(타임아웃 등)하면 응답 순서를 알 수 없으므로 세션을 종료하고 연결 끊김으로 알리며,
  * 서버 오류 응답이나 데이터 스트림 오류처럼 응답 순서가 유지된 실패는 그 항목만 실패로 처리하는지 검증하는 단위 테스트.
+ * 명령 하나의 응답 단계별 결과는 [FtpCommandContractTest]가, 이 테스트는 완료 확인·크기 조회 단계와 여러 항목 작업을 검증한다.
  */
 class FtpControlChannelFailureTest {
 
@@ -35,11 +35,9 @@ class FtpControlChannelFailureTest {
         loggedIn()
         client.onCompletePending = { throw SocketTimeoutException("Read timed out") }
 
-        val error = assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
 
-        assertTrue(error.message.orEmpty(), error.message.orEmpty().contains("Read timed out"))
+        assertTrue("$result", (result as IoResult.ConnectionLost).message.contains("Read timed out"))
         assertSessionEnded()
     }
 
@@ -49,10 +47,9 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onCompletePending = { throw SocketTimeoutException("Read timed out") }
 
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
 
+        assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
     }
 
@@ -61,23 +58,10 @@ class FtpControlChannelFailureTest {
         loggedIn()
         client.onMlistFile = { throw SocketTimeoutException("Read timed out") }
 
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
 
+        assertTrue("$result", result is IoResult.ConnectionLost)
         assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
-        assertSessionEnded()
-    }
-
-    @Test
-    fun `데이터 스트림을 여는 중 응답을 읽지 못하면 세션을 종료한다`() {
-        loggedIn()
-        client.streamOpenFailure = SocketTimeoutException("Read timed out")
-
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
-        }
-
         assertSessionEnded()
     }
 
@@ -88,12 +72,9 @@ class FtpControlChannelFailureTest {
         client.streamReadFailure = SocketException("Connection reset")
         client.onCompletePending = { false }
 
-        val error = assertThrows(Exception::class.java) {
-            runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
 
-        assertFalse(error is RemoteConnectionLostException)
-        assertEquals("다운로드 실패: 2개 항목 (a.txt, b.txt)", error.message)
+        assertEquals("다운로드 실패: 2개 항목 (a.txt, b.txt)", (result as IoResult.PartiallyFailed).message)
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)
         assertTrue(runBlocking { session.isReady() })
         assertEquals(0, client.disconnectCalls)
@@ -105,10 +86,9 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onDeleteFile = { throw SocketTimeoutException("Read timed out") }
 
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
-        }
+        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
 
+        assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(1, client.deleteRequests.size)
         assertSessionEnded()
     }
@@ -119,12 +99,9 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onDeleteFile = { path -> !path.endsWith("b.txt") }
 
-        val error = assertThrows(Exception::class.java) {
-            runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
-        }
+        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
 
-        assertFalse(error is RemoteConnectionLostException)
-        assertEquals("하위 항목 삭제 실패: b.txt (DELE 실패: 550 Permission denied)", error.message)
+        assertEquals("하위 항목 삭제 실패: b.txt (DELE 실패: 550 Permission denied)", (result as IoResult.PartiallyFailed).message)
         assertEquals(2, client.deleteRequests.size)
         assertTrue(runBlocking { session.isReady() })
     }

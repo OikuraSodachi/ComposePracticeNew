@@ -1,12 +1,11 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import com.todokanai.composepracticenew.model.RemoteConnectionLostException
+import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -33,10 +32,9 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onCompletePending = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
 
+        assertTrue("$result", result is IoResult.ConnectionLost)
         assertFalse(runBlocking { session.isReady() })
     }
 
@@ -46,10 +44,9 @@ class FtpTransferrerConnectionLostTest {
         client.onCompletePending = { throw FTPConnectionClosedException("FTP response 421 received.  Server closed connection.") }
         val local = File(dir, "a.txt").apply { writeText("A") }
 
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.upload(local.path, "ftp://host/r/a.txt") }
-        }
+        val result = runBlocking { transferrer.upload(local.path, "ftp://host/r/a.txt") }
 
+        assertTrue("$result", result is IoResult.ConnectionLost)
         assertFalse(runBlocking { session.isReady() })
     }
 
@@ -59,10 +56,9 @@ class FtpTransferrerConnectionLostTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onCompletePending = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
 
+        assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
     }
 
@@ -71,25 +67,21 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onMlistFile = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
 
+        assertTrue("$result", result is IoResult.ConnectionLost)
         assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
         assertFalse(runBlocking { session.isReady() })
     }
 
     @Test
-    fun `완료 확인이 연결 끊김 없이 실패하면 지금처럼 일반 실패로 알리고 세션을 유지한다`() {
+    fun `완료 확인이 연결 끊김 없이 실패하면 그 항목만 실패로 알리고 세션을 유지한다`() {
         loggedIn()
         client.onCompletePending = { false }
 
-        val error = assertThrows(Exception::class.java) {
-            runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
-        }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
 
-        assertFalse(error is RemoteConnectionLostException)
-        assertTrue(error.message.orEmpty(), error.message.orEmpty().startsWith("전송 미완료"))
+        assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("전송 미완료"))
         assertTrue(runBlocking { session.isReady() })
     }
 

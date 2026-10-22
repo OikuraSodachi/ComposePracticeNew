@@ -2,9 +2,9 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
-import com.todokanai.composepracticenew.model.RemoteConnectionLostException
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CancellationException
@@ -21,7 +21,6 @@ import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
-import java.io.IOException
 import java.util.concurrent.atomic.AtomicReference
 
 /**
@@ -41,8 +40,8 @@ class FileListFlowProducer(
      * @param appScope StateFlow를 공유할 애플리케이션 수명 CoroutineScope
      * @param started StateFlow 공유 시작 전략
      * @param onStopped 공유가 멈췄을 때 호출된다. 멈춘 동안 남아 있는 마지막 목록이 현재 요청의 목록으로 쓰이지 않도록 요청을 새로 바꾸는 데 쓴다
-     * @param onUnexpectedFailure 입출력 실패가 아닌 예외로 조회하지 못했을 때 그 예외를 기록하는 함수
-     * @param listFiles 경로를 받아 해당 디렉터리의 FileEntry 목록을 반환하는 suspend 함수. 조회에 실패하면 IOException을 던진다
+     * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
+     * @param listFiles 경로를 받아 해당 디렉터리의 FileEntry 목록 조회 결과를 반환하는 suspend 함수. 조회 실패는 실패 결과로 돌려준다
      * @return 현재 요청의 목록 조회 상태를 방출하는 StateFlow
      */
     fun produce(
@@ -51,7 +50,7 @@ class FileListFlowProducer(
         started: SharingStarted,
         onStopped: () -> Unit,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> List<FileEntry>
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
     ): StateFlow<DirectoryListing> {
         val fetchStates = fetchStatesOf(requests, onUnexpectedFailure, listFiles).onCompletion { onStopped() }
         return sortedListingsOf(fetchStates)
@@ -82,15 +81,15 @@ class FileListFlowProducer(
      * 직전 상태는 방출 순서대로 하나의 수집 코루틴에서만 누적하므로 스레드 사이에 공유되지 않는다.
      * 공유가 다시 시작되면 멈추기 전 마지막 상태부터 이어 누적해, 같은 경로를 다시 조회하는 동안에도 직전 목록을 표시할 수 있게 한다.
      * @param requests 현재 목록 조회 요청 StateFlow
-     * @param onUnexpectedFailure 입출력 실패가 아닌 예외를 기록하는 함수
-     * @param listFiles 경로의 FileEntry 목록을 반환하는 suspend 함수
+     * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
+     * @param listFiles 경로의 FileEntry 목록 조회 결과를 반환하는 suspend 함수
      * @return 조회 상태 Flow
      */
     @Suppress("OPT_IN_USAGE")
     private fun fetchStatesOf(
         requests: StateFlow<ListingRequest?>,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> List<FileEntry>
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
     ): Flow<FetchState> {
         // 공유가 멈췄다 다시 시작될 때 이어 누적할 마지막 상태 — 이전 공유가 완전히 끝난 뒤에만 읽힌다
         val lastState = AtomicReference<FetchState>(FetchState.NoPath)
@@ -107,14 +106,14 @@ class FileListFlowProducer(
     /**
      * [request]의 목록을 조회하며 조회 중·조회 결과 상태를 차례로 방출한다.
      * @param request 조회할 요청. null이면 탐색 경로가 없는 상태다
-     * @param onUnexpectedFailure 입출력 실패가 아닌 예외를 기록하는 함수
-     * @param listFiles 경로의 FileEntry 목록을 반환하는 suspend 함수
+     * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
+     * @param listFiles 경로의 FileEntry 목록 조회 결과를 반환하는 suspend 함수
      * @return 조회 상태 Flow
      */
     private fun fetch(
         request: ListingRequest?,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> List<FileEntry>
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
     ): Flow<FetchState> = flow {
         if (request == null) {
             emit(FetchState.NoPath)
@@ -126,28 +125,32 @@ class FileListFlowProducer(
 
     /**
      * [request]의 목록을 조회해 결과 상태로 바꾼다. 조회 실패는 빈 목록이 아니라 실패 상태가 된다.
-     * 입출력 실패가 아닌 예외도 실패 상태로 바꿔 기록한다 — 전파하면 공유 Flow의 상위 수집이 끝나 이후 이동·새로고침이 반영되지 않는다.
+     * 조회 실패는 결과로 오므로, 예외는 구현 오류다. 이 함수는 공유 Flow에서 요청마다의 실패를 상태로 바꾸는 유일한 경계이며,
+     * 예외도 실패 상태로 바꿔 기록한다 — 전파하면 공유 Flow의 상위 수집이 끝나 이후 이동·새로고침이 반영되지 않는다.
      * @param request 조회할 요청
-     * @param onUnexpectedFailure 입출력 실패가 아닌 예외를 기록하는 함수
-     * @param listFiles 경로의 FileEntry 목록을 반환하는 suspend 함수
+     * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
+     * @param listFiles 경로의 FileEntry 목록 조회 결과를 반환하는 suspend 함수
      * @return 조회 성공이면 [FetchState.Fetched], 실패면 [FetchState.FetchFailed]
      */
     private suspend fun load(
         request: ListingRequest,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> List<FileEntry>
-    ): FetchState =
-        try {
-            FetchState.Fetched(request, listFiles(request.path))
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
+    ): FetchState {
+        val result = try {
+            listFiles(request.path)
         } catch (e: CancellationException) {
             throw e
-        } catch (e: IOException) {
-            FetchState.FetchFailed(request, failureReasonOf(e), e.message)
         } catch (e: Exception) {
             // 내부 예외 메시지는 사용자에게 의미가 없으므로 화면 상세에 싣지 않고 기록만 한다
             onUnexpectedFailure(e)
-            FetchState.FetchFailed(request, ListingFailureReason.UNEXPECTED, detail = null)
+            return FetchState.FetchFailed(request, ListingFailureReason.UNEXPECTED, detail = null)
         }
+        return when (result) {
+            is IoResult.Success -> FetchState.Fetched(request, result.value)
+            is IoResult.Failure -> FetchState.FetchFailed(request, failureReasonOf(result), result.message)
+        }
+    }
 
     /**
      * 새 조회 중 상태에 [previous]가 가진 같은 경로의 직전 목록을 붙인다. 조회 중이 아닌 상태는 그대로 둔다.
@@ -189,12 +192,14 @@ class FileListFlowProducer(
         DirectoryListing.Loaded(fetched.request, converter.fileHolderItemList(fetched.entries, sortMode))
 
     /**
-     * 목록 조회 실패 예외의 종류를 판별한다.
-     * @param e 목록 조회 중 발생한 예외
+     * 목록 조회 실패의 종류를 화면 상태의 실패 사유로 바꾼다.
+     * @param failure 목록 조회 실패
      * @return 연결이 없거나 끊긴 경우 [ListingFailureReason.CONNECTION_LOST], 그 밖에는 [ListingFailureReason.UNREADABLE]
      */
-    private fun failureReasonOf(e: IOException): ListingFailureReason =
-        if (e is RemoteConnectionLostException) ListingFailureReason.CONNECTION_LOST else ListingFailureReason.UNREADABLE
+    private fun failureReasonOf(failure: IoResult.Failure): ListingFailureReason = when (failure) {
+        is IoResult.ConnectionLost -> ListingFailureReason.CONNECTION_LOST
+        is IoResult.ItemFailed, is IoResult.PartiallyFailed -> ListingFailureReason.UNREADABLE
+    }
 
     /**
      * 마지막으로 정렬한 조회 결과. 같은 조회 결과·기준이면 정렬을 다시 하지 않고 [loaded]를 재사용한다.
