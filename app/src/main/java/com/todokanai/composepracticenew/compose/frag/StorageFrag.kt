@@ -141,10 +141,13 @@ fun StorageFrag(
                 onAddRemoteStorage = { dialogState.openAdd() },
                 exit = onExit
             )
+            // 연결하는 동안에는 목록 입력(로컬 열기, 원격 연결·수정·삭제)을 막는다 — 진행 중인 연결과 다른 연결·수정·삭제가 엇갈려
+            // 삭제한 서버로 연결이 이어지거나 삭제된 서버 id가 마지막 연결 서버로 저장되는 것을 막는다
+            val listEnabled = !isConnecting
             LazyColumn(modifier = modifier.fillMaxSize()) {
                 items(uiState.value.storageList, key = { it.absolutePath }) { storage ->
                     StorageHolder(
-                        modifier = Modifier.clickable {
+                        modifier = Modifier.clickable(enabled = listEnabled) {
                             viewModel.openLocalStorage(storage.absolutePath)
                             exitStorageFrag()
                         },
@@ -153,8 +156,9 @@ fun StorageFrag(
                 }
                 items(uiState.value.remoteStorageList, key = { it.id }) { remote ->
                     RemoteStorageHolder(
-                        modifier = Modifier.clickable { viewModel.setPath(remote) },
+                        modifier = Modifier.clickable(enabled = listEnabled) { viewModel.setPath(remote) },
                         item = remote,
+                        enabled = listEnabled,
                         onEdit   = { dialogState.openEdit(remote) },
                         onDelete = { dialogState.openDelete(remote) }
                     )

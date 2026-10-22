@@ -13,6 +13,7 @@ import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -51,8 +52,15 @@ class StorageViewModel @Inject constructor(
         val remoteStorageList: List<RemoteStorageItem> = emptyList()
     )
 
-    /** 원격 연결 진행 중 여부. */
-    val isConnecting: StateFlow<Boolean> = connectionStateUseCase.isConnecting
+    /**
+     * [setPath]가 시작한 연결 작업(연결·루트 이동·마지막 연결 저장)이 끝나지 않았으면 true.
+     * FTP 세션의 연결 중 상태는 로그인 직후 false가 되어 루트 이동·저장 구간을 덮지 못하므로, 작업 전체를 이 값으로 따로 표시한다.
+     */
+    private val connectInProgress = MutableStateFlow(false)
+
+    /** 원격 연결 진행 중 여부. 세션이 연결 중이거나 [setPath]의 연결 작업이 끝나지 않았으면 true이며, 이 동안 목록 입력을 막는다. */
+    val isConnecting: StateFlow<Boolean> = combine(connectionStateUseCase.isConnecting, connectInProgress) { session, task -> session || task }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     private val _connectionFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 원격 연결 실패 이벤트. */
@@ -94,31 +102,43 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    /** 기존 원격 스토리지 접속 정보를 수정한다. */
+    /** 기존 원격 스토리지 접속 정보를 수정한다. 연결 작업이 진행 중이면 무시한다. */
     fun updateRemoteStorage(item: RemoteStorageItem) {
+        if (connectInProgress.value) return
         viewModelScope.launch {
             remoteStorageUseCase.update(item.toDomain())
         }
     }
 
-    /** 원격 스토리지 접속 정보를 삭제한다. */
+    /** 원격 스토리지 접속 정보를 삭제한다. 연결 작업이 진행 중이면 무시한다 — 삭제한 서버로 연결이 이어지거나 그 id가 마지막 연결 서버로 저장되지 않게 한다. */
     fun deleteRemoteStorage(item: RemoteStorageItem) {
+        if (connectInProgress.value) return
         viewModelScope.launch {
             remoteStorageUseCase.delete(item.toDomain())
             remoteStorageUseCase.clearLastConnectedIfMatches(item.id)
         }
     }
 
-    /** 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 ForegroundService를 시작하고 connectionSucceeded를 emit한다. */
+    /**
+     * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 ForegroundService를 시작하고 connectionSucceeded를 emit한다.
+     * 이미 연결 작업이 진행 중이면 무시한다. 작업이 끝날 때까지 [isConnecting]이 true로 유지된다.
+     */
     fun setPath(item: RemoteStorageItem) {
+        if (connectInProgress.value) return
+        // launch 전에 설정 — 같은 프레임의 연속 입력도 위 확인에서 걸러진다
+        connectInProgress.value = true
         viewModelScope.launch {
-            val connected = remoteConnectionUseCase.connectAndNavigate(item.toDomain())
-            if (connected) {
-                remoteStorageUseCase.saveLastConnectedId(item.id)
-                connectionServiceController.start(item.name)
-                _connectionSucceeded.tryEmit(Unit)
-            } else {
-                _connectionFailed.tryEmit(Unit)
+            try {
+                val connected = remoteConnectionUseCase.connectAndNavigate(item.toDomain())
+                if (connected) {
+                    remoteStorageUseCase.saveLastConnectedId(item.id)
+                    connectionServiceController.start(item.name)
+                    _connectionSucceeded.tryEmit(Unit)
+                } else {
+                    _connectionFailed.tryEmit(Unit)
+                }
+            } finally {
+                connectInProgress.value = false
             }
         }
     }

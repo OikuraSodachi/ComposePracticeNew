@@ -60,5 +60,6 @@ class RemoteStorageInputValidationTest {
     private object NoOpLastConnectionRepository : LastConnectionRepository {
         override suspend fun lastRemoteId(): Long? = null
         override fun setLastRemoteId(id: Long?) {}
+        override fun clearLastRemoteIdIf(id: Long) {}
     }
 }
