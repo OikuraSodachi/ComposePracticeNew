@@ -20,11 +20,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
-/** 원격 스토리지 목록의 각 항목을 이름·주소·수정·삭제 버튼과 함께 표시하는 composable. */
+/**
+ * 원격 스토리지 목록의 각 항목을 이름·주소·수정·삭제 버튼과 함께 표시하는 composable.
+ * @param modifier 레이아웃 수정자(항목 클릭 처리 포함)
+ * @param item 표시할 원격 스토리지
+ * @param enabled false이면 수정·삭제 버튼을 비활성화한다 — 항목 자체의 클릭은 [modifier]를 넘기는 쪽이 같은 조건으로 막는다
+ * @param onEdit 수정 버튼 클릭 콜백
+ * @param onDelete 삭제 버튼 클릭 콜백
+ */
 @Composable
 fun RemoteStorageHolder(
     modifier: Modifier,
     item: RemoteStorageItem,
+    enabled: Boolean = true,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -46,10 +54,10 @@ fun RemoteStorageHolder(
                 fontSize = 13.sp
             )
         }
-        IconButton(onClick = onEdit) {
+        IconButton(onClick = onEdit, enabled = enabled) {
             Icon(imageVector = Icons.Default.Edit, contentDescription = "수정")
         }
-        IconButton(onClick = onDelete) {
+        IconButton(onClick = onDelete, enabled = enabled) {
             Icon(imageVector = Icons.Default.Delete, contentDescription = "삭제")
         }
     }
