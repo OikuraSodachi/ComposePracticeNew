@@ -124,10 +124,12 @@ class FileTransferCoordinatorViewModel @Inject constructor(
      * 다운로드 대기 목록을 현재 로컬 경로로 다운로드한다. 이름 충돌이 있으면 [downloadConflict]로 확인을 요청한다.
      * 실제로 실행됐을 때만 대기 목록을 비우고 로컬 선택 모드·선택 목록을 초기화한다.
      * 확인을 취소하면 대기 목록과 다운로드 확인 모드가 유지되어 다시 확인할 수 있다.
+     * 현재 로컬 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않고 오류를 알린다. 대기 목록은 유지된다.
      */
     fun confirmDownload() {
         val pending = _downloadPendingList.value
-        val conflicts = conflictCheckUseCase.findCopyMoveConflicts(pending, localNavigator.currentEntryNames()) { it.name }
+        val destinationNames = localNavigator.loadedEntryNames() ?: return rejectUnverifiedDestination()
+        val conflicts = conflictCheckUseCase.findCopyMoveConflicts(pending, destinationNames) { it.name }
         downloadGate.request(pending, conflicts) { skip ->
             download(pending.excluding(skip))
             _downloadPendingList.value = emptyList()
@@ -139,15 +141,22 @@ class FileTransferCoordinatorViewModel @Inject constructor(
      * 업로드 대기 목록을 현재 원격 경로로 업로드한다. 이름 충돌이 있으면 [uploadConflict]로 확인을 요청한다.
      * 실제로 실행됐을 때만 대기 목록을 비우고 원격 선택 모드·선택 목록을 초기화한다.
      * 확인을 취소하면 대기 목록과 업로드 확인 모드가 유지되어 다시 확인할 수 있다.
+     * 현재 원격 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않고 오류를 알린다. 대기 목록은 유지된다.
      */
     fun confirmUpload() {
         val pending = _uploadPendingList.value
-        val conflicts = conflictCheckUseCase.findCopyMoveConflicts(pending, remoteNavigator.currentEntryNames()) { it.name }
+        val destinationNames = remoteNavigator.loadedEntryNames() ?: return rejectUnverifiedDestination()
+        val conflicts = conflictCheckUseCase.findCopyMoveConflicts(pending, destinationNames) { it.name }
         uploadGate.request(pending, conflicts) { skip ->
             upload(pending.excluding(skip))
             _uploadPendingList.value = emptyList()
             resetRemoteSelection()
         }
+    }
+
+    /** 대상 폴더의 목록을 확인하지 못해 전송을 실행하지 않았음을 오류로 알린다. */
+    private fun rejectUnverifiedDestination() {
+        remoteFileOperationUseCase.reportUnverifiedDestination(messages.destinationUnverified)
     }
 
     /** 로컬 화면을 기본 모드로 되돌리고 선택 목록을 비운다. */

@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
+import java.io.IOException
 
 /**
  * 로컬 및 원격 경로를 모두 탐색할 수 있는 FileNavigatorRepository 구현체.
@@ -28,11 +29,13 @@ class FileExplorerRepositoryImpl(
 
     companion object {
         private const val TAG = "FileExplorerRepo"
+        /** 경로를 처리할 파일 시스템이 없어 목록을 조회하지 못했을 때의 실패 메시지. */
+        private const val UNSUPPORTED_PATH_MESSAGE = "지원하지 않는 경로입니다"
     }
 
     /**
      * [path]를 처리하는 파일 시스템을 반환한다. 처리자가 없는 경로는 크래시 대신 경고 로그를 남기고 null을 반환해
-     * 호출부가 "목록 없음·부모 없음·이동 무시"로 다루게 한다.
+     * 호출부가 "목록 조회 실패·부모 없음·이동 무시"로 다루게 한다.
      */
     private fun resolveFileSystem(path: String): PathAwareFileSystem? =
         fileSystems.firstOrNull { it.handles(path) }
@@ -42,7 +45,8 @@ class FileExplorerRepositoryImpl(
 
     override suspend fun listFiles(path: String): List<FileEntry> {
         Log.d(TAG, "fileList 갱신 — path=$path")
-        return (resolveFileSystem(path)?.listFiles(path) ?: emptyList()).also {
+        val fileSystem = resolveFileSystem(path) ?: throw IOException(UNSUPPORTED_PATH_MESSAGE)
+        return fileSystem.listFiles(path).also {
             Log.d(TAG, "fileList 결과 — path=$path size=${it.size}")
         }
     }

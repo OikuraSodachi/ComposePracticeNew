@@ -42,11 +42,13 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 | Repository | Key State | Purpose |
 |---|---|---|
-| `FileNavigator` | `currentPath`, `fileHolderItemList`, `dirTree` | Navigation and directory listing |
+| `FileNavigator` | `currentPath`, `directoryListing`, `dirTree` | Navigation and directory listing |
 | `ProgressTracker` | `progressState` | Ongoing operation progress |
 | `StorageRepositoryImpl` | `storageList` | Available storage volumes |
 
-Calling `nav.setCurrentPath(file)` is the canonical way to navigate — it updates `currentPath`, `dirTree`, and `fileHolderItemList` atomically.
+Calling `nav.setCurrentPath(file)` is the canonical way to navigate — it updates `currentPath`, `dirTree`, and `directoryListing` atomically.
+
+`directoryListing` is a `DirectoryListing` state (`NoPath` / `Loading` / `Loaded` / `Failed`), never a bare list: a listing failure must not appear as an empty directory, and name-conflict checks must use only a `Loaded` listing of the current path (`FileNavigatorUseCase.loadedEntryNames()` returns null otherwise).
 
 ### UI Modes (`ui/model/SelectMode`)
 

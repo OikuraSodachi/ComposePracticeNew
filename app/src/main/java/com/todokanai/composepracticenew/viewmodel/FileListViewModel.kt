@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
@@ -55,14 +56,14 @@ class FileListViewModel @Inject constructor(
 
     /**
      * 파일 목록 화면에 필요한 UI 상태를 담는 클래스.
-     * @param fileHolderItemList 현재 디렉터리의 파일 목록
+     * @param listing 현재 디렉터리의 목록 상태(조회 중·완료·실패)
      */
     data class UiState(
-        val fileHolderItemList: List<FileHolderItem> = emptyList()
+        val listing: ListingUiState = ListingUiState.NoPath
     )
 
-    val uiState: StateFlow<UiState> = fileNavigatorUseCase.fileList
-        .map { list -> UiState(FileHolderItem.fromList(list)) }
+    val uiState: StateFlow<UiState> = fileNavigatorUseCase.listing
+        .map { listing -> UiState(ListingUiState.from(listing, isLocalFile = true)) }
         .flowOn(Dispatchers.IO) // from() 항목마다 File().toUri() 문자열화 비용 → 메인 스레드 밖으로 오프로딩
         .stateIn(
             scope = viewModelScope,
@@ -141,6 +142,9 @@ class FileListViewModel @Inject constructor(
         )
     }
 
+    /** 현재 디렉터리의 목록을 다시 조회한다. 목록 조회 실패 화면의 다시 시도에 쓴다. */
+    fun retryListing() = fileNavigatorUseCase.refresh()
+
     /** 주어진 절대 경로로 현재 디렉터리를 이동한다. */
     fun updateCurrentPath(path: String) {
         viewModelScope.launch {
@@ -168,14 +172,17 @@ class FileListViewModel @Inject constructor(
 
     /**
      * [mode] 작업을 현재 경로에 실행한다. 목적지에 같은 이름이 있으면 실행하지 않고 [pendingConflict]로 확인을 요청한다.
+     * 목적지 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않고 오류를 알린다.
      * @param selectedList 작업 대상 항목
      * @param mode 실행할 로컬 작업 모드
-     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이라 거부됐으면 false
+     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이거나 목적지 목록을 확인하지 못해 거부됐으면 false
      */
-    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean =
-        conflictGate.request(selectedList, conflictsFor(selectedList, mode)) { skip ->
+    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean {
+        val conflicts = conflictsFor(selectedList, mode) ?: return rejectUnverifiedListing()
+        return conflictGate.request(selectedList, conflicts) { skip ->
             execute(selectedList, mode, skip)
         }
+    }
 
     /**
      * 대기 중인 충돌을 사용자의 선택대로 처리한다.
@@ -199,10 +206,12 @@ class FileListViewModel @Inject constructor(
 
     /**
      * [item]의 이름을 [name]으로 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
+     * 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않고 오류를 알린다.
      * 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      */
     fun rename(item: FileHolderItem, name: String) {
-        renameGate.request(item, name, renameConflictOf(item, name)) { overwrite ->
+        val conflict = renameConflictOf(item, name) ?: run { rejectUnverifiedListing(); return }
+        renameGate.request(item, name, conflict) { overwrite ->
             localFileOperationUseCase.rename(
                 path = item.path,
                 newName = name,
@@ -222,17 +231,20 @@ class FileListViewModel @Inject constructor(
     /**
      * [item]을 [name]으로 바꿀 때 현재 폴더의 기존 항목과 겹치는 방식을 판정한다.
      * 로컬 공용 저장소(/storage/emulated, SD 카드)는 대소문자를 구분하지 않으므로 대소문자 무시로 비교한다.
+     * @return 겹치는 방식. 폴더 목록을 확인하지 못했으면 판정할 수 없으므로 null
      */
-    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict =
-        conflictCheckUseCase.findRenameConflict(
+    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict? {
+        val siblings = loadedItems() ?: return null
+        return conflictCheckUseCase.findRenameConflict(
             target = item,
             newName = name,
-            siblings = uiState.value.fileHolderItemList,
+            siblings = siblings,
             ignoreCase = true,
             pathOf = { it.path },
             nameOf = { it.name },
             isDirectoryOf = { it.isDirectory },
         )
+    }
 
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {
@@ -244,9 +256,21 @@ class FileListViewModel @Inject constructor(
         )
     }
 
-    /** [mode] 작업의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다. */
-    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): List<FileHolderItem> {
-        val destinationNames = uiState.value.fileHolderItemList.mapTo(HashSet()) { it.name }
+    /** 화면에 표시 중인 폴더의 목록을 반환한다. 조회 중·조회 실패이면 항목을 알 수 없으므로 null을 반환한다. */
+    private fun loadedItems(): List<FileHolderItem>? = (uiState.value.listing as? ListingUiState.Loaded)?.items
+
+    /** 폴더 목록을 확인하지 못해 작업을 실행하지 않았음을 알리고, 실행하지 않았음을 나타내는 false를 반환한다. */
+    private fun rejectUnverifiedListing(): Boolean {
+        localFileOperationUseCase.reportUnverifiedDestination(messages.destinationUnverified)
+        return false
+    }
+
+    /**
+     * [mode] 작업의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다.
+     * @return 충돌 항목. 현재 경로의 목록을 확인하지 못했으면 판정할 수 없으므로 null
+     */
+    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): List<FileHolderItem>? {
+        val destinationNames = fileNavigatorUseCase.loadedEntryNames() ?: return null
         return when (mode) {
             SelectMode.LocalOperation.Copy, SelectMode.LocalOperation.Move ->
                 conflictCheckUseCase.findCopyMoveConflicts(selectedList, destinationNames) { it.name }

@@ -80,6 +80,10 @@
 
     <!-- File list -->
     <string name="empty_directory">Empty Directory</string>
+    <string name="listing_failed_unreadable">폴더를 열 수 없습니다</string>
+    <string name="listing_failed_connection">서버와 연결되어 있지 않습니다</string>
+    <string name="btn_retry">다시 시도</string>
+    <string name="error_destination_unverified">폴더 목록을 확인하지 못해 작업을 실행하지 않았습니다. 목록을 다시 불러온 뒤 시도하세요.</string>
     <string name="tab_local">로컬</string>
     <string name="tab_remote">원격</string>
 

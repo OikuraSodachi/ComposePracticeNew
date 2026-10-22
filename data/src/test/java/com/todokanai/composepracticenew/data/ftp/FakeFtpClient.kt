@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.parser.MLSxEntryParser
+import org.apache.commons.net.ftp.parser.ParserInitializationException
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.IOException
@@ -19,6 +20,8 @@ internal class FakeFtpClient : FTPClient() {
     var remoteFiles: List<String> = emptyList()
     /** true면 LIST를 550으로 거부한다. */
     var listRefused = false
+    /** true면 SYST 응답에 맞는 목록 해석기가 없는 서버처럼 LIST를 보내기 전에 ParserInitializationException을 던진다. */
+    var listParserUnavailable = false
     /** FEAT로 알릴 기능 이름. 대문자로 비교한다. */
     var features: Set<String> = emptySet()
     /** MLSD 응답 줄 — 디렉터리 FTP 경로 → MLSx 형식 줄. 없는 경로는 550으로 거부한다. */
@@ -72,6 +75,7 @@ internal class FakeFtpClient : FTPClient() {
     override fun hasFeature(feature: String): Boolean = feature.uppercase(Locale.ROOT) in features
 
     override fun listFiles(pathname: String?): Array<FTPFile> {
+        if (listParserUnavailable) throw ParserInitializationException("Unknown parser type: UNKNOWN Type: L8")
         listRequests += "LIST $pathname"
         if (listRefused) return refusedListing()
         reply(226, "226 Transfer complete")

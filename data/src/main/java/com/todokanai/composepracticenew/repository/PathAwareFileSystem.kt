@@ -16,9 +16,9 @@ interface PathAwareFileSystem {
     fun handles(path: String): Boolean
 
     /**
-     * path 디렉터리의 파일 목록을 반환한다.
+     * path 디렉터리의 파일 목록을 반환한다. 조회에 실패하면 빈 목록 대신 IOException을 던진다.
      * @param path 조회할 디렉터리 경로
-     * @return FileEntry 리스트
+     * @return FileEntry 리스트. 비어 있으면 실제로 빈 디렉터리다
      */
     suspend fun listFiles(path: String): List<FileEntry>
 

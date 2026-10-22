@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
-import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,7 +9,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * currentPath·sortBy·refreshTrigger를 결합해 fileHolderItemList를 구성하는 공통 Flow 로직을 보유한 기반 클래스.
+ * currentPath·sortBy·refreshTrigger를 결합해 directoryListing을 구성하는 공통 Flow 로직을 보유한 기반 클래스.
+ * 하위 클래스의 listFiles는 조회에 실패하면 빈 목록 대신 IOException을 던져야 한다.
  * @param converter 파일 목록을 정렬·도메인 모델로 변환하는 DataConverter
  * @param sortPreference 정렬 기준 Flow를 제공하는 SortPreferenceRepository
  * @param appScope 파일 탐색 Flow를 공유할 애플리케이션 수명 CoroutineScope
@@ -27,7 +28,7 @@ abstract class BaseFileExplorerRepository(
     private val _refreshTrigger = MutableStateFlow(0L)
     private val producer = FileListFlowProducer(converter, sortPreference)
 
-    override val fileHolderItemList: StateFlow<List<FileHolderItem>> =
+    override val directoryListing: StateFlow<DirectoryListing> =
         producer.produce(currentPath, _refreshTrigger, appScope, started) { listFiles(it) }
 
     init { initialPath?.let { navigateTo(it) } }

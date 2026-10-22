@@ -30,6 +30,14 @@ class RemoteFileOperationUseCase(
     fun validateEntryName(name: String): Set<FileNameError> = fileNameUseCase.validate(name)
 
     /**
+     * 대상 폴더의 목록을 확인하지 못해 이름 충돌을 판정할 수 없어 작업을 실행하지 않았음을 오류로 알린다.
+     * 확인되지 않은 목록으로 판정하면 같은 이름의 항목을 확인 없이 덮어쓸 수 있으므로, 호출부는 이 경우 작업을 실행하지 않는다.
+     * @param message 표시할 오류 메시지
+     * @return Unit
+     */
+    fun reportUnverifiedDestination(message: String) = orchestrator.emitError(message)
+
+    /**
      * [remotePath]를 [localDestPath]에 다운로드한다.
      * @param remotePath 다운로드할 원격 파일 또는 디렉터리의 경로
      * @param localDestPath 로컬 저장 대상 디렉터리의 절대 경로
