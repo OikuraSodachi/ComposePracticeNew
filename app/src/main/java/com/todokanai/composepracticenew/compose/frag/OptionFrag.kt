@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -49,6 +50,7 @@ fun OptionFrag(
     validateFolderName: (String) -> Set<FileNameError>,
     onExit: () -> Unit,
 ) {
+    // 화면 단위 ViewModel에 보관된 다이얼로그 상태 — 회전 시 유지, 화면 이동·프로세스 종료 후 복귀 시 닫힘(rememberOptionDialogState 참고)
     val dialogState = rememberOptionDialogState()
 
     OptionDialogHost(
@@ -165,13 +167,17 @@ private fun OptionDialogHost(
     validateFolderName: (String) -> Set<FileNameError>,
 ) {
     if (dialogState.newFolderDialog) {
-        FileNameDialog(
-            title = stringResource(R.string.dialog_new_folder_title),
-            hint = stringResource(R.string.dialog_new_folder_hint),
-            validate = validateFolderName,
-            onConfirm = onNewFolder,
-            onDismiss = dialogState::dismissNewFolder,
-        )
+        // openId를 키로 — 연 회차마다 입력 상태(rememberSaveable)를 분리해, 화면 이동·프로세스 종료 때 저장된 이전 입력값이
+        // 새로 연 다이얼로그에 복원되지 않게 한다. 회전 시에는 openId가 그대로라 입력값이 유지된다
+        key(dialogState.openId) {
+            FileNameDialog(
+                title = stringResource(R.string.dialog_new_folder_title),
+                hint = stringResource(R.string.dialog_new_folder_hint),
+                validate = validateFolderName,
+                onConfirm = onNewFolder,
+                onDismiss = dialogState::dismissNewFolder,
+            )
+        }
     }
     if (dialogState.sortDialog) {
         SortDialog(
