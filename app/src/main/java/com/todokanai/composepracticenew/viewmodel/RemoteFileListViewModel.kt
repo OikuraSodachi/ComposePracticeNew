@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
+import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -28,6 +29,8 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -111,8 +114,11 @@ class RemoteFileListViewModel @Inject constructor(
         val listing: ListingUiState = ListingUiState.NoPath
     )
 
-    val uiState: StateFlow<UiState> = fileNavigatorUseCase.listing
-        .map { listing -> UiState(ListingUiState.from(listing, isLocalFile = false)) }
+    val uiState: StateFlow<UiState> = flow {
+        // 수집마다 변환기를 새로 만든다 — 변환기는 직전 변환 결과를 기억하므로 하나의 수집 코루틴 안에서만 써야 한다
+        val mapper = ListingUiStateMapper(isLocalFile = false)
+        emitAll(fileNavigatorUseCase.listing.map { listing -> UiState(mapper.map(listing)) })
+    }
         .flowOn(Dispatchers.Default) // 항목 수에 비례하는 날짜·크기 포맷을 메인 스레드 밖에서 수행
         .stateIn(
             scope = viewModelScope,
@@ -183,20 +189,24 @@ class RemoteFileListViewModel @Inject constructor(
      */
     fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
         val errors = remoteFileOperationUseCase.validateEntryName(name)
-        return if (renameConflictOf(item, name) == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
+        val conflict = conflictCheckUseCase.previewRenameConflict(
+            targetPath = item.path,
+            targetIsDirectory = item.isDirectory,
+            newName = name,
+            folder = fileNavigatorUseCase,
+            ignoreCase = REMOTE_IGNORE_CASE,
+        )
+        return if (conflict == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
     }
 
     /**
      * item을 newName으로 이름 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
      * 확인 후에도 RNTO만 보내며, 덮어쓸지는 서버 동작에 따른다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
-     * 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않고 오류를 알린다.
+     * 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
      * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
      */
     fun onRename(item: FileHolderItem, newName: String) {
-        val conflict = renameConflictOf(item, newName) ?: run {
-            remoteFileOperationUseCase.reportUnverifiedDestination(messages.destinationUnverified)
-            return
-        }
+        val conflict = renameConflictOf(item, newName) ?: return
         renameGate.request(item, newName, conflict) { _ ->
             remoteFileOperationUseCase.renameRemote(
                 path = item.path,
@@ -216,21 +226,16 @@ class RemoteFileListViewModel @Inject constructor(
 
     /**
      * [item]을 [name]으로 바꿀 때 현재 원격 폴더의 기존 항목과 겹치는 방식을 판정한다.
-     * 서버의 대소문자 구분 여부를 알 수 없으므로, 대부분인 Unix 계열 서버에 맞춰 대소문자를 구분해 비교한다.
-     * @return 겹치는 방식. 폴더 목록을 확인하지 못했으면(조회 중·실패) 판정할 수 없으므로 null
+     * @return 겹치는 방식. 폴더 목록을 확인하지 못했으면(조회 중·실패) 판정할 수 없으므로 null(거부 알림은 ConflictCheckUseCase가 한다)
      */
-    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict? {
-        val siblings = (uiState.value.listing as? ListingUiState.Loaded)?.items ?: return null
-        return conflictCheckUseCase.findRenameConflict(
-            target = item,
+    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict? =
+        conflictCheckUseCase.findRenameConflict(
+            targetPath = item.path,
+            targetIsDirectory = item.isDirectory,
             newName = name,
-            siblings = siblings,
-            ignoreCase = false,
-            pathOf = { it.path },
-            nameOf = { it.name },
-            isDirectoryOf = { it.isDirectory },
+            folder = fileNavigatorUseCase,
+            ignoreCase = REMOTE_IGNORE_CASE,
         )
-    }
 
     /**
      * items를 원격 서버에서 하나의 작업으로 삭제한다.
@@ -267,5 +272,7 @@ class RemoteFileListViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "RemoteFileListVM"
+        /** 서버의 대소문자 구분 여부를 알 수 없으므로, 대부분인 Unix 계열 서버에 맞춰 이름 변경 겹침을 대소문자를 구분해 비교한다. */
+        private const val REMOTE_IGNORE_CASE = false
     }
 }

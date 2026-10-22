@@ -28,11 +28,17 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     fun refresh() = nav.refresh()
 
     /**
-     * 현재 경로의 목록 조회를 마쳤으면 그 항목들의 이름 집합을 반환한다. 충돌 판정처럼 이름만 필요한 소비자가 도메인 모델에 의존하지 않게 한다.
-     * 조회 중·조회 실패이거나 목록이 아직 이전 경로의 것이면 목적지의 실제 항목을 알 수 없으므로 null을 반환한다.
-     * @return 현재 디렉터리 항목 이름 집합. 확인된 목록이 없으면 null
+     * 현재 조회 요청에 대해 조회를 마친 목록을 반환한다. 이름 충돌 판정처럼 목적지의 실제 항목이 필요한 판정 전용이다.
+     * 조회 중(다시 조회하기 전 목록을 표시 중인 경우 포함)·조회 실패이거나 목록이 이전 요청의 것이면 실제 항목을 알 수 없으므로 null을 반환한다.
+     * 판정한 목록의 경로([DirectoryListing.Loaded.request])를 그대로 실행 목적지로 쓰게 하려고 항목과 요청을 함께 반환한다.
+     * 판정과 거부 알림을 [ConflictCheckUseCase] 한 곳에서만 하도록 domain 모듈 밖에는 공개하지 않는다.
+     * @return 현재 요청의 조회 완료 상태. 확인된 목록이 없으면 null
      */
-    fun loadedEntryNames(): Set<String>? = loadedListingAtCurrentPath()?.items?.mapTo(HashSet()) { it.name }
+    internal fun verifiedListing(): DirectoryListing.Loaded? {
+        // 목록을 요청보다 먼저 읽는다 — 목록은 요청이 바뀐 뒤에 만들어지므로, 이 순서에서 둘이 같으면 현재 요청의 목록이다
+        val listing = nav.directoryListing.value as? DirectoryListing.Loaded ?: return null
+        return listing.takeIf { it.request == nav.listingRequest.value }
+    }
 
     /**
      * 상위 디렉터리로 이동한다. 현재 경로가 루트이면 toRoot를 호출한다.
@@ -43,14 +49,5 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
         val path = nav.currentPath.value ?: return
         val parent = nav.getParentPath(path)
         if (parent == null) toRoot() else nav.navigate(parent)
-    }
-
-    /**
-     * 현재 경로에 대해 조회를 마친 목록 상태를 반환한다.
-     * @return 목록 상태가 [DirectoryListing.Loaded]이고 그 경로가 현재 경로와 같으면 그 상태, 아니면 null
-     */
-    private fun loadedListingAtCurrentPath(): DirectoryListing.Loaded? {
-        val listing = nav.directoryListing.value as? DirectoryListing.Loaded ?: return null
-        return listing.takeIf { it.path == nav.currentPath.value }
     }
 }

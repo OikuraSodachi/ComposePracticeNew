@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -20,11 +21,24 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 
-/** 현재 경로와 목록 조회 상태를 테스트가 정하는 테스트용 탐색 저장소. */
+/** 현재 경로·조회 요청과 목록 조회 상태를 테스트가 정하는 테스트용 탐색 저장소. */
 internal class FakeNavigator : FileNavigatorRepository {
     override val currentPath = MutableStateFlow<String?>(null)
     override val dirTree: Flow<List<FileEntry>> = emptyFlow()
+    override val listingRequest = MutableStateFlow<ListingRequest?>(null)
     override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
+    private var generation = 0L
+
+    /**
+     * [path]로 이동한 것처럼 현재 경로와 새 조회 요청을 정한다. 목록 상태는 바꾸지 않는다.
+     * @param path 이동할 경로
+     * @return 새 조회 요청
+     */
+    fun moveTo(path: String): ListingRequest {
+        currentPath.value = path
+        return ListingRequest(path, ++generation).also { listingRequest.value = it }
+    }
+
     override suspend fun navigate(path: String) {}
     override fun refresh() {}
     override fun getParentPath(path: String): String? = null

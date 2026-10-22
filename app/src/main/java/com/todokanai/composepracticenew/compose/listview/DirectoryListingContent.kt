@@ -4,11 +4,13 @@ import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +26,7 @@ import com.todokanai.composepracticenew.ui.model.ListingUiState
 
 /**
  * 목록 상태에 따라 조회 중 표시, 조회 실패 안내와 다시 시도 버튼, 빈 폴더 안내, 또는 [content]로 그린 항목 목록을 보여준다.
+ * 같은 경로를 다시 조회하는 중이면 직전 목록 위에 얇은 진행 막대를 겹쳐 보여준다.
  * 조회 실패를 빈 폴더로 표시하지 않도록 "빈 폴더"는 조회를 마친 목록이 비었을 때만 보여준다.
  * @param modifier 목록 영역의 크기·배치를 정하는 Modifier
  * @param listing 표시할 목록 상태
@@ -43,19 +46,31 @@ fun DirectoryListingContent(
             CircularProgressIndicator()
         }
         is ListingUiState.Failed -> ListingFailureNotice(modifier = modifier, failure = listing, onRetry = onRetry)
-        is ListingUiState.Loaded ->
+        // modifier(부모 Column의 weight 등)가 목록에도 적용되도록 Box로 감싸고, 다시 조회하는 중 표시를 그 위에 겹친다
+        is ListingUiState.Loaded -> Box(modifier = modifier) {
             if (listing.items.isEmpty()) {
                 Text(
-                    modifier = modifier
-                        .fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxSize()
                         .wrapContentSize(),
                     text = stringResource(R.string.empty_directory)
                 )
             } else {
-                // modifier(부모 Column의 weight 등)가 목록에도 적용되도록 Box로 감싼다
-                Box(modifier = modifier) { content(listing.items) }
+                content(listing.items)
             }
+            if (listing.isRefreshing) RefreshingIndicator(modifier = Modifier.align(Alignment.TopCenter))
+        }
     }
+}
+
+/**
+ * 같은 경로를 다시 조회하는 중임을 알리는 얇은 진행 막대. 목록을 가리지 않도록 목록 위쪽 가장자리에 겹쳐 그린다.
+ * 이 동안 작업이 거부되는 이유를 화면에서 알 수 있게 한다.
+ * @param modifier 진행 막대의 배치를 정하는 Modifier
+ */
+@Composable
+private fun RefreshingIndicator(modifier: Modifier) {
+    LinearProgressIndicator(modifier = modifier.fillMaxWidth())
 }
 
 /**
@@ -93,4 +108,5 @@ private fun ListingFailureNotice(modifier: Modifier, failure: ListingUiState.Fai
 private fun failureMessageRes(reason: ListingFailureReason): Int = when (reason) {
     ListingFailureReason.UNREADABLE -> R.string.listing_failed_unreadable
     ListingFailureReason.CONNECTION_LOST -> R.string.listing_failed_connection
+    ListingFailureReason.UNEXPECTED -> R.string.listing_failed_unexpected
 }

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingFailureReason
+import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
@@ -39,6 +40,8 @@ class TransferDestinationGuardTest {
     private val progressRepo = RecordingProgressRepository()
     private val transferRepo = RecordingTransferRepository()
     private lateinit var viewModel: FileTransferCoordinatorViewModel
+    private lateinit var localRequest: ListingRequest
+    private lateinit var remoteRequest: ListingRequest
 
     private val upload = appItem("/local/a.txt")
     private val download = appItem("ftp://h/r/b.txt")
@@ -46,8 +49,9 @@ class TransferDestinationGuardTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, operationScope)
         val remoteOps = RemoteFileOperationUseCase(
-            FileOperationOrchestrator(NoOpNotifier, progressRepo, operationScope),
+            orchestrator,
             transferRepo,
             NoOpMutationRepository,
             FileNameUseCase()
@@ -56,11 +60,11 @@ class TransferDestinationGuardTest {
             FileNavigatorUseCase(localNav),
             FileNavigatorUseCase(remoteNav),
             remoteOps,
-            ConflictCheckUseCase(),
+            ConflictCheckUseCase(orchestrator) { FixedMessages.destinationUnverified },
             FixedMessages
         )
-        localNav.currentPath.value = "/local"
-        remoteNav.currentPath.value = "ftp://h/r"
+        localRequest = localNav.moveTo("/local")
+        remoteRequest = remoteNav.moveTo("ftp://h/r")
     }
 
     @After
@@ -71,7 +75,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `업로드 대상 목록 조회에 실패했으면 업로드하지 않고 알리며 대기 목록을 유지한다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Failed("ftp://h/r", ListingFailureReason.UNREADABLE, "550")
+        remoteNav.directoryListing.value = DirectoryListing.Failed(remoteRequest, ListingFailureReason.UNREADABLE, "550")
         enterUpload()
 
         viewModel.confirmUpload()
@@ -83,7 +87,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `업로드 대상 목록을 조회하는 중이면 업로드하지 않는다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loading("ftp://h/r")
+        remoteNav.directoryListing.value = DirectoryListing.Loading(remoteRequest)
         enterUpload()
 
         viewModel.confirmUpload()
@@ -94,7 +98,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `목록이 아직 이전 경로의 것이면 업로드하지 않는다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded("ftp://h/old", emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(ListingRequest("ftp://h/old", 0L), emptyList())
         enterUpload()
 
         viewModel.confirmUpload()
@@ -105,7 +109,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인된 대상 목록에 같은 이름이 있으면 덮어쓰기 확인을 기다린다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded("ftp://h/r", listOf(domainItem("ftp://h/r/a.txt")))
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, listOf(domainItem("ftp://h/r/a.txt")))
         enterUpload()
 
         viewModel.confirmUpload()
@@ -116,7 +120,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인된 대상 목록에 같은 이름이 없으면 업로드한다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded("ftp://h/r", emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
         enterUpload()
 
         viewModel.confirmUpload()
@@ -127,7 +131,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `다운로드 대상 로컬 목록 조회에 실패했으면 다운로드하지 않고 대기 목록을 유지한다`() {
-        localNav.directoryListing.value = DirectoryListing.Failed("/local", ListingFailureReason.UNREADABLE, null)
+        localNav.directoryListing.value = DirectoryListing.Failed(localRequest, ListingFailureReason.UNREADABLE, null)
         viewModel.enterDownloadMode(listOf(download))
 
         viewModel.confirmDownload()
