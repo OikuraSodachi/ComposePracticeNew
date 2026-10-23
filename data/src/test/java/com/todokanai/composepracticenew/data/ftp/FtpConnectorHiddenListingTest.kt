@@ -12,7 +12,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.InetAddress
 import java.net.ServerSocket
+import java.net.Socket
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 /**
@@ -22,8 +24,8 @@ import kotlin.concurrent.thread
  */
 class FtpConnectorHiddenListingTest {
 
-    /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = FTPClient().apply { defaultTimeout = ScriptedFtpServer.TIMEOUT_MILLIS }
+    /** 검증 대상이 쓰는 실제 FTP 클라이언트. 데이터 연결을 열기 직전에 테스트가 끼어들 수 있다. */
+    private val client = InterceptingFtpClient().apply { defaultTimeout = ScriptedFtpServer.TIMEOUT_MILLIS }
     /** 연결 상태를 소유한 세션. */
     private val session = FtpSession(client)
     /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
@@ -119,6 +121,63 @@ class FtpConnectorHiddenListingTest {
         assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
         assertEquals("종료 요청을 다시 연결로 뒤집지 않는다", 1, servers.last().received.count { it == "USER" })
         assertFalse(runBlocking { session.isReady() })
+    }
+
+    @Test
+    fun `판정 중 종료 요청으로 닫힌 연결에 다음 명령을 보내지 못해 판정이 끝나도 연결 성공으로 알리지 않는다`() {
+        var closer: Thread? = null
+        client.beforeDataConnection = { index ->
+            // 두 번째 데이터 연결(-a 판정 조회) 직전에 종료를 요청해, PASV를 보내지 못한 실패가 응답을 기다리지 않는 실패로 끝나게 한다
+            if (index == 1) {
+                closer = thread { runBlocking { session.closeBypassingIoLock() } }
+                while (!client.isControlSocketClosed) Thread.yield()
+            }
+        }
+        val result = connectTo { exchange -> sendListing(exchange, "a.txt") }
+        closer?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
+
+        assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
+        assertEquals("종료 요청을 다시 연결로 뒤집지 않는다", 1, servers.last().received.count { it == "USER" })
+        assertFalse(runBlocking { session.isReady() })
+        assertFalse(client.isConnected)
+    }
+
+    @Test
+    fun `목록을 받는 중 종료를 요청하면 데이터 연결까지 닫아 명령을 연결 끊김으로 끝낸다`() {
+        val connected = AtomicBoolean(false)
+        val dataClosedByClient = AtomicBoolean(false)
+        var closer: Thread? = null
+        connectTo { exchange ->
+            if (!connected.get()) return@connectTo sendListing(exchange, "a.txt")
+            exchange.data.accept().use { socket ->
+                exchange.send("150 Here comes the directory listing")
+                socket.getOutputStream().write(listingLines("a.txt").toByteArray())
+                closer = thread { runBlocking { session.closeBypassingIoLock() } }
+                // 전송을 끝내지 않고 클라이언트가 데이터 연결을 닫을 때까지 기다린다
+                socket.soTimeout = ScriptedFtpServer.TIMEOUT_MILLIS
+                dataClosedByClient.set(socket.getInputStream().read() == -1)
+            }
+        }
+        connected.set(true)
+
+        val listing = runBlocking { FtpCommandExecutor(session).listFiles("ftp://host/r") }
+        closer?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
+
+        assertTrue(listing.toString(), listing is IoResult.ConnectionLost)
+        assertTrue("데이터 연결을 닫아 전송을 기다리지 않는다", dataClosedByClient.get())
+        assertFalse("진행 중인 명령이 있으면 다른 스레드에서 QUIT을 보내지 않는다", "QUIT" in servers.last().received)
+        assertFalse(client.isConnected)
+    }
+
+    @Test
+    fun `진행 중인 명령이 없을 때 종료를 요청하면 로그아웃한 뒤 연결을 닫는다`() {
+        connectTo { exchange -> sendListing(exchange, "a.txt") }
+
+        runBlocking { session.closeBypassingIoLock() }
+
+        assertEquals("QUIT", servers.last().received.last())
+        assertFalse(runBlocking { session.isReady() })
+        assertFalse(client.isConnected)
     }
 
     @Test
@@ -351,5 +410,20 @@ class FtpConnectorHiddenListingTest {
     private fun refuse(exchange: ScriptedFtpServer.Exchange, reply: String) {
         exchange.data.accept().close()
         exchange.send(reply)
+    }
+
+    /** 데이터 연결을 열기 직전에 테스트가 끼어들 수 있는 실제 FTP 클라이언트. 판정 단계 사이에 종료 요청을 끼워 넣는 데 쓴다. */
+    private class InterceptingFtpClient : FTPClient() {
+        /** 데이터 연결을 열기 직전에 실행할 동작. 이 클라이언트가 연 데이터 연결의 순번(0부터)을 받는다. 연결 작업 스레드에서 실행된다. */
+        @Volatile var beforeDataConnection: (Int) -> Unit = {}
+        /** 지금까지 열려고 한 데이터 연결 수. */
+        private var dataConnections = 0
+        /** 제어 연결 소켓이 닫혔는지(소켓이 없으면 닫힌 것으로 본다). */
+        val isControlSocketClosed: Boolean get() = _socket_?.isClosed ?: true
+
+        override fun _openDataConnection_(command: String?, arg: String?): Socket? {
+            beforeDataConnection(dataConnections++)
+            return super._openDataConnection_(command, arg)
+        }
     }
 }

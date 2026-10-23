@@ -8,11 +8,8 @@ import com.todokanai.composepracticenew.repository.FetchedListing
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ProtocolCommandEvent
-import org.apache.commons.net.ProtocolCommandListener
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPFile
-import org.apache.commons.net.ftp.FTPReply
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -173,15 +170,8 @@ class FtpCommandExecutor @Inject constructor(
      * @param list 실행할 목록 조회
      * @return 조회한 항목과 목록 전송 시작 여부
      */
-    private inline fun watchingDataTransfer(client: FTPClient, list: () -> Array<FTPFile>?): Pair<Array<FTPFile>?, Boolean> {
-        val watch = PreliminaryReplyWatch()
-        client.addProtocolCommandListener(watch)
-        try {
-            return list() to watch.received
-        } finally {
-            client.removeProtocolCommandListener(watch)
-        }
-    }
+    private inline fun watchingDataTransfer(client: FTPClient, list: () -> Array<FTPFile>?): Pair<Array<FTPFile>?, Boolean> =
+        watchingReplies(client) { watch -> list() to watch.preliminaryReceived }
 
     /**
      * 목록 조회의 마지막 응답을 [FtpReplyRules]로 해석해 결과로 만든다.
@@ -295,17 +285,4 @@ class FtpCommandExecutor @Inject constructor(
      */
     private fun isSameOrInside(path: String, directoryPath: String): Boolean =
         path.trimEnd('/') == directoryPath.trimEnd('/') || isRemoteAncestorOf(directoryPath, path)
-
-    /** 명령 중 서버가 예비 응답(1xx)을 보냈는지 기록하는 응답 이벤트 수신기. */
-    private class PreliminaryReplyWatch : ProtocolCommandListener {
-        /** 예비 응답을 받았는지 여부. */
-        var received = false
-            private set
-
-        override fun protocolCommandSent(event: ProtocolCommandEvent) = Unit
-
-        override fun protocolReplyReceived(event: ProtocolCommandEvent) {
-            if (FTPReply.isPositivePreliminary(event.replyCode)) received = true
-        }
-    }
 }

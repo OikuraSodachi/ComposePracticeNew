@@ -17,7 +17,7 @@ class FtpRemoveDirectoryRecursiveTest {
 
     @Test
     fun `하위 파일 삭제가 실패하면 상위 디렉터리 RMD는 보내지 않고 원인 파일만 알리며 형제는 삭제한다`() {
-        runBlocking { session.markLoggedIn() }
+        runBlocking { session.markLoggedIn(session.closeRequestMark()) }
         client.features = setOf("MLST")
         client.mlsdListings = mapOf(
             "/r" to listOf("type=dir; sub", "type=dir; other"),
@@ -35,7 +35,7 @@ class FtpRemoveDirectoryRecursiveTest {
 
     @Test
     fun `목록에 보인 항목을 모두 지웠는데 RMD가 거부되면 보이지 않는 항목이 남았을 수 있음을 함께 알린다`() {
-        runBlocking { session.markLoggedIn() }
+        runBlocking { session.markLoggedIn(session.closeRequestMark()) }
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt"))
         client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Directory not empty"))

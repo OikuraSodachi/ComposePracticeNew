@@ -28,7 +28,7 @@ class FtpTransferrerStreamOpenFailureTest {
 
     @Test
     fun `폴더 다운로드에서 모든 파일의 스트림을 열지 못해도 완료 확인 없이 모든 파일을 시도한 뒤 실패를 모아 알린다`() {
-        runBlocking { session.markLoggedIn() }
+        runBlocking { session.markLoggedIn(session.closeRequestMark()) }
         client.remoteFiles = listOf("a.txt", "b.txt")
 
         val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }

@@ -1,12 +1,9 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import org.apache.commons.net.ProtocolCommandEvent
-import org.apache.commons.net.ProtocolCommandListener
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import org.apache.commons.net.ftp.FTPFile
-import org.apache.commons.net.ftp.FTPReply
 import org.apache.commons.net.ftp.parser.DefaultFTPFileEntryParserFactory
 import org.apache.commons.net.ftp.parser.ParserInitializationException
 import java.io.IOException
@@ -67,14 +64,12 @@ internal object FtpListingFormat {
      */
     fun probeHiddenListing(client: FTPClient): HiddenListingProbe {
         client.listHiddenFiles = false
-        val watch = FinalReplyWatch()
-        client.addProtocolCommandListener(watch)
-        return try {
-            HiddenListingProbe.Decided(!usesMlsd(client) && showsHiddenWithListOption(client))
-        } catch (e: IOException) {
-            if (isControlChannelUnusable(e, watch)) HiddenListingProbe.ConnectionBroken else HiddenListingProbe.Decided(useListOption = false)
-        } finally {
-            client.removeProtocolCommandListener(watch)
+        return watchingReplies(client) { watch ->
+            try {
+                HiddenListingProbe.Decided(!usesMlsd(client) && showsHiddenWithListOption(client))
+            } catch (e: IOException) {
+                if (isControlChannelUnusable(e, watch)) HiddenListingProbe.ConnectionBroken else HiddenListingProbe.Decided(useListOption = false)
+            }
         }
     }
 
@@ -153,23 +148,8 @@ internal object FtpListingFormat {
      * @param watch 판정 동안 명령과 응답을 지켜본 수신기
      * @return 제어 연결을 더 쓸 수 없으면 true
      */
-    private fun isControlChannelUnusable(cause: IOException, watch: FinalReplyWatch): Boolean =
+    private fun isControlChannelUnusable(cause: IOException, watch: FtpReplyWatch): Boolean =
         cause is FTPConnectionClosedException || watch.awaitingFinalReply
-
-    /** 보낸 명령의 최종 응답(예비 응답 1xx가 아닌 응답)을 아직 받지 못했는지 기록하는 응답 이벤트 수신기. */
-    private class FinalReplyWatch : ProtocolCommandListener {
-        /** 마지막으로 보낸 명령의 최종 응답을 기다리는 중이면 true. */
-        var awaitingFinalReply = false
-            private set
-
-        override fun protocolCommandSent(event: ProtocolCommandEvent) {
-            awaitingFinalReply = true
-        }
-
-        override fun protocolReplyReceived(event: ProtocolCommandEvent) {
-            if (!FTPReply.isPositivePreliminary(event.replyCode)) awaitingFinalReply = false
-        }
-    }
 
     /** `-a`와 함께 보내는 현재 디렉터리 경로([listCurrentDirectory]). */
     private const val CURRENT_DIRECTORY = "."

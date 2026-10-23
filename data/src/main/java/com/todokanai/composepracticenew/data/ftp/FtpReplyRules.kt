@@ -87,6 +87,13 @@ internal object FtpReplyRules {
     fun isSystemTypeReply(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
 
     /**
+     * 응답이 예비 응답(1xx)인지 판별한다. 예비 응답 뒤에는 같은 명령의 최종 응답이 이어지며, 목록 조회·전송에서는 데이터 연결을 열어 전송을 시작했다는 뜻이다.
+     * @param replyCode 응답 코드
+     * @return 예비 응답이면 true
+     */
+    fun isPreliminaryReply(replyCode: Int): Boolean = FTPReply.isPositivePreliminary(replyCode)
+
+    /**
      * 연결할 때 `-a` 옵션을 쓸지 정하려고 보낸 LIST가 목록을 돌려줬는지 판별한다([FtpListingFormat.probeHiddenListing]).
      * 화면 목록과 달리 450을 빈 목록으로 보지 않는다 — `-a`를 경로로 읽은 서버가 없는 경로를 450으로 답하면 빈 목록으로 보고 옵션을 쓰게 된다.
      * @param replyCode LIST의 마지막 응답 코드

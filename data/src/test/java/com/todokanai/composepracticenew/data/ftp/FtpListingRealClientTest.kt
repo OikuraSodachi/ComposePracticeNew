@@ -75,7 +75,7 @@ class FtpListingRealClientTest {
         client.connect(scripted.host, scripted.port)
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
-        val session = FtpSession(client).also { runBlocking { it.markLoggedIn() } }
+        val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark()) } }
         return runBlocking { FtpCommandExecutor(session).listFiles("ftp://host/r") }
     }
 }

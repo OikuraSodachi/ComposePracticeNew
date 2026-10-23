@@ -25,6 +25,7 @@ class FtpConnector @Inject constructor(
      * FTP 서버에 TCP 연결 후 로그인한다. 이미 연결된 경우 먼저 해제하고 재연결한다.
      * 로그인한 뒤 목록을 해석할 수 없는 서버([FtpListingFormat.isReadable])면 어느 폴더도 볼 수 없으므로 연결을 종료하고 실패로 알린다.
      * LIST 서버는 연결할 때 `-a` 옵션을 쓸지 정한다([establishWithListingOptions]).
+     * 연결하는 동안 앱이 종료를 요청했으면([FtpSession.closeBypassingIoLock]) 어느 단계에서 끝났든 실패로 알린다.
      * 실패하면 소켓을 닫아 연결을 남기지 않는다.
      * @param address 서버 호스트명 또는 IP (ftp:// 접두사 포함 가능)
      * @param port FTP 포트 (기본 21)
@@ -45,13 +46,12 @@ class FtpConnector @Inject constructor(
                         runCatching { client.disconnect() }
                         session.markLoggedOut()
                     }
-                    val result = establishWithListingOptions(client, closeMark) { establish(client, server, port, userId, password, encoding) }
-                    if (result == ConnectResult.Connected) {
-                        session.markLoggedIn()
-                        keepAlive.start()
-                    } else {
-                        closeQuietly(client)
-                    }
+                    val established = establishWithListingOptions(client, closeMark) { establish(client, server, port, userId, password, encoding) }
+                    // 종료 요청이 연결 작업과 겹쳤으면 그 연결은 쓸 수 있어 보여도 종료 요청을 따른다
+                    val result =
+                        if (established == ConnectResult.Connected && !session.markLoggedIn(closeMark)) ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
+                        else established
+                    if (result == ConnectResult.Connected) keepAlive.start() else closeQuietly(client)
                     result
                 } catch (e: IOException) {
                     // 접속·로그인 단계의 실패만 여기 온다 — 옵션 판정의 실패는 판정이 결과로 돌려준다

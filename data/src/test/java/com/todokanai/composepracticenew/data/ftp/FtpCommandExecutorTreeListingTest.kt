@@ -81,5 +81,5 @@ class FtpCommandExecutorTreeListingTest {
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn() }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark()) }
 }

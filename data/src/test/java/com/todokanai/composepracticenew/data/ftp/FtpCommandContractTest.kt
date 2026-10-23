@@ -46,7 +46,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     fun `서버 동작에 맞는 결과를 내고 세션 유지 여부를 지킨다`() {
         command.prepare(client)
         behavior.serverBehavior?.let { client.serverBehaviors = mapOf(command.ftpName to it) }
-        if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn() }
+        if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn(session.closeRequestMark()) }
         val run = suspend { command.run(Fixture(executor, transferrer, dir)) }
 
         when (expectedOutcome(command, behavior)) {

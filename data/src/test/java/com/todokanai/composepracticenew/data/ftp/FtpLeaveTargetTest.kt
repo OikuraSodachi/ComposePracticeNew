@@ -12,8 +12,11 @@ import org.junit.Test
  */
 class FtpLeaveTargetTest {
 
+    /** 서버 응답을 테스트가 정하고 목록 조회·디렉터리 이동 요청을 기록하는 가짜 클라이언트. */
     private val client = FakeFtpClient()
+    /** [client]를 소유하고 현재 디렉터리를 기록하는 세션. */
     private val session = FtpSession(client)
+    /** 검증 대상. */
     private val commands = FtpCommandExecutor(session)
 
     @Test
@@ -75,5 +78,5 @@ class FtpLeaveTargetTest {
     }
 
     /** 세션을 로그인 완료 상태로 만든다. 로그인 직후 세션은 홈에 있다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn() }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark()) }
 }
