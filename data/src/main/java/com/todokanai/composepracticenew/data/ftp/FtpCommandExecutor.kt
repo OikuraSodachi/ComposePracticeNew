@@ -44,7 +44,9 @@ class FtpCommandExecutor @Inject constructor(
     suspend fun rename(fromPath: String, toPath: String): IoResult<Unit> {
         val fromFtpPath = extractFtpPath(fromPath)
         val toFtpPath = extractFtpPath(toPath)
-        return runFtpCommand(FtpCommand.RENAME) { it.rename(fromFtpPath, toFtpPath) }
+        return runFtpCommand(FtpCommand.RENAME, leavingTarget(fromFtpPath, outside = parentFtpPath(fromFtpPath))) {
+            it.rename(fromFtpPath, toFtpPath)
+        }
     }
 
     /**
@@ -72,11 +74,14 @@ class FtpCommandExecutor @Inject constructor(
      * collectRemoteTree로 전체 트리를 수집한 뒤 reversed()로 리프부터 삭제해 RMD 빈 디렉터리 조건을 충족한다.
      * 일부 하위 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패를 모아 알리며, 이때 path 자체는 지우지 않는다.
      * 실패한 항목을 품은 상위 디렉터리는 비울 수 없으므로 RMD를 보내지도, 실패로 세지도 않는다(GNU rm과 같은 방식).
+     * 트리 수집이 세션을 하위 폴더 안에 남기므로, RMD는 세션이 지울 폴더 안에 있으면 먼저 [path]의 상위 폴더로 나간 뒤 보낸다.
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
      * @return 삭제 결과. 하위 항목 일부가 실패하면 [IoResult.PartiallyFailed]
      */
     suspend fun removeDirectoryRecursive(path: String): IoResult<Unit> {
         val allEntries = collectRemoteTree(path).valueOr { return it }
+        val ftpPath = extractFtpPath(path)
+        val outside = parentFtpPath(ftpPath)
         forEachCollectingFailures(
             allEntries.reversed(),
             "하위 항목 삭제 실패",
@@ -84,11 +89,10 @@ class FtpCommandExecutor @Inject constructor(
             isBlockedBy = { entry, failed -> entry.isDirectory && isRemoteAncestorOf(entry.path, failed.path) }
         ) { entry ->
             val entryFtpPath = extractFtpPath(entry.path)
-            if (entry.isDirectory) runFtpCommand(FtpCommand.RMD) { it.removeDirectory(entryFtpPath) }
+            if (entry.isDirectory) runFtpCommand(FtpCommand.RMD, leavingTarget(entryFtpPath, outside)) { it.removeDirectory(entryFtpPath) }
             else runFtpCommand(FtpCommand.DELE) { it.deleteFile(entryFtpPath) }
         }.valueOr { return it }
-        val ftpPath = extractFtpPath(path)
-        return runFtpCommand(FtpCommand.RMD) { it.removeDirectory(ftpPath) }
+        return runFtpCommand(FtpCommand.RMD, leavingTarget(ftpPath, outside)) { it.removeDirectory(ftpPath) }
     }
 
     /**
@@ -129,7 +133,10 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
      * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
-     * 숨김 항목을 담는 `-a` 옵션은 연결할 때 [FtpListingFormat.configureHiddenListing]이 [client]에 정해 두었다.
+     * 숨김 항목을 담는 `-a` 옵션은 연결할 때 [FtpListingFormat.probeHiddenListing]의 판정대로 [client]에 정해 두었다.
+     * 디렉터리로 이동한 뒤 [FtpListingFormat.listCurrentDirectory]로 조회한다 — LIST 인자는 RFC 959상 경로뿐이라 옵션과 임의의 경로를 함께 보내면
+     * 서버마다 해석이 갈리고(옵션을 떼고 경로로 읽거나, 전체를 한 경로로 읽음), 연결할 때의 `-a` 판정도 같은 형태로 했다.
+     * 다른 명령은 모두 절대 경로를 쓰지만, 세션이 조회한 폴더 안에 남으므로 그 폴더나 상위 폴더를 지우거나 옮기는 명령은 먼저 밖으로 나간다([leavingTarget]).
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
@@ -137,7 +144,8 @@ class FtpCommandExecutor @Inject constructor(
      * @return 디렉터리의 항목 목록, 또는 서버가 거부한 실패
      */
     private fun listWithList(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<FetchedListing> {
-        val (files, transferStarted) = watchingDataTransfer(client) { client.listFiles(ftpPath) }
+        if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client)
+        val (files, transferStarted) = watchingDataTransfer(client) { FtpListingFormat.listCurrentDirectory(client) }
         return listingOutcome(FtpCommand.LIST, purpose, client, transferStarted, path) {
             files?.filter { it.name != "." && it.name != ".." }.orEmpty()
         }
@@ -238,15 +246,55 @@ class FtpCommandExecutor @Inject constructor(
      * 세션 잠금 확보 후 IO 스레드에서 성공 여부를 반환하는 FTP 명령을 실행하고, 실패하면 서버 응답을 담은 실패를 돌려준다.
      * 성공 판정은 명령마다 성공 응답을 아는 commons-net의 반환값을 따른다.
      * @param command 실행할 명령 — 실패 메시지에 쓴다
+     * @param leave 명령 전에 같은 잠금 안에서 대상 밖으로 나가는 디렉터리 이동([leavingTarget]). 서버가 거부하면 false를 반환하고 명령은 보내지 않는다. null이면 이동하지 않는다
      * @param block 실행할 FTP 명령. 성공하면 true를 반환한다
      * @return 명령 결과
      */
-    private suspend fun runFtpCommand(command: FtpCommand, block: (FTPClient) -> Boolean): IoResult<Unit> =
+    private suspend fun runFtpCommand(
+        command: FtpCommand,
+        leave: ((FTPClient) -> Boolean)? = null,
+        block: (FTPClient) -> Boolean
+    ): IoResult<Unit> =
         session.withConnectedClient { client ->
             withContext(Dispatchers.IO) {
-                if (block(client)) IoResult.Done else FtpReplyRules.refusal(command, client)
+                when {
+                    leave?.invoke(client) == false -> FtpReplyRules.refusal(FtpCommand.CWD, client)
+                    block(client) -> IoResult.Done
+                    else -> FtpReplyRules.refusal(command, client)
+                }
             }
         }
+
+    /**
+     * 세션의 현재 디렉터리가 [targetFtpPath]이거나 그 안이면 [outside]로 옮기는 디렉터리 이동을 만든다.
+     * LIST 서버의 목록 조회는 세션을 조회한 폴더 안에 남기므로, 그 폴더를 지우거나 옮기는 명령은 대상 밖에서 보낸다 —
+     * 세션이 들어가 있는 디렉터리의 삭제·이름 변경을 거부하는 서버가 있을 수 있다. 명령과 같은 잠금 안에서 실행해야 그 사이 다른 조회가 다시 들어가지 않는다.
+     * @param targetFtpPath 지우거나 옮길 항목의 FTP 경로
+     * @param outside 옮겨 갈 디렉터리의 FTP 경로. [targetFtpPath] 밖이어야 한다
+     * @return 잠금을 확보한 FTPClient로 실행할 디렉터리 이동. 옮기지 않아도 되거나 옮겼으면 true, 서버가 거부하면 false
+     */
+    private fun leavingTarget(targetFtpPath: String, outside: String): (FTPClient) -> Boolean = { client ->
+        val current = session.workingDirectory
+        if (current == null || !isSameOrInside(current, targetFtpPath)) true else changeDirectory(client, outside)
+    }
+
+    /**
+     * [client]의 현재 디렉터리를 [ftpPath]로 옮기고, 옮겼으면 세션에 기록한다([FtpSession.workingDirectory]).
+     * @param client 잠금을 확보한 FTPClient
+     * @param ftpPath 옮겨 갈 디렉터리의 FTP 경로
+     * @return 옮겼으면 true, 서버가 거부하면 false
+     */
+    private fun changeDirectory(client: FTPClient, ftpPath: String): Boolean =
+        client.changeWorkingDirectory(ftpPath).also { changed -> if (changed) session.workingDirectory = ftpPath }
+
+    /**
+     * [path]가 [directoryPath] 자신이거나 그 아래인지 판별한다.
+     * @param path 판별할 FTP 경로
+     * @param directoryPath 기준 디렉터리의 FTP 경로
+     * @return 같거나 그 아래면 true
+     */
+    private fun isSameOrInside(path: String, directoryPath: String): Boolean =
+        path.trimEnd('/') == directoryPath.trimEnd('/') || isRemoteAncestorOf(directoryPath, path)
 
     /** 명령 중 서버가 예비 응답(1xx)을 보냈는지 기록하는 응답 이벤트 수신기. */
     private class PreliminaryReplyWatch : ProtocolCommandListener {

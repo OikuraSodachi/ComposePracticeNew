@@ -137,6 +137,9 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
         private val commands = listOf(
             CommandRow("LIST", emptyListingOn450 = true) { it.executor.listFiles("ftp://host/r") },
             CommandRow("LIST", name = "LIST(트리 수집)") { it.executor.collectRemoteTree("ftp://host/r") },
+            // LIST 서버는 디렉터리로 이동한 뒤 LIST를 보낸다 — 이동 거부는 목록이 빈 것이 아니므로 화면 목록에서도 450을 빈 목록으로 보지 않는다
+            CommandRow("CWD", name = "CWD(화면 목록)") { it.executor.listFiles("ftp://host/r") },
+            CommandRow("CWD", name = "CWD(트리 수집)") { it.executor.collectRemoteTree("ftp://host/r") },
             CommandRow("MLSD", prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r" to emptyList()) }) {
                 it.executor.listFiles("ftp://host/r")
             },

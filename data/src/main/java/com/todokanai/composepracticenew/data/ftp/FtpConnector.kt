@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPClient
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,6 +24,7 @@ class FtpConnector @Inject constructor(
     /**
      * FTP 서버에 TCP 연결 후 로그인한다. 이미 연결된 경우 먼저 해제하고 재연결한다.
      * 로그인한 뒤 목록을 해석할 수 없는 서버([FtpListingFormat.isReadable])면 어느 폴더도 볼 수 없으므로 연결을 종료하고 실패로 알린다.
+     * LIST 서버는 연결할 때 `-a` 옵션을 쓸지 정한다([establishWithListingOptions]).
      * 실패하면 소켓을 닫아 연결을 남기지 않는다.
      * @param address 서버 호스트명 또는 IP (ftp:// 접두사 포함 가능)
      * @param port FTP 포트 (기본 21)
@@ -33,6 +35,7 @@ class FtpConnector @Inject constructor(
      */
     suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
         session.setConnecting(true)
+        val closeMark = session.closeRequestMark()
         return session.withClient { client ->
             withContext(Dispatchers.IO) {
                 try {
@@ -42,11 +45,7 @@ class FtpConnector @Inject constructor(
                         runCatching { client.disconnect() }
                         session.markLoggedOut()
                     }
-                    client.connectTimeout = CONNECT_TIMEOUT_MS
-                    client.setControlEncoding(encoding)
-                    client.connect(server, port)
-                    client.soTimeout = SO_TIMEOUT_MS
-                    val result = loginAndCheck(client, userId, password)
+                    val result = establishWithListingOptions(client, closeMark) { establish(client, server, port, userId, password, encoding) }
                     if (result == ConnectResult.Connected) {
                         session.markLoggedIn()
                         keepAlive.start()
@@ -54,7 +53,8 @@ class FtpConnector @Inject constructor(
                         closeQuietly(client)
                     }
                     result
-                } catch (e: Exception) {
+                } catch (e: IOException) {
+                    // 접속·로그인 단계의 실패만 여기 온다 — 옵션 판정의 실패는 판정이 결과로 돌려준다
                     closeQuietly(client)
                     ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
                 } finally {
@@ -65,7 +65,55 @@ class FtpConnector @Inject constructor(
     }
 
     /**
-     * 접속한 [client]로 로그인하고 전송 방식을 정한 뒤, 이 서버의 목록을 해석할 수 있는지 확인하고 LIST에 숨김 항목을 담을 옵션을 정한다.
+     * [openUsableConnection]으로 쓸 수 있는 연결을 만든 뒤, LIST에 숨김 항목을 담는 `-a` 옵션을 붙일지 정한다([FtpListingFormat.probeHiddenListing]).
+     * 옵션 판정은 연결이 쓸 수 있으려면 성공해야 하는 단계가 아니므로 연결을 실패로 만들지 않는다.
+     * 판정이 제어 연결을 쓸 수 없게 만들면(서버가 끊거나 받지 못한 응답이 남음) 그 연결을 닫고 [openUsableConnection]으로 다시 연결해 옵션 없이 쓴다.
+     * 같은 서버는 같은 판정에 다시 연결을 끊을 수 있으므로 다시 판정하지 않는다.
+     * 그 끊김이 앱의 종료 요청([FtpSession.closeBypassingIoLock]) 때문이면 다시 연결하지 않는다 — 다시 연결하면 종료 요청을 뒤집는다.
+     * @param client 연결할 FTPClient
+     * @param closeMark 연결 작업을 시작할 때 읽은 종료 요청 표지([FtpSession.closeRequestMark])
+     * @param openUsableConnection [client]를 접속·로그인시켜 쓸 수 있는 연결인지 확인하는 단계
+     * @return 쓸 수 있는 연결이면 [ConnectResult.Connected], 아니면 실패
+     * @throws java.io.IOException [openUsableConnection]이 접속하지 못했거나 응답을 읽지 못한 경우
+     */
+    private fun establishWithListingOptions(client: FTPClient, closeMark: Int, openUsableConnection: () -> ConnectResult): ConnectResult {
+        val established = openUsableConnection()
+        if (established != ConnectResult.Connected) return established
+        return when (val probe = FtpListingFormat.probeHiddenListing(client)) {
+            is HiddenListingProbe.Decided -> {
+                client.listHiddenFiles = probe.useListOption
+                ConnectResult.Connected
+            }
+            HiddenListingProbe.ConnectionBroken -> {
+                // 쓸 수 없는 제어 연결이므로 QUIT 응답을 기다리지 않고 소켓만 닫는다
+                runCatching { client.disconnect() }
+                if (session.isCloseRequestedSince(closeMark)) ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
+                else openUsableConnection().also { client.listHiddenFiles = false }
+            }
+        }
+    }
+
+    /**
+     * [client]를 서버에 접속하고 로그인해 쓸 수 있는 연결인지 확인한다. 하나라도 실패하면 연결을 쓸 수 없는 단계들이다.
+     * @param client 연결할 FTPClient
+     * @param server 서버 호스트명 또는 IP
+     * @param port FTP 포트
+     * @param userId FTP 로그인 아이디
+     * @param password FTP 로그인 비밀번호
+     * @param encoding 컨트롤 채널 문자 인코딩
+     * @return 쓸 수 있는 연결이면 [ConnectResult.Connected]. 로그인이 거부됐거나 목록을 해석할 수 없으면 그 이유를 담은 실패
+     * @throws java.io.IOException 접속하지 못했거나 응답을 읽지 못한 경우
+     */
+    private fun establish(client: FTPClient, server: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
+        client.connectTimeout = CONNECT_TIMEOUT_MS
+        client.setControlEncoding(encoding)
+        client.connect(server, port)
+        client.soTimeout = SO_TIMEOUT_MS
+        return loginAndCheck(client, userId, password)
+    }
+
+    /**
+     * 접속한 [client]로 로그인하고 전송 방식을 정한 뒤, 이 서버의 목록을 해석할 수 있는지 확인한다.
      * @param client 서버에 접속한 FTPClient
      * @param userId FTP 로그인 아이디
      * @param password FTP 로그인 비밀번호
@@ -77,7 +125,6 @@ class FtpConnector @Inject constructor(
         client.enterLocalPassiveMode()
         client.setFileType(FTP.BINARY_FILE_TYPE)
         if (!FtpListingFormat.isReadable(client)) return ConnectResult.Failed(ConnectFailureReason.LISTING_FORMAT_UNKNOWN)
-        FtpListingFormat.configureHiddenListing(client)
         return ConnectResult.Connected
     }
 

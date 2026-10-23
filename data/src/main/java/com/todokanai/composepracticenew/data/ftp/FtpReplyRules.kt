@@ -9,6 +9,7 @@ import org.apache.commons.net.ftp.FTPReply
  * @param label 실패 메시지에 표시할 명령 이름
  */
 internal enum class FtpCommand(val label: String) {
+    CWD("CWD"),
     LIST("LIST"),
     MLSD("MLSD"),
     RENAME("RENAME"),
@@ -86,7 +87,7 @@ internal object FtpReplyRules {
     fun isSystemTypeReply(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
 
     /**
-     * 연결할 때 `-a` 옵션을 쓸지 정하려고 보낸 LIST가 목록을 돌려줬는지 판별한다([FtpListingFormat.configureHiddenListing]).
+     * 연결할 때 `-a` 옵션을 쓸지 정하려고 보낸 LIST가 목록을 돌려줬는지 판별한다([FtpListingFormat.probeHiddenListing]).
      * 화면 목록과 달리 450을 빈 목록으로 보지 않는다 — `-a`를 경로로 읽은 서버가 없는 경로를 450으로 답하면 빈 목록으로 보고 옵션을 쓰게 된다.
      * @param replyCode LIST의 마지막 응답 코드
      * @return 목록을 돌려줬으면 true
@@ -111,7 +112,7 @@ internal object FtpReplyRules {
      */
     private fun refusalNote(command: FtpCommand): String = when (command) {
         FtpCommand.RMD -> " (목록에 보이지 않는 항목(숨김 파일 등)이 남아 있으면 지울 수 없습니다)"
-        FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD,
+        FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD,
         FtpCommand.RETR, FtpCommand.STOR -> ""
     }
 }

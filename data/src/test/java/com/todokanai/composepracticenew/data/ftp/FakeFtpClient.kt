@@ -12,7 +12,7 @@ import java.util.Locale
 
 /**
  * 테스트가 정하는, 명령 하나에 대한 서버 동작.
- * 명령 이름은 "LIST"·"MLSD"·"RETR"·"STOR"·"DELE"·"RMD"·"MKD"·"RENAME"이다.
+ * 명령 이름은 "CWD"·"LIST"·"MLSD"·"RETR"·"STOR"·"DELE"·"RMD"·"MKD"·"RENAME"이다.
  */
 internal sealed interface ServerBehavior {
     /**
@@ -49,7 +49,7 @@ internal class FakeFtpClient : FTPClient() {
     var features: Set<String> = emptySet()
     /** MLSD 응답 줄 — 디렉터리 FTP 경로 → MLSx 형식 줄. 없는 경로는 550으로 거부한다. */
     var mlsdListings: Map<String, List<String>> = emptyMap()
-    /** 목록 조회에 쓴 명령과 경로(예: "MLSD /r"). */
+    /** 목록 조회에 쓴 명령과 경로(예: "MLSD /r", LIST 전 디렉터리 이동은 "CWD /r", 경로 없는 LIST는 "LIST"). */
     val listRequests = mutableListOf<String>()
     /** 데이터 스트림으로 내려줄 내용. null이면 스트림 요청을 [streamRefusal] 응답으로 거부한다. */
     var streamContent: ByteArray? = null
@@ -63,6 +63,8 @@ internal class FakeFtpClient : FTPClient() {
     var onCompletePending: () -> Boolean = { true }
     /** MLST(크기 조회)의 응답 줄. 첫 줄은 응답 코드로 시작한다. 예외를 던지게 해 응답 읽기 중 연결 끊김·타임아웃·형식 오류를 재현한다. */
     var onMlst: (String) -> List<String> = { listOf("500 MLST not understood") }
+    /** changeWorkingDirectory의 경로별 동작. false면 550 응답. 모든 이동을 거부하려면 [serverBehaviors]의 "CWD"를 쓴다. */
+    var onChangeWorkingDirectory: (String) -> Boolean = { true }
     /** deleteFile의 경로별 동작. false면 550 응답, 예외를 던지게 해 응답 읽기 실패를 재현한다. */
     var onDeleteFile: (String) -> Boolean = { true }
     /** completePendingCommand가 호출된 횟수. */
@@ -115,8 +117,16 @@ internal class FakeFtpClient : FTPClient() {
 
     override fun hasFeature(feature: String): Boolean = feature.uppercase(Locale.ROOT) in features
 
+    override fun changeWorkingDirectory(pathname: String?): Boolean {
+        listRequests += "CWD $pathname"
+        return respond("CWD", refused = { false }) {
+            if (onChangeWorkingDirectory(pathname.orEmpty())) completed(250, "250 Directory changed")
+            else false.also { reply(550, "550 Permission denied") }
+        }
+    }
+
     override fun listFiles(pathname: String?): Array<FTPFile> {
-        listRequests += "LIST $pathname"
+        listRequests += listOfNotNull("LIST", pathname).joinToString(" ")
         return transferListing("LIST") {
             remoteFiles.map { name -> FTPFile().apply { this.name = name; type = FTPFile.FILE_TYPE; size = 1 } }.toTypedArray()
         }

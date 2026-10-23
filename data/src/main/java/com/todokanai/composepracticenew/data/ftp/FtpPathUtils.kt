@@ -11,6 +11,13 @@ internal fun extractFtpPath(path: String): String {
 }
 
 /**
+ * FTP 경로의 상위 디렉터리 경로를 구한다. 루트의 상위는 루트다.
+ * @param ftpPath /로 시작하는 FTP 경로
+ * @return 상위 디렉터리의 FTP 경로
+ */
+internal fun parentFtpPath(ftpPath: String): String = ftpPath.trimEnd('/').substringBeforeLast('/', "").ifEmpty { "/" }
+
+/**
  * 원격 트리 항목 경로를 기준 디렉터리에 대한 상대 경로로 바꾼다.
  * @param entryPath 원격 트리 항목의 경로
  * @param rootPath 기준 원격 디렉터리 경로

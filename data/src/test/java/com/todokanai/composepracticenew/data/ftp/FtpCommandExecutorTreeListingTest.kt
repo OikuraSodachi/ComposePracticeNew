@@ -66,7 +66,18 @@ class FtpCommandExecutorTreeListingTest {
         val result = runBlocking { commands.collectRemoteTree("ftp://host/r") }
 
         assertEquals(IoResult.ItemFailed("LIST 실패: 550 No such directory"), result)
-        assertEquals(listOf("LIST /r"), client.listRequests)
+        assertEquals(listOf("CWD /r", "LIST"), client.listRequests)
+    }
+
+    @Test
+    fun `LIST 서버에서 디렉터리 이동이 거부되면 LIST를 보내지 않고 실패로 본다`() {
+        loggedIn()
+        client.serverBehaviors = mapOf("CWD" to ServerBehavior.Refuse(550, "550 No such directory"))
+
+        val result = runBlocking { commands.collectRemoteTree("ftp://host/r") }
+
+        assertEquals(IoResult.ItemFailed("CWD 실패: 550 No such directory"), result)
+        assertEquals(listOf("CWD /r"), client.listRequests)
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */
