@@ -20,4 +20,9 @@ data class RemoteStorageItem(
     val userId: String,
     val password: String,
     val encoding: String = Constants.REMOTE_ENCODING_DEFAULT
-)
+) {
+    companion object {
+        /** TCP 포트로 허용하는 범위. 0은 예약 포트라 제외한다. 입력 검증과 연결 전 검사가 같은 범위를 쓴다. */
+        val PORT_RANGE = 1..65535
+    }
+}

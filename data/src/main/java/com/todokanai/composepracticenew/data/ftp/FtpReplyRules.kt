@@ -9,6 +9,7 @@ import org.apache.commons.net.ftp.FTPReply
  * @param label 실패 메시지에 표시할 명령 이름
  */
 internal enum class FtpCommand(val label: String) {
+    CWD("CWD"),
     LIST("LIST"),
     MLSD("MLSD"),
     RENAME("RENAME"),
@@ -86,11 +87,43 @@ internal object FtpReplyRules {
     fun isSystemTypeReply(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
 
     /**
+     * 응답이 예비 응답(1xx)인지 판별한다. 예비 응답 뒤에는 같은 명령의 최종 응답이 이어지며, 목록 조회·전송에서는 데이터 연결을 열어 전송을 시작했다는 뜻이다.
+     * @param replyCode 응답 코드
+     * @return 예비 응답이면 true
+     */
+    fun isPreliminaryReply(replyCode: Int): Boolean = FTPReply.isPositivePreliminary(replyCode)
+
+    /**
+     * 연결할 때 `-a` 옵션을 쓸지 정하려고 보낸 LIST가 목록을 돌려줬는지 판별한다([FtpListingFormat.probeHiddenListing]).
+     * 화면 목록과 달리 450을 빈 목록으로 보지 않는다 — `-a`를 경로로 읽은 서버가 없는 경로를 450으로 답하면 빈 목록으로 보고 옵션을 쓰게 된다.
+     * @param replyCode LIST의 마지막 응답 코드
+     * @return 목록을 돌려줬으면 true
+     */
+    fun isListingProbeCompleted(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
+
+    /**
      * [command]를 서버가 거부한 마지막 응답을 이 항목만의 실패로 만든다.
      * @param command 거부된 명령
      * @param client 거부 응답을 받은 FTPClient
      * @return 서버 응답을 메시지로 담은 실패
      */
     fun refusal(command: FtpCommand, client: FTPClient): IoResult.ItemFailed =
-        IoResult.ItemFailed("${command.label} 실패: ${client.replyString.trim()}")
+        IoResult.ItemFailed("${command.label} 실패: ${client.replyString.trim()}${refusalNote(command, client)}")
+
+    /**
+     * 서버 응답만으로는 원인을 알 수 없는 거부에 덧붙일 설명.
+     * RMD는 목록에서 본 하위 항목을 모두 지운 뒤에만 보내지만, 이 세션의 목록이 숨김 항목을 빠뜨릴 수 있으면([FtpListingFormat.mayOmitHiddenEntries])
+     * 그 항목이 남아 거부됐을 수 있다. 클라이언트는 그런 항목을 알아낼 방법이 없고, 거부 응답은 권한 없음과 비어 있지 않음을 구분하지 않으므로 가능성으로 알린다.
+     * @param command 거부된 명령
+     * @param client 거부 응답을 받은 FTPClient
+     * @return 덧붙일 설명. 없으면 빈 문자열
+     */
+    private fun refusalNote(command: FtpCommand, client: FTPClient): String = when (command) {
+        FtpCommand.RMD -> if (FtpListingFormat.mayOmitHiddenEntries(client)) HIDDEN_ENTRIES_NOTE else ""
+        FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD,
+        FtpCommand.RETR, FtpCommand.STOR -> ""
+    }
+
+    /** 숨김 항목이 남아 RMD가 거부됐을 수 있을 때 거부 메시지 뒤에 덧붙이는 설명([refusalNote]). */
+    internal const val HIDDEN_ENTRIES_NOTE = " (폴더가 비어 있지 않아 거부됐다면 목록에 보이지 않는 항목(숨김 파일 등)이 남아 있을 수 있습니다)"
 }

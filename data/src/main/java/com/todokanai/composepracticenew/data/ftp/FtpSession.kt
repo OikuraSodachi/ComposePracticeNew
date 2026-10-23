@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -29,10 +30,28 @@ class FtpSession internal constructor(private val client: FTPClient) {
 
     /** isLoggedIn, _isConnected, _isConnecting 갱신을 직렬화한다. */
     private val stateMutex = Mutex()
-    /** FTP 명령 I/O를 직렬화한다. [closeBypassingIoLock]은 이 lock을 우회해 진행 중 I/O를 즉시 중단한다. */
+    /** FTP 명령 I/O를 직렬화한다. [closeBypassingIoLock]은 이 lock을 기다리지 않고 진행 중 I/O의 소켓을 닫아 즉시 중단한다. */
     private val ioMutex = Mutex()
     /** 로그인까지 완료된 상태인지 여부. stateMutex로 보호한다. */
     private var isLoggedIn = false
+    /** [closeBypassingIoLock]이 요청된 횟수. stateMutex 안에서 늘리고, ioMutex를 쥔 연결 작업이 잠금 없이 읽으므로 원자 값으로 둔다. */
+    private val bypassCloseRequests = AtomicInteger()
+    /** [client]가 연 제어·데이터 소켓. [closeBypassingIoLock]이 잠금 밖에서 FTPClient를 건드리지 않고 진행 중 I/O를 깨우려고 닫는다. */
+    private val sockets = AbortableSocketFactory().also { client.setSocketFactory(it) }
+
+    /**
+     * 세션의 현재 디렉터리(FTP 경로). 로그인 직후에는 [homeDirectory]이고, 이 앱이 CWD로 옮길 때마다 갱신한다. 알 수 없으면 null이다.
+     * 현재 디렉터리를 지우거나 옮기는 명령을 그 밖에서 보내려고 기록한다([FtpCommandExecutor]). ioMutex를 쥔 블록 안에서만 읽고 쓴다.
+     */
+    internal var workingDirectory: String? = null
+
+    /**
+     * 로그인 직후의 현재 디렉터리(홈, FTP 경로). 서버가 알려주지 않았으면 null이다.
+     * 로그인한 사용자가 들어갈 수 있는 디렉터리이므로, 대상 밖으로 나가는 이동이 거부될 때 다시 시도할 곳으로 쓴다([FtpCommandExecutor]).
+     * 연결할 때 ioMutex를 쥔 채 정하고, ioMutex를 쥔 블록 안에서만 읽는다.
+     */
+    internal var homeDirectory: String? = null
+        private set
 
     private val _isConnected = MutableStateFlow(false)
     /** FTP 서버와 연결 및 로그인이 모두 완료된 경우 true를 방출한다. */
@@ -113,11 +132,34 @@ class FtpSession internal constructor(private val client: FTPClient) {
     /** 연결 진행 중 여부를 갱신한다. */
     internal suspend fun setConnecting(value: Boolean) = stateMutex.withLock { _isConnecting.value = value }
 
-    /** 로그인 성공 상태로 전환한다. */
-    internal suspend fun markLoggedIn() = stateMutex.withLock {
+    /**
+     * 로그인 성공 상태로 전환한다. 새 연결의 현재 디렉터리는 로그인 직후의 홈이다.
+     * [closeMark]를 읽은 뒤 종료가 요청됐으면 전환하지 않는다 — 종료 요청과 같은 잠금 안에서 판단하므로, 연결 작업과 겹친 종료 요청이 연결 상태로 뒤집히지 않는다.
+     * @param closeMark 연결 작업을 시작할 때 읽은 종료 요청 표지([closeRequestMark])
+     * @param home 로그인 직후의 현재 디렉터리(FTP 경로). 서버가 알려주지 않았으면 null
+     * @return 로그인 상태로 전환했으면 true, 그 사이 종료가 요청돼 전환하지 않았으면 false
+     */
+    internal suspend fun markLoggedIn(closeMark: Int, home: String?): Boolean = stateMutex.withLock {
+        if (isCloseRequestedSince(closeMark)) return@withLock false
+        homeDirectory = home
+        workingDirectory = home
         isLoggedIn = true
         _isConnected.value = true
+        true
     }
+
+    /**
+     * 지금까지 [closeBypassingIoLock]이 요청된 횟수를 돌려준다. 연결 작업이 시작할 때 읽어 두었다가 [isCloseRequestedSince]·[markLoggedIn]으로 그 사이의 종료 요청을 확인한다.
+     * @return 종료 요청 표지
+     */
+    internal fun closeRequestMark(): Int = bypassCloseRequests.get()
+
+    /**
+     * [mark]를 읽은 뒤 [closeBypassingIoLock]이 요청됐는지 판별한다. 연결 작업이 끊긴 연결을 스스로 다시 열기 전에, 그 끊김이 종료 요청 때문인지 확인하는 데 쓴다.
+     * @param mark [closeRequestMark]로 읽어 둔 표지
+     * @return 그 뒤 종료가 요청됐으면 true
+     */
+    internal fun isCloseRequestedSince(mark: Int): Boolean = bypassCloseRequests.get() != mark
 
     /** 로그인 해제 상태로 전환한다. */
     internal suspend fun markLoggedOut() = stateMutex.withLock {
@@ -126,18 +168,31 @@ class FtpSession internal constructor(private val client: FTPClient) {
     }
 
     /**
-     * ioMutex를 우회해 로그아웃·소켓 종료를 수행한다. 진행 중인 FTP 명령은 IOException으로 중단되며,
-     * 로그인 상태를 먼저 해제하므로 [withConnectedClient]는 이를 연결 끊김으로 알린다.
+     * 진행 중인 FTP 명령을 기다리지 않고 연결을 끊는다. 로그인 상태를 먼저 해제하므로 [withConnectedClient]는 이를 연결 끊김으로 알린다.
+     * 진행 중인 명령이 없으면 ioMutex를 얻어 로그아웃한 뒤 연결을 닫는다.
+     * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 닫는다 — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
+     * 그 명령은 IOException을 받아 자기 잠금 안에서 세션을 정리하고, 이 함수는 ioMutex를 얻은 뒤 남은 연결을 닫는다.
+     * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn], [isCloseRequestedSince]), 소켓을 닫기 전에 요청을 기록한다.
      * 호출 전 소켓이 열려 있는지 [isSocketOpen]으로 확인해야 한다.
      */
     internal suspend fun closeBypassingIoLock() {
         stateMutex.withLock {
+            bypassCloseRequests.incrementAndGet()
             isLoggedIn = false
             _isConnected.value = false
             _isConnecting.value = true
         }
-        runCatching { client.logout() }
-        runCatching { client.disconnect() }
+        if (ioMutex.tryLock()) {
+            try {
+                runCatching { client.logout() }
+                runCatching { client.disconnect() }
+            } finally {
+                ioMutex.unlock()
+            }
+        } else {
+            sockets.closeAll()
+            ioMutex.withLock { runCatching { client.disconnect() } }
+        }
         stateMutex.withLock { _isConnecting.value = false }
     }
 

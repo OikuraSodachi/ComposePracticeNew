@@ -107,7 +107,7 @@ class FtpControlChannelFailureTest {
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn() }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null) }
 
     /** 세션이 끊김 상태가 되고 소켓이 닫혔는지 확인한다. */
     private fun assertSessionEnded() {

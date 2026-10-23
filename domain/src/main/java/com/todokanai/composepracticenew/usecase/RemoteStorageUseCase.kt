@@ -77,11 +77,6 @@ class RemoteStorageUseCase(
      */
     fun clearLastConnectedIfMatches(id: Long) = lastConnectionRepo.clearLastRemoteIdIf(id)
 
-    /** [port]가 [PORT_RANGE] 안의 정수인지 판별한다. */
-    private fun isValidPort(port: String): Boolean = port.toIntOrNull()?.let { it in PORT_RANGE } ?: false
-
-    private companion object {
-        /** TCP 포트로 허용하는 범위. 0은 예약 포트라 제외한다. */
-        val PORT_RANGE = 1..65535
-    }
+    /** [port]가 [RemoteStorageItem.PORT_RANGE] 안의 정수인지 판별한다. */
+    private fun isValidPort(port: String): Boolean = port.toIntOrNull()?.let { it in RemoteStorageItem.PORT_RANGE } ?: false
 }
