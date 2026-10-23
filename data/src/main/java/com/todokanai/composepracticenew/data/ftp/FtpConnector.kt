@@ -47,14 +47,11 @@ class FtpConnector @Inject constructor(
                         session.markLoggedOut()
                     }
                     val established = establishWithListingOptions(client, closeMark) { establish(client, server, port, userId, password, encoding) }
-                    // 종료 요청이 연결 작업과 겹쳤으면 그 연결은 쓸 수 있어 보여도 종료 요청을 따른다
-                    val result =
-                        if (established == ConnectResult.Connected && !session.markLoggedIn(closeMark)) ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
-                        else established
+                    val result = if (established == ConnectResult.Connected) markLoggedIn(client, closeMark) else established
                     if (result == ConnectResult.Connected) keepAlive.start() else closeQuietly(client)
                     result
                 } catch (e: IOException) {
-                    // 접속·로그인 단계의 실패만 여기 온다 — 옵션 판정의 실패는 판정이 결과로 돌려준다
+                    // 접속·로그인·홈 확인 단계의 실패만 여기 온다 — 옵션 판정의 실패는 판정이 결과로 돌려준다
                     closeQuietly(client)
                     ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
                 } finally {
@@ -91,6 +88,20 @@ class FtpConnector @Inject constructor(
                 else openUsableConnection().also { client.listHiddenFiles = false }
             }
         }
+    }
+
+    /**
+     * 쓸 수 있는 연결을 세션의 로그인 상태로 전환하며, 로그인 직후의 현재 디렉터리(홈)를 함께 기록한다.
+     * 옵션 판정은 디렉터리를 옮기지 않으므로 지금의 현재 디렉터리가 홈이다. 서버가 PWD를 거부하면 홈을 모르는 채로 전환한다.
+     * 종료 요청이 연결 작업과 겹쳤으면 그 연결은 쓸 수 있어 보여도 종료 요청을 따른다.
+     * @param client 쓸 수 있는 연결을 연 FTPClient
+     * @param closeMark 연결 작업을 시작할 때 읽은 종료 요청 표지([FtpSession.closeRequestMark])
+     * @return 전환했으면 [ConnectResult.Connected], 그 사이 종료가 요청됐으면 실패
+     * @throws java.io.IOException PWD 응답을 읽지 못한 경우
+     */
+    private suspend fun markLoggedIn(client: FTPClient, closeMark: Int): ConnectResult {
+        val home = client.printWorkingDirectory()
+        return if (session.markLoggedIn(closeMark, home)) ConnectResult.Connected else ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
     }
 
     /**

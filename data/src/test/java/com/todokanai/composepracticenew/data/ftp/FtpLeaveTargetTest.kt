@@ -33,15 +33,53 @@ class FtpLeaveTargetTest {
     }
 
     @Test
-    fun `대상 밖으로 나가는 이동이 거부되면 RMD를 보내지 않고 이동 실패로 알린다`() {
-        loggedIn()
+    fun `상위 폴더로 나가는 이동이 거부되면 로그인 홈으로 나간 뒤 RMD를 보낸다`() {
+        loggedIn(home = "/home/u")
         client.remoteFiles = emptyList()
         client.onChangeWorkingDirectory = { path -> path != "/r" }
 
         val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") }
 
-        assertEquals(IoResult.ItemFailed("CWD 실패: 550 Permission denied"), result)
-        assertEquals(emptyList<String>(), client.removeDirectoryRequests)
+        assertEquals(IoResult.Done, result)
+        assertEquals(listOf("CWD /r/x", "LIST", "CWD /r", "CWD /home/u"), client.listRequests)
+        assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
+    }
+
+    @Test
+    fun `어디로도 나가지 못해도 RMD를 보내 서버가 받아들이면 성공한다`() {
+        loggedIn(home = "/home/u")
+        client.remoteFiles = emptyList()
+        client.onChangeWorkingDirectory = { path -> path == "/r/x" }
+
+        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") }
+
+        assertEquals(IoResult.Done, result)
+        assertEquals(listOf("CWD /r/x", "LIST", "CWD /r", "CWD /home/u"), client.listRequests)
+        assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
+    }
+
+    @Test
+    fun `로그인 홈이 지울 폴더 안이면 상위 폴더 이동이 거부돼도 홈으로 옮기지 않는다`() {
+        loggedIn(home = "/r/x/home")
+        client.remoteFiles = emptyList()
+        client.onChangeWorkingDirectory = { path -> path != "/r" }
+
+        runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") }
+
+        assertEquals(listOf("CWD /r/x", "LIST", "CWD /r"), client.listRequests)
+        assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
+    }
+
+    @Test
+    fun `로그인 홈이 지울 폴더 안이면 목록을 조회하지 않았어도 대상 밖으로 나간다`() {
+        loggedIn(home = "/r/x")
+        client.features = setOf("MLST")
+        client.mlsdListings = mapOf("/r/x" to emptyList())
+
+        runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") }
+
+        assertEquals(listOf("MLSD /r/x", "CWD /r"), client.listRequests)
+        assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
     }
 
     @Test
@@ -77,6 +115,9 @@ class FtpLeaveTargetTest {
         assertFalse(client.listRequests.toString(), client.listRequests.any { it.startsWith("CWD") })
     }
 
-    /** 세션을 로그인 완료 상태로 만든다. 로그인 직후 세션은 홈에 있다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark()) }
+    /**
+     * 세션을 로그인 완료 상태로 만든다. 로그인 직후 세션은 홈에 있다.
+     * @param home 서버가 알려준 로그인 홈. null이면 서버가 알려주지 않은 경우다
+     */
+    private fun loggedIn(home: String? = null) = runBlocking { session.markLoggedIn(session.closeRequestMark(), home) }
 }

@@ -40,10 +40,18 @@ class FtpSession internal constructor(private val client: FTPClient) {
     private val sockets = AbortableSocketFactory().also { client.setSocketFactory(it) }
 
     /**
-     * 이 앱이 CWD로 옮긴 세션의 현재 디렉터리(FTP 경로). 로그인한 뒤 옮긴 적이 없으면(홈) null이다.
+     * 세션의 현재 디렉터리(FTP 경로). 로그인 직후에는 [homeDirectory]이고, 이 앱이 CWD로 옮길 때마다 갱신한다. 알 수 없으면 null이다.
      * 현재 디렉터리를 지우거나 옮기는 명령을 그 밖에서 보내려고 기록한다([FtpCommandExecutor]). ioMutex를 쥔 블록 안에서만 읽고 쓴다.
      */
     internal var workingDirectory: String? = null
+
+    /**
+     * 로그인 직후의 현재 디렉터리(홈, FTP 경로). 서버가 알려주지 않았으면 null이다.
+     * 로그인한 사용자가 들어갈 수 있는 디렉터리이므로, 대상 밖으로 나가는 이동이 거부될 때 다시 시도할 곳으로 쓴다([FtpCommandExecutor]).
+     * 연결할 때 ioMutex를 쥔 채 정하고, ioMutex를 쥔 블록 안에서만 읽는다.
+     */
+    internal var homeDirectory: String? = null
+        private set
 
     private val _isConnected = MutableStateFlow(false)
     /** FTP 서버와 연결 및 로그인이 모두 완료된 경우 true를 방출한다. */
@@ -128,11 +136,13 @@ class FtpSession internal constructor(private val client: FTPClient) {
      * 로그인 성공 상태로 전환한다. 새 연결의 현재 디렉터리는 로그인 직후의 홈이다.
      * [closeMark]를 읽은 뒤 종료가 요청됐으면 전환하지 않는다 — 종료 요청과 같은 잠금 안에서 판단하므로, 연결 작업과 겹친 종료 요청이 연결 상태로 뒤집히지 않는다.
      * @param closeMark 연결 작업을 시작할 때 읽은 종료 요청 표지([closeRequestMark])
+     * @param home 로그인 직후의 현재 디렉터리(FTP 경로). 서버가 알려주지 않았으면 null
      * @return 로그인 상태로 전환했으면 true, 그 사이 종료가 요청돼 전환하지 않았으면 false
      */
-    internal suspend fun markLoggedIn(closeMark: Int): Boolean = stateMutex.withLock {
+    internal suspend fun markLoggedIn(closeMark: Int, home: String?): Boolean = stateMutex.withLock {
         if (isCloseRequestedSince(closeMark)) return@withLock false
-        workingDirectory = null
+        homeDirectory = home
+        workingDirectory = home
         isLoggedIn = true
         _isConnected.value = true
         true

@@ -236,36 +236,49 @@ class FtpCommandExecutor @Inject constructor(
      * 세션 잠금 확보 후 IO 스레드에서 성공 여부를 반환하는 FTP 명령을 실행하고, 실패하면 서버 응답을 담은 실패를 돌려준다.
      * 성공 판정은 명령마다 성공 응답을 아는 commons-net의 반환값을 따른다.
      * @param command 실행할 명령 — 실패 메시지에 쓴다
-     * @param leave 명령 전에 같은 잠금 안에서 대상 밖으로 나가는 디렉터리 이동([leavingTarget]). 서버가 거부하면 false를 반환하고 명령은 보내지 않는다. null이면 이동하지 않는다
+     * @param leave 명령 전에 같은 잠금 안에서 대상 밖으로 나가는 디렉터리 이동([leavingTarget]). null이면 이동하지 않는다
      * @param block 실행할 FTP 명령. 성공하면 true를 반환한다
      * @return 명령 결과
      */
     private suspend fun runFtpCommand(
         command: FtpCommand,
-        leave: ((FTPClient) -> Boolean)? = null,
+        leave: ((FTPClient) -> Unit)? = null,
         block: (FTPClient) -> Boolean
     ): IoResult<Unit> =
         session.withConnectedClient { client ->
             withContext(Dispatchers.IO) {
-                when {
-                    leave?.invoke(client) == false -> FtpReplyRules.refusal(FtpCommand.CWD, client)
-                    block(client) -> IoResult.Done
-                    else -> FtpReplyRules.refusal(command, client)
-                }
+                leave?.invoke(client)
+                if (block(client)) IoResult.Done else FtpReplyRules.refusal(command, client)
             }
         }
 
     /**
-     * 세션의 현재 디렉터리가 [targetFtpPath]이거나 그 안이면 [outside]로 옮기는 디렉터리 이동을 만든다.
+     * 세션의 현재 디렉터리가 [targetFtpPath]이거나 그 안이면 대상 밖으로 옮기는 디렉터리 이동을 만든다.
      * LIST 서버의 목록 조회는 세션을 조회한 폴더 안에 남기므로, 그 폴더를 지우거나 옮기는 명령은 대상 밖에서 보낸다 —
-     * 세션이 들어가 있는 디렉터리의 삭제·이름 변경을 거부하는 서버가 있을 수 있다. 명령과 같은 잠금 안에서 실행해야 그 사이 다른 조회가 다시 들어가지 않는다.
+     * 세션이 들어가 있는 디렉터리의 삭제를 거부하는 서버가 있다(Apache FTP Server, Windows 서버). 명령과 같은 잠금 안에서 실행해야 그 사이 다른 조회가 다시 들어가지 않는다.
+     * 나가기는 그런 서버를 위한 사전 조치이므로, 어디로도 나가지 못해도 명령은 보내고 서버의 응답을 결과로 삼는다 —
+     * 세션이 들어가 있는 디렉터리도 지울 수 있는 서버(리눅스 계열)에서 명령을 막지 않는다.
      * @param targetFtpPath 지우거나 옮길 항목의 FTP 경로
-     * @param outside 옮겨 갈 디렉터리의 FTP 경로. [targetFtpPath] 밖이어야 한다
-     * @return 잠금을 확보한 FTPClient로 실행할 디렉터리 이동. 옮기지 않아도 되거나 옮겼으면 true, 서버가 거부하면 false
+     * @param outside 먼저 옮겨 갈 디렉터리의 FTP 경로. [targetFtpPath] 밖이어야 한다
+     * @return 잠금을 확보한 FTPClient로 실행할 디렉터리 이동
      */
-    private fun leavingTarget(targetFtpPath: String, outside: String): (FTPClient) -> Boolean = { client ->
+    private fun leavingTarget(targetFtpPath: String, outside: String): (FTPClient) -> Unit = { client ->
         val current = session.workingDirectory
-        if (current == null || !isSameOrInside(current, targetFtpPath)) true else changeDirectory(client, outside)
+        if (current != null && isSameOrInside(current, targetFtpPath)) {
+            exitCandidates(targetFtpPath, outside).firstOrNull { changeDirectory(client, it) }
+        }
+    }
+
+    /**
+     * [targetFtpPath] 밖으로 나갈 때 차례로 시도할 디렉터리. 대상의 상위 디렉터리를 먼저, 거부되면 로그인 홈([FtpSession.homeDirectory])을 시도한다.
+     * 가상 경로 권한을 쓰는 서버는 상위 디렉터리로의 이동을 거부할 수 있지만, 홈은 로그인한 사용자가 들어가 있던 곳이다. 홈이 대상 안이면 시도하지 않는다.
+     * @param targetFtpPath 지우거나 옮길 항목의 FTP 경로
+     * @param outside 먼저 옮겨 갈 디렉터리의 FTP 경로
+     * @return 시도할 디렉터리의 FTP 경로 목록
+     */
+    private fun exitCandidates(targetFtpPath: String, outside: String): List<String> {
+        val home = session.homeDirectory?.takeUnless { isSameOrInside(it, targetFtpPath) }
+        return listOfNotNull(outside, home).distinct()
     }
 
     /**

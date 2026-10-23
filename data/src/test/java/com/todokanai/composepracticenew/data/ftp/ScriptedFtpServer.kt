@@ -10,7 +10,7 @@ import kotlin.concurrent.thread
 
 /**
  * 제어 연결을 차례로 받아 정해진 대로 응답하는 테스트용 FTP 서버. 실제 commons-net FTPClient의 동작을 검증하는 데 쓴다.
- * 로그인(USER·PASS)·TYPE·PASV·SYST(Unix)·CWD에는 기본 응답을 보내고, [script]에 있는 명령은 그 동작으로 응답하며, 나머지는 502로 거부한다.
+ * 로그인(USER·PASS)·TYPE·PASV·SYST(Unix)·CWD·PWD(홈 /)에는 기본 응답을 보내고, [script]에 있는 명령은 그 동작으로 응답하며, 나머지는 502로 거부한다.
  * QUIT에는 221로 답하고 연결을 닫는다. 연결이 닫히면 다음 제어 연결을 받는다(재연결 검증).
  * @param script 명령 이름(대문자) → 그 명령을 받았을 때의 응답 동작. 기본 응답보다 우선한다
  */
@@ -87,13 +87,14 @@ internal class ScriptedFtpServer(script: Map<String, (Exchange) -> Unit> = empty
         }
     }
 
-    /** 로그인·전송 방식·수동 모드·시스템 종류·디렉터리 이동에 대한 기본 응답. */
+    /** 로그인·전송 방식·수동 모드·시스템 종류·디렉터리 이동·현재 디렉터리에 대한 기본 응답. */
     private fun defaultHandlers(): Map<String, (Exchange) -> Unit> = mapOf(
         "USER" to { it.send("331 Password required") },
         "PASS" to { it.send("230 Logged in") },
         "TYPE" to { it.send("200 Type set") },
         "SYST" to { it.send("215 UNIX Type: L8") },
         "CWD" to { it.send("250 Directory changed") },
+        "PWD" to { it.send("257 \"/\" is the current directory") },
         "PASV" to { it.send("227 Entering Passive Mode (127,0,0,1,${data.localPort / 256},${data.localPort % 256})") },
     )
 

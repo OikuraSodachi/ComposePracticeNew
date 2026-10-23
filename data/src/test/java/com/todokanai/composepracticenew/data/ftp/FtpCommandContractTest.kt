@@ -46,7 +46,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     fun `서버 동작에 맞는 결과를 내고 세션 유지 여부를 지킨다`() {
         command.prepare(client)
         behavior.serverBehavior?.let { client.serverBehaviors = mapOf(command.ftpName to it) }
-        if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn(session.closeRequestMark()) }
+        if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null) }
         val run = suspend { command.run(Fixture(executor, transferrer, dir)) }
 
         when (expectedOutcome(command, behavior)) {
@@ -58,8 +58,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 val result = runBlocking { run() }
                 assertTrue("$result", result is IoResult.ItemFailed)
                 val text = (behavior.serverBehavior as ServerBehavior.Refuse).text
-                // 원인을 응답만으로 알 수 없는 거부(RMD)는 응답 뒤에 설명이 붙는다(FtpReplyRules.refusal)
-                assertTrue("${(result as IoResult.ItemFailed).message}", result.message.orEmpty().contains("실패: $text"))
+                assertEquals("${FtpCommand.valueOf(command.ftpName).label} 실패: $text${command.refusalNote}", (result as IoResult.ItemFailed).message)
                 assertEquals("거부 응답 뒤에는 기다릴 응답이 없다", 0, client.completePendingCalls)
                 assertSessionKept()
             }
@@ -103,6 +102,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
      * @param ftpName [FakeFtpClient.serverBehaviors]의 명령 이름
      * @param name 테스트 이름에 표시할 행 이름. 같은 명령을 다른 용도로 쓰는 행을 구분한다
      * @param emptyListingOn450 450 거부를 빈 목록으로 보는 행인지 여부 — 화면 목록의 LIST만 해당한다
+     * @param refusalNote 거부 메시지에서 서버 응답 뒤에 붙는 설명. 원인을 응답만으로 알 수 없는 거부에만 붙는다([FtpReplyRules.refusal])
      * @param prepare 명령이 그 단계까지 정상 진행되도록 가짜 클라이언트를 준비하는 함수
      * @param run 공개 API로 명령을 실행하는 함수
      */
@@ -110,6 +110,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
         val ftpName: String,
         val name: String = ftpName,
         val emptyListingOn450: Boolean = false,
+        val refusalNote: String = "",
         val prepare: (FakeFtpClient) -> Unit = {},
         val run: suspend (Fixture) -> IoResult<*>
     ) {
@@ -146,7 +147,12 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
             CommandRow("RENAME") { it.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") },
             CommandRow("DELE") { it.executor.deleteFile("ftp://host/r/a.txt") },
             CommandRow("MKD") { it.executor.makeDirectory("ftp://host/r/new") },
-            CommandRow("RMD", prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r/d" to emptyList()) }) {
+            // MLSD 목록은 숨김 항목을 빠뜨릴 수 있어, 그 항목이 남아 거부됐을 가능성을 덧붙인다
+            CommandRow(
+                "RMD",
+                refusalNote = FtpReplyRules.HIDDEN_ENTRIES_NOTE,
+                prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r/d" to emptyList()) }
+            ) {
                 it.executor.removeDirectoryRecursive("ftp://host/r/d")
             },
             CommandRow("RETR", prepare = { it.streamContent = "data".toByteArray() }) {

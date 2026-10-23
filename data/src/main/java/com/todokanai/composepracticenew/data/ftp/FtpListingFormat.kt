@@ -74,6 +74,15 @@ internal object FtpListingFormat {
     }
 
     /**
+     * 이 세션의 목록 조회가 숨김 항목을 빠뜨릴 수 있는지 판별한다.
+     * `-a`를 쓰지 않는 LIST는 유닉스 계열 서버가 `.`으로 시작하는 항목을 뺀다. MLSD는 서버가 보여주려는 항목만 담을 수 있고(RFC 3659 §7.1)
+     * 숨김 항목을 요청할 방법이 없어 서버마다 다르다. 연결할 때 `-a`가 숨김 항목을 더한다고 확인한([probeHiddenListing]) LIST만 빠뜨리지 않는다.
+     * @param client 로그인했고 [probeHiddenListing]의 판정대로 옵션을 정한 FTPClient
+     * @return 숨김 항목을 빠뜨릴 수 있으면 true
+     */
+    fun mayOmitHiddenEntries(client: FTPClient): Boolean = usesMlsd(client) || !client.listHiddenFiles
+
+    /**
      * 현재 디렉터리를 [client]의 옵션대로 LIST 조회한다. 옵션이 없으면 인자 없이(`LIST`), `-a`를 쓰면 현재 디렉터리 경로를 덧붙여(`LIST -a .`) 보낸다.
      * LIST 인자는 RFC 959상 경로뿐이라 서버마다 옵션을 알아보는 방식이 다르다. ProFTPD는 인자가 하나면 그 이름의 항목이 있을 때 경로로 읽어
      * `-a`라는 항목이 있는 폴더에서는 그 항목만 나열하지만, 인자가 둘이면 언제나 옵션으로 읽는다. 덧붙인 경로가 현재 디렉터리이므로
