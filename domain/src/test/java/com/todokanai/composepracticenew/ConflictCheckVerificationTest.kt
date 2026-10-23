@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.ListingCompleteness
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.ProgressState
@@ -53,7 +54,7 @@ class ConflictCheckVerificationTest {
     fun `현재 요청의 조회를 마친 목록이면 같은 이름의 항목을 충돌로 판정하고 그 목록의 경로를 목적지로 돌려준다`() {
         show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt"))))
 
-        assertEquals(DestinationConflicts("/a", incoming), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+        assertEquals(DestinationConflicts("/a", incoming, ListingCompleteness.COMPLETE), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
         assertTrue(progressRepo.errors.isEmpty())
     }
 
@@ -61,7 +62,18 @@ class ConflictCheckVerificationTest {
     fun `조회를 마친 빈 폴더면 충돌이 없다`() {
         show(DirectoryListing.Loaded(current, emptyList()))
 
-        assertEquals(DestinationConflicts("/a", emptyList<FileHolderItem>()), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+        assertEquals(DestinationConflicts("/a", emptyList<FileHolderItem>(), ListingCompleteness.COMPLETE), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+    }
+
+    @Test
+    fun `확인되지 않은 빈 목록이면 충돌 없음으로 단정하지 않고 확인되지 않았음을 판정 결과에 담는다`() {
+        show(DirectoryListing.Loaded(current, emptyList(), ListingCompleteness.UNCONFIRMED))
+
+        assertEquals(
+            DestinationConflicts("/a", emptyList<FileHolderItem>(), ListingCompleteness.UNCONFIRMED),
+            useCase.findCopyMoveConflicts(incoming, navigator) { it.name }
+        )
+        assertTrue(progressRepo.errors.isEmpty())
     }
 
     @Test

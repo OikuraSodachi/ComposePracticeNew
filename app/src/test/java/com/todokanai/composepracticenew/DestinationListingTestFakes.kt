@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.SortMode
@@ -59,32 +60,34 @@ internal class RecordingProgressRepository : ProgressRepository {
 /** 요청된 다운로드·업로드를 기록하는 테스트용 원격 전송 저장소. */
 internal class RecordingTransferRepository : RemoteFileTransferRepository {
     val calls = mutableListOf<String>()
-    override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) {
+    override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         calls += "download $remotePath"
+        return IoResult.Done
     }
-    override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit) {
+    override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         calls += "upload $localPath"
+        return IoResult.Done
     }
 }
 
 /** 원격 변경을 수행하지 않는 테스트용 원격 변경 저장소. 이 테스트의 대상 작업은 원격 변경을 쓰지 않는다. */
 internal object NoOpMutationRepository : RemoteFileMutationRepository {
-    override suspend fun rename(fromPath: String, toPath: String) {}
-    override suspend fun deleteFile(path: String) {}
-    override suspend fun makeDirectory(path: String) {}
-    override suspend fun removeDirectoryRecursive(path: String) {}
+    override suspend fun rename(fromPath: String, toPath: String) = IoResult.Done
+    override suspend fun deleteFile(path: String) = IoResult.Done
+    override suspend fun makeDirectory(path: String) = IoResult.Done
+    override suspend fun removeDirectoryRecursive(path: String) = IoResult.Done
 }
 
 /** 호출된 로컬 작업을 기록하는 테스트용 로컬 파일 작업 저장소. */
 internal class RecordingFileActionRepository : FileActionRepository {
     val calls = mutableListOf<String>()
-    override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) { calls += "zip" }
-    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) { calls += "copy" }
-    override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) { calls += "rename" }
-    override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) { calls += "delete" }
-    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) { calls += "move" }
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) { calls += "unzip" }
-    override suspend fun makeDirectory(parentPath: String, name: String) { calls += "mkdir" }
+    override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
+    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
+    override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
+    override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
+    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip" }
+    override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
 }
 
 /** 정렬 기준을 메모리에만 두는 테스트용 정렬 설정 저장소. */

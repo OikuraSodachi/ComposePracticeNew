@@ -43,13 +43,6 @@ abstract class StorageRepository {
     protected open fun navigateTo(path: String?) { _currentPath.value = path }
 
     /**
-     * Returns files and subdirectories located at [path]. An empty list means the directory is actually empty.
-     * @throws java.io.IOException if [path] does not exist, is not a directory, or is inaccessible —
-     * a failure must not be reported as an empty directory.
-     */
-    abstract suspend fun listFiles(path: String): List<FileEntry>
-
-    /**
      * Returns the parent path of [path], or null if [path] is already a root (has no parent).
      *
      * Default implementation splits on '/'. Override for storage types that use a different separator.

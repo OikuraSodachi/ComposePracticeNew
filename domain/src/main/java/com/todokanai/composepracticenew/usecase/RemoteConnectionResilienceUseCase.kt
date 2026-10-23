@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.usecase
 
-import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.model.ConnectResult
+import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
@@ -30,12 +31,14 @@ class RemoteConnectionResilienceUseCase(
 
     /**
      * 마지막으로 접속한 서버에 재연결한다.
-     * @return 성공 시 접속한 RemoteStorageItem, 저장된 서버가 없거나 실패 시 null
+     * @return 재연결 결과. 저장된 서버 id가 없거나 그 서버 정보가 지워졌으면 [ReconnectResult.NoSavedServer]
      */
-    suspend fun reconnectLast(): RemoteStorageItem? {
-        val id = lastConnectionRepo.lastRemoteId() ?: return null
-        val item = remoteStorageRepo.getById(id) ?: return null
-        val connected = remoteConnectionUseCase.connectAndNavigate(item)
-        return if (connected) item else null
+    suspend fun reconnectLast(): ReconnectResult {
+        val id = lastConnectionRepo.lastRemoteId() ?: return ReconnectResult.NoSavedServer
+        val item = remoteStorageRepo.getById(id) ?: return ReconnectResult.NoSavedServer
+        return when (val result = remoteConnectionUseCase.connectAndNavigate(item)) {
+            ConnectResult.Connected -> ReconnectResult.Connected(item)
+            is ConnectResult.Failed -> ReconnectResult.Failed(result.reason)
+        }
     }
 }

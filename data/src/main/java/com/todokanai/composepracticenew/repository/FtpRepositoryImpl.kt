@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
 import com.todokanai.composepracticenew.data.ftp.FtpSession
 import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
+import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.StateFlow
@@ -30,7 +31,7 @@ class FtpRepositoryImpl @Inject constructor(
 
     override val isConnected: StateFlow<Boolean> = session.isConnected
 
-    override suspend fun connect(item: RemoteStorageItem): Boolean =
+    override suspend fun connect(item: RemoteStorageItem): ConnectResult =
         connector.connect(item.address, item.port, item.userId, item.password, item.encoding)
 
     override suspend fun disconnect() { connector.disconnect() }

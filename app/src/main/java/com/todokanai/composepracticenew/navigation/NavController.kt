@@ -149,6 +149,7 @@ private fun FileListDestination(
         FileConflictDialog(
             conflictingFiles = conflict.conflicts,
             totalCount = conflict.targets.size,
+            destinationUnconfirmed = conflict.destinationUnconfirmed,
             onOverwrite = { coordinator.resolveDownloadConflict(ConflictResolution.OVERWRITE) },
             onSkip = { coordinator.resolveDownloadConflict(ConflictResolution.SKIP) },
             onCancel = { coordinator.resolveDownloadConflict(ConflictResolution.CANCEL) }
@@ -214,6 +215,7 @@ private fun RemoteFileListDestination(
         FileConflictDialog(
             conflictingFiles = conflict.conflicts,
             totalCount = conflict.targets.size,
+            destinationUnconfirmed = conflict.destinationUnconfirmed,
             onOverwrite = { coordinator.resolveUploadConflict(ConflictResolution.OVERWRITE) },
             onSkip = { coordinator.resolveUploadConflict(ConflictResolution.SKIP) },
             onCancel = { coordinator.resolveUploadConflict(ConflictResolution.CANCEL) }

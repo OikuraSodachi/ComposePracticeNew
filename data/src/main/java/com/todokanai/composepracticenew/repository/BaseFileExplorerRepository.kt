@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
@@ -16,7 +17,7 @@ import java.util.concurrent.atomic.AtomicLong
 /**
  * 경로 이동·새로고침마다 목록 조회 요청을 새로 만들고, 그 요청으로 directoryListing을 구성하는 공통 로직을 보유한 기반 클래스.
  * 같은 경로로 다시 이동해도(재연결 등) 새 요청이 되므로 목록을 다시 조회한다.
- * 하위 클래스의 listFiles는 조회에 실패하면 빈 목록 대신 IOException을 던져야 한다.
+ * 하위 클래스의 [listFiles]는 조회 실패를 빈 목록이 아니라 실패 결과로 돌려줘야 한다.
  * @param converter 파일 목록을 정렬·도메인 모델로 변환하는 DataConverter
  * @param sortPreference 정렬 기준 Flow를 제공하는 SortPreferenceRepository
  * @param appScope 파일 탐색 Flow를 공유할 애플리케이션 수명 CoroutineScope
@@ -52,6 +53,13 @@ abstract class BaseFileExplorerRepository(
         ) { listFiles(it) }
 
     init { initialPath?.let { navigateTo(it) } }
+
+    /**
+     * [path]의 파일과 하위 디렉터리 목록을 조회한다.
+     * @param path 조회할 디렉터리 경로
+     * @return 조회한 항목과 그 목록이 확인된 목록인지 여부. 경로가 없거나 디렉터리가 아니거나 읽을 수 없으면 실패 결과다
+     */
+    protected abstract suspend fun listFiles(path: String): IoResult<FetchedListing>
 
     /** 경로를 바꾸고, 같은 경로라도 새 목록 조회 요청을 만든다. */
     override fun navigateTo(path: String?) {

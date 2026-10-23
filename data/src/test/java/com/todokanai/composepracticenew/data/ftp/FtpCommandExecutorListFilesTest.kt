@@ -1,15 +1,17 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import com.todokanai.composepracticenew.model.RemoteConnectionLostException
+import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ListingCompleteness
+import com.todokanai.composepracticenew.repository.FetchedListing
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertThrows
-import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 /**
- * 화면 목록 조회([FtpCommandExecutor.listFiles])가 실패를 빈 목록으로 바꾸지 않고 예외로 알리며,
+ * 화면 목록 조회([FtpCommandExecutor.listFiles])가 실패를 빈 목록으로 바꾸지 않고 실패 결과로 알리며,
  * 작업용 트리 수집과 같은 방식(MLST 서버는 MLSD)으로 조회하는지 검증하는 단위 테스트(#215).
+ * 서버 응답 코드·연결 끊김별 결과는 [FtpCommandContractTest]가 검증한다.
  */
 class FtpCommandExecutorListFilesTest {
 
@@ -23,65 +25,70 @@ class FtpCommandExecutorListFilesTest {
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to listOf("type=cdir; /r", "type=file;size=3; .hidden", "type=dir; sub"))
 
-        val entries = runBlocking { commands.listFiles("ftp://host/r") }
+        val entries = runBlocking { commands.listFiles("ftp://host/r") } as IoResult.Success
 
-        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.map { it.path })
+        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.value.entries.map { it.path })
         assertEquals(listOf("MLSD /r"), client.listRequests)
     }
 
     @Test
-    fun `MLSD 빈 폴더는 실패가 아닌 빈 목록이다`() {
+    fun `MLSD 빈 폴더는 실패가 아닌 확인된 빈 목록이다`() {
         loggedIn()
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to emptyList())
 
-        assertEquals(emptyList<Any>(), runBlocking { commands.listFiles("ftp://host/r") })
+        assertEquals(IoResult.Success(FetchedListing.complete(emptyList())), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     @Test
-    fun `MLSD 조회가 550이면 빈 목록 대신 서버 응답을 담은 실패를 던지고 세션은 유지한다`() {
+    fun `빈 폴더에 450 No files found를 주는 LIST 서버의 450은 실패가 아닌 확인되지 않은 빈 목록이다`() {
         loggedIn()
-        client.features = setOf("MLST")
+        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 No files found"))
 
-        val error = assertThrows(FtpItemFailure::class.java) {
-            runBlocking { commands.listFiles("ftp://host/missing") }
-        }
-
-        assertEquals("MLSD 실패: 550 No such directory", error.message)
-        assertTrue("서버 오류 응답이므로 세션은 유지돼야 함", runBlocking { session.isReady() })
+        assertEquals(IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED)), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     @Test
-    fun `LIST 조회가 오류 응답이면 빈 목록 대신 실패를 던진다`() {
+    fun `LIST가 빈 목록을 보내고 226으로 끝나면 확인된 빈 목록이다`() {
         loggedIn()
-        client.listRefused = true
 
-        val error = assertThrows(FtpItemFailure::class.java) {
-            runBlocking { commands.listFiles("ftp://host/r") }
-        }
-
-        assertEquals("LIST 실패: 550 No such directory", error.message)
+        assertEquals(IoResult.Success(FetchedListing.complete(emptyList())), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     @Test
-    fun `목록 형식을 해석할 수 없는 서버는 항목 실패로 알리고 세션을 끊지 않는다`() {
+    fun `목록 조회가 끝나면 성공·실패와 관계없이 응답 이벤트 수신기를 남기지 않는다`() {
         loggedIn()
-        client.listParserUnavailable = true
+        runBlocking { commands.listFiles("ftp://host/r") }
+        assertEquals(0, client.protocolListenerCount)
 
-        val error = assertThrows(FtpItemFailure::class.java) {
-            runBlocking { commands.listFiles("ftp://host/r") }
-        }
-
-        assertEquals("LIST 실패: 서버 목록 형식을 해석할 수 없습니다", error.message)
-        assertEquals(0, client.disconnectCalls)
-        assertTrue(runBlocking { session.isReady() })
+        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Fail(IOException("Connection closed without indication.")))
+        runBlocking { commands.listFiles("ftp://host/r") }
+        assertEquals(0, client.protocolListenerCount)
     }
 
     @Test
-    fun `연결되어 있지 않으면 빈 목록 대신 연결 끊김을 던진다`() {
-        assertThrows(RemoteConnectionLostException::class.java) {
-            runBlocking { commands.listFiles("ftp://host/r") }
-        }
+    fun `LIST가 목록을 보내기 시작한 뒤 450으로 끝나면 받은 항목이 있어도 빈 목록이 아닌 실패다`() {
+        loggedIn()
+        client.remoteFiles = listOf("a.txt")
+        client.serverBehaviors = mapOf("LIST" to ServerBehavior.RefuseAfterData(450, "450 Transfer aborted"))
+
+        assertEquals(IoResult.ItemFailed("LIST 실패: 450 Transfer aborted"), runBlocking { commands.listFiles("ftp://host/r") })
+    }
+
+    @Test
+    fun `트리 수집에서 LIST의 450은 빈 폴더가 아닌 실패다`() {
+        loggedIn()
+        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 File busy"))
+
+        assertEquals(IoResult.ItemFailed("LIST 실패: 450 File busy"), runBlocking { commands.collectRemoteTree("ftp://host/r") })
+    }
+
+    @Test
+    fun `LIST의 550은 없는 경로·권한 없음과 구분할 수 없으므로 빈 목록이 아닌 실패다`() {
+        loggedIn()
+        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(550, "550 No files found"))
+
+        assertEquals(IoResult.ItemFailed("LIST 실패: 550 No files found"), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */

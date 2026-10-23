@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -24,7 +25,7 @@ class LocalEntryMutatorRenameTest {
     fun `같은 이름이 없으면 이름을 바꾼다`() = runBlocking {
         val a = file("a.txt", "A")
 
-        mutator.rename(a.path, "b.txt", overwrite = false)
+        assertEquals(IoResult.Done, mutator.rename(a.path, "b.txt", overwrite = false))
 
         assertFalse(a.exists())
         assertEquals("A", File(dir, "b.txt").readText())
@@ -35,9 +36,9 @@ class LocalEntryMutatorRenameTest {
         val a = file("a.txt", "A")
         val b = file("b.txt", "B")
 
-        val result = runCatching { mutator.rename(a.path, "b.txt", overwrite = false) }
+        val result = mutator.rename(a.path, "b.txt", overwrite = false)
 
-        assertTrue(result.isFailure)
+        assertTrue("$result", result is IoResult.ItemFailed)
         assertEquals("A", a.readText())
         assertEquals("B", b.readText())
     }
@@ -47,7 +48,7 @@ class LocalEntryMutatorRenameTest {
         val a = file("a.txt", "A")
         file("b.txt", "B")
 
-        mutator.rename(a.path, "b.txt", overwrite = true)
+        assertEquals(IoResult.Done, mutator.rename(a.path, "b.txt", overwrite = true))
 
         assertFalse(a.exists())
         assertEquals("A", File(dir, "b.txt").readText())
@@ -63,7 +64,7 @@ class LocalEntryMutatorRenameTest {
         file("dst/only-dst.txt", "D")
         file("dst/sub/keep.txt", "K")
 
-        mutator.rename(File(dir, "src").path, "dst", overwrite = true)
+        assertEquals(IoResult.Done, mutator.rename(File(dir, "src").path, "dst", overwrite = true))
 
         assertFalse(File(dir, "src").exists())
         assertEquals("new", File(dir, "dst/same.txt").readText())
@@ -79,9 +80,9 @@ class LocalEntryMutatorRenameTest {
         val a = file("a.txt", "A")
         file("folder/inner.txt", "I")
 
-        val result = runCatching { mutator.rename(a.path, "folder", overwrite = true) }
+        val result = mutator.rename(a.path, "folder", overwrite = true)
 
-        assertTrue(result.isFailure)
+        assertTrue("$result", result is IoResult.ItemFailed)
         assertEquals("A", a.readText())
         assertEquals("I", File(dir, "folder/inner.txt").readText())
     }
@@ -93,9 +94,9 @@ class LocalEntryMutatorRenameTest {
         file("dst/x/inner.txt", "folder-in-dst")
         file("dst/a.txt", "old")
 
-        val result = runCatching { mutator.rename(File(dir, "src").path, "dst", overwrite = true) }
+        val result = mutator.rename(File(dir, "src").path, "dst", overwrite = true)
 
-        assertTrue(result.isFailure)
+        assertTrue("$result", result is IoResult.ItemFailed)
         assertEquals("file-in-src", File(dir, "src/x").readText())
         assertEquals("new", File(dir, "src/a.txt").readText())
         assertEquals("old", File(dir, "dst/a.txt").readText())
@@ -106,7 +107,7 @@ class LocalEntryMutatorRenameTest {
     fun `대소문자만 바꾸는 이름 변경은 충돌로 보지 않는다`() = runBlocking {
         val a = file("a.txt", "A")
 
-        mutator.rename(a.path, "A.txt", overwrite = false)
+        assertEquals(IoResult.Done, mutator.rename(a.path, "A.txt", overwrite = false))
 
         assertEquals(listOf("A.txt"), dir.list()!!.toList())
         assertEquals("A", File(dir, "A.txt").readText())

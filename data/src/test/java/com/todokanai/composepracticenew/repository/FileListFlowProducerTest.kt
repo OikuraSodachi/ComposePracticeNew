@@ -2,9 +2,10 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ListingCompleteness
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
-import com.todokanai.composepracticenew.model.RemoteConnectionLostException
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CompletableDeferred
@@ -23,7 +24,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
-import java.io.IOException
 
 /**
  * [FileListFlowProducer]가 요청마다 목록 조회 상태를 만들며, 조회 실패를 빈 목록 대신 실패 상태로,
@@ -39,7 +39,7 @@ class FileListFlowProducerTest {
     private val producer = FileListFlowProducer(DataConverter(), sortPreference)
     private val requests = MutableStateFlow<ListingRequest?>(null)
     /** 경로 → 조회 동작. 등록되지 않은 경로는 빈 폴더로 본다. */
-    private val responses = mutableMapOf<String, suspend () -> List<FileEntry>>()
+    private val responses = mutableMapOf<String, suspend () -> IoResult<FetchedListing>>()
     /** 경로별 조회 횟수. */
     private val fetchCounts = mutableMapOf<String, Int>()
     /** 공유가 멈춘 횟수. */
@@ -71,8 +71,18 @@ class FileListFlowProducerTest {
     }
 
     @Test
+    fun `빈 폴더인지 확인하지 못한 목록은 확인되지 않은 조회 완료 상태다`() = runTest {
+        responses["/a"] = { IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED)) }
+        val listing = listingIn(this)
+        val request = request("/a")
+        runCurrent()
+
+        assertEquals(DirectoryListing.Loaded(request, emptyList(), ListingCompleteness.UNCONFIRMED), listing.value)
+    }
+
+    @Test
     fun `조회가 실패하면 빈 목록이 아니라 서버 응답을 담은 실패 상태다`() = runTest {
-        responses["/a"] = { throw IOException("LIST 실패: 550 Permission denied") }
+        responses["/a"] = { IoResult.ItemFailed("LIST 실패: 550 Permission denied") }
         val listing = listingIn(this)
         val request = request("/a")
         runCurrent()
@@ -85,7 +95,7 @@ class FileListFlowProducerTest {
 
     @Test
     fun `연결이 없거나 끊겨 조회하지 못하면 연결 끊김 실패다`() = runTest {
-        responses["/a"] = { throw RemoteConnectionLostException("끊김") }
+        responses["/a"] = { IoResult.ConnectionLost("끊김") }
         val listing = listingIn(this)
         val request = request("/a")
         runCurrent()
@@ -112,8 +122,8 @@ class FileListFlowProducerTest {
     @Test
     fun `다른 경로로 이동하면 조회가 끝날 때까지 이전 경로의 목록 없이 조회 중 상태다`() = runTest {
         val gate = CompletableDeferred<Unit>()
-        responses["/a"] = { listOf(entry("/a/x.txt")) }
-        responses["/b"] = { gate.await(); listOf(entry("/b/y.txt")) }
+        responses["/a"] = { ok(entry("/a/x.txt")) }
+        responses["/b"] = { gate.await(); ok(entry("/b/y.txt")) }
         val listing = listingIn(this)
         request("/a")
         runCurrent()
@@ -129,14 +139,14 @@ class FileListFlowProducerTest {
 
     @Test
     fun `같은 경로를 다시 조회하는 동안은 직전 목록을 표시용으로만 담은 조회 중 상태다`() = runTest {
-        responses["/a"] = { listOf(entry("/a/old.txt")) }
+        responses["/a"] = { ok(entry("/a/old.txt")) }
         val listing = listingIn(this)
         request("/a")
         runCurrent()
         val before = listing.value as DirectoryListing.Loaded
 
         val gate = CompletableDeferred<Unit>()
-        responses["/a"] = { gate.await(); listOf(entry("/a/new.txt")) }
+        responses["/a"] = { gate.await(); ok(entry("/a/new.txt")) }
         val refresh = request("/a")
         runCurrent()
         assertEquals(DirectoryListing.Loading(refresh, stale = before), listing.value)
@@ -149,12 +159,12 @@ class FileListFlowProducerTest {
 
     @Test
     fun `같은 경로를 다시 조회하다 실패하면 직전 목록 대신 실패 상태가 된다`() = runTest {
-        responses["/a"] = { listOf(entry("/a/x.txt")) }
+        responses["/a"] = { ok(entry("/a/x.txt")) }
         val listing = listingIn(this)
         request("/a")
         runCurrent()
 
-        responses["/a"] = { throw IOException("LIST 실패: 550 Permission denied") }
+        responses["/a"] = { IoResult.ItemFailed("LIST 실패: 550 Permission denied") }
         val refresh = request("/a")
         runCurrent()
 
@@ -168,15 +178,15 @@ class FileListFlowProducerTest {
     fun `다른 경로를 거쳐 같은 경로로 돌아오면 그 경로의 옛 목록을 직전 목록으로 쓰지 않는다`() = runTest {
         val gateB = CompletableDeferred<Unit>()
         val gateA = CompletableDeferred<Unit>()
-        responses["/a"] = { listOf(entry("/a/x.txt")) }
-        responses["/b"] = { gateB.await(); emptyList() }
+        responses["/a"] = { ok(entry("/a/x.txt")) }
+        responses["/b"] = { gateB.await(); ok() }
         val listing = listingIn(this)
         request("/a")
         runCurrent()
 
         request("/b")
         runCurrent()
-        responses["/a"] = { gateA.await(); listOf(entry("/a/x.txt")) }
+        responses["/a"] = { gateA.await(); ok(entry("/a/x.txt")) }
         val back = request("/a")
         runCurrent()
 
@@ -185,7 +195,7 @@ class FileListFlowProducerTest {
 
     @Test
     fun `정렬 기준만 바뀌면 다시 조회하지 않고 조회한 항목을 다시 정렬한다`() = runTest {
-        responses["/a"] = { listOf(entry("/a/b.txt"), entry("/a/a.txt")) }
+        responses["/a"] = { ok(entry("/a/b.txt"), entry("/a/a.txt")) }
         val listing = listingIn(this)
         request("/a")
         runCurrent()
@@ -200,7 +210,7 @@ class FileListFlowProducerTest {
 
     @Test
     fun `공유가 멈추면 알리고, 다시 시작해 같은 경로를 조회하는 동안은 멈추기 전 목록을 표시용으로 담는다`() = runTest {
-        responses["/a"] = { listOf(entry("/a/x.txt")) }
+        responses["/a"] = { ok(entry("/a/x.txt")) }
         val listing = listingIn(this, SharingStarted.WhileSubscribed())
         val first = launch { listing.collect {} }
         request("/a")
@@ -212,7 +222,7 @@ class FileListFlowProducerTest {
         assertEquals(1, stopCount)
 
         val gate = CompletableDeferred<Unit>()
-        responses["/a"] = { gate.await(); listOf(entry("/a/x.txt")) }
+        responses["/a"] = { gate.await(); ok(entry("/a/x.txt")) }
         val afterRestart = request("/a")
         val second = launch { listing.collect {} }
         runCurrent()
@@ -234,7 +244,7 @@ class FileListFlowProducerTest {
             onUnexpectedFailure = { unexpectedFailures += it }
         ) { path ->
             fetchCounts[path] = (fetchCounts[path] ?: 0) + 1
-            responses[path]?.invoke() ?: emptyList()
+            responses[path]?.invoke() ?: ok()
         }
     }
 
@@ -247,4 +257,7 @@ class FileListFlowProducerTest {
     /** [path]의 1바이트 파일 항목을 만든다. */
     private fun entry(path: String) =
         FileEntry(name = path.substringAfterLast('/'), path = path, isDirectory = false, size = 1L, lastModified = 0L)
+
+    /** [entries]를 담은 확인된 조회 성공 결과를 만든다. */
+    private fun ok(vararg entries: FileEntry): IoResult<FetchedListing> = IoResult.Success(FetchedListing.complete(entries.toList()))
 }

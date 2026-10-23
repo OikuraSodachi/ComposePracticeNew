@@ -20,6 +20,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
+import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
@@ -116,6 +117,7 @@ fun StorageFrag(
     val context = LocalContext.current
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
+    val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
     val dialogState = rememberStorageDialogState()
 
     StorageConnectionEffects(
@@ -133,6 +135,9 @@ fun StorageFrag(
         onDelete = { viewModel.deleteRemoteStorage(it) },
         validate = viewModel::validateRemoteStorageInput,
     )
+    if (unreadableServer) {
+        UnreadableServerDialog(onDismiss = viewModel::dismissUnreadableServer)
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column {

@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
@@ -69,6 +70,7 @@ fun RemoteFileListFrag(
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
+    val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     RemoteFileListConnectionEffects(
@@ -81,6 +83,10 @@ fun RemoteFileListFrag(
             onConnectionLost()
         },
     )
+
+    if (unreadableServer) {
+        UnreadableServerDialog(onDismiss = viewModel::dismissUnreadableServer)
+    }
 
     BackHandler(enabled = selectMode == SelectMode.MultiSelect) {
         onSelectModeChange(SelectMode.Default)

@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
-import com.todokanai.composepracticenew.model.PartialFailureException
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -33,7 +33,7 @@ class LocalEntryMutatorDeleteTest {
         File(target, "sub/b.txt").writeText("B")
         val reports = mutableListOf<ProgressState>()
 
-        mutator.delete(target.path) { reports += it }
+        assertEquals(IoResult.Done, mutator.delete(target.path) { reports += it })
 
         assertFalse(target.exists())
         assertEquals(100, reports.last().progress)
@@ -41,7 +41,7 @@ class LocalEntryMutatorDeleteTest {
 
     @Test
     fun `이미 없는 경로는 삭제된 것으로 보고 실패하지 않는다`() = runBlocking {
-        mutator.delete(File(dir, "missing").path) {}
+        assertEquals(IoResult.Done, mutator.delete(File(dir, "missing").path) {})
     }
 
     @Test
@@ -52,9 +52,9 @@ class LocalEntryMutatorDeleteTest {
         // OS·권한과 무관하게 locked.txt만 지우지 못하게 한다
         val mutator = LocalEntryMutator { file -> file != locked && file.delete() }
 
-        val result = runCatching { runBlocking { mutator.delete(target.path) {} } }
+        val result = runBlocking { mutator.delete(target.path) {} }
 
-        assertEquals("삭제하지 못함: locked/locked.txt", result.exceptionOrNull()?.message)
+        assertEquals("삭제하지 못함: locked/locked.txt", (result as IoResult.PartiallyFailed).message)
         assertFalse("지울 수 있는 항목은 지워야 함", free.exists())
         assertTrue(locked.exists())
     }
@@ -66,10 +66,10 @@ class LocalEntryMutatorDeleteTest {
         val lockedB = File(target, "b").apply { mkdirs() }.let { File(it, "y.txt").apply { writeText("Y") } }
         val mutator = LocalEntryMutator { file -> file != lockedA && file != lockedB && file.delete() }
 
-        val error = runCatching { runBlocking { mutator.delete(target.path) {} } }.exceptionOrNull()
+        val result = runBlocking { mutator.delete(target.path) {} }
 
         // 순회 순서는 파일시스템마다 다르므로 실패 경로를 집합으로 비교한다 — 첫 실패에서 멈추면 하나만 남는다
-        assertEquals(setOf("a/x.txt", "b/y.txt"), (error as PartialFailureException).failures.map { it.path }.toSet())
+        assertEquals(setOf("a/x.txt", "b/y.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path }.toSet())
     }
 
     @Test
@@ -80,7 +80,7 @@ class LocalEntryMutatorDeleteTest {
         val attempts = mutableListOf<File>()
         val mutator = LocalEntryMutator { file -> attempts += file; file != locked && file.delete() }
 
-        runCatching { runBlocking { mutator.delete(target.path) {} } }
+        runBlocking { mutator.delete(target.path) {} }
 
         assertEquals(listOf(locked), attempts)
     }

@@ -129,7 +129,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun confirmDownload() {
         val pending = _downloadPendingList.value
         val checked = conflictCheckUseCase.findCopyMoveConflicts(pending, localNavigator) { it.name } ?: return
-        downloadGate.request(pending, checked.conflicts) { skip ->
+        downloadGate.request(pending, checked) { skip ->
             download(pending.excluding(skip), checked.destinationPath)
             _downloadPendingList.value = emptyList()
             resetLocalSelection()
@@ -138,6 +138,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /**
      * 업로드 대기 목록을 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다. 이름 충돌이 있으면 [uploadConflict]로 확인을 요청한다.
+     * 서버 응답으로 빈 폴더인지 확인하지 못한 목록이면 같은 이름의 파일이 덮어써질 수 있으므로 충돌이 없어 보여도 확인을 요청한다.
      * 실제로 실행됐을 때만 대기 목록을 비우고 원격 선택 모드·선택 목록을 초기화한다.
      * 확인을 취소하면 대기 목록과 업로드 확인 모드가 유지되어 다시 확인할 수 있다.
      * 현재 원격 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다). 대기 목록은 유지된다.
@@ -145,7 +146,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun confirmUpload() {
         val pending = _uploadPendingList.value
         val checked = conflictCheckUseCase.findCopyMoveConflicts(pending, remoteNavigator) { it.name } ?: return
-        uploadGate.request(pending, checked.conflicts) { skip ->
+        uploadGate.request(pending, checked) { skip ->
             upload(pending.excluding(skip), checked.destinationPath)
             _uploadPendingList.value = emptyList()
             resetRemoteSelection()

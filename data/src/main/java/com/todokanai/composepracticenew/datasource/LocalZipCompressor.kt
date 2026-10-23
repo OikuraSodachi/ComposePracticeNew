@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,16 +20,28 @@ class LocalZipCompressor @Inject constructor() {
      * @param targetFiles 압축 대상 파일 경로 집합
      * @param zipFile 생성할 ZIP 파일의 절대 경로(희망 경로)
      * @param onProgress 진행 상태를 수신하는 콜백
+     * @return 압축 결과
      */
-    suspend fun zip(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = withContext(Dispatchers.IO) {
+    suspend fun zip(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
+        localIo { zipEntries(targetFiles, zipFile, onProgress) }
+    }
+
+    /**
+     * [zip]의 본체. 입출력 실패는 IOException으로 전파해 [zip]의 [localIo]가 결과로 바꾼다.
+     * @param targetFiles 압축 대상 파일 경로 집합
+     * @param zipFile 생성할 ZIP 파일의 절대 경로(희망 경로)
+     * @param onProgress 진행 상태를 수신하는 콜백
+     * @return 압축 결과
+     */
+    private fun zipEntries(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         val roots = targetFiles.map(::File)
         // 위에서 아래로 순회하므로 폴더 항목이 항상 그 하위 항목보다 먼저 온다
         val allEntries = roots.flatMap { root -> root.walkTopDown().map { root to it }.toList() }
-        if (allEntries.isEmpty()) throw Exception("압축할 항목이 없습니다.")
+        if (allEntries.isEmpty()) return IoResult.ItemFailed("압축할 항목이 없습니다.")
         val allFiles = allEntries.filter { (_, f) -> !f.isDirectory }
         val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
-        checkDiskSpace(totalBytes, File(zipFile).parentFile ?: File(zipFile))
-            ?.let { throw Exception(it) }
+        checkDiskSpace(totalBytes, (File(zipFile).parentFile ?: File(zipFile)).freeSpace)
+            ?.let { return IoResult.ItemFailed(it) }
         onProgress(ProgressState(progress = 0))
         val tracker = ByteProgressTracker(totalBytes, allFiles.size, onProgress)
         // 압축 대상 목록을 만든 뒤에 새 파일을 확보 — 기존 파일(선택 항목 자신 포함)은 절대 열지 않으므로 잘라내기·자기 참조가 생기지 않는다
@@ -50,6 +63,7 @@ class LocalZipCompressor @Inject constructor() {
             }
         }
         tracker.reportComplete()
+        return IoResult.Done
     }
 
     /**

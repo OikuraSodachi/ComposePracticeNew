@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.model.IoResult
 
 /**
  * 경로 종류에 따라 파일 목록 조회·부모 계산·이동을 처리하는 파일 시스템 추상화.
@@ -16,11 +16,11 @@ interface PathAwareFileSystem {
     fun handles(path: String): Boolean
 
     /**
-     * path 디렉터리의 파일 목록을 반환한다. 조회에 실패하면 빈 목록 대신 IOException을 던진다.
+     * path 디렉터리의 파일 목록을 조회한다. 조회 실패는 빈 목록이 아니라 실패 결과로 돌려준다.
      * @param path 조회할 디렉터리 경로
-     * @return FileEntry 리스트. 비어 있으면 실제로 빈 디렉터리다
+     * @return 조회한 항목과 그 목록이 확인된 목록인지 여부를 담은 결과
      */
-    suspend fun listFiles(path: String): List<FileEntry>
+    suspend fun listFiles(path: String): IoResult<FetchedListing>
 
     /**
      * path의 부모 경로를 반환한다. 루트이면 null을 반환한다.

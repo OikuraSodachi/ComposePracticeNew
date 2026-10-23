@@ -14,9 +14,8 @@ internal object LocalFileChecks {
     /** 바이트 크기 목록의 합을 반환한다. 합이 0이면 1을 반환해 0 나눗셈을 방지한다. */
     fun sumBytesOrOne(sizes: List<Long>) = sizes.sum().coerceAtLeast(1)
 
-    /** [dest] 파티션의 여유 공간이 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
-    fun checkDiskSpace(needed: Long, dest: File): String? {
-        val free = dest.freeSpace
+    /** 대상 파티션의 여유 공간 [free]가 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
+    fun checkDiskSpace(needed: Long, free: Long): String? {
         return if (free < needed)
             "디스크 공간 부족: 필요 ${needed / 1024} KB, 여유 ${free / 1024} KB"
         else null
