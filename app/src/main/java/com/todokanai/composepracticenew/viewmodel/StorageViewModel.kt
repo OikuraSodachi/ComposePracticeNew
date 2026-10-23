@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
@@ -62,9 +63,17 @@ class StorageViewModel @Inject constructor(
     val isConnecting: StateFlow<Boolean> = combine(connectionStateUseCase.isConnecting, connectInProgress) { session, task -> session || task }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
-    private val _connectionFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** 원격 연결 실패 이벤트. */
-    val connectionFailed: SharedFlow<Unit> = _connectionFailed.asSharedFlow()
+    /** 연결 실패를 이유에 맞는 알림(이벤트·다이얼로그)으로 바꾼다. */
+    private val connectFailureNotice = ConnectFailureNotice()
+
+    /** 다시 시도하면 될 수 있는 원격 연결 실패 이벤트. */
+    val connectionFailed: SharedFlow<Unit> = connectFailureNotice.connectionFailed
+
+    /** 서버의 파일 목록을 읽을 수 없어 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
+    val unreadableServer: StateFlow<Boolean> = connectFailureNotice.unreadableServer
+
+    /** 서버의 파일 목록을 읽을 수 없다는 다이얼로그를 닫는다. */
+    fun dismissUnreadableServer() = connectFailureNotice.dismissUnreadableServer()
 
     private val _connectionSucceeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 원격 연결 성공 이벤트. */
@@ -121,6 +130,7 @@ class StorageViewModel @Inject constructor(
 
     /**
      * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 ForegroundService를 시작하고 connectionSucceeded를 emit한다.
+     * 실패하면 이유에 맞게 [connectionFailed]를 emit하거나 [unreadableServer]를 true로 만든다.
      * 이미 연결 작업이 진행 중이면 무시한다. 작업이 끝날 때까지 [isConnecting]이 true로 유지된다.
      */
     fun setPath(item: RemoteStorageItem) {
@@ -129,13 +139,13 @@ class StorageViewModel @Inject constructor(
         connectInProgress.value = true
         viewModelScope.launch {
             try {
-                val connected = remoteConnectionUseCase.connectAndNavigate(item.toDomain())
-                if (connected) {
-                    remoteStorageUseCase.saveLastConnectedId(item.id)
-                    connectionServiceController.start(item.name)
-                    _connectionSucceeded.tryEmit(Unit)
-                } else {
-                    _connectionFailed.tryEmit(Unit)
+                when (val result = remoteConnectionUseCase.connectAndNavigate(item.toDomain())) {
+                    ConnectResult.Connected -> {
+                        remoteStorageUseCase.saveLastConnectedId(item.id)
+                        connectionServiceController.start(item.name)
+                        _connectionSucceeded.tryEmit(Unit)
+                    }
+                    is ConnectResult.Failed -> connectFailureNotice.report(result.reason)
                 }
             } finally {
                 connectInProgress.value = false

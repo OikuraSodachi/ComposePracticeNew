@@ -4,10 +4,9 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingCompleteness
 import com.todokanai.composepracticenew.repository.FetchedListing
 import kotlinx.coroutines.runBlocking
-import org.apache.commons.net.ftp.parser.ParserInitializationException
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
 
 /**
  * 화면 목록 조회([FtpCommandExecutor.listFiles])가 실패를 빈 목록으로 바꾸지 않고 실패 결과로 알리며,
@@ -62,7 +61,7 @@ class FtpCommandExecutorListFilesTest {
         runBlocking { commands.listFiles("ftp://host/r") }
         assertEquals(0, client.protocolListenerCount)
 
-        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Fail(ParserInitializationException("Unknown parser type")))
+        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Fail(IOException("Connection closed without indication.")))
         runBlocking { commands.listFiles("ftp://host/r") }
         assertEquals(0, client.protocolListenerCount)
     }
@@ -90,18 +89,6 @@ class FtpCommandExecutorListFilesTest {
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(550, "550 No files found"))
 
         assertEquals(IoResult.ItemFailed("LIST 실패: 550 No files found"), runBlocking { commands.listFiles("ftp://host/r") })
-    }
-
-    @Test
-    fun `목록 형식을 해석할 수 없는 서버는 항목 실패로 알리고 세션을 끊지 않는다`() {
-        loggedIn()
-        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Fail(ParserInitializationException("Unknown parser type: UNKNOWN Type: L8")))
-
-        val result = runBlocking { commands.listFiles("ftp://host/r") }
-
-        assertEquals(IoResult.ItemFailed("LIST 실패: 서버 목록 형식을 해석할 수 없습니다"), result)
-        assertEquals(0, client.disconnectCalls)
-        assertTrue(runBlocking { session.isReady() })
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */

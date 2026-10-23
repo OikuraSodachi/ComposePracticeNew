@@ -23,7 +23,7 @@ internal sealed interface ServerBehavior {
     data class Refuse(val code: Int, val text: String) : ServerBehavior
 
     /**
-     * commons-net이 명령 중 예외를 던진다 — 연결 닫힘(FTPConnectionClosedException)·응답 타임아웃·해석기 없음·구현 오류 등을 재현한다.
+     * commons-net이 명령 중 예외를 던진다 — 연결 닫힘(FTPConnectionClosedException)·응답 타임아웃·구현 오류 등을 재현한다.
      * @param error 던질 예외
      */
     data class Fail(val error: Exception) : ServerBehavior

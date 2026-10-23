@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.model.SortMode
@@ -61,9 +62,17 @@ class RemoteFileListViewModel @Inject constructor(
     private val messages: OperationMessages,
 ) : ViewModel() {
 
-    private val _reconnectFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** 자동 재연결 실패 이벤트. */
-    val reconnectFailed: SharedFlow<Unit> = _reconnectFailed.asSharedFlow()
+    /** 자동 재연결 실패를 이유에 맞는 알림(이벤트·다이얼로그)으로 바꾼다. */
+    private val reconnectFailureNotice = ConnectFailureNotice()
+
+    /** 다시 시도하면 될 수 있는 자동 재연결 실패 이벤트. */
+    val reconnectFailed: SharedFlow<Unit> = reconnectFailureNotice.connectionFailed
+
+    /** 자동 재연결한 서버의 파일 목록을 읽을 수 없어 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
+    val unreadableServer: StateFlow<Boolean> = reconnectFailureNotice.unreadableServer
+
+    /** 서버의 파일 목록을 읽을 수 없다는 다이얼로그를 닫는다. */
+    fun dismissUnreadableServer() = reconnectFailureNotice.dismissUnreadableServer()
 
     private val _connectionLost = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 서버 측 연결 종료(idle timeout 등)로 원격 연결이 끊겼을 때 발행된다. */
@@ -87,13 +96,19 @@ class RemoteFileListViewModel @Inject constructor(
         Log.d(TAG, "init — currentPath=$path")
         if (path == null) {
             viewModelScope.launch {
-                val item = connectionResilienceUseCase.reconnectLast()
-                if (item != null) {
-                    Log.d(TAG, "reconnectLast — 재연결 성공: ${item.name}")
-                    connectionServiceController.start(item.name)
-                } else {
-                    Log.w(TAG, "reconnectLast — 재연결 실패")
-                    _reconnectFailed.tryEmit(Unit)
+                when (val result = connectionResilienceUseCase.reconnectLast()) {
+                    is ReconnectResult.Connected -> {
+                        Log.d(TAG, "reconnectLast — 재연결 성공: ${result.item.name}")
+                        connectionServiceController.start(result.item.name)
+                    }
+                    ReconnectResult.NoSavedServer -> {
+                        Log.w(TAG, "reconnectLast — 재연결할 서버 없음")
+                        reconnectFailureNotice.notifyConnectionFailed()
+                    }
+                    is ReconnectResult.Failed -> {
+                        Log.w(TAG, "reconnectLast — 재연결 실패: ${result.reason}")
+                        reconnectFailureNotice.report(result.reason)
+                    }
                 }
             }
         }

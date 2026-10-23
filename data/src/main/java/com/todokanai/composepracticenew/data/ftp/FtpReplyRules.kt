@@ -77,6 +77,15 @@ internal object FtpReplyRules {
             replyCode == FTPReply.FILE_ACTION_NOT_TAKEN && !dataTransferStarted
 
     /**
+     * SYST 응답이 서버의 시스템 종류를 알려준 것인지 판별한다.
+     * RFC 959는 215를 정하지만 다른 2xx로 답하는 서버가 있어 commons-net처럼 2xx 전체를 받아들인다.
+     * 거부(4xx·5xx)는 서버가 시스템 종류를 알려주지 않은 것이다.
+     * @param replyCode SYST의 응답 코드
+     * @return 시스템 종류를 알려줬으면 true
+     */
+    fun isSystemTypeReply(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
+
+    /**
      * [command]를 서버가 거부한 마지막 응답을 이 항목만의 실패로 만든다.
      * @param command 거부된 명령
      * @param client 거부 응답을 받은 FTPClient

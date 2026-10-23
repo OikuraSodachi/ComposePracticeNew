@@ -11,10 +11,8 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.net.ProtocolCommandEvent
 import org.apache.commons.net.ProtocolCommandListener
 import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPReply
-import org.apache.commons.net.ftp.parser.ParserInitializationException
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -122,7 +120,7 @@ class FtpCommandExecutor @Inject constructor(
         val ftpPath = extractFtpPath(path)
         return session.withConnectedClient { client ->
             withContext(Dispatchers.IO) {
-                if (client.hasFeature(FTPCmd.MLST)) listWithMlsd(client, ftpPath, path, purpose)
+                if (FtpListingFormat.usesMlsd(client)) listWithMlsd(client, ftpPath, path, purpose)
                 else listWithList(client, ftpPath, path, purpose)
             }
         }
@@ -130,8 +128,7 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
-     * 서버의 SYST 응답에 맞는 목록 해석기가 없으면 commons-net이 LIST를 보내기 전에 ParserInitializationException을 던진다.
-     * 제어 채널은 그대로이므로 세션을 끊지 않는 항목 실패로 바꾼다.
+     * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
@@ -139,11 +136,7 @@ class FtpCommandExecutor @Inject constructor(
      * @return 디렉터리의 항목 목록, 또는 서버가 거부한 실패
      */
     private fun listWithList(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<FetchedListing> {
-        val (files, transferStarted) = try {
-            watchingDataTransfer(client) { client.listFiles(ftpPath) }
-        } catch (e: ParserInitializationException) {
-            return IoResult.ItemFailed("LIST 실패: 서버 목록 형식을 해석할 수 없습니다")
-        }
+        val (files, transferStarted) = watchingDataTransfer(client) { client.listFiles(ftpPath) }
         return listingOutcome(FtpCommand.LIST, purpose, client, transferStarted, path) {
             files?.filter { it.name != "." && it.name != ".." }.orEmpty()
         }

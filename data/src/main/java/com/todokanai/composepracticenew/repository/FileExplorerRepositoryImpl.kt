@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.repository
 
 import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
+import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.onSuccess
@@ -57,7 +58,7 @@ class FileExplorerRepositoryImpl(
         resolveFileSystem(path)?.resolveNavigationPath(path)?.let { navigateTo(it) }
     }
 
-    override suspend fun connectRemote(item: RemoteStorageItem): Boolean = connection.connect(item)
+    override suspend fun connectRemote(item: RemoteStorageItem): ConnectResult = connection.connect(item)
 
     override suspend fun navigateToRemoteRoot(item: RemoteStorageItem) {
         navigateTo(connection.rootPathOf(item))
