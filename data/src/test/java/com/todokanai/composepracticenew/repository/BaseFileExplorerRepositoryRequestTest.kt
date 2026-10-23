@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.SortMode
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
@@ -96,10 +95,10 @@ class BaseFileExplorerRepositoryRequestTest {
         val scope = CoroutineScope(StandardTestDispatcher(testScope.testScheduler))
         sharingScopes += scope
         return object : BaseFileExplorerRepository(DataConverter(), sortPreference, scope, started) {
-            override suspend fun listFiles(path: String): IoResult<List<FileEntry>> {
+            override suspend fun listFiles(path: String): IoResult<FetchedListing> {
                 fetchCount++
                 if (disconnected) return IoResult.ConnectionLost("끊김")
-                return IoResult.Success(emptyList())
+                return IoResult.Success(FetchedListing.complete(emptyList()))
             }
             override suspend fun navigate(path: String) = navigateTo(path)
             override fun getParentPath(path: String): String? = null

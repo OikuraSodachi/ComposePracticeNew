@@ -17,11 +17,16 @@ sealed interface DirectoryListing {
     data class Loading(val request: ListingRequest, val stale: Loaded? = null) : DirectoryListing
 
     /**
-     * [request]의 목록 조회를 마친 상태. [items]가 비어 있으면 실제로 빈 폴더다.
+     * [request]의 목록 조회를 마친 상태. [completeness]가 [ListingCompleteness.COMPLETE]이고 [items]가 비어 있으면 실제로 빈 폴더다.
      * @param request 조회를 마친 요청
      * @param items 정렬된 디렉터리 항목
+     * @param completeness [items]가 폴더의 항목을 빠짐없이 담았다고 확인됐는지 여부
      */
-    data class Loaded(val request: ListingRequest, val items: List<FileHolderItem>) : DirectoryListing
+    data class Loaded(
+        val request: ListingRequest,
+        val items: List<FileHolderItem>,
+        val completeness: ListingCompleteness = ListingCompleteness.COMPLETE
+    ) : DirectoryListing
 
     /**
      * [request]의 목록 조회에 실패한 상태.

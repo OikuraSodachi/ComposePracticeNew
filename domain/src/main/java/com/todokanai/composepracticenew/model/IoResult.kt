@@ -74,6 +74,18 @@ inline fun <T, R> IoResult<T>.map(transform: (T) -> R): IoResult<R> = when (this
 }
 
 /**
+ * 실패의 메시지를 [message]로 바꾼다. 연결 끊김은 연결 끊김으로 남겨, 여러 대상을 처리하는 호출부가 남은 대상을 시도하지 않게 한다.
+ * 그 밖의 실패(부분 실패 포함)는 [message] 하나로 요약한 항목 실패가 된다.
+ * @param message 실패 시 표시할 메시지
+ * @return 성공이면 이 결과 그대로, 실패면 [message]를 담은 실패
+ */
+fun <T> IoResult<T>.withFailureMessage(message: String): IoResult<T> = when (this) {
+    is IoResult.Success -> this
+    is IoResult.ConnectionLost -> IoResult.ConnectionLost(message)
+    is IoResult.ItemFailed, is IoResult.PartiallyFailed -> IoResult.ItemFailed(message)
+}
+
+/**
  * 성공 결과값을 꺼낸다. 실패면 [onFailure]가 흐름을 끝낸다 — 보통 `valueOr { return it }`처럼 그 실패를 그대로 돌려주는 데 쓴다.
  * @param onFailure 실패를 받아 호출부의 흐름을 끝내는 함수
  * @return 성공 결과값

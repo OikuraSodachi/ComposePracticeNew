@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.onSuccess
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 
@@ -44,11 +43,11 @@ class FileExplorerRepositoryImpl(
 
     override fun getParent(path: String): String? = resolveFileSystem(path)?.getParent(path)
 
-    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> {
+    override suspend fun listFiles(path: String): IoResult<FetchedListing> {
         Log.d(TAG, "fileList 갱신 — path=$path")
         val fileSystem = resolveFileSystem(path) ?: return IoResult.ItemFailed(UNSUPPORTED_PATH_MESSAGE)
         return fileSystem.listFiles(path).onSuccess {
-            Log.d(TAG, "fileList 결과 — path=$path size=${it.size}")
+            Log.d(TAG, "fileList 결과 — path=$path size=${it.entries.size}")
         }
     }
 

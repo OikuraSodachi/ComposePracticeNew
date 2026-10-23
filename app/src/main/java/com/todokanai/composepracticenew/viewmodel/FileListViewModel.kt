@@ -198,7 +198,7 @@ class FileListViewModel @Inject constructor(
      */
     fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean {
         val checked = conflictsFor(selectedList, mode) ?: return false
-        return conflictGate.request(selectedList, checked.conflicts) { skip ->
+        return conflictGate.request(selectedList, checked) { skip ->
             execute(selectedList, mode, skip, checked.destinationPath)
         }
     }

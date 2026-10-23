@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ListingCompleteness
+import com.todokanai.composepracticenew.repository.FetchedListing
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import org.junit.After
@@ -48,8 +50,8 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
         val run = suspend { command.run(Fixture(executor, transferrer, dir)) }
 
         when (expectedOutcome(command, behavior)) {
-            Outcome.EMPTY_LISTING -> {
-                assertEquals(IoResult.Success(emptyList<Any>()), runBlocking { run() })
+            Outcome.UNCONFIRMED_EMPTY_LISTING -> {
+                assertEquals(IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED)), runBlocking { run() })
                 assertSessionKept()
             }
             Outcome.ITEM_FAILED -> {
@@ -127,7 +129,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     }
 
     /** 기대하는 결과 종류. */
-    internal enum class Outcome { EMPTY_LISTING, ITEM_FAILED, CONNECTION_LOST, NOT_SENT, THROWS }
+    internal enum class Outcome { UNCONFIRMED_EMPTY_LISTING, ITEM_FAILED, CONNECTION_LOST, NOT_SENT, THROWS }
 
     companion object {
         /** 모든 명령 행. */
@@ -163,7 +165,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
          */
         private fun expectedOutcome(command: CommandRow, behavior: BehaviorColumn): Outcome = when (behavior) {
             // 빈 디렉터리에 450을 보내는 LIST 서버가 있다 — 화면 목록의 LIST만 450을 빈 목록으로 본다
-            BehaviorColumn.REFUSED_450 -> if (command.emptyListingOn450) Outcome.EMPTY_LISTING else Outcome.ITEM_FAILED
+            BehaviorColumn.REFUSED_450 -> if (command.emptyListingOn450) Outcome.UNCONFIRMED_EMPTY_LISTING else Outcome.ITEM_FAILED
             BehaviorColumn.REFUSED_550 -> Outcome.ITEM_FAILED
             BehaviorColumn.CONNECTION_CLOSED, BehaviorColumn.REPLY_TIMEOUT -> Outcome.CONNECTION_LOST
             BehaviorColumn.UNEXPECTED_EXCEPTION -> Outcome.THROWS

@@ -32,11 +32,14 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @return 이름 변경 결과
      */
     suspend fun rename(targetFile: String, newName: String, overwrite: Boolean): IoResult<Unit> = withContext(Dispatchers.IO) {
-        localIo { renameEntry(File(targetFile), newName, overwrite) }
+        val source = File(targetFile)
+        localIo(describe = { e -> "이름 변경 실패: ${source.name} → $newName (${e.message})" }) {
+            renameEntry(source, newName, overwrite)
+        }
     }
 
     /**
-     * [rename]의 본체. 입출력 실패는 IOException으로 전파해 [rename]의 [localIo]가 결과로 바꾼다.
+     * [rename]의 본체. 입출력 실패는 IOException으로 전파해 [rename]의 [localIo]가 이름 변경 실패 메시지로 바꾼다.
      * @param source 이름을 변경할 항목
      * @param newName 변경할 새 이름
      * @param overwrite 같은 이름의 항목을 덮어쓸지 여부
@@ -50,10 +53,8 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
         }
         if (!dest.exists()) {
             // REPLACE_EXISTING 없이 이동 — 확인 직후 같은 이름이 생겨도 덮어쓰지 않고 실패한다
-            return localIo(describe = { e -> "이름 변경 실패: ${source.name} → $newName (${e.message})" }) {
-                Files.move(source.toPath(), dest.toPath())
-                IoResult.Done
-            }
+            Files.move(source.toPath(), dest.toPath())
+            return IoResult.Done
         }
         if (!overwrite) return IoResult.ItemFailed("이름 변경 실패: 같은 이름의 항목이 이미 있습니다 ($newName)")
         return when {

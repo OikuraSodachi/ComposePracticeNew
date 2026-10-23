@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import org.apache.commons.net.ftp.FTPClient
+import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.parser.MLSxEntryParser
 import java.io.ByteArrayInputStream
@@ -60,8 +61,8 @@ internal class FakeFtpClient : FTPClient() {
     @Volatile var onIsConnected: () -> Unit = {}
     /** completePendingCommand의 동작. 예외를 던지게 해 완료 확인 중 연결 끊김·타임아웃을 재현한다. */
     var onCompletePending: () -> Boolean = { true }
-    /** mlistFile의 동작. 예외를 던지게 해 크기 조회 중 연결 끊김·타임아웃을 재현한다. */
-    var onMlistFile: (String) -> FTPFile? = { null }
+    /** MLST(크기 조회)의 응답 줄. 첫 줄은 응답 코드로 시작한다. 예외를 던지게 해 응답 읽기 중 연결 끊김·타임아웃·형식 오류를 재현한다. */
+    var onMlst: (String) -> List<String> = { listOf("500 MLST not understood") }
     /** deleteFile의 경로별 동작. false면 550 응답, 예외를 던지게 해 응답 읽기 실패를 재현한다. */
     var onDeleteFile: (String) -> Boolean = { true }
     /** completePendingCommand가 호출된 횟수. */
@@ -80,6 +81,11 @@ internal class FakeFtpClient : FTPClient() {
     private var lastReplyCode = 0
     /** 직전 명령의 응답 문자열. */
     private var lastReplyString = ""
+    /** 직전 MLST 응답의 모든 줄. */
+    private var lastReplyLines: List<String> = emptyList()
+
+    /** 등록된 응답 이벤트 수신기 수. */
+    val protocolListenerCount: Int get() = commandSupport.listenerCount
 
     override fun isConnected(): Boolean {
         onIsConnected()
@@ -97,33 +103,30 @@ internal class FakeFtpClient : FTPClient() {
         return onCompletePending()
     }
 
-    override fun mlistFile(pathname: String?): FTPFile? = onMlistFile(pathname.orEmpty())
+    override fun sendCommand(command: FTPCmd, args: String?): Int {
+        check(command == FTPCmd.MLST) { "가짜 클라이언트가 처리하지 않는 명령: $command" }
+        lastReplyLines = onMlst(args.orEmpty())
+        val code = lastReplyLines.first().take(3).toInt()
+        reply(code, lastReplyLines.joinToString("\n"))
+        return code
+    }
+
+    override fun getReplyStrings(): Array<String> = lastReplyLines.toTypedArray()
 
     override fun hasFeature(feature: String): Boolean = feature.uppercase(Locale.ROOT) in features
 
     override fun listFiles(pathname: String?): Array<FTPFile> {
         listRequests += "LIST $pathname"
-        // commons-net처럼 거부되면 빈 배열을 돌려준다
-        return respond("LIST", refused = { emptyArray() }) {
-            reply(150, "150 Here comes the directory listing")
-            reply(226, "226 Transfer complete")
+        return transferListing("LIST") {
             remoteFiles.map { name -> FTPFile().apply { this.name = name; type = FTPFile.FILE_TYPE; size = 1 } }.toTypedArray()
         }
     }
 
     override fun mlistDir(pathname: String?): Array<FTPFile> {
         listRequests += "MLSD $pathname"
-        return respond("MLSD", refused = { emptyArray() }) {
-            val lines = mlsdListings[pathname]
-            if (lines == null) {
-                reply(550, "550 No such directory")
-                emptyArray()
-            } else {
-                reply(150, "150 Here comes the directory listing")
-                reply(226, "226 Transfer complete")
-                lines.mapNotNull { MLSxEntryParser.parseEntry(it) }.toTypedArray()
-            }
-        }
+        val lines = mlsdListings[pathname]
+            ?: return respond("MLSD", refused = { emptyArray() }) { reply(550, "550 No such directory"); emptyArray() }
+        return transferListing("MLSD") { lines.mapNotNull { MLSxEntryParser.parseEntry(it) }.toTypedArray() }
     }
 
     override fun retrieveFileStream(remote: String): InputStream? {
@@ -168,7 +171,7 @@ internal class FakeFtpClient : FTPClient() {
 
     /**
      * [command]에 정해 둔 서버 동작을 따른다. 거부면 응답을 남기고 [refused]를, 예외면 그 예외를 던지고, 없으면 [normal]을 실행한다.
-     * 전송 뒤 거부([ServerBehavior.RefuseAfterData])면 [normal]로 전송을 마친 뒤 마지막 응답만 거부로 바꾼다.
+     * 전송 뒤 거부([ServerBehavior.RefuseAfterData])는 목록 조회만 쓰므로 [transferListing]이 처리한다.
      * @param command 명령 이름
      * @param refused 거부됐을 때 commons-net이 돌려주는 값
      * @param normal 정상 응답일 때의 동작
@@ -183,7 +186,27 @@ internal class FakeFtpClient : FTPClient() {
                 refused()
             }
             is ServerBehavior.Fail -> throw behavior.error
-            is ServerBehavior.RefuseAfterData -> normal().also { reply(behavior.code, behavior.text) }
+            is ServerBehavior.RefuseAfterData -> error("전송 뒤 거부는 목록 조회 명령에만 쓴다: $command")
+        }
+    }
+
+    /**
+     * 목록 조회 [command]에 정해 둔 서버 동작을 따른다. commons-net처럼 거부되면 빈 배열을 돌려준다.
+     * 정상이면 150으로 전송을 시작해 [entries]를 보내고 226으로 끝내며, 전송 뒤 거부면 150으로 [entries]를 보낸 뒤 거부 응답으로 끝낸다.
+     * @param command 목록 조회 명령 이름
+     * @param entries 데이터 연결로 보낼 항목
+     * @return 클라이언트가 받은 항목
+     */
+    private inline fun transferListing(command: String, entries: () -> Array<FTPFile>): Array<FTPFile> {
+        val behavior = serverBehaviors[command]
+        if (behavior is ServerBehavior.RefuseAfterData) {
+            sentCommands += command
+            reply(150, "150 Here comes the directory listing")
+            return entries().also { reply(behavior.code, behavior.text) }
+        }
+        return respond(command, refused = { emptyArray() }) {
+            reply(150, "150 Here comes the directory listing")
+            entries().also { reply(226, "226 Transfer complete") }
         }
     }
 

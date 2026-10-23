@@ -33,7 +33,7 @@ class LocalArchiveExtraction @Inject constructor(
             }
             val sizes = archives.map { (path, extractor) -> extractor.measure(path) }
             val totalBytes = sumBytesOrOne(sizes.map { it.bytes })
-            checkDiskSpace(totalBytes, File(destPath))?.let { return@localIo IoResult.ItemFailed(it) }
+            checkDiskSpace(totalBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
             onProgress(ProgressState(progress = 0))
             val tracker = ByteProgressTracker(totalBytes, sizes.sumOf { it.fileCount }, onProgress)
 

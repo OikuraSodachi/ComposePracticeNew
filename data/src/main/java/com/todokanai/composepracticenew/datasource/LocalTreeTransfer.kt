@@ -35,7 +35,7 @@ class LocalTreeTransfer internal constructor(
      * @return 복사 결과
      */
     suspend fun copy(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
-        localIo {
+        localIo copy@{
             val roots = targetFiles.map(::File)
             var totalBytesAcc = 0L
             val allFiles = roots.flatMap { root ->
@@ -44,7 +44,7 @@ class LocalTreeTransfer internal constructor(
                     .toList()
             }
             val totalBytes = totalBytesAcc.coerceAtLeast(1)
-            checkDiskSpace(totalBytes, File(targetPath), freeSpaceOf(File(targetPath)))?.let { return@localIo IoResult.ItemFailed(it) }
+            checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(it) }
             onProgress(ProgressState(progress = 0))
             val tracker = ByteProgressTracker(totalBytes, allFiles.size, onProgress)
 
@@ -62,7 +62,7 @@ class LocalTreeTransfer internal constructor(
      * @return 이동 결과. 중간에 실패하면 앞선 항목은 이미 이동된 상태다
      */
     suspend fun move(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
-        localIo {
+        localIo move@{
             val roots = targetFiles.map(::File)
             val destDir = File(targetPath)
 
@@ -79,29 +79,30 @@ class LocalTreeTransfer internal constructor(
                 .sumOf { leafSizes[it] }
             if (crossBytes > 0) {
                 val free = freeSpaceOf(destDir)
-                if (free == 0L) return@localIo IoResult.ItemFailed("디스크 공간 부족: 여유 공간 없음")
-                checkDiskSpace(crossBytes, destDir, free)?.let { return@localIo IoResult.ItemFailed(it) }
+                if (free == 0L) return@move IoResult.ItemFailed("디스크 공간 부족: 여유 공간 없음")
+                checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(it) }
             }
             onProgress(ProgressState(progress = 0))
             val tracker = ByteProgressTracker(totalBytes, leafCounts.sum(), onProgress)
 
             roots.forEachIndexed { i, root ->
                 val dest = File(targetPath, root.name)
-                if (isSamePartition(root, destDir)) {
-                    // 동일 파티션: rename syscall로 원자적 이동
-                    // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패로 알린다
-                    localIo(describe = { e -> "이동 실패: ${root.name} — ${e.message} (${i}개 항목은 이미 이동됨)" }) {
+                // 입출력 실패에 어느 항목에서 멈췄는지와 이미 옮긴 항목 수를 붙인다 — 두 이동 경로가 같은 문맥을 알린다
+                localIo(describe = { e -> "이동 실패: ${root.name} — ${e.message} (${i}개 항목은 이미 이동됨)" }) step@{
+                    if (isSamePartition(root, destDir)) {
+                        // 동일 파티션: rename syscall로 원자적 이동
+                        // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패로 알린다
                         Files.move(root.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                        IoResult.Done
-                    }.valueOr { return@localIo it }
-                    tracker.skipFiles(leafCounts[i])
-                    tracker.addBytes(leafSizes[i], root.name, fileBytes = null)
-                } else {
-                    copyTree(root, dest, tracker, entries = treeEntries[i])
-                    if (!root.deleteRecursively()) {
-                        return@localIo IoResult.ItemFailed("원본 삭제 실패: ${root.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다 (앞선 ${i}개 항목은 이동 완료)")
+                        tracker.skipFiles(leafCounts[i])
+                        tracker.addBytes(leafSizes[i], root.name, fileBytes = null)
+                    } else {
+                        copyTree(root, dest, tracker, entries = treeEntries[i])
+                        if (!root.deleteRecursively()) {
+                            return@step IoResult.ItemFailed("원본 삭제 실패: ${root.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다 (앞선 ${i}개 항목은 이동 완료)")
+                        }
                     }
-                }
+                    IoResult.Done
+                }.valueOr { return@move it }
             }
             tracker.reportComplete()
             IoResult.Done

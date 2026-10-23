@@ -3,7 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.model.map
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 
@@ -23,7 +23,7 @@ class LocalFileExplorerRepositoryImpl(
     initialPath: String? = null
 ) : BaseFileExplorerRepository(converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000), initialPath) {
 
-    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = localFiles.listFiles(path)
+    override suspend fun listFiles(path: String): IoResult<FetchedListing> = localFiles.listFiles(path).map(FetchedListing::complete)
 
     override fun getParentPath(path: String): String? = getParent(path)
 

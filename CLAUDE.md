@@ -53,6 +53,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 목록 상태는 `ListingRequest(path, generation)`에 묶인다. 이동·새로고침·재연결·공유 재시작마다 새 요청이 되며, 같은 경로라도 이전 요청의 `Loaded`는 현재 목록이 아니다. 같은 경로를 다시 조회하는 동안의 직전 목록은 `Loading.stale`(표시 전용)이다.
 - 정렬은 조회 결과 위에 적용한다(정렬 변경으로 다시 조회하지 않는다).
 - 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedItems()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
+- `Loaded.completeness`가 `ListingCompleteness.UNCONFIRMED`인 목록(예: FTP LIST의 450을 빈 폴더로 본 목록)은 화면에는 빈 폴더로 보이지만 항목이 있을 수 있다. 판정 결과(`DestinationConflicts.destinationCompleteness`)에 이 사실을 담고, `ConflictGate`가 충돌이 없어 보여도 덮어쓸 수 있음을 확인받은 뒤에만 실행한다.
 
 ### UI Modes (`ui/model/SelectMode`)
 

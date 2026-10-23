@@ -93,6 +93,7 @@ fun BottomButtonDialogHost(
         FileConflictDialog(
             conflictingFiles = conflict.conflicts,
             totalCount = conflict.targets.size,
+            destinationUnconfirmed = conflict.destinationUnconfirmed,
             onOverwrite = { if (onResolveConflict(ConflictResolution.OVERWRITE)) onResetSelection() },
             onSkip = { if (onResolveConflict(ConflictResolution.SKIP)) onResetSelection() },
             onCancel = { onResolveConflict(ConflictResolution.CANCEL) }

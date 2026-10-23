@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ListingCompleteness
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.SortMode
@@ -38,7 +39,7 @@ class FileListFlowProducerTest {
     private val producer = FileListFlowProducer(DataConverter(), sortPreference)
     private val requests = MutableStateFlow<ListingRequest?>(null)
     /** 경로 → 조회 동작. 등록되지 않은 경로는 빈 폴더로 본다. */
-    private val responses = mutableMapOf<String, suspend () -> IoResult<List<FileEntry>>>()
+    private val responses = mutableMapOf<String, suspend () -> IoResult<FetchedListing>>()
     /** 경로별 조회 횟수. */
     private val fetchCounts = mutableMapOf<String, Int>()
     /** 공유가 멈춘 횟수. */
@@ -67,6 +68,16 @@ class FileListFlowProducerTest {
         runCurrent()
 
         assertEquals(DirectoryListing.Loaded(request, emptyList()), listing.value)
+    }
+
+    @Test
+    fun `빈 폴더인지 확인하지 못한 목록은 확인되지 않은 조회 완료 상태다`() = runTest {
+        responses["/a"] = { IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED)) }
+        val listing = listingIn(this)
+        val request = request("/a")
+        runCurrent()
+
+        assertEquals(DirectoryListing.Loaded(request, emptyList(), ListingCompleteness.UNCONFIRMED), listing.value)
     }
 
     @Test
@@ -247,6 +258,6 @@ class FileListFlowProducerTest {
     private fun entry(path: String) =
         FileEntry(name = path.substringAfterLast('/'), path = path, isDirectory = false, size = 1L, lastModified = 0L)
 
-    /** [entries]를 담은 조회 성공 결과를 만든다. */
-    private fun ok(vararg entries: FileEntry): IoResult<List<FileEntry>> = IoResult.Success(entries.toList())
+    /** [entries]를 담은 확인된 조회 성공 결과를 만든다. */
+    private fun ok(vararg entries: FileEntry): IoResult<FetchedListing> = IoResult.Success(FetchedListing.complete(entries.toList()))
 }

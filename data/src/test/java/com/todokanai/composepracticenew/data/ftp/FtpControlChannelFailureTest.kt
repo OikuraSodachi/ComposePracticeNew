@@ -56,7 +56,7 @@ class FtpControlChannelFailureTest {
     @Test
     fun `크기 조회 응답이 타임아웃되면 크기 미확인으로 넘기지 않고 세션을 종료한다`() {
         loggedIn()
-        client.onMlistFile = { throw SocketTimeoutException("Read timed out") }
+        client.onMlst = { throw SocketTimeoutException("Read timed out") }
 
         val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
 

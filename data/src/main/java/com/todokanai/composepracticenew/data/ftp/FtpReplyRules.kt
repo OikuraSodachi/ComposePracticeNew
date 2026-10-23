@@ -23,7 +23,7 @@ internal enum class FtpCommand(val label: String) {
 internal enum class FtpListingReply {
     /** 2xx — 조회한 항목이 목록이다. */
     COMPLETED,
-    /** 빈 디렉터리를 뜻하는 거부 응답 — 빈 목록이다. */
+    /** 빈 디렉터리일 수 있는 거부 응답 — 실제로 빈 디렉터리인지는 알 수 없으므로 확인되지 않은 빈 목록이다. */
     NO_ENTRIES,
     /** 서버가 이 조회만 거부했다(4xx 일시 거부·5xx 영구 거부). */
     REFUSED,
@@ -31,7 +31,7 @@ internal enum class FtpListingReply {
 
 /** 목록을 조회하는 목적. 같은 응답이라도 잘못 해석했을 때의 결과가 달라 해석 규칙이 갈린다. */
 internal enum class FtpListingPurpose {
-    /** 화면에 보여줄 목록. 사용자가 빈 목록을 보고 다시 조회할 수 있다. */
+    /** 화면에 보여줄 목록. 빈 디렉터리로 볼 응답은 확인되지 않은 빈 목록으로 표시하고, 이름 충돌 판정은 그 목록을 믿지 않고 사용자에게 확인받는다. */
     BROWSE,
     /** 작업(다운로드·삭제)할 하위 트리 수집. 빈 목록으로 잘못 보면 그 폴더의 항목이 작업에서 빠진 채 성공으로 끝난다. */
     TREE,

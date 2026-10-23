@@ -1,9 +1,10 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.map
+import com.todokanai.composepracticenew.model.ListingCompleteness
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
+import com.todokanai.composepracticenew.repository.FetchedListing
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -32,9 +33,9 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
      * @param path ftp://server/path 형식의 절대 경로
-     * @return 원격 경로의 파일 목록. 비어 있으면 실제로 빈 디렉터리다
+     * @return 원격 경로의 파일 목록. 빈 디렉터리인지 확인할 수 없는 응답이면 [ListingCompleteness.UNCONFIRMED]인 빈 목록이다
      */
-    suspend fun listFiles(path: String): IoResult<List<FileEntry>> = list(path, FtpListingPurpose.BROWSE)
+    suspend fun listFiles(path: String): IoResult<FetchedListing> = list(path, FtpListingPurpose.BROWSE)
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.
@@ -100,7 +101,8 @@ class FtpCommandExecutor @Inject constructor(
      */
     internal suspend fun collectRemoteTree(remoteDirPath: String): IoResult<List<FileEntry>> {
         val result = mutableListOf<FileEntry>()
-        for (entry in list(remoteDirPath, FtpListingPurpose.TREE).valueOr { return it }) {
+        // 트리 수집은 확인되지 않은 빈 목록을 만들지 않는다 — 그런 응답은 거부로 해석한다([FtpReplyRules.listingReplyOf])
+        for (entry in list(remoteDirPath, FtpListingPurpose.TREE).valueOr { return it }.entries) {
             result.add(entry)
             if (entry.isDirectory) result.addAll(collectRemoteTree(entry.path).valueOr { return it })
         }
@@ -114,9 +116,9 @@ class FtpCommandExecutor @Inject constructor(
      * MLSD는 없는 경로·권한 없음을 550으로 정하고 있어 빈 폴더와 실패가 구분된다.
      * @param path ftp://server/path 형식의 절대 경로
      * @param purpose 조회 목적
-     * @return 원격 경로의 파일 목록. 비어 있으면 실제로 빈 디렉터리다
+     * @return 원격 경로의 파일 목록과 그 목록이 확인된 목록인지 여부
      */
-    private suspend fun list(path: String, purpose: FtpListingPurpose): IoResult<List<FileEntry>> {
+    private suspend fun list(path: String, purpose: FtpListingPurpose): IoResult<FetchedListing> {
         val ftpPath = extractFtpPath(path)
         return session.withConnectedClient { client ->
             withContext(Dispatchers.IO) {
@@ -136,14 +138,15 @@ class FtpCommandExecutor @Inject constructor(
      * @param purpose 조회 목적
      * @return 디렉터리의 항목 목록, 또는 서버가 거부한 실패
      */
-    private fun listWithList(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<List<FileEntry>> {
+    private fun listWithList(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<FetchedListing> {
         val (files, transferStarted) = try {
             watchingDataTransfer(client) { client.listFiles(ftpPath) }
         } catch (e: ParserInitializationException) {
             return IoResult.ItemFailed("LIST 실패: 서버 목록 형식을 해석할 수 없습니다")
         }
-        return listingOutcome(FtpCommand.LIST, purpose, client, transferStarted) { files?.filter { it.name != "." && it.name != ".." }.orEmpty() }
-            .toEntriesUnder(path)
+        return listingOutcome(FtpCommand.LIST, purpose, client, transferStarted, path) {
+            files?.filter { it.name != "." && it.name != ".." }.orEmpty()
+        }
     }
 
     /**
@@ -154,10 +157,11 @@ class FtpCommandExecutor @Inject constructor(
      * @param purpose 조회 목적
      * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외), 또는 서버가 거부한 실패
      */
-    private fun listWithMlsd(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<List<FileEntry>> {
+    private fun listWithMlsd(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<FetchedListing> {
         val (files, transferStarted) = watchingDataTransfer(client) { client.mlistDir(ftpPath) }
-        return listingOutcome(FtpCommand.MLSD, purpose, client, transferStarted) { files?.filterNot { isSelfOrParentEntry(it) }.orEmpty() }
-            .toEntriesUnder(path)
+        return listingOutcome(FtpCommand.MLSD, purpose, client, transferStarted, path) {
+            files?.filterNot { isSelfOrParentEntry(it) }.orEmpty()
+        }
     }
 
     /**
@@ -179,10 +183,12 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * 목록 조회의 마지막 응답을 [FtpReplyRules]로 해석해 결과로 만든다.
+     * 빈 디렉터리로 볼 거부 응답은 실제로 빈 디렉터리인지 알 수 없으므로 확인되지 않은 빈 목록이 된다.
      * @param command 보낸 목록 조회 명령
      * @param purpose 조회 목적
      * @param client 응답을 받은 FTPClient
      * @param dataTransferStarted 서버가 목록 전송을 시작했는지 여부
+     * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param files 조회를 마쳤을 때 받은 항목
      * @return 조회 결과
      */
@@ -191,11 +197,12 @@ class FtpCommandExecutor @Inject constructor(
         purpose: FtpListingPurpose,
         client: FTPClient,
         dataTransferStarted: Boolean,
+        path: String,
         files: () -> List<FTPFile>
-    ): IoResult<List<FTPFile>> =
+    ): IoResult<FetchedListing> =
         when (FtpReplyRules.listingReplyOf(command, purpose, client.replyCode, dataTransferStarted)) {
-            FtpListingReply.COMPLETED -> IoResult.Success(files())
-            FtpListingReply.NO_ENTRIES -> IoResult.Success(emptyList())
+            FtpListingReply.COMPLETED -> IoResult.Success(FetchedListing.complete(files().map { toFileEntry(it, path) }))
+            FtpListingReply.NO_ENTRIES -> IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED))
             FtpListingReply.REFUSED -> FtpReplyRules.refusal(command, client)
         }
 
@@ -218,14 +225,6 @@ class FtpCommandExecutor @Inject constructor(
      * @return [path]가 [ancestorPath] 아래에 있으면 true
      */
     private fun isRemoteAncestorOf(ancestorPath: String, path: String): Boolean = path.startsWith(ancestorPath.trimEnd('/') + "/")
-
-    /**
-     * 조회 결과의 FTP 목록 항목을 [path] 아래의 domain 항목으로 바꾼다.
-     * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
-     * @return 변환된 항목 목록을 담은 결과. 실패는 그대로 둔다
-     */
-    private fun IoResult<List<FTPFile>>.toEntriesUnder(path: String): IoResult<List<FileEntry>> =
-        map { files -> files.map { file -> toFileEntry(file, path) } }
 
     /**
      * FTP 목록 항목 하나를 domain 항목으로 바꾼다.

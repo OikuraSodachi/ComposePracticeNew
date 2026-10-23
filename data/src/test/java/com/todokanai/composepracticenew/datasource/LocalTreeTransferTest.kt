@@ -50,6 +50,31 @@ class LocalTreeTransferTest {
     }
 
     @Test
+    fun `다른 파티션으로 옮길 때 여유 공간이 있지만 모자라면 원본을 그대로 두고 필요한 공간과 함께 실패한다`() {
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 1L })
+
+        val result = runBlocking { transfer.move(setOf(source.path), target.path) {} }
+
+        assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("디스크 공간 부족: 필요"))
+        assertTrue(File(source, "a.txt").exists())
+        assertFalse(File(target, "src").exists())
+    }
+
+    @Test
+    fun `다른 파티션으로 복사해 옮기다 실패하면 어느 항목인지와 함께 실패를 알리고 원본을 남긴다`() {
+        // 같은 이름의 파일이 대상에 있어 그 아래로 복사할 수 없다
+        File(target, "src").writeText("file")
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE })
+
+        val result = runBlocking { transfer.move(setOf(source.path), target.path) {} }
+
+        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        assertTrue(message, message.startsWith("이동 실패: src — "))
+        assertTrue(message, message.endsWith("(0개 항목은 이미 이동됨)"))
+        assertTrue("원본이 남아야 함", File(source, "a.txt").exists())
+    }
+
+    @Test
     fun `같은 파티션에서 비어 있지 않은 같은 이름 폴더로는 옮기지 못하고 어느 항목인지와 함께 실패를 알린다`() {
         File(target, "src").apply { mkdirs(); File(this, "b.txt").writeText("B") }
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE })

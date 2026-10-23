@@ -65,7 +65,7 @@ class FtpTransferrerConnectionLostTest {
     @Test
     fun `크기 조회 중 연결이 끊기면 크기 미확인으로 넘기지 않고 연결 끊김으로 알린다`() {
         loggedIn()
-        client.onMlistFile = { throw FTPConnectionClosedException("Connection closed without indication.") }
+        client.onMlst = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
         val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
 

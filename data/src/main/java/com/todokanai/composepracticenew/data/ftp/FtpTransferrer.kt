@@ -11,8 +11,10 @@ import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.MalformedServerReplyException
 import org.apache.commons.net.ftp.FTPClient
+import org.apache.commons.net.ftp.FTPCmd
+import org.apache.commons.net.ftp.FTPReply
+import org.apache.commons.net.ftp.parser.MLSxEntryParser
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -307,25 +309,35 @@ class FtpTransferrer @Inject constructor(
     }
 
     /**
-     * 진행률 계산용으로 원격 파일 크기를 조회한다. 서버가 MLST를 지원하지 않거나(오류 응답) 응답 형식을 해석하지 못하면 크기를 모르는 것(-1)으로 본다.
-     * 응답 형식 오류([MalformedServerReplyException])는 응답을 끝까지 읽은 뒤의 실패이므로 세션을 유지한다.
-     * 응답을 읽다 실패한 예외(연결 끊김·타임아웃 등)는 크기 조회 실패가 아니므로 삼키지 않고 전파해 [FtpSession.withConnectedClient]가 세션을 종료하게 한다.
+     * 진행률 계산용으로 원격 파일 크기를 조회한다. 서버가 MLST를 거부하거나 응답의 항목 줄을 해석하지 못하면 크기를 모르는 것(-1)으로 본다.
+     * 응답을 끝까지 읽은 뒤 항목 줄만 해석하므로, 응답을 읽다 실패한 예외(연결 끊김·타임아웃·응답 형식 오류)는 삼키지 않고 전파해
+     * [FtpSession.withConnectedClient]가 세션을 종료하게 한다. FTPClient.mlistFile은 응답 읽기 실패와 항목 해석 실패를 같은 예외로 섞어 던지므로 쓰지 않는다.
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 크기를 조회할 원격 파일의 FTP 경로
      * @return 파일 크기(bytes), 알 수 없으면 -1
      */
-    private fun remoteFileSize(client: FTPClient, ftpPath: String): Long =
-        try {
-            client.mlistFile(ftpPath)?.size ?: -1L
-        } catch (e: MalformedServerReplyException) {
-            -1L
-        } catch (e: IndexOutOfBoundsException) {
-            // 항목 줄이 없는 MLST 성공 응답 — commons-net이 없는 응답 줄을 읽다 던진다
-            -1L
+    private fun remoteFileSize(client: FTPClient, ftpPath: String): Long {
+        if (!FTPReply.isPositiveCompletion(client.sendCommand(FTPCmd.MLST, ftpPath))) return -1L
+        return mlstEntrySize(client.replyStrings)
+    }
+
+    /**
+     * MLST 응답의 항목 줄에서 size 사실을 읽는다. 항목 줄은 응답의 둘째 줄이며 공백으로 시작한다(RFC 3659 §7.2).
+     * 항목 줄이 없거나 해석할 수 없는 값(숫자가 아닌 size, 짧은 unix.mode 등 commons-net 해석기가 예외를 던지는 값)이면 크기를 모른다.
+     * @param replyLines 응답을 끝까지 읽은 MLST 응답 줄
+     * @return 파일 크기(bytes), 알 수 없으면 -1
+     */
+    private fun mlstEntrySize(replyLines: Array<String>): Long {
+        val entryLine = replyLines.getOrNull(1)?.trimStart()?.takeIf { it.isNotEmpty() } ?: return -1L
+        val entry = try {
+            MLSxEntryParser.parseEntry(entryLine)
         } catch (e: NumberFormatException) {
-            // size 사실 값이 숫자가 아닌 MLST 응답
-            -1L
+            null
+        } catch (e: IndexOutOfBoundsException) {
+            null
         }
+        return entry?.size?.takeIf { it >= 0 } ?: -1L
+    }
 
     /** [input]을 버퍼 단위로 [output]에 복사하며 청크마다 [onChunk]에 읽은 바이트 수를 전달한다. */
     private inline fun pump(input: InputStream, output: OutputStream, onChunk: (Int) -> Unit) {

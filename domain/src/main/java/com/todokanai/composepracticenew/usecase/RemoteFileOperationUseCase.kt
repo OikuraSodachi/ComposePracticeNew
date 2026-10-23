@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.withFailureMessage
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -116,18 +117,13 @@ class RemoteFileOperationUseCase(
     }
 
     /**
-     * [block]이 실패하면 실패의 종류는 그대로 두고 메시지만 [message]로 바꾼다.
-     * 연결 끊김은 연결 끊김으로 남겨, 여러 대상을 처리하는 호출부가 남은 대상을 시도하지 않게 한다.
+     * [block]이 실패하면 그 메시지를 [message]로 바꾼다. 규칙은 [withFailureMessage]를 따른다(연결 끊김만 종류를 유지한다).
      * @param message 실패 시 표시할 메시지
      * @param block 실행할 원격 작업
-     * @return 성공이면 [block]의 결과, 실패면 같은 종류의 [message]를 담은 실패
+     * @return 성공이면 [block]의 결과, 실패면 [message]를 담은 실패
      */
     private suspend fun failingWith(message: String, block: suspend () -> IoResult<Unit>): IoResult<Unit> =
-        when (val result = block()) {
-            is IoResult.Success -> result
-            is IoResult.ConnectionLost -> IoResult.ConnectionLost(message)
-            is IoResult.ItemFailed, is IoResult.PartiallyFailed -> IoResult.ItemFailed(message)
-        }
+        block().withFailureMessage(message)
 
     /**
      * 검증 결과에 위반이 있으면 오류를 방출하고 작업을 중단해야 함을 알린다.

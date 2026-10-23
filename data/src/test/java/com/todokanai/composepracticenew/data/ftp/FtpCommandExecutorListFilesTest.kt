@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ListingCompleteness
+import com.todokanai.composepracticenew.repository.FetchedListing
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.net.ftp.parser.ParserInitializationException
 import org.junit.Assert.assertEquals
@@ -26,25 +28,43 @@ class FtpCommandExecutorListFilesTest {
 
         val entries = runBlocking { commands.listFiles("ftp://host/r") } as IoResult.Success
 
-        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.value.map { it.path })
+        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.value.entries.map { it.path })
         assertEquals(listOf("MLSD /r"), client.listRequests)
     }
 
     @Test
-    fun `MLSD 빈 폴더는 실패가 아닌 빈 목록이다`() {
+    fun `MLSD 빈 폴더는 실패가 아닌 확인된 빈 목록이다`() {
         loggedIn()
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to emptyList())
 
-        assertEquals(IoResult.Success(emptyList<Any>()), runBlocking { commands.listFiles("ftp://host/r") })
+        assertEquals(IoResult.Success(FetchedListing.complete(emptyList())), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     @Test
-    fun `빈 폴더에 450 No files found를 주는 LIST 서버에서 빈 폴더는 빈 목록이다`() {
+    fun `빈 폴더에 450 No files found를 주는 LIST 서버의 450은 실패가 아닌 확인되지 않은 빈 목록이다`() {
         loggedIn()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 No files found"))
 
-        assertEquals(IoResult.Success(emptyList<Any>()), runBlocking { commands.listFiles("ftp://host/r") })
+        assertEquals(IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED)), runBlocking { commands.listFiles("ftp://host/r") })
+    }
+
+    @Test
+    fun `LIST가 빈 목록을 보내고 226으로 끝나면 확인된 빈 목록이다`() {
+        loggedIn()
+
+        assertEquals(IoResult.Success(FetchedListing.complete(emptyList())), runBlocking { commands.listFiles("ftp://host/r") })
+    }
+
+    @Test
+    fun `목록 조회가 끝나면 성공·실패와 관계없이 응답 이벤트 수신기를 남기지 않는다`() {
+        loggedIn()
+        runBlocking { commands.listFiles("ftp://host/r") }
+        assertEquals(0, client.protocolListenerCount)
+
+        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Fail(ParserInitializationException("Unknown parser type")))
+        runBlocking { commands.listFiles("ftp://host/r") }
+        assertEquals(0, client.protocolListenerCount)
     }
 
     @Test
