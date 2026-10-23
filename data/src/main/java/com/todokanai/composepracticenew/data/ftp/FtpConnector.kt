@@ -65,7 +65,7 @@ class FtpConnector @Inject constructor(
     }
 
     /**
-     * 접속한 [client]로 로그인하고 전송 방식을 정한 뒤, 이 서버의 목록을 해석할 수 있는지 확인한다.
+     * 접속한 [client]로 로그인하고 전송 방식을 정한 뒤, 이 서버의 목록을 해석할 수 있는지 확인하고 LIST에 숨김 항목을 담을 옵션을 정한다.
      * @param client 서버에 접속한 FTPClient
      * @param userId FTP 로그인 아이디
      * @param password FTP 로그인 비밀번호
@@ -77,6 +77,7 @@ class FtpConnector @Inject constructor(
         client.enterLocalPassiveMode()
         client.setFileType(FTP.BINARY_FILE_TYPE)
         if (!FtpListingFormat.isReadable(client)) return ConnectResult.Failed(ConnectFailureReason.LISTING_FORMAT_UNKNOWN)
+        FtpListingFormat.configureHiddenListing(client)
         return ConnectResult.Connected
     }
 

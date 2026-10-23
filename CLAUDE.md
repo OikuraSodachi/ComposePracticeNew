@@ -76,6 +76,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 - 여러 항목 작업은 `forEachCollectingFailures`로 실패를 모은다. `ConnectionLost`면 남은 항목을 시도하지 않는다.
 - FTP: 서버 응답 해석(명령·조회 목적별 예외 규칙 포함, 예: 화면 목록의 LIST가 데이터 전송 전에 받은 450 = 빈 목록, 트리 수집에서는 실패)은 `FtpReplyRules`에만 둔다. `FtpSession.withConnectedClient`가 명령 실패의 의미를 정하는 유일한 경계다. 블록이 돌려준 결과는 세션 유지, 던진 IOException은 연결 끊김(세션 종료), 그 밖의 예외는 세션 종료 후 전파한다. 세션을 유지할 실패는 블록 안에서 던지지 말고 결과로 돌려준다. 명령·서버 동작 조합은 `FtpCommandContractTest` 행렬로 검증한다.
 - FTP 연결: `FtpConnector.connect`는 로그인 후 `FtpListingFormat.isReadable`로 목록을 해석할 수 있는지 확인한다(MLSD 미지원 서버가 SYST를 거부하거나 해석기 없는 종류를 알려주면 불가). 불가면 형식을 추측하지 않고 연결을 종료해 `ConnectResult.Failed(LISTING_FORMAT_UNKNOWN)`을 돌려주며, app은 `ConnectFailureNotice`로 다이얼로그를 띄운다. 그래서 연결된 세션의 목록 조회는 해석기를 고르지 못해 실패하지 않는다.
+- FTP 숨김 항목: LIST 서버는 연결할 때 `FtpListingFormat.configureHiddenListing`이 홈 디렉터리를 옵션 없이·`-a`로 한 번씩 조회해, `-a` 목록이 숨김 항목만 더한 것일 때만 그 세션의 LIST에 `-a`를 붙인다(`-a`는 RFC 959에 없어 경로로 읽는 서버가 있다). MLSD·`-a`를 무시하는 서버의 목록은 서버가 보여주는 항목만 담으므로(RFC 3659 §7.1) 클라이언트가 누락을 알 수 없다 — RMD 거부 메시지에 그 가능성을 덧붙인다.
 - 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다.
 
 ### Data Layer

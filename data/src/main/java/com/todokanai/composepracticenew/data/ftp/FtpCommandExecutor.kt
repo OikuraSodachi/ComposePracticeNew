@@ -129,6 +129,7 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
      * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
+     * 숨김 항목을 담는 `-a` 옵션은 연결할 때 [FtpListingFormat.configureHiddenListing]이 [client]에 정해 두었다.
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로

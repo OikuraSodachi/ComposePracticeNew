@@ -21,6 +21,10 @@ internal class ScriptedFtpServer(script: Map<String, (Exchange) -> Unit> = empty
      * @param writer 제어 연결에 응답을 쓰는 Writer
      */
     class Exchange(val data: ServerSocket, private val writer: Writer) {
+        /** 응답 중인 명령의 인자(명령 이름 뒤의 문자열). 인자가 없으면 빈 문자열이다. */
+        var argument: String = ""
+            internal set
+
         /** 응답 한 줄을 CRLF로 끝맺어 보낸다. */
         fun send(line: String) {
             writer.write("$line\r\n")
@@ -51,7 +55,9 @@ internal class ScriptedFtpServer(script: Map<String, (Exchange) -> Unit> = empty
             val exchange = Exchange(data, socket.getOutputStream().bufferedWriter(Charsets.US_ASCII))
             exchange.send("220 ready")
             while (true) {
-                val command = reader.readLine()?.substringBefore(' ')?.uppercase() ?: return
+                val line = reader.readLine() ?: return
+                val command = line.substringBefore(' ').uppercase()
+                exchange.argument = line.substringAfter(' ', "")
                 _received.add(command)
                 if (command == "QUIT") return exchange.send("221 Bye")
                 handlers[command]?.invoke(exchange) ?: exchange.send("502 Command not implemented")

@@ -58,7 +58,8 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 val result = runBlocking { run() }
                 assertTrue("$result", result is IoResult.ItemFailed)
                 val text = (behavior.serverBehavior as ServerBehavior.Refuse).text
-                assertTrue("${(result as IoResult.ItemFailed).message}", result.message.orEmpty().endsWith("실패: $text"))
+                // 원인을 응답만으로 알 수 없는 거부(RMD)는 응답 뒤에 설명이 붙는다(FtpReplyRules.refusal)
+                assertTrue("${(result as IoResult.ItemFailed).message}", result.message.orEmpty().contains("실패: $text"))
                 assertEquals("거부 응답 뒤에는 기다릴 응답이 없다", 0, client.completePendingCalls)
                 assertSessionKept()
             }

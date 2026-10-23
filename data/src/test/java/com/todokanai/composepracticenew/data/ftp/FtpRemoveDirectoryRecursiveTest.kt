@@ -32,4 +32,20 @@ class FtpRemoveDirectoryRecursiveTest {
         assertEquals(listOf("/r/other/y.txt", "/r/sub/x.txt"), client.deleteRequests.sorted())
         assertEquals("실패를 품은 /r/sub와 /r에는 RMD를 보내지 않아야 함", listOf("/r/other"), client.removeDirectoryRequests)
     }
+
+    @Test
+    fun `목록에 보인 항목을 모두 지웠는데 RMD가 거부되면 보이지 않는 항목이 남았을 수 있음을 함께 알린다`() {
+        runBlocking { session.markLoggedIn() }
+        client.features = setOf("MLST")
+        client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt"))
+        client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Directory not empty"))
+
+        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
+
+        assertEquals(
+            IoResult.ItemFailed("RMD 실패: 550 Directory not empty (목록에 보이지 않는 항목(숨김 파일 등)이 남아 있으면 지울 수 없습니다)"),
+            result
+        )
+        assertEquals(listOf("/r/a.txt"), client.deleteRequests)
+    }
 }
