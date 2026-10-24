@@ -46,16 +46,18 @@ private fun RemoteFileListConnectionEffects(
 /**
  * 원격 스토리지의 파일 목록을 표시하고 I/O 작업(다운로드·업로드·이름변경·삭제·새폴더)을 제공하는 화면.
  * @param selectedList 선택 목록을 반환하는 함수 — 값을 실제로 쓰는 하위 컴포저블에서 읽어 선택 변경 시 리컴포지션 범위를 좁힌다
+ * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
+ * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
  */
 @Composable
 fun RemoteFileListFrag(
     modifier: Modifier,
     selectMode: RemoteSelectMode,
     selectedList: () -> List<FileHolderItem>,
-    onSelectModeChange: (RemoteSelectMode) -> Unit,
+    onStartMultiSelect: (FileHolderItem) -> Unit,
+    onResetSelection: () -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
-    clearList: () -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     onSwitchToLocal: () -> Unit = {},
     onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
@@ -88,10 +90,7 @@ fun RemoteFileListFrag(
         UnreadableServerDialog(onDismiss = viewModel::dismissUnreadableServer)
     }
 
-    BackHandler(enabled = selectMode == SelectMode.MultiSelect) {
-        onSelectModeChange(SelectMode.Default)
-        clearList()
-    }
+    BackHandler(enabled = selectMode == SelectMode.MultiSelect, onBack = onResetSelection)
 
     Column(modifier = modifier.fillMaxSize()) {
         OptionFrag(
@@ -116,19 +115,17 @@ fun RemoteFileListFrag(
                 selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },
-                onStartMultiSelect = { onSelectModeChange(SelectMode.MultiSelect) },
+                onStartMultiSelect = onStartMultiSelect,
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,
-                removeFromList = removeFromList,
-                clearList = clearList
+                removeFromList = removeFromList
             )
         }
 
         RemoteBottomButtonListView(
             modifier = Modifier,
             selectMode = selectMode,
-            onSelectModeChange = onSelectModeChange,
-            onClearSelection = clearList,
+            onResetSelection = onResetSelection,
             selectedList = selectedList,
             onRename = viewModel::onRename,
             validateRename = viewModel::validateRename,

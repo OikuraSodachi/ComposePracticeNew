@@ -53,11 +53,10 @@ fun FileListView(
     selectedList: () -> List<FileHolderItem>,
     selectMode: SelectMode,
     onItemClick: (FileHolderItem) -> Unit,
-    onStartMultiSelect: () -> Unit,
+    onStartMultiSelect: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     addToList: (FileHolderItem) -> Unit,
-    removeFromList: (FileHolderItem) -> Unit,
-    clearList: () -> Unit
+    removeFromList: (FileHolderItem) -> Unit
 ) {
     // items{} 밖에서 1회 생성 — 스크롤 시 painterResource가 item 수만큼 호출되는 것을 방지
     val folderIcon = painterResource(DataR.drawable.ic_baseline_folder_24)

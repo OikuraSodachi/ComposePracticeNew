@@ -21,6 +21,9 @@ import com.todokanai.composepracticenew.viewmodel.FileListViewModel
  * 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다.
  * @param selectedList 선택 목록을 반환하는 함수 — 값을 실제로 쓰는 하위 컴포저블에서 읽어 선택 변경 시 리컴포지션 범위를 좁힌다
  * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
+ * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
+ * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
+ * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
  */
 @Composable
 fun FileListFrag(
@@ -28,10 +31,11 @@ fun FileListFrag(
     selectMode: LocalSelectMode,
     selectedList: () -> List<FileHolderItem>,
     selectionSummary: () -> SelectionSummary,
-    onSelectModeChange: (LocalSelectMode) -> Unit,
+    onStartMultiSelect: (FileHolderItem) -> Unit,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
+    onResetSelection: () -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
-    clearList: () -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     onSwitchToRemote: () -> Unit = {},
     onConfirmDownload: () -> Unit = {},
@@ -47,10 +51,7 @@ fun FileListFrag(
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
 
-    BackHandler(enabled = selectMode == SelectMode.MultiSelect) {
-        onSelectModeChange(SelectMode.Default)
-        clearList()
-    }
+    BackHandler(enabled = selectMode == SelectMode.MultiSelect, onBack = onResetSelection)
 
     Column(
         modifier = modifier
@@ -78,19 +79,18 @@ fun FileListFrag(
                 selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },
-                onStartMultiSelect = { onSelectModeChange(SelectMode.MultiSelect) },
+                onStartMultiSelect = onStartMultiSelect,
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,
-                removeFromList = removeFromList,
-                clearList = clearList
+                removeFromList = removeFromList
             )
         }
 
         BottomButtonListView(
             modifier = Modifier,
             selectMode = selectMode,
-            onSelectModeChange = onSelectModeChange,
-            onClearSelection = clearList,
+            onSelectOperation = onSelectOperation,
+            onResetSelection = onResetSelection,
             selectedList = selectedList,
             selectionSummary = selectionSummary,
             onConfirmDownload = onConfirmDownload,

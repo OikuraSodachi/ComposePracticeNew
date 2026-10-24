@@ -61,8 +61,7 @@ private fun RemoteRenameDialogHost(
  *
  * @param modifier 레이아웃 수정자
  * @param selectMode 현재 선택 모드
- * @param onSelectModeChange 선택 모드 변경 요청 콜백
- * @param onClearSelection 선택 목록 초기화 콜백
+ * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
  * @param onRename 이름 변경 실행 콜백
  * @param validateRename 이름을 바꿀 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
@@ -77,8 +76,7 @@ private fun RemoteRenameDialogHost(
 fun RemoteBottomButtonListView(
     modifier: Modifier,
     selectMode: RemoteSelectMode,
-    onSelectModeChange: (RemoteSelectMode) -> Unit,
-    onClearSelection: () -> Unit,
+    onResetSelection: () -> Unit,
     selectedList: () -> List<FileHolderItem>,
     onRename: (FileHolderItem, String) -> Unit,
     validateRename: (FileHolderItem, String) -> Set<FileNameError>,
@@ -117,8 +115,7 @@ fun RemoteBottomButtonListView(
         DeleteDialog(
             onConfirm = {
                 onDelete(currentSelectedList.toList())
-                onSelectModeChange(SelectMode.Default)
-                onClearSelection()
+                onResetSelection()
             },
             onDismiss = { showDeleteDialog = false }
         )
@@ -135,8 +132,6 @@ fun RemoteBottomButtonListView(
             ) {
                 TextButton(onClick = {
                     onEnterDownloadMode(currentSelectedList.toList())
-                    onSelectModeChange(SelectMode.Default)
-                    onClearSelection()
                 }) { Text(strRemoteDownload) }
                 TextButton(
                     enabled = currentSelectedList.isNotEmpty(),
@@ -146,8 +141,7 @@ fun RemoteBottomButtonListView(
                     enabled = currentSelectedList.size == 1,
                     onClick = {
                         renameTarget = currentSelectedList.first()
-                        onSelectModeChange(SelectMode.Default)
-                        onClearSelection()
+                        onResetSelection()
                     }
                 ) { Text(strRemoteRename) }
             }
@@ -157,7 +151,7 @@ fun RemoteBottomButtonListView(
                 modifier = modifier,
                 // 선택 초기화는 실제 실행 시점에 coordinator가 담당 — 충돌 확인을 취소하면 업로드 확인 모드가 유지된다
                 confirm = onConfirmUpload,
-                cancel = { onSelectModeChange(SelectMode.Default) },
+                cancel = onResetSelection,
                 mode = SelectMode.Upload
             )
         }

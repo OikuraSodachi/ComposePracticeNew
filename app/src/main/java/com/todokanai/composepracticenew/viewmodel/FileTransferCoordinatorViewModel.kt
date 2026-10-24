@@ -6,26 +6,23 @@ import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
-import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import javax.inject.Inject
 
 /**
- * 로컬·원격 파일 탐색기 간 선택 상태와 전송 대기 목록을 조율하고, 대기 목록의 다운로드·업로드(충돌 확인 포함)를 실행하는 ViewModel.
+ * 로컬·원격 파일 탐색기의 선택 상태([SelectionState] — 전송 대기 목록 포함)를 조율하고, 대기 목록의 다운로드·업로드(충돌 확인 포함)를 실행하는 ViewModel.
  * FILE_BROWSER_GRAPH에 scoped된다.
  * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 로컬 목록을 제공하는 UseCase
  * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록을 제공하는 UseCase
@@ -42,38 +39,27 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private val messages: OperationMessages,
 ) : ViewModel() {
 
-    private val _localSelectMode = MutableStateFlow<LocalSelectMode>(SelectMode.Default)
-    /** 로컬 파일 목록 화면의 현재 선택 모드. */
-    val localSelectMode: StateFlow<LocalSelectMode> = _localSelectMode.asStateFlow()
+    /** 로컬 화면의 선택 상태 — 다운로드 대기 목록도 이 상태(다운로드 목적지 확인)에만 있다. */
+    private val local = SelectionStateHolder<SelectMode.LocalOperation, SelectMode.Download>()
+    /** 원격 화면의 선택 상태 — 업로드 대기 목록도 이 상태(업로드 목적지 확인)에만 있다. 원격 작업은 아직 없다. */
+    private val remote = SelectionStateHolder<Nothing, SelectMode.Upload>()
 
-    private val _remoteSelectMode = MutableStateFlow<RemoteSelectMode>(SelectMode.Default)
-    /** 원격 파일 목록 화면의 현재 선택 모드. */
-    val remoteSelectMode: StateFlow<RemoteSelectMode> = _remoteSelectMode.asStateFlow()
+    /** 로컬 파일 목록 화면의 선택 상태(모드와 선택·다운로드 대기 목록). */
+    val localSelection: StateFlow<SelectionState<SelectMode.LocalOperation, SelectMode.Download>> = local.state
 
-    private val _localSelectedList = MutableStateFlow<List<FileHolderItem>>(emptyList())
-    /** 로컬 화면에서 선택된 파일 항목 목록. */
-    val localSelectedList: StateFlow<List<FileHolderItem>> = _localSelectedList.asStateFlow()
+    /** 원격 파일 목록 화면의 선택 상태(모드와 선택·업로드 대기 목록). */
+    val remoteSelection: StateFlow<SelectionState<Nothing, SelectMode.Upload>> = remote.state
 
     /** 로컬 선택 목록의 요약(개수·총 크기 표시 문자열). 정보 다이얼로그가 표시하며, 선택이 바뀔 때만 다시 계산한다. */
-    val localSelectionSummary: StateFlow<SelectionSummary> = _localSelectedList
+    val localSelectionSummary: StateFlow<SelectionSummary> = local.state
+        .map { it.selected }
+        .distinctUntilChanged()
         .map(SelectionSummary::from)
         .stateIn(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = SelectionSummary.from(emptyList())
         )
-
-    private val _remoteSelectedList = MutableStateFlow<List<FileHolderItem>>(emptyList())
-    /** 원격 화면에서 선택된 파일 항목 목록. */
-    val remoteSelectedList: StateFlow<List<FileHolderItem>> = _remoteSelectedList.asStateFlow()
-
-    private val _downloadPendingList = MutableStateFlow<List<FileHolderItem>>(emptyList())
-    /** 원격 → 로컬 다운로드 대기 목록. */
-    val downloadPendingList: StateFlow<List<FileHolderItem>> = _downloadPendingList.asStateFlow()
-
-    private val _uploadPendingList = MutableStateFlow<List<FileHolderItem>>(emptyList())
-    /** 로컬 → 원격 업로드 대기 목록. */
-    val uploadPendingList: StateFlow<List<FileHolderItem>> = _uploadPendingList.asStateFlow()
 
     /** 다운로드의 "충돌 검사 → 즉시 실행 / 사용자 확인 대기" 흐름을 관리한다. */
     private val downloadGate = ConflictGate()
@@ -85,85 +71,79 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /** 업로드 실행 전 사용자 확인을 기다리는 충돌. */
     val uploadConflict: StateFlow<PendingConflict?> = uploadGate.pending
 
-    fun setLocalSelectMode(mode: LocalSelectMode) { _localSelectMode.value = mode }
-    fun setRemoteSelectMode(mode: RemoteSelectMode) { _remoteSelectMode.value = mode }
+    /** first 하나를 선택한 채로 로컬 화면을 다중 선택 모드로 전환한다. */
+    fun startLocalMultiSelect(first: FileHolderItem) = local.startMultiSelect(first)
 
-    /** 호출부가 토글을 보장해야 한다. 이미 목록에 있는 항목을 다시 추가하면 중복이 발생한다. */
-    fun addToLocalList(item: FileHolderItem) { _localSelectedList.update { it + item } }
-    fun removeFromLocalList(item: FileHolderItem) { _localSelectedList.update { it - item } }
-    fun clearLocalList() { _localSelectedList.value = emptyList() }
+    /** 선택 목록을 유지한 채 로컬 작업(복사·이동·압축 해제)의 목적지 확인 단계로 전환한다. */
+    fun enterLocalOperation(operation: SelectMode.LocalOperation) = local.enterOperation(operation)
 
-    /** 호출부가 토글을 보장해야 한다. 이미 목록에 있는 항목을 다시 추가하면 중복이 발생한다. */
-    fun addToRemoteList(item: FileHolderItem) { _remoteSelectedList.update { it + item } }
-    fun removeFromRemoteList(item: FileHolderItem) { _remoteSelectedList.update { it - item } }
-    fun clearRemoteList() { _remoteSelectedList.value = emptyList() }
+    /** first 하나를 선택한 채로 원격 화면을 다중 선택 모드로 전환한다. */
+    fun startRemoteMultiSelect(first: FileHolderItem) = remote.startMultiSelect(first)
 
-    /** 로컬 선택 목록을 업로드 대기 목록으로 옮기고 양쪽 화면의 선택 모드를 전환한다. */
+    /** 로컬 다중 선택에 item을 더한다. 호출부가 토글을 보장해야 한다. */
+    fun addToLocalList(item: FileHolderItem) = local.add(item)
+    /** 로컬 다중 선택에서 item을 뺀다. */
+    fun removeFromLocalList(item: FileHolderItem) = local.remove(item)
+    /** 로컬 다중 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 사용한다. */
+    fun setLocalSelectedList(list: List<FileHolderItem>) = local.replaceSelection(list)
+
+    /** 원격 다중 선택에 item을 더한다. 호출부가 토글을 보장해야 한다. */
+    fun addToRemoteList(item: FileHolderItem) = remote.add(item)
+    /** 원격 다중 선택에서 item을 뺀다. */
+    fun removeFromRemoteList(item: FileHolderItem) = remote.remove(item)
+    /** 원격 다중 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 사용한다. */
+    fun setRemoteSelectedList(list: List<FileHolderItem>) = remote.replaceSelection(list)
+
+    /** 로컬 선택 목록을 업로드 대기 목록으로 원격 화면에 넘기고, 로컬 화면은 기본 모드로 되돌린다. */
     fun enterUploadMode() {
-        _uploadPendingList.value = _localSelectedList.value
-        _remoteSelectMode.value = SelectMode.Upload
-        _localSelectMode.value = SelectMode.Default
-        _localSelectedList.value = emptyList()
+        remote.receive(SelectMode.Upload, local.state.value.selected)
+        local.reset()
     }
 
-    /** items를 다운로드 대기 목록으로 설정하고 양쪽 화면의 선택 모드를 전환한다. */
+    /** items를 다운로드 대기 목록으로 로컬 화면에 넘기고, 원격 화면은 기본 모드로 되돌린다. */
     fun enterDownloadMode(items: List<FileHolderItem>) {
-        _downloadPendingList.value = items
-        _localSelectMode.value = SelectMode.Download
-        _remoteSelectMode.value = SelectMode.Default
-        _remoteSelectedList.value = emptyList()
+        local.receive(SelectMode.Download, items)
+        remote.reset()
     }
-
-    /** 로컬 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 clearList + 반복 addToList 대신 사용한다. */
-    fun setLocalSelectedList(list: List<FileHolderItem>) { _localSelectedList.value = list }
-
-    /** 원격 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 clearList + 반복 addToList 대신 사용한다. */
-    fun setRemoteSelectedList(list: List<FileHolderItem>) { _remoteSelectedList.value = list }
 
     /**
      * 다운로드 대기 목록을 현재 로컬 경로(충돌을 판정한 확인된 목록의 경로)로 다운로드한다. 이름 충돌이 있으면 [downloadConflict]로 확인을 요청한다.
-     * 실제로 실행됐을 때만 대기 목록을 비우고 로컬 선택 모드·선택 목록을 초기화한다.
-     * 확인을 취소하면 대기 목록과 다운로드 확인 모드가 유지되어 다시 확인할 수 있다.
+     * 실제로 실행됐을 때만 로컬 화면을 기본 모드로 되돌린다(대기 목록도 함께 사라짐).
+     * 확인을 취소하면 다운로드 확인 상태(대기 목록 포함)가 유지되어 다시 확인할 수 있다.
      * 현재 로컬 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다). 대기 목록은 유지된다.
+     * 로컬 화면이 다운로드 확인 상태가 아니면 다운로드할 대상이 없으므로 아무것도 하지 않는다.
      */
     fun confirmDownload() {
-        val pending = _downloadPendingList.value
+        val pending = (local.state.value as? SelectionState.Receiving)?.pending ?: return
         val checked = conflictCheckUseCase.findCopyMoveConflicts(pending, localNavigator) { it.name } ?: return
         downloadGate.request(pending, checked) { skip ->
             download(pending.excluding(skip), checked.destinationPath)
-            _downloadPendingList.value = emptyList()
-            resetLocalSelection()
+            local.reset()
         }
     }
 
     /**
      * 업로드 대기 목록을 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다. 이름 충돌이 있으면 [uploadConflict]로 확인을 요청한다.
      * 서버 응답으로 빈 폴더인지 확인하지 못한 목록이면 같은 이름의 파일이 덮어써질 수 있으므로 충돌이 없어 보여도 확인을 요청한다.
-     * 실제로 실행됐을 때만 대기 목록을 비우고 원격 선택 모드·선택 목록을 초기화한다.
-     * 확인을 취소하면 대기 목록과 업로드 확인 모드가 유지되어 다시 확인할 수 있다.
+     * 실제로 실행됐을 때만 원격 화면을 기본 모드로 되돌린다(대기 목록도 함께 사라짐).
+     * 확인을 취소하면 업로드 확인 상태(대기 목록 포함)가 유지되어 다시 확인할 수 있다.
      * 현재 원격 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다). 대기 목록은 유지된다.
+     * 원격 화면이 업로드 확인 상태가 아니면 업로드할 대상이 없으므로 아무것도 하지 않는다.
      */
     fun confirmUpload() {
-        val pending = _uploadPendingList.value
+        val pending = (remote.state.value as? SelectionState.Receiving)?.pending ?: return
         val checked = conflictCheckUseCase.findCopyMoveConflicts(pending, remoteNavigator) { it.name } ?: return
         uploadGate.request(pending, checked) { skip ->
             upload(pending.excluding(skip), checked.destinationPath)
-            _uploadPendingList.value = emptyList()
-            resetRemoteSelection()
+            remote.reset()
         }
     }
 
-    /** 로컬 화면을 기본 모드로 되돌리고 선택 목록을 비운다. */
-    private fun resetLocalSelection() {
-        _localSelectMode.value = SelectMode.Default
-        _localSelectedList.value = emptyList()
-    }
+    /** 로컬 화면을 기본 모드로 되돌린다. 선택 목록·다운로드 대기 목록도 함께 사라진다. */
+    fun resetLocalSelection() = local.reset()
 
-    /** 원격 화면을 기본 모드로 되돌리고 선택 목록을 비운다. */
-    private fun resetRemoteSelection() {
-        _remoteSelectMode.value = SelectMode.Default
-        _remoteSelectedList.value = emptyList()
-    }
+    /** 원격 화면을 기본 모드로 되돌린다. 선택 목록·업로드 대기 목록도 함께 사라진다. */
+    fun resetRemoteSelection() = remote.reset()
 
     /** 대기 중인 다운로드 충돌을 사용자 선택대로 처리한다. */
     fun resolveDownloadConflict(resolution: ConflictResolution) { downloadGate.resolve(resolution) }

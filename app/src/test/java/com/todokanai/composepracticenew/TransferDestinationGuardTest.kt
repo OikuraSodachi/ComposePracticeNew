@@ -5,6 +5,8 @@ import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -82,7 +84,7 @@ class TransferDestinationGuardTest {
 
         assertTrue(transferRepo.calls.isEmpty())
         assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
-        assertEquals(listOf(upload), viewModel.uploadPendingList.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
     }
 
     @Test
@@ -138,12 +140,12 @@ class TransferDestinationGuardTest {
 
         assertTrue(transferRepo.calls.isEmpty())
         assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
-        assertEquals(listOf(download), viewModel.downloadPendingList.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(download)), viewModel.localSelection.value)
     }
 
-    /** 로컬 선택 목록을 업로드 대기 목록으로 옮긴다. */
+    /** 로컬 다중 선택 목록을 업로드 대기 목록으로 옮긴다. */
     private fun enterUpload() {
-        viewModel.setLocalSelectedList(listOf(upload))
+        viewModel.startLocalMultiSelect(upload)
         viewModel.enterUploadMode()
     }
 
