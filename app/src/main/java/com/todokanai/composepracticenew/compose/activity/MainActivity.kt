@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelStoreOwner
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
+import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_INSTANCE_ID
 import com.todokanai.composepracticenew.navigation.AppNavHost
 import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
@@ -100,7 +101,8 @@ class MainActivity : ComponentActivity() {
 
     private fun handleProgressIntent(intent: Intent?) {
         val actionKey = intent?.getIntExtra(EXTRA_ACTION_KEY, -1) ?: return
-        if (actionKey != -1) mViewModel.requestShowProgressDialog(actionKey)
+        val instanceId = intent.getIntExtra(EXTRA_INSTANCE_ID, -1)
+        if (actionKey != -1 && instanceId != -1) mViewModel.requestShowProgressDialog(actionKey, instanceId)
     }
 }
 

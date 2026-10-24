@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CoroutineScope
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * 파일 작업의 공통 인프라(인스턴스 ID, 진행 핸들, 콜백, 실행 스코프)를 제공하는 오케스트레이터.
@@ -19,10 +18,23 @@ class FileOperationOrchestrator(
     private val progressRepo: ProgressRepository,
     private val appScope: CoroutineScope
 ) {
-    private val instanceCounter = AtomicInteger(0)
+    /** ID 발급과 진행 상태 등록을 한 단위로 묶는 잠금. 동시에 시작한 작업들이 progressMap에 ID 순서대로 나타나게 한다. */
+    private val startLock = Any()
 
-    /** 새 작업 인스턴스 ID를 할당한 ProgressHandle을 반환한다. */
-    fun progressHandle() = ProgressHandle(instanceCounter.incrementAndGet(), progressRepo)
+    /** 마지막으로 발급한 작업 인스턴스 ID. [startLock] 안에서만 읽고 쓴다. */
+    private var lastInstanceId = 0
+
+    /**
+     * 새 작업 인스턴스 ID를 할당한 ProgressHandle을 반환한다. ID는 발급 순서대로 커지므로, 더 큰 ID가 더 나중에 시작한 작업이다.
+     * 진행 표시가 있는 작업은 발급과 동시에 진행 상태(진행률 보고 전)를 등록한다. 그래서 progressMap에 나타나는 시점이 곧 작업 시작이다.
+     * @param operationType 작업 종류. null이면 순간 작업이라 등록하지 않는다
+     * @return 발급한 ID의 ProgressHandle
+     */
+    private fun startHandle(operationType: FileOperationType?): ProgressHandle = synchronized(startLock) {
+        val handle = ProgressHandle(++lastInstanceId, progressRepo)
+        if (operationType != null) handle.set(ProgressState(operationType = operationType))
+        handle
+    }
 
     /**
      * 작업 완료·실패 처리를 담당하는 OperationCallback을 생성한다.
@@ -39,7 +51,8 @@ class FileOperationOrchestrator(
 
     /**
      * 파일 작업을 실행하고 진행 상태 보고·알림·완료 처리를 통합한다.
-     * 순간 작업(onProgress 미사용)은 progressMap에 등록되지 않아 ForegroundService 보호 대상에서 제외된다.
+     * 진행 표시가 있는 작업은 시작하자마자 progressMap에 등록되어 첫 진행률 보고 전 준비 단계부터 ForegroundService 보호를 받는다.
+     * 순간 작업(operationType null)은 progressMap에 등록되지 않아 보호 대상에서 제외된다.
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param operationType 작업 종류. null이면 진행 알림 없음
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
@@ -52,7 +65,7 @@ class FileOperationOrchestrator(
         onRefresh: suspend () -> Unit,
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) {
-        val handle = progressHandle()
+        val handle = startHandle(operationType)
         appScope.launchOperation(handle, callback(completionMessage, operationType, onRefresh)) {
             block { state ->
                 val stateWithType = state.copy(operationType = operationType)

@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
+import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_INSTANCE_ID
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -55,7 +56,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setOngoing(true)
             .setProgress(100, 100 * idx / total, false)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(buildClickIntent(type.id))
+            .setContentIntent(buildClickIntent(type.id, notifId))
         notifyIfPermitted(notifId, builder)
     }
 
@@ -69,7 +70,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setContentText("$progress %")
             .setProgress(100, progress, false)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(buildClickIntent(type?.id ?: 0))
+            .setContentIntent(buildClickIntent(type?.id ?: 0, notifId))
         notifyIfPermitted(notifId, builder)
     }
 
@@ -85,14 +86,18 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         null                       -> "Processing"
     }
 
-    /** 알림 클릭 시 앱을 열고 [operationTypeId] 작업의 진행률 다이얼로그를 복원하는 PendingIntent를 만든다. */
-    private fun buildClickIntent(operationTypeId: Int): PendingIntent? {
+    /**
+     * 알림 클릭 시 앱을 열고 [instanceId] 작업의 진행률 다이얼로그를 띄우는 PendingIntent를 만든다.
+     * requestCode를 작업 인스턴스 ID로 두어, 같은 종류의 작업이 여럿이어도 알림마다 자기 작업을 가리키는 intent를 갖게 한다.
+     */
+    private fun buildClickIntent(operationTypeId: Int, instanceId: Int): PendingIntent? {
         val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra(EXTRA_ACTION_KEY, operationTypeId)
+            putExtra(EXTRA_INSTANCE_ID, instanceId)
         } ?: return null
         return PendingIntent.getActivity(
-            context, operationTypeId, intent,
+            context, instanceId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }

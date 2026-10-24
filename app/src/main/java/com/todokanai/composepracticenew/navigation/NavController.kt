@@ -89,7 +89,7 @@ fun AppNavHost(
 
     // 화면 이동과 무관하게 하나만 둔다 — 닫음 상태는 Activity 스코프 mainViewModel이 소유
     ProgressSection(
-        visibleProgress = mainViewModel.visibleProgress,
+        shownProgress = mainViewModel.shownProgress,
         openDialogRegistry = openDialogRegistry,
         onDismiss = mainViewModel::dismissProgressDialog,
         // TODO: 작업 취소 연결 예정
