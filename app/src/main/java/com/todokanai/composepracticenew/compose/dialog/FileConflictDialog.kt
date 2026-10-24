@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -13,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
 /**
@@ -32,7 +32,7 @@ fun FileConflictDialog(
         UnconfirmedDestinationDialog(onContinue = onOverwrite, onCancel = onCancel)
         return
     }
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onCancel,
         title = { Text(stringResource(R.string.dialog_file_conflict_title)) },
         text = {
@@ -65,7 +65,7 @@ fun FileConflictDialog(
 /** 목적지의 기존 파일을 확인하지 못해 같은 이름의 파일이 덮어써질 수 있음을 알리고 계속할지 묻는 다이얼로그. */
 @Composable
 private fun UnconfirmedDestinationDialog(onContinue: () -> Unit, onCancel: () -> Unit) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onCancel,
         title = { Text(stringResource(R.string.dialog_unconfirmed_destination_title)) },
         text = { Text(stringResource(R.string.dialog_unconfirmed_destination_message)) },

@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.navigation
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -22,6 +23,8 @@ import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
+import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
+import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
@@ -57,24 +60,29 @@ fun AppNavHost(
         }
     }
 
-    NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
-        composable(NavDestinations.STORAGE) {
-            StorageFrag(
-                modifier = Modifier,
-                exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
-                exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
-                onExit = mainViewModel::exit
-            )
-        }
-        navigation(
-            startDestination = NavDestinations.FILE_LIST,
-            route = NavDestinations.FILE_BROWSER_GRAPH
-        ) {
-            composable(NavDestinations.FILE_LIST) {
-                FileListDestination(navController, mainViewModel)
+    // 키 없음 — AppNavHost가 살아 있는 동안 하나만 둔다. 다이얼로그가 등록한 수가 리컴포지션마다 초기화되지 않도록
+    val openDialogRegistry = remember { OpenDialogRegistry() }
+
+    CompositionLocalProvider(LocalOpenDialogRegistry provides openDialogRegistry) {
+        NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
+            composable(NavDestinations.STORAGE) {
+                StorageFrag(
+                    modifier = Modifier,
+                    exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
+                    exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
+                    onExit = mainViewModel::exit
+                )
             }
-            composable(NavDestinations.REMOTE_FILE_LIST) {
-                RemoteFileListDestination(navController, mainViewModel)
+            navigation(
+                startDestination = NavDestinations.FILE_LIST,
+                route = NavDestinations.FILE_BROWSER_GRAPH
+            ) {
+                composable(NavDestinations.FILE_LIST) {
+                    FileListDestination(navController, mainViewModel)
+                }
+                composable(NavDestinations.REMOTE_FILE_LIST) {
+                    RemoteFileListDestination(navController, mainViewModel)
+                }
             }
         }
     }
@@ -82,6 +90,7 @@ fun AppNavHost(
     // 화면 이동과 무관하게 하나만 둔다 — 닫음 상태는 Activity 스코프 mainViewModel이 소유
     ProgressSection(
         visibleProgress = mainViewModel.visibleProgress,
+        openDialogRegistry = openDialogRegistry,
         onDismiss = mainViewModel::dismissProgressDialog,
         // TODO: 작업 취소 연결 예정
         onCancel = {}

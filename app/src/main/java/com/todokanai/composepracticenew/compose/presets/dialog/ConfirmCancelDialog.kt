@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.compose.presets.dialog
 
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,7 +33,7 @@ fun ConfirmCancelDialog(
 ) {
     // 키 없음 — 다이얼로그 인스턴스가 살아 있는 동안 확인을 한 번만 처리; 상태 쓰기는 리컴포지션 전에도 즉시 보여 연타의 두 번째 클릭을 걸러낸다
     var confirmConsumed by remember { mutableStateOf(false) }
-    AlertDialog(
+    AppAlertDialog(
         modifier = modifier,
         onDismissRequest = onDismiss,
         title = title?.let { t -> @Composable { Text(text = t) } },
