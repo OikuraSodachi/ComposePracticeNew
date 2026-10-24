@@ -144,7 +144,8 @@ private fun FileListDestination(
         onRangeSelect = coordinator::setLocalSelectedList,
         onSwitchToRemote = {
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
-                popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
+                popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
             }
         },
         onConfirmDownload = coordinator::confirmDownload,
@@ -206,7 +207,8 @@ private fun RemoteFileListDestination(
         onSwitchToLocal = {
             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                 navController.navigate(NavDestinations.FILE_LIST) {
-                    popUpTo(NavDestinations.STORAGE) { inclusive = false }
+                    // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
+                    popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
                 }
             }
         },
