@@ -20,7 +20,7 @@ sealed interface SelectMode {
      * 로컬 화면에서 목적지로 이동한 뒤 확인 버튼으로 실행하는 로컬 파일 작업 모드. 실행 전 이름 충돌을 검사한다.
      * @param labelRes 확인 버튼에 표시할 문자열 리소스
      */
-    sealed class LocalOperation(@StringRes override val labelRes: Int) : LocalSelectMode, ConfirmMode {
+    sealed class LocalOperation(@StringRes override val labelRes: Int) : LocalSelectMode, SameStorageOperation {
         /** 복사 목적지 탐색 후 확인하는 모드. */
         data object Copy : LocalOperation(R.string.btn_copy)
         /** 이동 목적지 탐색 후 확인하는 모드. */
@@ -32,12 +32,12 @@ sealed interface SelectMode {
     }
 
     /** 로컬 화면에서 다운로드 목적지를 탐색한 뒤 확인하는 모드. */
-    data object Download : LocalSelectMode, ConfirmMode {
+    data object Download : LocalSelectMode, TransferMode {
         @StringRes override val labelRes: Int = R.string.btn_download
     }
 
     /** 원격 화면에서 업로드 목적지를 탐색한 뒤 확인하는 모드. */
-    data object Upload : RemoteSelectMode, ConfirmMode {
+    data object Upload : RemoteSelectMode, TransferMode {
         @StringRes override val labelRes: Int = R.string.btn_upload_confirm
     }
 }
@@ -54,3 +54,9 @@ sealed interface ConfirmMode : SelectMode {
     @get:StringRes
     val labelRes: Int
 }
+
+/** 선택한 항목과 같은 저장소에서 목적지를 고르는 작업 모드. 화면의 선택 목록이 작업 대상이다. */
+sealed interface SameStorageOperation : ConfirmMode
+
+/** 다른 화면에서 고른 항목을 받을 목적지를 고르는 전송 모드. 작업 대상은 이 화면의 선택이 아닌 전송 대기 목록이다. */
+sealed interface TransferMode : ConfirmMode

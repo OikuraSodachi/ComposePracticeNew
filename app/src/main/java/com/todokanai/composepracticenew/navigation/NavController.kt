@@ -5,6 +5,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -26,6 +27,8 @@ import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
+import com.todokanai.composepracticenew.ui.model.localMode
+import com.todokanai.composepracticenew.ui.model.remoteMode
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
@@ -114,9 +117,10 @@ private fun FileListDestination(
     val viewModel: FileListViewModel = hiltViewModel()
     val coordinator = rememberGraphCoordinator(navController)
 
-    val localSelectMode by coordinator.localSelectMode.collectAsStateWithLifecycle()
-    // State 객체만 보관하고 값은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
-    val localSelectedList = coordinator.localSelectedList.collectAsStateWithLifecycle()
+    // State 객체만 보관하고 선택 목록은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
+    val localSelection = coordinator.localSelection.collectAsStateWithLifecycle()
+    // localSelection을 추적하되 모드가 바뀔 때만 이 destination을 리컴포지션 — 선택 목록만 바뀐 경우는 무시
+    val localSelectMode by remember(localSelection) { derivedStateOf { localSelection.value.localMode() } }
     // 선택 요약도 State 객체만 보관 — 값은 정보 다이얼로그가 열렸을 때 그 안에서만 읽는다
     val localSelectionSummary = coordinator.localSelectionSummary.collectAsStateWithLifecycle()
     val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
@@ -130,7 +134,7 @@ private fun FileListDestination(
     FileListFrag(
         modifier = Modifier,
         selectMode = localSelectMode,
-        selectedList = { localSelectedList.value },
+        selectedList = { localSelection.value.selected },
         selectionSummary = { localSelectionSummary.value },
         onStartMultiSelect = coordinator::startLocalMultiSelect,
         onSelectOperation = coordinator::enterLocalOperation,
@@ -178,9 +182,10 @@ private fun RemoteFileListDestination(
     val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
     val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
 
-    val remoteSelectMode by coordinator.remoteSelectMode.collectAsStateWithLifecycle()
-    // State 객체만 보관하고 값은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
-    val remoteSelectedList = coordinator.remoteSelectedList.collectAsStateWithLifecycle()
+    // State 객체만 보관하고 선택 목록은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
+    val remoteSelection = coordinator.remoteSelection.collectAsStateWithLifecycle()
+    // remoteSelection을 추적하되 모드가 바뀔 때만 이 destination을 리컴포지션 — 선택 목록만 바뀐 경우는 무시
+    val remoteSelectMode by remember(remoteSelection) { derivedStateOf { remoteSelection.value.remoteMode() } }
     val uploadConflict by coordinator.uploadConflict.collectAsStateWithLifecycle()
 
     ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
@@ -192,7 +197,7 @@ private fun RemoteFileListDestination(
     RemoteFileListFrag(
         modifier = Modifier,
         selectMode = remoteSelectMode,
-        selectedList = { remoteSelectedList.value },
+        selectedList = { remoteSelection.value.selected },
         onStartMultiSelect = coordinator::startRemoteMultiSelect,
         onResetSelection = coordinator::resetRemoteSelection,
         addToList = coordinator::addToRemoteList,

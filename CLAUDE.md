@@ -66,7 +66,13 @@ SelectMode.Download                       — 로컬 화면, 다운로드 목적
 SelectMode.Upload                         — 원격 화면, 업로드 목적지 확인
 ```
 
-선택 모드와 선택 목록은 `FileTransferCoordinatorViewModel`의 전환 함수로만 함께 바꾼다. 기본 모드로 돌아가는 경로는 `resetLocalSelection` / `resetRemoteSelection`뿐이며 항상 선택 목록을 비운다(취소·뒤로가기·실행 후 모두). 모드만 따로 바꾸는 setter는 두지 않는다 — 행 강조는 선택 목록만 보고 그리므로, 모드만 되돌리면 선택 표시가 남는다.
+화면마다 선택 상태는 `SelectionState<Op, T>` 하나다(`FileTransferCoordinatorViewModel.localSelection` / `remoteSelection`, 전환은 `SelectionStateHolder`). 모드와 항목 목록을 한 값으로 묶어, 목록이 의미 있는 상태에만 둔다.
+
+- `MultiSelect(selected)`, `Operation(operation, selected)` — 이 화면의 선택이 작업 대상(같은 저장소 작업, `SameStorageOperation`).
+- `Receiving(transfer, pending)` — 다른 화면에서 고른 항목을 받는 전송 목적지(`TransferMode`: Download/Upload). 이 화면의 선택은 없고 대기 목록만 있다.
+- `Default` — 선택도 대기 목록도 없다. 취소·뒤로가기·실행 후 모두 여기로 돌아가며 목록은 함께 사라진다.
+
+UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedStateOf`로 모드 변경 시에만 리컴포지션), 행 강조는 `selected`만 본다. 원격 같은 저장소 작업(복사·이동)을 추가할 때는 원격의 `Op`(지금 `Nothing`)에 해당 타입을 넣는다.
 
 ### File Operations
 
