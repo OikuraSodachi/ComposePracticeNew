@@ -66,6 +66,8 @@ SelectMode.Download                       — 로컬 화면, 다운로드 목적
 SelectMode.Upload                         — 원격 화면, 업로드 목적지 확인
 ```
 
+선택 모드와 선택 목록은 `FileTransferCoordinatorViewModel`의 전환 함수로만 함께 바꾼다. 기본 모드로 돌아가는 경로는 `resetLocalSelection` / `resetRemoteSelection`뿐이며 항상 선택 목록을 비운다(취소·뒤로가기·실행 후 모두). 모드만 따로 바꾸는 setter는 두지 않는다 — 행 강조는 선택 목록만 보고 그리므로, 모드만 되돌리면 선택 표시가 남는다.
+
 ### File Operations
 
 - 로컬: `LocalFileOperationUseCase` → `FileActionRepository` → `LocalFileOperationDataSource`. 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalZipCompressor`, `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet), `LocalEntryMutator`)로 나뉜다.

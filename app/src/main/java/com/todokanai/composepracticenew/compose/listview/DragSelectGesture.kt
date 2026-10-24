@@ -38,7 +38,7 @@ private class DragSelectProgress {
  * @param listState 대상 LazyColumn의 스크롤 상태
  * @param fileList 현재 표시 중인 파일 항목 목록
  * @param selectMode 현재 선택 모드 — SelectMode.Default일 때만 드래그 선택이 시작된다
- * @param onStartMultiSelect 드래그 시작 시 다중 선택 모드로 전환을 요청하는 콜백
+ * @param onStartMultiSelect 드래그 시작 시 anchor 항목을 선택한 채로 다중 선택 모드로 전환을 요청하는 콜백
  * @param onRangeSelect anchor~현재 인덱스 범위의 항목 목록을 전달
  */
 @Composable
@@ -46,7 +46,7 @@ fun Modifier.dragSelectGesture(
     listState: LazyListState,
     fileList: List<FileHolderItem>,
     selectMode: SelectMode,
-    onStartMultiSelect: () -> Unit,
+    onStartMultiSelect: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit
 ): Modifier {
     // isDragSelecting만 LaunchedEffect 키로 쓰이므로 State로 유지 — 키 없이 1회 생성해 리컴포지션 간 드래그 상태 보존
@@ -100,8 +100,7 @@ fun Modifier.dragSelectGesture(
                 progress.lastReportedIndex = idx
                 progress.currentFingerY    = offset.y
                 isDragSelecting = true
-                latestOnRangeSelect(listOf(list[idx]))
-                latestOnStartMultiSelect()
+                latestOnStartMultiSelect(list[idx])
             },
             onDrag = { change, _ ->
                 if (isDragSelecting) {

@@ -85,39 +85,49 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /** 업로드 실행 전 사용자 확인을 기다리는 충돌. */
     val uploadConflict: StateFlow<PendingConflict?> = uploadGate.pending
 
-    fun setLocalSelectMode(mode: LocalSelectMode) { _localSelectMode.value = mode }
-    fun setRemoteSelectMode(mode: RemoteSelectMode) { _remoteSelectMode.value = mode }
+    // 선택 모드와 선택 목록은 아래 전환 함수로만 함께 바꾼다 — 모드만 기본으로 되돌려 선택이 남는 상태를 만들 수 없게 한다.
+
+    /** first 하나를 선택한 채로 로컬 화면을 다중 선택 모드로 전환한다. */
+    fun startLocalMultiSelect(first: FileHolderItem) {
+        _localSelectedList.value = listOf(first)
+        _localSelectMode.value = SelectMode.MultiSelect
+    }
+
+    /** 선택 목록을 유지한 채 로컬 작업(복사·이동·압축 해제)의 목적지 확인 단계로 전환한다. */
+    fun enterLocalOperation(operation: SelectMode.LocalOperation) { _localSelectMode.value = operation }
+
+    /** first 하나를 선택한 채로 원격 화면을 다중 선택 모드로 전환한다. */
+    fun startRemoteMultiSelect(first: FileHolderItem) {
+        _remoteSelectedList.value = listOf(first)
+        _remoteSelectMode.value = SelectMode.MultiSelect
+    }
 
     /** 호출부가 토글을 보장해야 한다. 이미 목록에 있는 항목을 다시 추가하면 중복이 발생한다. */
     fun addToLocalList(item: FileHolderItem) { _localSelectedList.update { it + item } }
     fun removeFromLocalList(item: FileHolderItem) { _localSelectedList.update { it - item } }
-    fun clearLocalList() { _localSelectedList.value = emptyList() }
 
     /** 호출부가 토글을 보장해야 한다. 이미 목록에 있는 항목을 다시 추가하면 중복이 발생한다. */
     fun addToRemoteList(item: FileHolderItem) { _remoteSelectedList.update { it + item } }
     fun removeFromRemoteList(item: FileHolderItem) { _remoteSelectedList.update { it - item } }
-    fun clearRemoteList() { _remoteSelectedList.value = emptyList() }
 
     /** 로컬 선택 목록을 업로드 대기 목록으로 옮기고 양쪽 화면의 선택 모드를 전환한다. */
     fun enterUploadMode() {
         _uploadPendingList.value = _localSelectedList.value
         _remoteSelectMode.value = SelectMode.Upload
-        _localSelectMode.value = SelectMode.Default
-        _localSelectedList.value = emptyList()
+        resetLocalSelection()
     }
 
     /** items를 다운로드 대기 목록으로 설정하고 양쪽 화면의 선택 모드를 전환한다. */
     fun enterDownloadMode(items: List<FileHolderItem>) {
         _downloadPendingList.value = items
         _localSelectMode.value = SelectMode.Download
-        _remoteSelectMode.value = SelectMode.Default
-        _remoteSelectedList.value = emptyList()
+        resetRemoteSelection()
     }
 
-    /** 로컬 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 clearList + 반복 addToList 대신 사용한다. */
+    /** 로컬 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 반복 addToList 대신 사용한다. */
     fun setLocalSelectedList(list: List<FileHolderItem>) { _localSelectedList.value = list }
 
-    /** 원격 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 clearList + 반복 addToList 대신 사용한다. */
+    /** 원격 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 반복 addToList 대신 사용한다. */
     fun setRemoteSelectedList(list: List<FileHolderItem>) { _remoteSelectedList.value = list }
 
     /**
@@ -153,14 +163,14 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         }
     }
 
-    /** 로컬 화면을 기본 모드로 되돌리고 선택 목록을 비운다. */
-    private fun resetLocalSelection() {
+    /** 로컬 화면을 기본 모드로 되돌리고 선택 목록을 비운다. 기본 모드로 돌아가는 유일한 경로다. */
+    fun resetLocalSelection() {
         _localSelectMode.value = SelectMode.Default
         _localSelectedList.value = emptyList()
     }
 
-    /** 원격 화면을 기본 모드로 되돌리고 선택 목록을 비운다. */
-    private fun resetRemoteSelection() {
+    /** 원격 화면을 기본 모드로 되돌리고 선택 목록을 비운다. 기본 모드로 돌아가는 유일한 경로다. */
+    fun resetRemoteSelection() {
         _remoteSelectMode.value = SelectMode.Default
         _remoteSelectedList.value = emptyList()
     }

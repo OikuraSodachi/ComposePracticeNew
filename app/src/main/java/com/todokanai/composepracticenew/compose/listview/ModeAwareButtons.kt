@@ -16,8 +16,8 @@ import com.todokanai.composepracticenew.ui.model.SelectMode
  * @param selectedList 현재 선택된 파일 목록
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
  * @param onConfirmWithConflictCheck 로컬 작업 실행을 요청하는 콜백 — 충돌 판단은 ViewModel이 수행한다
- * @param onSelectModeChange 선택 모드 변경 요청 콜백
- * @param onResetSelection 선택 모드·선택 목록을 초기화하는 콜백
+ * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
+ * @param onResetSelection 선택 모드·선택 목록을 초기화하는 콜백 — 확인 단계의 취소도 선택을 비운다
  * @param onConfirmDownload 다운로드 확인 콜백 — 선택 초기화는 실제 실행 시점에 coordinator가 담당한다
  * @param onEnterUploadMode 업로드 모드 진입 콜백
  */
@@ -28,7 +28,7 @@ fun ModeAwareButtons(
     selectedList: List<FileHolderItem>,
     dialogState: BottomButtonDialogState,
     onConfirmWithConflictCheck: (SelectMode.LocalOperation) -> Unit,
-    onSelectModeChange: (LocalSelectMode) -> Unit,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
     onConfirmDownload: () -> Unit,
     onEnterUploadMode: () -> Unit,
@@ -38,12 +38,12 @@ fun ModeAwareButtons(
         SelectMode.MultiSelect -> {
             BottomButtons(
                 modifier = modifier,
-                move = { onSelectModeChange(SelectMode.LocalOperation.Move) },
-                copy = { onSelectModeChange(SelectMode.LocalOperation.Copy) },
+                move = { onSelectOperation(SelectMode.LocalOperation.Move) },
+                copy = { onSelectOperation(SelectMode.LocalOperation.Copy) },
                 delete = { dialogState.openDelete() },
                 zip = { dialogState.openZip() },
-                unzip = { onSelectModeChange(SelectMode.LocalOperation.Unzip) },
-                unzipHere = { onSelectModeChange(SelectMode.LocalOperation.UnzipHere) },
+                unzip = { onSelectOperation(SelectMode.LocalOperation.Unzip) },
+                unzipHere = { onSelectOperation(SelectMode.LocalOperation.UnzipHere) },
                 rename = { dialogState.openRename() },
                 info = { dialogState.openInfo() },
                 upload = {
@@ -56,13 +56,13 @@ fun ModeAwareButtons(
         is SelectMode.LocalOperation -> ConfirmButtons(
             modifier = modifier,
             confirm = { onConfirmWithConflictCheck(selectMode) },
-            cancel = { onSelectModeChange(SelectMode.Default) },
+            cancel = onResetSelection,
             mode = selectMode
         )
         SelectMode.Download -> ConfirmButtons(
             modifier = modifier,
             confirm = onConfirmDownload,
-            cancel = { onSelectModeChange(SelectMode.Default) },
+            cancel = onResetSelection,
             mode = SelectMode.Download
         )
     }

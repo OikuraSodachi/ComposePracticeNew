@@ -132,10 +132,11 @@ private fun FileListDestination(
         selectMode = localSelectMode,
         selectedList = { localSelectedList.value },
         selectionSummary = { localSelectionSummary.value },
-        onSelectModeChange = coordinator::setLocalSelectMode,
+        onStartMultiSelect = coordinator::startLocalMultiSelect,
+        onSelectOperation = coordinator::enterLocalOperation,
+        onResetSelection = coordinator::resetLocalSelection,
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,
-        clearList = coordinator::clearLocalList,
         onRangeSelect = coordinator::setLocalSelectedList,
         onSwitchToRemote = {
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
@@ -192,10 +193,10 @@ private fun RemoteFileListDestination(
         modifier = Modifier,
         selectMode = remoteSelectMode,
         selectedList = { remoteSelectedList.value },
-        onSelectModeChange = coordinator::setRemoteSelectMode,
+        onStartMultiSelect = coordinator::startRemoteMultiSelect,
+        onResetSelection = coordinator::resetRemoteSelection,
         addToList = coordinator::addToRemoteList,
         removeFromList = coordinator::removeFromRemoteList,
-        clearList = coordinator::clearRemoteList,
         onRangeSelect = coordinator::setRemoteSelectedList,
         onSwitchToLocal = {
             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
