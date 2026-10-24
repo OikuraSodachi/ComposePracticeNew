@@ -50,6 +50,7 @@ class MainViewModel @Inject constructor(
                 initialValue = emptyMap()
             )
 
+    /** 원격 파일 목록 화면으로의 이동 요청을 화면이 수집할 때까지 하나만 보관하는 채널. 연속 요청은 한 번의 이동으로 합쳐진다. */
     private val _remoteProgressNavigation = Channel<Unit>(Channel.CONFLATED)
     /** 원격 전송 알림 클릭으로 원격 파일 목록 화면으로 이동해야 할 때 발행된다. */
     val remoteProgressNavigation: Flow<Unit> = _remoteProgressNavigation.receiveAsFlow()
