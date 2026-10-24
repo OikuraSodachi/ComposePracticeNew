@@ -21,7 +21,7 @@ class FileOperationOrchestrator(
 ) {
     private val instanceCounter = AtomicInteger(0)
 
-    /** 새 작업 인스턴스 ID를 할당한 ProgressHandle을 반환한다. */
+    /** 새 작업 인스턴스 ID를 할당한 ProgressHandle을 반환한다. ID는 발급 순서대로 커지므로, 더 큰 ID가 더 나중에 시작한 작업이다. */
     fun progressHandle() = ProgressHandle(instanceCounter.incrementAndGet(), progressRepo)
 
     /**

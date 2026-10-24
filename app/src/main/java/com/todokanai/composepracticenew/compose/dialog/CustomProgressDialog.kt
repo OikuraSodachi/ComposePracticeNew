@@ -31,30 +31,22 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressStateModel
 
 /**
- * 하나 이상의 파일 작업 진행률을 표시하는 다이얼로그. progressMap이 비어 있으면 호출하지 않을 것.
+ * 파일 작업 하나의 진행률을 표시하는 다이얼로그.
  *
+ * @param progress 표시할 작업의 진행 상태.
  * @param onDismissRequest 다이얼로그 바깥 탭·뒤로가기·닫기 버튼의 콜백. 작업은 계속 진행된다.
- * @param onCancel 진행 중인 파일 작업을 취소하는 버튼의 콜백.
+ * @param onCancel 이 작업을 취소하는 버튼의 콜백.
  */
 @Composable
 fun CustomProgressDialog(
-    progressMap: Map<Int, ProgressStateModel>,
+    progress: ProgressStateModel,
     onDismissRequest: () -> Unit = {},
     onCancel: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
         title = { Text(stringResource(R.string.progress_dialog_title)) },
-        text = {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                progressMap.values.forEach { state ->
-                    ProgressItem(state)
-                }
-            }
-        },
+        text = { ProgressItem(progress) },
         confirmButton = {
             TextButton(onClick = onDismissRequest) {
                 Text(stringResource(R.string.btn_dismiss))
@@ -166,10 +158,7 @@ private fun ProgressLinearIndicator(
 private fun CustomProgressDialogPreview() {
     Surface {
         CustomProgressDialog(
-            progressMap = mapOf(
-                1 to ProgressStateModel(progress = 42, operationType = FileOperationType.COPY),
-                2 to ProgressStateModel(progress = 75, operationType = FileOperationType.ZIP)
-            )
+            progress = ProgressStateModel(progress = 42, operationType = FileOperationType.COPY)
         )
     }
 }

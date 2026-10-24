@@ -15,6 +15,7 @@ import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRe
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.navigation.ProgressSection
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
@@ -32,9 +33,12 @@ class ProgressDialogYieldTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
-    /** 진행 중인 업로드 하나가 표시 대상인 진행률 목록. */
-    private val visibleProgress = MutableStateFlow(
-        mapOf(1 to ProgressStateModel(progress = 30, operationType = FileOperationType.UPLOAD))
+    /** 진행률 다이얼로그에 띄울, 진행 중인 업로드 작업. */
+    private val shownProgress = MutableStateFlow<ShownProgress?>(
+        ShownProgress(
+            instanceId = 1,
+            progress = ProgressStateModel(progress = 30, operationType = FileOperationType.UPLOAD)
+        )
     )
 
     /** 진행률 다이얼로그 제목. */
@@ -94,7 +98,7 @@ class ProgressDialogYieldTest {
                 }
             }
             ProgressSection(
-                visibleProgress = visibleProgress,
+                shownProgress = shownProgress,
                 openDialogRegistry = registry,
                 onDismiss = {},
                 onCancel = {}
