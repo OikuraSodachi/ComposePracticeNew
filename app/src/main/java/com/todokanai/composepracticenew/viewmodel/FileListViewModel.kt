@@ -4,9 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.FileNameError
-import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
@@ -22,7 +20,6 @@ import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
-import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -40,7 +37,6 @@ import javax.inject.Inject
 /**
  * 로컬 파일 목록 화면의 탐색·목록 상태와 로컬 파일 작업(충돌 확인 포함)을 담당하는 ViewModel.
  * @param fileNavigatorUseCase 로컬 디렉터리 탐색 상태를 제공하는 UseCase
- * @param progressUseCase 진행 중인 작업 상태를 제공하는 UseCase
  * @param openFileUseCase 항목 열기(디렉터리 진입 포함)를 수행하는 UseCase
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
@@ -50,7 +46,6 @@ import javax.inject.Inject
 @HiltViewModel
 class FileListViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
-    progressUseCase: ProgressUseCase,
     private val openFileUseCase: OpenFileUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val localFileOperationUseCase: LocalFileOperationUseCase,
@@ -81,16 +76,6 @@ class FileListViewModel @Inject constructor(
             scope = viewModelScope,
             started = SharingStarted.WhileSubscribed(5_000),
             initialValue = UiState()
-        )
-
-    /** 동시에 진행 중인 파일 작업들의 progress 상태. 작업 인스턴스 ID(instanceId)를 키로 사용한다. */
-    val progressMap: StateFlow<Map<Int, ProgressStateModel>> = progressUseCase.progressMap
-        .map { map -> map.mapValues { (_, state) -> state.toModel() } }
-        .flowOn(Dispatchers.Default) // 크기 문자열 포맷을 메인 스레드 밖에서 수행
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyMap()
         )
 
     /** 현재 정렬 기준. DataStore에서 수집한다. */
