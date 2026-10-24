@@ -49,7 +49,10 @@ class MainActivity : ComponentActivity() {
                 if (!isGranted) finish()
             }
 
-        handleProgressIntent(intent)
+        // 시스템은 회전·프로세스 복원·최근 앱 실행 때도 처음 실행한 intent를 다시 넘기므로, 새로 받은 경우만 처리한다
+        if (isNewLaunchIntent(hasSavedState = savedInstanceState != null, intentFlags = intent.flags)) {
+            handleProgressIntent(intent)
+        }
     }
 
     private fun checkAndRequestPermissions() {
@@ -100,6 +103,16 @@ class MainActivity : ComponentActivity() {
         if (actionKey != -1) mViewModel.requestShowProgressDialog(actionKey)
     }
 }
+
+/**
+ * onCreate가 받은 intent가 새로 전달된 것인지 판정한다.
+ * 저장 상태가 있으면(회전 등 구성 변경, 프로세스 복원) 또는 최근 앱에서 다시 실행했으면 처음 실행한 intent를 다시 받은 것이다.
+ * @param hasSavedState onCreate의 savedInstanceState가 null이 아닌지
+ * @param intentFlags onCreate가 받은 intent의 flags
+ * @return 새로 전달된 intent이면 true
+ */
+internal fun isNewLaunchIntent(hasSavedState: Boolean, intentFlags: Int): Boolean =
+    !hasSavedState && (intentFlags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) == 0
 
 /** 앱 테마를 적용하고 navigation host를 표시하는 루트 화면. */
 @Composable
