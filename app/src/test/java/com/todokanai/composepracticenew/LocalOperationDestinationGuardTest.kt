@@ -12,7 +12,6 @@ import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
-import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -59,7 +58,6 @@ class LocalOperationDestinationGuardTest {
         val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, operationScope)
         viewModel = FileListViewModel(
             fileNavigatorUseCase = FileNavigatorUseCase(nav),
-            progressUseCase = ProgressUseCase(progressRepo),
             openFileUseCase = OpenFileUseCase(nav) {},
             sortModeUseCase = SortModeUseCase(InMemorySortPreference()),
             localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, fileActionRepo, FileNameUseCase()),

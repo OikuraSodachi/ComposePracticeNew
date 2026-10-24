@@ -5,10 +5,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.FileNameError
-import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.tools.OperationMessages
@@ -19,7 +17,6 @@ import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
@@ -43,7 +40,6 @@ import javax.inject.Inject
  * 다운로드·업로드 실행은 FileTransferCoordinatorViewModel이 담당한다.
  * @param fileNavigatorUseCase 원격 디렉터리 탐색 상태를 제공하는 UseCase
  * @param connectionServiceController 연결 유지 ForegroundService를 제어하는 컨트롤러
- * @param progressUseCase 진행 중인 작업 상태를 제공하는 UseCase
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param remoteFileOperationUseCase 원격 파일 조작을 실행하는 UseCase
  * @param connectionResilienceUseCase 연결 끊김 감지·자동 재연결 UseCase
@@ -54,7 +50,6 @@ import javax.inject.Inject
 class RemoteFileListViewModel @Inject constructor(
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val connectionServiceController: ConnectionServiceController,
-    progressUseCase: ProgressUseCase,
     private val sortModeUseCase: SortModeUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
@@ -77,19 +72,6 @@ class RemoteFileListViewModel @Inject constructor(
     private val _connectionLost = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 서버 측 연결 종료(idle timeout 등)로 원격 연결이 끊겼을 때 발행된다. */
     val connectionLost: SharedFlow<Unit> = _connectionLost.asSharedFlow()
-
-    /** 진행 중인 원격 전송 작업의 진행률 맵. ProgressDialog 표시에 사용한다. 원격 작업만 남겨 로컬 IO 항목을 제외한다. */
-    val remoteProgressMap: StateFlow<Map<Int, ProgressStateModel>> = progressUseCase.progressMap
-        .map { map ->
-            map.filter { (_, state) -> state.operationType?.isRemote == true }
-                .mapValues { (_, state) -> state.toModel() }
-        }
-        .flowOn(Dispatchers.Default) // 크기 문자열 포맷을 메인 스레드 밖에서 수행
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyMap()
-        )
 
     init {
         val path = fileNavigatorUseCase.currentPath.value
@@ -278,11 +260,6 @@ class RemoteFileListViewModel @Inject constructor(
             errorMessage = "디렉터리 생성 실패: $dirName",
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
-    }
-
-    /** 진행 중인 원격 전송(다운로드·업로드) 작업을 취소한다. */
-    fun onCancelTransfer() {
-        // TODO: 작업 취소 연결 예정
     }
 
     companion object {

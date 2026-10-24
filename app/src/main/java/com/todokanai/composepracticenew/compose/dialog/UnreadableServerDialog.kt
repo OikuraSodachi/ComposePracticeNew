@@ -1,11 +1,11 @@
 package com.todokanai.composepracticenew.compose.dialog
 
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
 
 /**
  * 서버의 파일 목록을 읽을 수 없어 연결을 종료했음을 알리는 다이얼로그. 이미 끝난 일을 알리므로 확인 버튼만 둔다.
@@ -13,7 +13,7 @@ import com.todokanai.composepracticenew.R
  */
 @Composable
 fun UnreadableServerDialog(onDismiss: () -> Unit) {
-    AlertDialog(
+    AppAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.dialog_unreadable_server_title)) },
         text = { Text(stringResource(R.string.dialog_unreadable_server_message)) },
