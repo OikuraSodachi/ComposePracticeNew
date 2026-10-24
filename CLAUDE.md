@@ -113,6 +113,6 @@ See [ROADMAP.md](ROADMAP.md).
 
 - 정렬 모드는 domain `SortMode` enum이다. `SortMode.id`는 DataStore 저장 전용(변경 금지)이며, 표시 문구는 app 레이어 exhaustive `when` → 문자열 리소스로 매핑한다.
 - 작업 종류는 `FileOperationType` enum. 진행 알림 Intent extra `EXTRA_ACTION_KEY`에는 `FileOperationType.id`를, `EXTRA_INSTANCE_ID`와 PendingIntent requestCode에는 작업 인스턴스 ID를 사용한다(알림마다 자기 작업을 가리키도록).
-- 진행률 다이얼로그는 한 번에 한 작업만 띄운다(`ProgressDialogSelection`). 새 작업이 시작되면 가장 나중에 시작한 작업을 띄우고, 닫거나 작업이 끝나도 다른 작업으로 넘어가지 않는다. 알림을 누르면 그 알림의 작업을 띄운다.
+- 진행률 다이얼로그는 한 번에 한 작업만 띄운다(`ProgressDialogSelection`). 새 작업이 시작되면 가장 나중에 시작한 작업을 띄우고, 닫거나 작업이 끝나도 다른 작업으로 넘어가지 않는다. 앱을 열 때(ViewModel 생성 시) 이미 진행 중인 작업은 새 작업으로 보지 않는다. 알림을 누르면 그 알림의 작업을 띄운다.
 - Compose "fragments" (`*Frag`) are stateless composables that receive a ViewModel; they are not Android `Fragment` classes.
 - Compose "holders" (`*Holder`) are item-level composables for list rows.

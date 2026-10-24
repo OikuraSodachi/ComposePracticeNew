@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -47,11 +48,7 @@ class ProgressDialogVisibilityTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        viewModel = MainViewModel(
-            getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
-            progressUseCase = ProgressUseCase(progressRepo),
-            exitHandler = NoOpExitHandler
-        )
+        viewModel = createViewModel()
     }
 
     @After
@@ -122,6 +119,40 @@ class ProgressDialogVisibilityTest {
 
         awaitShownId(1)
     }
+
+    @Test
+    fun `앱을 열 때 이미 진행 중인 작업은 띄우지 않고 그 뒤 시작한 작업은 띄운다`() = runTest {
+        progressRepo.setProgressState(1, uploadAt(30))
+        viewModel = createViewModel()
+        backgroundScope.launch { viewModel.shownProgress.collect {} }
+        // 띄울 작업 계산이 Dispatchers.Default에서 도므로, 가상 시간이 아닌 실제 시간으로 기다려야 계산이 끝나기 전에 통과하지 않는다
+        val shownBeforeNewJob = withContext(Dispatchers.Default) {
+            withTimeoutOrNull(1_000) { viewModel.shownProgress.first { it != null } }
+        }
+        assertNull(shownBeforeNewJob)
+
+        progressRepo.setProgressState(2, copyAt(0))
+
+        awaitShownId(2)
+    }
+
+    @Test
+    fun `알림 클릭으로 앱을 열면 이미 진행 중이던 그 작업을 띄운다`() = runTest {
+        progressRepo.progressMap.value = mapOf(1 to uploadAt(30), 2 to copyAt(10))
+        viewModel = createViewModel()
+        backgroundScope.launch { viewModel.shownProgress.collect {} }
+
+        viewModel.requestShowProgressDialog(FileOperationType.UPLOAD.id, instanceId = 1)
+
+        awaitShownId(1)
+    }
+
+    /** [progressRepo]의 지금 상태로 ViewModel을 만든다. 앱을 여는 시점에 해당한다. */
+    private fun createViewModel() = MainViewModel(
+        getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
+        progressUseCase = ProgressUseCase(progressRepo),
+        exitHandler = NoOpExitHandler
+    )
 
     /** 띄울 작업의 ID가 [expected]가 될 때까지 기다린다. 끝내 되지 않으면 runTest 시간 제한으로 실패한다. */
     private suspend fun awaitShownId(expected: Int?) {

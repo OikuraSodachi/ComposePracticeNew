@@ -42,8 +42,13 @@ class MainViewModel @Inject constructor(
     private val exitHandler: AppExitHandler
 ) : ViewModel() {
 
-    /** 진행률 다이얼로그를 어느 작업에 띄울지. 진행 중인 작업 목록 변경, 닫기, 알림 클릭으로만 바뀐다. */
-    private val dialogSelection = MutableStateFlow(ProgressDialogSelection())
+    /**
+     * 진행률 다이얼로그를 어느 작업에 띄울지. 진행 중인 작업 목록 변경, 닫기, 알림 클릭으로만 바뀐다.
+     * ViewModel을 만들 때(앱을 열 때) 이미 진행 중인 작업은 새 작업으로 보지 않아 저절로 띄우지 않는다.
+     */
+    private val dialogSelection = MutableStateFlow(
+        ProgressDialogSelection.startingWith(activeIdsOf(progressUseCase.progressMap.value))
+    )
 
     /** 진행률 다이얼로그에 띄울 작업. null이면 다이얼로그를 띄우지 않는다. */
     val shownProgress: StateFlow<ShownProgress?> =
@@ -51,7 +56,8 @@ class MainViewModel @Inject constructor(
             .flowOn(Dispatchers.Default) // 크기 문자열 포맷을 메인 스레드 밖에서 수행
             .stateIn(
                 scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5_000),
+                // 수집이 멈추면 마지막 값을 바로 버린다 — 복귀 직후 그 사이 끝난 작업의 다이얼로그가 다시 그려지지 않도록
+                started = SharingStarted.WhileSubscribed(5_000, replayExpirationMillis = 0),
                 initialValue = null
             )
 
