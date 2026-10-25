@@ -45,10 +45,14 @@ internal class FakeFtpClient : FTPClient() {
     var serverBehaviors: Map<String, ServerBehavior> = emptyMap()
     /** LIST 조회 시 돌려줄 원격 파일 이름. 모두 1바이트 파일로 돌려준다. */
     var remoteFiles: List<String> = emptyList()
+    /** LIST 조회 시 돌려줄 원격 디렉터리 이름. 어느 디렉터리를 조회해도 같은 이름을 돌려준다. */
+    var remoteDirectories: List<String> = emptyList()
     /** FEAT로 알릴 기능 이름. 대문자로 비교한다. */
     var features: Set<String> = emptySet()
     /** MLSD 응답 줄 — 디렉터리 FTP 경로 → MLSx 형식 줄. 없는 경로는 550으로 거부한다. */
     var mlsdListings: Map<String, List<String>> = emptyMap()
+    /** 디렉터리 FTP 경로 → MLSD 응답 줄. null이면 550으로 거부한다. 기본은 [mlsdListings]를 찾고, 경로마다 다른 목록을 끝없이 만들려면 바꾼다. */
+    var mlsdListingOf: (String) -> List<String>? = { mlsdListings[it] }
     /** 목록 조회에 쓴 명령과 경로(예: "MLSD /r", LIST 전 디렉터리 이동은 "CWD /r", 경로 없는 LIST는 "LIST"). */
     val listRequests = mutableListOf<String>()
     /** 데이터 스트림으로 내려줄 내용. null이면 스트림 요청을 [streamRefusal] 응답으로 거부한다. */
@@ -128,13 +132,15 @@ internal class FakeFtpClient : FTPClient() {
     override fun listFiles(pathname: String?): Array<FTPFile> {
         listRequests += listOfNotNull("LIST", pathname).joinToString(" ")
         return transferListing("LIST") {
-            remoteFiles.map { name -> FTPFile().apply { this.name = name; type = FTPFile.FILE_TYPE; size = 1 } }.toTypedArray()
+            val directories = remoteDirectories.map { name -> FTPFile().apply { this.name = name; type = FTPFile.DIRECTORY_TYPE } }
+            val files = remoteFiles.map { name -> FTPFile().apply { this.name = name; type = FTPFile.FILE_TYPE; size = 1 } }
+            (directories + files).toTypedArray()
         }
     }
 
     override fun mlistDir(pathname: String?): Array<FTPFile> {
         listRequests += "MLSD $pathname"
-        val lines = mlsdListings[pathname]
+        val lines = mlsdListingOf(pathname.orEmpty())
             ?: return respond("MLSD", refused = { emptyArray() }) { reply(550, "550 No such directory"); emptyArray() }
         return transferListing("MLSD") { lines.mapNotNull { MLSxEntryParser.parseEntry(it) }.toTypedArray() }
     }

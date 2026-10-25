@@ -94,7 +94,7 @@ internal object FtpReplyRules {
     fun isPreliminaryReply(replyCode: Int): Boolean = FTPReply.isPositivePreliminary(replyCode)
 
     /**
-     * 연결할 때 `-a` 옵션을 쓸지 정하려고 보낸 LIST가 목록을 돌려줬는지 판별한다([FtpListingFormat.probeHiddenListing]).
+     * 연결할 때 `-a` 옵션을 쓸지 정하려고 보낸 LIST가 목록을 돌려줬는지 판별한다([FtpListingFormat.negotiateListingOptions]).
      * 화면 목록과 달리 450을 빈 목록으로 보지 않는다 — `-a`를 경로로 읽은 서버가 없는 경로를 450으로 답하면 빈 목록으로 보고 옵션을 쓰게 된다.
      * @param replyCode LIST의 마지막 응답 코드
      * @return 목록을 돌려줬으면 true
