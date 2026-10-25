@@ -20,14 +20,6 @@ internal enum class FtpCommand(val label: String) {
     STOR("storeFileStream"),
 }
 
-/** 목록을 조회하는 목적. 목적에 따라 목록에서 읽을 값이 다르다. */
-internal enum class FtpListingPurpose {
-    /** 화면에 보여줄 목록. */
-    BROWSE,
-    /** 작업(다운로드·삭제)할 하위 트리 수집. 순환을 판별하려고 서버가 알려준 항목 식별값도 읽는다. */
-    TREE,
-}
-
 /**
  * FTP 서버 응답을 결과로 해석하는 단일 규칙표. 응답 코드 해석과 명령별 예외 규칙은 여기에만 둔다(RFC 959 응답 분류 기준).
  * 서버가 보낸 거부 응답(4xx·5xx)은 응답을 끝까지 읽은 것이므로 제어 채널이 살아 있다 — 이 항목만 실패([IoResult.ItemFailed])이고 세션은 유지한다.
@@ -37,9 +29,12 @@ internal object FtpReplyRules {
 
     /**
      * 목록 조회 명령(LIST·MLSD)의 마지막 응답이 목록을 끝까지 보냈다는 뜻인지 판별한다.
-     * 거부 응답(4xx·5xx)은 명령·조회 목적과 무관하게 이 조회의 실패다 — 빈 목록으로 보면 조회 실패가 빈 폴더로 보인다.
+     * 거부 응답(4xx·5xx)은 명령과 무관하게 이 조회의 실패다 — 빈 목록으로 보면 조회 실패가 빈 폴더로 보인다.
      * 지원 범위는 빈 디렉터리에 빈 목록과 226으로 답하는 서버다. RFC 959에서 450은 "file unavailable" 일시 거부이며 빈 목록이라는 뜻이 없다
      * ("450 No files found"는 NLST·글롭 조회에 일치하는 항목이 없다는 응답이다(ProFTPD). 이 앱은 디렉터리로 이동한 뒤 인자 없는 LIST만 보낸다).
+     * 2xx로 끝난 빈 목록은 빈 폴더로 본다. 열지 못한 폴더를 2xx로 답하는 서버(vsftpd의 "226 Transfer done (but failed to open directory)")는
+     * 응답 코드로 구분할 수 없다(#266).
+     * 판별 기준(2xx)은 [isSystemTypeReply]와 같지만, 명령마다 해석을 따로 정하는 규칙표이므로 별도 규칙으로 둔다.
      * @param replyCode 서버의 마지막 응답 코드
      * @return 목록을 끝까지 보냈으면(2xx) true
      */

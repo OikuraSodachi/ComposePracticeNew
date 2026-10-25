@@ -19,7 +19,7 @@ interface PathAwareFileSystem {
     /**
      * path 디렉터리의 파일 목록을 조회한다. 조회 실패는 빈 목록이 아니라 실패 결과로 돌려준다.
      * @param path 조회할 디렉터리 경로
-     * @return FileEntry 리스트를 담은 결과. 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다(저장소가 숨긴 항목은 있을 수 있다)
+     * @return FileEntry 리스트를 담은 결과. 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다([com.todokanai.composepracticenew.model.DirectoryListing.Loaded]의 알려진 한계 참고)
      */
     suspend fun listFiles(path: String): IoResult<List<FileEntry>>
 

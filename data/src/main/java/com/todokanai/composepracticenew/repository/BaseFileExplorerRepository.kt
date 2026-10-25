@@ -58,7 +58,7 @@ abstract class BaseFileExplorerRepository(
     /**
      * [path]의 파일과 하위 디렉터리 목록을 조회한다.
      * @param path 조회할 디렉터리 경로
-     * @return 항목 목록. 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다(저장소가 숨긴 항목은 있을 수 있다). 경로가 없거나 디렉터리가 아니거나 읽을 수 없으면 실패 결과다
+     * @return 항목 목록. 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다([DirectoryListing.Loaded]의 알려진 한계 참고). 경로가 없거나 디렉터리가 아니거나 읽을 수 없으면 실패 결과다
      */
     protected abstract suspend fun listFiles(path: String): IoResult<List<FileEntry>>
 
