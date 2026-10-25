@@ -24,7 +24,7 @@ class FtpConnector @Inject constructor(
     /**
      * FTP 서버에 TCP 연결 후 로그인한다. 이미 연결된 경우 먼저 해제하고 재연결한다.
      * 로그인한 뒤 목록을 해석할 수 없는 서버([FtpListingFormat.isReadable])면 어느 폴더도 볼 수 없으므로 연결을 종료하고 실패로 알린다.
-     * 연결할 때 목록 조회 옵션(LIST 서버의 `-a`, MLSD 서버의 항목 식별값)을 정한다([establishWithListingOptions]).
+     * 연결할 때 목록 조회 옵션(MLSD 서버의 항목 식별값)을 정한다([establishWithListingOptions]).
      * 연결하는 동안 앱이 종료를 요청했으면([FtpSession.closeBypassingIoLock]) 어느 단계에서 끝났든 실패로 알린다.
      * 실패하면 소켓을 닫아 연결을 남기지 않는다.
      * @param address 서버 호스트명 또는 IP (ftp:// 접두사 포함 가능)
@@ -63,7 +63,7 @@ class FtpConnector @Inject constructor(
 
     /**
      * [openUsableConnection]으로 쓸 수 있는 연결을 만든 뒤 목록 조회 옵션을 정한다([FtpListingFormat.negotiateListingOptions]) —
-     * LIST 서버는 숨김 항목을 담는 `-a` 옵션을 붙일지, MLSD 서버는 항목 식별값을 목록에 담도록 요청한다.
+     * MLSD 서버는 항목 식별값을 목록에 담도록 요청한다.
      * 옵션 판정은 연결이 쓸 수 있으려면 성공해야 하는 단계가 아니므로 연결을 실패로 만들지 않는다.
      * 판정이 제어 연결을 쓸 수 없게 만들면(서버가 끊거나 받지 못한 응답이 남음) 그 연결을 닫고 [openUsableConnection]으로 다시 연결해 옵션 없이 쓴다.
      * 같은 서버는 같은 판정에 다시 연결을 끊을 수 있으므로 다시 판정하지 않는다.
@@ -77,16 +77,13 @@ class FtpConnector @Inject constructor(
     private fun establishWithListingOptions(client: FTPClient, closeMark: Int, openUsableConnection: () -> ConnectResult): ConnectResult {
         val established = openUsableConnection()
         if (established != ConnectResult.Connected) return established
-        return when (val probe = FtpListingFormat.negotiateListingOptions(client)) {
-            is ListingOptionsProbe.Decided -> {
-                client.listHiddenFiles = probe.useListOption
-                ConnectResult.Connected
-            }
+        return when (FtpListingFormat.negotiateListingOptions(client)) {
+            ListingOptionsProbe.Decided -> ConnectResult.Connected
             ListingOptionsProbe.ConnectionBroken -> {
                 // 쓸 수 없는 제어 연결이므로 QUIT 응답을 기다리지 않고 소켓만 닫는다
                 runCatching { client.disconnect() }
                 if (session.isCloseRequestedSince(closeMark)) ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
-                else openUsableConnection().also { client.listHiddenFiles = false }
+                else openUsableConnection()
             }
         }
     }

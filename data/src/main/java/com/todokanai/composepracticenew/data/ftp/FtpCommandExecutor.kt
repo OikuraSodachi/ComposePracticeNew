@@ -237,9 +237,8 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
      * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
-     * 숨김 항목을 담는 `-a` 옵션은 연결할 때 [FtpListingFormat.negotiateListingOptions]의 판정대로 [client]에 정해 두었다.
-     * 디렉터리로 이동한 뒤 [FtpListingFormat.listCurrentDirectory]로 조회한다 — LIST 인자는 RFC 959상 경로뿐이라 옵션과 임의의 경로를 함께 보내면
-     * 서버마다 해석이 갈리고(옵션을 떼고 경로로 읽거나, 전체를 한 경로로 읽음), 연결할 때의 `-a` 판정도 같은 형태로 했다.
+     * 목록은 서버가 드러내는 항목뿐이다 — 서버가 숨긴 항목(유닉스 계열의 `.` 항목 등)은 지원 범위 밖이라 `-a` 같은 비표준 옵션을 붙이지 않는다.
+     * 디렉터리로 이동한 뒤 [FtpListingFormat.listCurrentDirectory]로 인자 없이 조회한다 — 경로 인자의 해석이 서버마다 갈릴 수 있다.
      * 다른 명령은 모두 절대 경로를 쓰지만, 세션이 조회한 폴더 안에 남으므로 그 폴더나 상위 폴더를 지우거나 옮기는 명령은 먼저 밖으로 나간다([leavingTarget]).
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로

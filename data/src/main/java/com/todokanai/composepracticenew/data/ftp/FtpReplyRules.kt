@@ -94,32 +94,23 @@ internal object FtpReplyRules {
     fun isPreliminaryReply(replyCode: Int): Boolean = FTPReply.isPositivePreliminary(replyCode)
 
     /**
-     * 연결할 때 `-a` 옵션을 쓸지 정하려고 보낸 LIST가 목록을 돌려줬는지 판별한다([FtpListingFormat.negotiateListingOptions]).
-     * 화면 목록과 달리 450을 빈 목록으로 보지 않는다 — `-a`를 경로로 읽은 서버가 없는 경로를 450으로 답하면 빈 목록으로 보고 옵션을 쓰게 된다.
-     * @param replyCode LIST의 마지막 응답 코드
-     * @return 목록을 돌려줬으면 true
-     */
-    fun isListingProbeCompleted(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
-
-    /**
      * [command]를 서버가 거부한 마지막 응답을 이 항목만의 실패로 만든다.
      * @param command 거부된 명령
      * @param client 거부 응답을 받은 FTPClient
      * @return 서버 응답을 메시지로 담은 실패
      */
     fun refusal(command: FtpCommand, client: FTPClient): IoResult.ItemFailed =
-        IoResult.ItemFailed("${command.label} 실패: ${client.replyString.trim()}${refusalNote(command, client)}")
+        IoResult.ItemFailed("${command.label} 실패: ${client.replyString.trim()}${refusalNote(command)}")
 
     /**
      * 서버 응답만으로는 원인을 알 수 없는 거부에 덧붙일 설명.
-     * RMD는 목록에서 본 하위 항목을 모두 지운 뒤에만 보내지만, 이 세션의 목록이 숨김 항목을 빠뜨릴 수 있으면([FtpListingFormat.mayOmitHiddenEntries])
-     * 그 항목이 남아 거부됐을 수 있다. 클라이언트는 그런 항목을 알아낼 방법이 없고, 거부 응답은 권한 없음과 비어 있지 않음을 구분하지 않으므로 가능성으로 알린다.
+     * RMD는 목록에서 본 하위 항목을 모두 지운 뒤에만 보내지만, 목록은 서버가 드러내는 항목뿐이라(RFC 3659 §7.1, LIST의 유닉스 계열 `.` 항목 등)
+     * 서버가 숨긴 항목이 남아 거부됐을 수 있다. 클라이언트는 그런 항목을 알아낼 방법이 없고, 거부 응답은 권한 없음과 비어 있지 않음을 구분하지 않으므로 가능성으로 알린다.
      * @param command 거부된 명령
-     * @param client 거부 응답을 받은 FTPClient
      * @return 덧붙일 설명. 없으면 빈 문자열
      */
-    private fun refusalNote(command: FtpCommand, client: FTPClient): String = when (command) {
-        FtpCommand.RMD -> if (FtpListingFormat.mayOmitHiddenEntries(client)) HIDDEN_ENTRIES_NOTE else ""
+    private fun refusalNote(command: FtpCommand): String = when (command) {
+        FtpCommand.RMD -> HIDDEN_ENTRIES_NOTE
         FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD,
         FtpCommand.RETR, FtpCommand.STOR -> ""
     }
