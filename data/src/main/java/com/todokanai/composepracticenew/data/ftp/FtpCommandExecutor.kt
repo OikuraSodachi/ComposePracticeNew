@@ -66,6 +66,8 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.
+     * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목이 toPath에 있으면 충돌 검사에 보이지 않고, RNTO가 기존 파일을 바꾸는 서버(vsftpd 등)에서는
+     * 묻지 않고 덮어쓴다([identifiedListing] 참고).
      * @param fromPath 원본 경로 (ftp://server/path 형식)
      * @param toPath 변경할 경로 (ftp://server/path 형식)
      * @return 명령 결과
@@ -308,6 +310,10 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * 끝까지 받은 목록의 항목을 domain 항목으로 바꾸고, 서버가 알려준 식별값을 항목 경로에 묶는다.
+     *
+     * 알려진 문제(방치하기로 결정): 목록은 서버가 드러내는 항목뿐이라(RFC 3659 §7.1, 유닉스 계열 LIST의 `.` 항목·ProFTPD `HideFiles` 등)
+     * 서버가 숨긴 항목이 빠질 수 있지만 확인된 목록(`COMPLETE`)으로 보고한다. 그래서 업로드·이름 변경의 충돌 검사가 숨긴 같은 이름 항목을 보지 못해
+     * STOR·RNTO가 묻지 않고 덮어쓸 수 있다. 표준 명령으로는 항목이 없음을 증명할 수 없다(MLST·SIZE의 550은 없음과 거부를 구분하지 않는다).
      * @param received 받은 항목과 식별값
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @return 확인된 목록과 식별값
