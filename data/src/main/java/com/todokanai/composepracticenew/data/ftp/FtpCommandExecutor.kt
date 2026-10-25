@@ -1,11 +1,9 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ListingCompleteness
 import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
-import com.todokanai.composepracticenew.repository.FetchedListing
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,11 +14,11 @@ import javax.inject.Singleton
 
 /**
  * 목록 조회 결과와, 서버가 알려준 식별값(MLSD `unique`). 트리 수집이 순환을 판별하는 데 쓴다.
- * @param listing 조회한 목록
+ * @param entries 조회한 항목
  * @param identities 항목 경로 → 식별값. 서버가 식별값을 알려준 항목만 담는다
  * @param selfIdentity 나열한 디렉터리 자신의 식별값. 모르면 null
  */
-private data class IdentifiedListing(val listing: FetchedListing, val identities: Map<String, String>, val selfIdentity: String?)
+private data class IdentifiedListing(val entries: List<FileEntry>, val identities: Map<String, String>, val selfIdentity: String?)
 
 /**
  * 서버에게 받은 목록 항목 하나와 그 식별값.
@@ -43,7 +41,7 @@ private data class ReceivedListing(val entries: List<ReceivedEntry>, val selfIde
  */
 private class DirectoryVisit(val listed: IdentifiedListing, val identities: Set<String>) {
     /** 아직 수집하지 않은 항목. */
-    val remaining: Iterator<FileEntry> = listed.listing.entries.iterator()
+    val remaining: Iterator<FileEntry> = listed.entries.iterator()
 }
 
 /**
@@ -60,9 +58,9 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
      * @param path ftp://server/path 형식의 절대 경로
-     * @return 원격 경로의 파일 목록. 빈 디렉터리인지 확인할 수 없는 응답이면 [ListingCompleteness.UNCONFIRMED]인 빈 목록이다
+     * @return 원격 경로의 파일 목록, 또는 서버가 거부한 실패
      */
-    suspend fun listFiles(path: String): IoResult<FetchedListing> = list(path, FtpListingPurpose.BROWSE).map { it.listing }
+    suspend fun listFiles(path: String): IoResult<List<FileEntry>> = list(path, FtpListingPurpose.BROWSE).map { it.entries }
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.
@@ -177,7 +175,6 @@ class FtpCommandExecutor @Inject constructor(
         entryIdentity: String?,
         ancestorIdentities: MutableSet<String>
     ): IoResult<DirectoryVisit> {
-        // 트리 수집은 확인되지 않은 빈 목록을 만들지 않는다 — 그런 응답은 거부로 해석한다([FtpReplyRules.listingReplyOf])
         val listed = list(dirPath, FtpListingPurpose.TREE).valueOr { return it }
         if (listed.selfIdentity != null && listed.selfIdentity in ancestorIdentities) return cycleRefusal(dirPath)
         // 거쳐 온 식별값에 없는 값만 담기므로, 나올 때 이 값들을 빼도 상위 디렉터리의 값은 남는다
@@ -222,20 +219,19 @@ class FtpCommandExecutor @Inject constructor(
     private fun exceedsPathMax(path: String): Boolean = extractFtpPath(path).toByteArray(Charsets.UTF_8).size >= PATH_MAX_BYTES
 
     /**
-     * 원격 경로의 파일 목록을 조회한다. 화면 목록([listFiles])과 트리 수집([collectRemoteTree])이 같은 조회를 써서 둘이 보는 항목이 같고,
-     * 거부 응답을 빈 목록으로 볼지만 [purpose]에 따라 [FtpReplyRules.listingReplyOf]가 정한다.
+     * 원격 경로의 파일 목록을 조회한다. 화면 목록([listFiles])과 트리 수집([collectRemoteTree])이 같은 조회를 써서 둘이 보는 항목과 응답 해석이 같다.
      * 서버가 FEAT에 MLST를 알리면(RFC 3659 §7.8: MLSD 지원 포함) MLSD로, 아니면 LIST로 조회한다.
-     * MLSD는 없는 경로·권한 없음을 550으로 정하고 있어 빈 폴더와 실패가 구분된다.
+     * LIST·MLSD 모두 거부 응답은 실패이며([FtpReplyRules.isListingCompleted]), 빈 폴더는 빈 목록과 2xx로만 표현된다.
      * @param path ftp://server/path 형식의 절대 경로
      * @param purpose 조회 목적
-     * @return 원격 경로의 파일 목록과 그 목록이 확인된 목록인지 여부, 서버가 알려준 항목 식별값
+     * @return 원격 경로의 파일 목록과 서버가 알려준 항목 식별값
      */
     private suspend fun list(path: String, purpose: FtpListingPurpose): IoResult<IdentifiedListing> {
         val ftpPath = extractFtpPath(path)
         return session.withConnectedClient { client ->
             withContext(Dispatchers.IO) {
                 if (FtpListingFormat.usesMlsd(client)) listWithMlsd(client, ftpPath, path, purpose)
-                else listWithList(client, ftpPath, path, purpose)
+                else listWithList(client, ftpPath, path)
             }
         }
     }
@@ -250,13 +246,12 @@ class FtpCommandExecutor @Inject constructor(
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
-     * @param purpose 조회 목적
      * @return 디렉터리의 항목 목록(LIST 목록에는 항목을 식별할 값이 없어 식별값은 없다), 또는 서버가 거부한 실패
      */
-    private fun listWithList(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<IdentifiedListing> {
+    private fun listWithList(client: FTPClient, ftpPath: String, path: String): IoResult<IdentifiedListing> {
         if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client)
-        val (files, transferStarted) = watchingDataTransfer(client) { client.listFiles() }
-        return listingOutcome(FtpCommand.LIST, purpose, client, transferStarted, path) {
+        val files = client.listFiles()
+        return listingOutcome(FtpCommand.LIST, client, path) {
             val entries = files?.filter { it.name != "." && it.name != ".." }.orEmpty()
             ReceivedListing(entries.map { ReceivedEntry(it, identity = null) }, selfIdentity = null)
         }
@@ -271,62 +266,43 @@ class FtpCommandExecutor @Inject constructor(
      * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdListing]), 또는 서버가 거부한 실패
      */
     private fun listWithMlsd(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<IdentifiedListing> {
-        val (files, transferStarted) = watchingDataTransfer(client) { client.mlistDir(ftpPath) }
-        return listingOutcome(FtpCommand.MLSD, purpose, client, transferStarted, path) {
+        val files = client.mlistDir(ftpPath)
+        return listingOutcome(FtpCommand.MLSD, client, path) {
             receivedMlsdListing(files.orEmpty(), withIdentities = purpose == FtpListingPurpose.TREE)
         }
     }
 
     /**
-     * 목록 조회 [list]를 실행하며 서버가 예비 응답(1xx)을 보냈는지 함께 돌려준다. 목록 조회에서 1xx는 데이터 연결을 열어 목록 전송을 시작했다는 뜻이다.
-     * commons-net의 목록 조회는 데이터 연결을 열었는지 알려주지 않으므로 응답 이벤트로 판별한다.
-     * @param client 잠금을 확보한 FTPClient
-     * @param list 실행할 목록 조회
-     * @return 조회한 항목과 목록 전송 시작 여부
-     */
-    private inline fun watchingDataTransfer(client: FTPClient, list: () -> Array<FTPFile>?): Pair<Array<FTPFile>?, Boolean> =
-        watchingReplies(client) { watch -> list() to watch.preliminaryReceived }
-
-    /**
-     * 목록 조회의 마지막 응답을 [FtpReplyRules]로 해석해 결과로 만든다.
-     * 빈 디렉터리로 볼 거부 응답은 실제로 빈 디렉터리인지 알 수 없으므로 확인되지 않은 빈 목록이 된다.
+     * 목록 조회의 마지막 응답을 [FtpReplyRules.isListingCompleted]로 해석해 결과로 만든다. 거부 응답은 모두 이 조회의 실패다.
      * @param command 보낸 목록 조회 명령
-     * @param purpose 조회 목적
      * @param client 응답을 받은 FTPClient
-     * @param dataTransferStarted 서버가 목록 전송을 시작했는지 여부
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param received 조회를 마쳤을 때 받은 항목과 식별값
      * @return 조회 결과
      */
     private fun listingOutcome(
         command: FtpCommand,
-        purpose: FtpListingPurpose,
         client: FTPClient,
-        dataTransferStarted: Boolean,
         path: String,
         received: () -> ReceivedListing
     ): IoResult<IdentifiedListing> =
-        when (FtpReplyRules.listingReplyOf(command, purpose, client.replyCode, dataTransferStarted)) {
-            FtpListingReply.COMPLETED -> IoResult.Success(identifiedListing(received(), path))
-            FtpListingReply.NO_ENTRIES ->
-                IoResult.Success(IdentifiedListing(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED), emptyMap(), selfIdentity = null))
-            FtpListingReply.REFUSED -> FtpReplyRules.refusal(command, client)
-        }
+        if (FtpReplyRules.isListingCompleted(client.replyCode)) IoResult.Success(identifiedListing(received(), path))
+        else FtpReplyRules.refusal(command, client)
 
     /**
      * 끝까지 받은 목록의 항목을 domain 항목으로 바꾸고, 서버가 알려준 식별값을 항목 경로에 묶는다.
      *
      * 알려진 문제(방치하기로 결정): 목록은 서버가 드러내는 항목뿐이라(RFC 3659 §7.1, 유닉스 계열 LIST의 `.` 항목·ProFTPD `HideFiles` 등)
-     * 서버가 숨긴 항목이 빠질 수 있지만 확인된 목록(`COMPLETE`)으로 보고한다. 그래서 업로드·이름 변경의 충돌 검사가 숨긴 같은 이름 항목을 보지 못해
+     * 서버가 숨긴 항목이 빠질 수 있지만 폴더의 목록으로 보고한다. 그래서 업로드·이름 변경의 충돌 검사가 숨긴 같은 이름 항목을 보지 못해
      * STOR·RNTO가 묻지 않고 덮어쓸 수 있다. 표준 명령으로는 항목이 없음을 증명할 수 없다(MLST·SIZE의 550은 없음과 거부를 구분하지 않는다).
      * @param received 받은 항목과 식별값
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
-     * @return 확인된 목록과 식별값
+     * @return 받은 목록과 식별값
      */
     private fun identifiedListing(received: ReceivedListing, path: String): IdentifiedListing {
         val converted = received.entries.map { it to toFileEntry(it.file, path) }
         val identities = converted.mapNotNull { (item, entry) -> item.identity?.let { entry.path to it } }.toMap()
-        return IdentifiedListing(FetchedListing.complete(converted.map { it.second }), identities, received.selfIdentity)
+        return IdentifiedListing(converted.map { it.second }, identities, received.selfIdentity)
     }
 
     /**

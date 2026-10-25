@@ -20,21 +20,11 @@ internal enum class FtpCommand(val label: String) {
     STOR("storeFileStream"),
 }
 
-/** 서버가 정상적으로 보낸(제어 채널이 살아 있는) 목록 조회 응답의 의미. */
-internal enum class FtpListingReply {
-    /** 2xx — 조회한 항목이 목록이다. */
-    COMPLETED,
-    /** 빈 디렉터리일 수 있는 거부 응답 — 실제로 빈 디렉터리인지는 알 수 없으므로 확인되지 않은 빈 목록이다. */
-    NO_ENTRIES,
-    /** 서버가 이 조회만 거부했다(4xx 일시 거부·5xx 영구 거부). */
-    REFUSED,
-}
-
-/** 목록을 조회하는 목적. 같은 응답이라도 잘못 해석했을 때의 결과가 달라 해석 규칙이 갈린다. */
+/** 목록을 조회하는 목적. 목적에 따라 목록에서 읽을 값이 다르다. */
 internal enum class FtpListingPurpose {
-    /** 화면에 보여줄 목록. 빈 디렉터리로 볼 응답은 확인되지 않은 빈 목록으로 표시하고, 이름 충돌 판정은 그 목록을 믿지 않고 사용자에게 확인받는다. */
+    /** 화면에 보여줄 목록. */
     BROWSE,
-    /** 작업(다운로드·삭제)할 하위 트리 수집. 빈 목록으로 잘못 보면 그 폴더의 항목이 작업에서 빠진 채 성공으로 끝난다. */
+    /** 작업(다운로드·삭제)할 하위 트리 수집. 순환을 판별하려고 서버가 알려준 항목 식별값도 읽는다. */
     TREE,
 }
 
@@ -46,36 +36,14 @@ internal enum class FtpListingPurpose {
 internal object FtpReplyRules {
 
     /**
-     * 목록 조회 명령의 마지막 응답을 해석한다.
-     * 화면 목록에서 LIST가 데이터 연결을 열기 전에 받은 450은 빈 목록이다 — 빈 디렉터리에 "450 No files found"를 보내는 서버가 있다(curl과 같은 규칙).
-     * 450은 "file busy" 같은 일시 거부이기도 하므로, 빈 목록으로 잘못 보면 항목이 빠진 채 성공하는 트리 수집에서는 거부로 둔다.
-     * 데이터 연결을 열어(1xx) 목록을 보내기 시작한 뒤의 450은 전송이 중단된 것이므로 언제나 거부다.
-     * 550은 없는 경로·권한 없음과 구분할 수 없으므로 거부로 둔다. 빈 목록으로 보면 조회 실패가 빈 폴더로 보인다.
-     * MLSD는 빈 디렉터리에 빈 목록과 226을 보내도록 정해져 있어(RFC 3659) 예외 규칙이 없다.
-     * @param command 목록 조회 명령
-     * @param purpose 조회 목적
+     * 목록 조회 명령(LIST·MLSD)의 마지막 응답이 목록을 끝까지 보냈다는 뜻인지 판별한다.
+     * 거부 응답(4xx·5xx)은 명령·조회 목적과 무관하게 이 조회의 실패다 — 빈 목록으로 보면 조회 실패가 빈 폴더로 보인다.
+     * 지원 범위는 빈 디렉터리에 빈 목록과 226으로 답하는 서버다. RFC 959에서 450은 "file unavailable" 일시 거부이며 빈 목록이라는 뜻이 없다
+     * ("450 No files found"는 NLST·글롭 조회에 일치하는 항목이 없다는 응답이다(ProFTPD). 이 앱은 디렉터리로 이동한 뒤 인자 없는 LIST만 보낸다).
      * @param replyCode 서버의 마지막 응답 코드
-     * @param dataTransferStarted 서버가 예비 응답(1xx)을 보내 목록 전송을 시작했는지 여부
-     * @return 응답의 의미
+     * @return 목록을 끝까지 보냈으면(2xx) true
      */
-    fun listingReplyOf(command: FtpCommand, purpose: FtpListingPurpose, replyCode: Int, dataTransferStarted: Boolean): FtpListingReply =
-        when {
-            FTPReply.isPositiveCompletion(replyCode) -> FtpListingReply.COMPLETED
-            isEmptyDirectoryReply(command, purpose, replyCode, dataTransferStarted) -> FtpListingReply.NO_ENTRIES
-            else -> FtpListingReply.REFUSED
-        }
-
-    /**
-     * 거부 응답이 빈 디렉터리를 뜻하는지 판별한다. 규칙은 [listingReplyOf]에 적었다.
-     * @param command 목록 조회 명령
-     * @param purpose 조회 목적
-     * @param replyCode 서버의 마지막 응답 코드
-     * @param dataTransferStarted 서버가 목록 전송을 시작했는지 여부
-     * @return 빈 목록으로 볼 응답이면 true
-     */
-    private fun isEmptyDirectoryReply(command: FtpCommand, purpose: FtpListingPurpose, replyCode: Int, dataTransferStarted: Boolean): Boolean =
-        command == FtpCommand.LIST && purpose == FtpListingPurpose.BROWSE &&
-            replyCode == FTPReply.FILE_ACTION_NOT_TAKEN && !dataTransferStarted
+    fun isListingCompleted(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
 
     /**
      * SYST 응답이 서버의 시스템 종류를 알려준 것인지 판별한다.

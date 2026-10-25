@@ -90,9 +90,6 @@ internal class FakeFtpClient : FTPClient() {
     /** 직전 MLST 응답의 모든 줄. */
     private var lastReplyLines: List<String> = emptyList()
 
-    /** 등록된 응답 이벤트 수신기 수. */
-    val protocolListenerCount: Int get() = commandSupport.listenerCount
-
     override fun isConnected(): Boolean {
         onIsConnected()
         return disconnectCalls == 0

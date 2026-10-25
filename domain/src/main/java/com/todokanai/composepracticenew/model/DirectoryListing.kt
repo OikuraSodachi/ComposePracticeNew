@@ -17,17 +17,12 @@ sealed interface DirectoryListing {
     data class Loading(val request: ListingRequest, val stale: Loaded? = null) : DirectoryListing
 
     /**
-     * [request]의 목록 조회를 마친 상태. [completeness]가 [ListingCompleteness.COMPLETE]이고 [items]가 비어 있으면 저장소가 드러내는 항목이 없는 폴더다
-     * (저장소가 숨긴 항목은 있을 수 있다 — [ListingCompleteness] 참고).
+     * [request]의 목록 조회를 마친 상태. [items]가 비어 있으면 저장소가 드러내는 항목이 없는 폴더다.
+     * 알려진 한계(결과 타입에 담지 않기로 결정): 저장소가 목록에서 숨기는 항목(FTP 서버의 `.` 항목 등)은 [items]에 빠질 수 있으며, 이 값으로는 알 수 없다.
      * @param request 조회를 마친 요청
      * @param items 정렬된 디렉터리 항목
-     * @param completeness [items]가 폴더의 항목을 빠짐없이 담았다고 확인됐는지 여부
      */
-    data class Loaded(
-        val request: ListingRequest,
-        val items: List<FileHolderItem>,
-        val completeness: ListingCompleteness = ListingCompleteness.COMPLETE
-    ) : DirectoryListing
+    data class Loaded(val request: ListingRequest, val items: List<FileHolderItem>) : DirectoryListing
 
     /**
      * [request]의 목록 조회에 실패한 상태.

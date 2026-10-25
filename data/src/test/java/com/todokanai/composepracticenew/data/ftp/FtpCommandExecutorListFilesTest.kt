@@ -1,12 +1,10 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ListingCompleteness
-import com.todokanai.composepracticenew.repository.FetchedListing
+import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.io.IOException
 
 /**
  * 화면 목록 조회([FtpCommandExecutor.listFiles])가 실패를 빈 목록으로 바꾸지 않고 실패 결과로 알리며,
@@ -27,47 +25,36 @@ class FtpCommandExecutorListFilesTest {
 
         val entries = runBlocking { commands.listFiles("ftp://host/r") } as IoResult.Success
 
-        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.value.entries.map { it.path })
+        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.value.map { it.path })
         assertEquals(listOf("MLSD /r"), client.listRequests)
     }
 
     @Test
-    fun `MLSD 빈 폴더는 실패가 아닌 확인된 빈 목록이다`() {
+    fun `MLSD 빈 폴더는 실패가 아닌 빈 목록이다`() {
         loggedIn()
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to emptyList())
 
-        assertEquals(IoResult.Success(FetchedListing.complete(emptyList())), runBlocking { commands.listFiles("ftp://host/r") })
+        assertEquals(IoResult.Success(emptyList<FileEntry>()), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     @Test
-    fun `빈 폴더에 450 No files found를 주는 LIST 서버의 450은 실패가 아닌 확인되지 않은 빈 목록이다`() {
+    fun `LIST의 450은 응답 문구와 관계없이 빈 목록이 아닌 실패다`() {
         loggedIn()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 No files found"))
 
-        assertEquals(IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED)), runBlocking { commands.listFiles("ftp://host/r") })
+        assertEquals(IoResult.ItemFailed("LIST 실패: 450 No files found"), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     @Test
-    fun `LIST가 빈 목록을 보내고 226으로 끝나면 확인된 빈 목록이다`() {
+    fun `LIST가 빈 목록을 보내고 226으로 끝나면 빈 목록이다`() {
         loggedIn()
 
-        assertEquals(IoResult.Success(FetchedListing.complete(emptyList())), runBlocking { commands.listFiles("ftp://host/r") })
+        assertEquals(IoResult.Success(emptyList<FileEntry>()), runBlocking { commands.listFiles("ftp://host/r") })
     }
 
     @Test
-    fun `목록 조회가 끝나면 성공·실패와 관계없이 응답 이벤트 수신기를 남기지 않는다`() {
-        loggedIn()
-        runBlocking { commands.listFiles("ftp://host/r") }
-        assertEquals(0, client.protocolListenerCount)
-
-        client.serverBehaviors = mapOf("LIST" to ServerBehavior.Fail(IOException("Connection closed without indication.")))
-        runBlocking { commands.listFiles("ftp://host/r") }
-        assertEquals(0, client.protocolListenerCount)
-    }
-
-    @Test
-    fun `LIST가 목록을 보내기 시작한 뒤 450으로 끝나면 받은 항목이 있어도 빈 목록이 아닌 실패다`() {
+    fun `LIST가 목록을 보내기 시작한 뒤 450으로 끝나면 받은 항목이 있어도 실패다`() {
         loggedIn()
         client.remoteFiles = listOf("a.txt")
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.RefuseAfterData(450, "450 Transfer aborted"))

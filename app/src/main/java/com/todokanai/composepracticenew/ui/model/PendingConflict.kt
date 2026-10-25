@@ -6,13 +6,11 @@ import androidx.compose.runtime.Immutable
  * 사용자의 덮어쓰기/건너뛰기 선택을 기다리는 파일 충돌 상태.
  * @param targets 작업 대상 전체 항목
  * @param conflicts 목적지에 같은 이름이 이미 존재하는 항목
- * @param destinationUnconfirmed 목적지의 기존 항목을 확인하지 못했으면 true — 같은 이름의 항목이 덮어써질 수 있다
  */
 @Immutable
 data class PendingConflict(
     val targets: List<FileHolderItem>,
-    val conflicts: List<FileHolderItem>,
-    val destinationUnconfirmed: Boolean
+    val conflicts: List<FileHolderItem>
 )
 
 /** 파일 충돌 다이얼로그에서 사용자가 고른 처리 방법. */

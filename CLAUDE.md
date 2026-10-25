@@ -53,7 +53,6 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 목록 상태는 `ListingRequest(path, generation)`에 묶인다. 이동·새로고침·재연결·공유 재시작마다 새 요청이 되며, 같은 경로라도 이전 요청의 `Loaded`는 현재 목록이 아니다. 같은 경로를 다시 조회하는 동안의 직전 목록은 `Loading.stale`(표시 전용)이다.
 - 정렬은 조회 결과 위에 적용한다(정렬 변경으로 다시 조회하지 않는다).
 - 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedItems()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
-- `Loaded.completeness`가 `ListingCompleteness.UNCONFIRMED`인 목록(예: FTP LIST의 450을 빈 폴더로 본 목록)은 화면에는 빈 폴더로 보이지만 항목이 있을 수 있다. 판정 결과(`DestinationConflicts.destinationCompleteness`)에 이 사실을 담고, `ConflictGate`가 충돌이 없어 보여도 덮어쓸 수 있음을 확인받은 뒤에만 실행한다.
 
 ### Navigation (`navigation/NavController.kt`)
 
@@ -91,7 +90,7 @@ UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedSt
 - 작업 종류는 `FileOperationType` enum이며, 레이어별 표시 문자열은 enum에 대한 exhaustive `when`으로 매핑한다.
 - 파일 입출력(로컬·원격 작업, 목록 조회)의 실패는 예외가 아니라 domain `IoResult`(`Success` / `ItemFailed` / `PartiallyFailed` / `ConnectionLost`)로 돌려준다. 받는 쪽은 exhaustive `when`으로 처리한다. 예외는 취소·구현 오류에만 쓰며, 앱 수명 흐름을 지키기 위해 결과로 바꾸는 곳은 `launchOperation`과 `FileListFlowProducer.load` 두 경계뿐이다.
 - 여러 항목 작업은 `forEachCollectingFailures`로 실패를 모은다. `ConnectionLost`면 남은 항목을 시도하지 않는다.
-- FTP: 서버 응답 해석(명령·조회 목적별 예외 규칙 포함, 예: 화면 목록의 LIST가 데이터 전송 전에 받은 450 = 빈 목록, 트리 수집에서는 실패)은 `FtpReplyRules`에만 둔다. `FtpSession.withConnectedClient`가 명령 실패의 의미를 정하는 유일한 경계다. 블록이 돌려준 결과는 세션 유지, 던진 IOException은 연결 끊김(세션 종료), 그 밖의 예외는 세션 종료 후 전파한다. 세션을 유지할 실패는 블록 안에서 던지지 말고 결과로 돌려준다. 명령·서버 동작 조합은 `FtpCommandContractTest` 행렬로 검증한다.
+- FTP: 서버 응답 해석(명령별 예외 규칙 포함, 예: RMD 거부에 붙이는 숨김 항목 안내)은 `FtpReplyRules`에만 둔다. 목록 조회(LIST·MLSD)의 거부 응답(4xx·5xx)은 모두 조회 실패다 — 지원 범위는 빈 디렉터리에 빈 목록과 226으로 답하는 서버이며, 450(RFC 959의 일시 거부)을 빈 목록으로 보지 않는다(#259). `FtpSession.withConnectedClient`가 명령 실패의 의미를 정하는 유일한 경계다. 블록이 돌려준 결과는 세션 유지, 던진 IOException은 연결 끊김(세션 종료), 그 밖의 예외는 세션 종료 후 전파한다. 세션을 유지할 실패는 블록 안에서 던지지 말고 결과로 돌려준다. 명령·서버 동작 조합은 `FtpCommandContractTest` 행렬로 검증한다.
 - FTP 연결: `FtpConnector.connect`는 로그인 후 `FtpListingFormat.isReadable`로 목록을 해석할 수 있는지 확인한다(MLSD 미지원 서버가 SYST를 거부하거나 해석기 없는 종류를 알려주면 불가). 불가면 형식을 추측하지 않고 연결을 종료해 `ConnectResult.Failed(LISTING_FORMAT_UNKNOWN)`을 돌려주며, app은 `ConnectFailureNotice`로 다이얼로그를 띄운다. 그래서 연결된 세션의 목록 조회는 해석기를 고르지 못해 실패하지 않는다.
 - FTP 목록 범위: 목록은 서버가 드러내는 항목이다(RFC 3659 §7.1). 서버가 숨긴 항목(유닉스 계열 LIST의 `.` 항목 등)은 지원 범위 밖이며, LIST에 `-a` 같은 비표준 옵션(RFC 959에 없음)을 붙이지 않는다. 숨김 항목 표시가 필요하면 별도 기능으로 제안한다. LIST 서버의 목록은 디렉터리로 이동(CWD)한 뒤 인자 없는 `LIST`를 보낸다(`FtpCommandExecutor.listWithList`)(curl과 같은 방식) — LIST 인자를 옵션으로도 읽는 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다.
 - FTP 연결 옵션: 연결할 때 `FtpListingFormat.negotiateListingOptions`가 MLSD 서버에만 옵션을 요청한다(트리 수집의 `OPTS MLST`). 요청은 연결을 실패로 만들지 않는다 — 요청이 제어 연결을 쓸 수 없게 만들면(`negotiateListingOptions`가 false) `FtpConnector`가 다시 요청하지 않고 다시 연결해 요청 없이 쓰며, 그 끊김이 앱의 종료 요청(`FtpSession.closeBypassingIoLock`) 때문이면 다시 연결하지 않는다.
@@ -130,7 +129,6 @@ See [ROADMAP.md](ROADMAP.md).
 비표준 동작 수용이나 정리 범위를 넘는 변경이 쌓인 곳이다(이슈 제목 `[과잉대응]`, 라벨 `refactor`). 아래 이슈는 해결이 필요하며, 해당 영역을 고칠 때 과잉대응을 더 쌓지 않는다.
 
 - #258 LIST `-a` 판정이 비표준 서버 수용의 연쇄로 커짐 — CWD 후 LIST, leavingTarget, 홈 기록
-- #259 LIST 450 = 빈 목록 수용이 UNCONFIRMED·ConflictGate 경고로 3개 레이어에 번짐
 - #260 트리 수집 순환 감지에 정밀 장치가 먼저 쌓이고 일반 상한(#257)은 미해결
 - #261 DataStore 정리 이슈(#42)에 읽기 재시도·묶음 반영 등 동작 변경이 섞임
 

@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.SortMode
+import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
@@ -40,7 +41,7 @@ class FileListFlowProducer(
      * @param started StateFlow 공유 시작 전략
      * @param onStopped 공유가 멈췄을 때 호출된다. 멈춘 동안 남아 있는 마지막 목록이 현재 요청의 목록으로 쓰이지 않도록 요청을 새로 바꾸는 데 쓴다
      * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
-     * @param listFiles 경로를 받아 해당 디렉터리의 목록 조회 결과([FetchedListing])를 반환하는 suspend 함수. 조회 실패는 실패 결과로 돌려준다
+     * @param listFiles 경로를 받아 해당 디렉터리의 FileEntry 목록 조회 결과를 반환하는 suspend 함수. 조회 실패는 실패 결과로 돌려준다
      * @return 현재 요청의 목록 조회 상태를 방출하는 StateFlow
      */
     fun produce(
@@ -49,7 +50,7 @@ class FileListFlowProducer(
         started: SharingStarted,
         onStopped: () -> Unit,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<FetchedListing>
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
     ): StateFlow<DirectoryListing> {
         val fetchStates = fetchStatesOf(requests, onUnexpectedFailure, listFiles).onCompletion { onStopped() }
         return sortedListingsOf(fetchStates)
@@ -81,14 +82,14 @@ class FileListFlowProducer(
      * 공유가 다시 시작되면 멈추기 전 마지막 상태부터 이어 누적해, 같은 경로를 다시 조회하는 동안에도 직전 목록을 표시할 수 있게 한다.
      * @param requests 현재 목록 조회 요청 StateFlow
      * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
-     * @param listFiles 경로의 목록 조회 결과를 반환하는 suspend 함수
+     * @param listFiles 경로의 FileEntry 목록 조회 결과를 반환하는 suspend 함수
      * @return 조회 상태 Flow
      */
     @Suppress("OPT_IN_USAGE")
     private fun fetchStatesOf(
         requests: StateFlow<ListingRequest?>,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<FetchedListing>
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
     ): Flow<FetchState> {
         // 공유가 멈췄다 다시 시작될 때 이어 누적할 마지막 상태 — 이전 공유가 완전히 끝난 뒤에만 읽힌다
         val lastState = AtomicReference<FetchState>(FetchState.NoPath)
@@ -106,13 +107,13 @@ class FileListFlowProducer(
      * [request]의 목록을 조회하며 조회 중·조회 결과 상태를 차례로 방출한다.
      * @param request 조회할 요청. null이면 탐색 경로가 없는 상태다
      * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
-     * @param listFiles 경로의 목록 조회 결과를 반환하는 suspend 함수
+     * @param listFiles 경로의 FileEntry 목록 조회 결과를 반환하는 suspend 함수
      * @return 조회 상태 Flow
      */
     private fun fetch(
         request: ListingRequest?,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<FetchedListing>
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
     ): Flow<FetchState> = flow {
         if (request == null) {
             emit(FetchState.NoPath)
@@ -128,13 +129,13 @@ class FileListFlowProducer(
      * 예외도 실패 상태로 바꿔 기록한다 — 전파하면 공유 Flow의 상위 수집이 끝나 이후 이동·새로고침이 반영되지 않는다.
      * @param request 조회할 요청
      * @param onUnexpectedFailure 조회 중 던져진 예외(구현 오류)를 기록하는 함수
-     * @param listFiles 경로의 목록 조회 결과를 반환하는 suspend 함수
+     * @param listFiles 경로의 FileEntry 목록 조회 결과를 반환하는 suspend 함수
      * @return 조회 성공이면 [FetchState.Fetched], 실패면 [FetchState.FetchFailed]
      */
     private suspend fun load(
         request: ListingRequest,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<FetchedListing>
+        listFiles: suspend (String) -> IoResult<List<FileEntry>>
     ): FetchState {
         val result = try {
             listFiles(request.path)
@@ -187,11 +188,8 @@ class FileListFlowProducer(
      * @param sortMode 항목 정렬 기준
      * @return 정렬된 조회 완료 상태
      */
-    private fun loadedOf(fetched: FetchState.Fetched, sortMode: SortMode): DirectoryListing.Loaded = DirectoryListing.Loaded(
-        request = fetched.request,
-        items = converter.fileHolderItemList(fetched.listing.entries, sortMode),
-        completeness = fetched.listing.completeness
-    )
+    private fun loadedOf(fetched: FetchState.Fetched, sortMode: SortMode): DirectoryListing.Loaded =
+        DirectoryListing.Loaded(fetched.request, converter.fileHolderItemList(fetched.entries, sortMode))
 
     /**
      * 목록 조회 실패의 종류를 화면 상태의 실패 사유로 바꾼다.
@@ -227,9 +225,9 @@ class FileListFlowProducer(
         /**
          * [request]의 조회를 마친 상태.
          * @param request 조회를 마친 요청
-         * @param listing 정렬하지 않은 디렉터리 항목과 그 목록이 확인된 목록인지 여부
+         * @param entries 정렬하지 않은 디렉터리 항목
          */
-        data class Fetched(val request: ListingRequest, val listing: FetchedListing) : FetchState
+        data class Fetched(val request: ListingRequest, val entries: List<FileEntry>) : FetchState
 
         /**
          * [request]의 조회에 실패한 상태.
