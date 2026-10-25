@@ -22,7 +22,6 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
-// TODO(#143-review-4): StorageFrag.StorageConnectionEffects와 구조 동일 — Flow를 직접 받는 TwoFlowEffects 공통 함수로 추출 고려해볼 것
 /**
  * 원격 스토리지 재연결 실패 이벤트와 세션 끊김 상태를 관찰해 콜백을 실행한다.
  * 끊김 Toast는 끊긴 순간 앱 전역에서 띄우므로 여기서는 화면을 떠나는 콜백만 실행한다.
@@ -39,6 +38,7 @@ private fun RemoteFileListConnectionEffects(
 ) {
     val sessionLost by viewModel.sessionLost.collectAsStateWithLifecycle()
 
+    // Unit 키 — 화면이 살아 있는 동안 한 번만 수집해, 리컴포지션마다 재연결 실패 이벤트를 다시 구독하지 않는다
     LaunchedEffect(Unit) {
         viewModel.reconnectFailed.collect { onReconnectFailed() }
     }

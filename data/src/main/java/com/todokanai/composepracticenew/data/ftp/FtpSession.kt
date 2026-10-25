@@ -136,10 +136,13 @@ class FtpSession internal constructor(private val client: FTPClient) {
         }
     }
 
-    /** 새 연결 작업을 시작한다. 이전 세션의 끊김 기록은 지운다 — 새 연결을 시도하는 동안 남은 끊김은 현재 상태가 아니다. */
+    /**
+     * 새 연결 작업을 시작한다. 연결 상태는 이전 세션이 연결돼 있었든 끊겼든 [RemoteConnectionState.DISCONNECTED]로 둔다 —
+     * 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도([markConnectionDropped]) 그건 새 연결의 끊김이 아니므로 [RemoteConnectionState.LOST]가 되지 않는다.
+     */
     internal suspend fun beginConnecting() = stateMutex.withLock {
         _isConnecting.value = true
-        if (_connectionState.value == RemoteConnectionState.LOST) _connectionState.value = RemoteConnectionState.DISCONNECTED
+        _connectionState.value = RemoteConnectionState.DISCONNECTED
     }
 
     /** 연결 작업이 끝났음을 기록한다. */

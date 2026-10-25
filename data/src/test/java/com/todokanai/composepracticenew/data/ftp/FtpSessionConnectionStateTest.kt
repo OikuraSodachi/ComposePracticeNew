@@ -59,6 +59,15 @@ class FtpSessionConnectionStateTest {
     }
 
     @Test
+    fun `다른 서버로 연결을 시도하는 동안 이전 세션의 명령이 실패해도 끊김이 아니다`() = runBlocking {
+        session.beginConnecting()
+
+        session.markConnectionDropped()
+
+        assertEquals(RemoteConnectionState.DISCONNECTED, session.connectionState.value)
+    }
+
+    @Test
     fun `끊긴 세션에 다시 로그인하면 연결 상태가 된다`() = runBlocking {
         session.withConnectedClient<Unit> { throw IOException("read timed out") }
         session.beginConnecting()

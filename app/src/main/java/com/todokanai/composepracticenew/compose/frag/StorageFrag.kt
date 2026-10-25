@@ -28,7 +28,6 @@ import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import kotlinx.coroutines.launch
 
-// TODO(#143-review-4): RemoteFileListFrag.RemoteFileListConnectionEffects와 구조 동일 — Flow를 직접 받는 TwoFlowEffects 공통 함수로 추출 고려해볼 것
 /**
  * 원격 스토리지 연결 결과 Flow를 수집하고 부수 효과를 실행한다.
  *
