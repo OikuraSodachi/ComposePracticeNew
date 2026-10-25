@@ -102,7 +102,10 @@ class FtpTransferrer @Inject constructor(
         }
     }
 
-    /** 원격 디렉터리 트리를 [localPath] 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다. */
+    /**
+     * 원격 디렉터리 트리를 [localPath] 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다.
+     * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목은 트리에 없어 받지 않으며, 누락을 알리지 않고 완료로 보고한다([FtpCommandExecutor.collectRemoteTree] 참고).
+     */
     private suspend fun downloadDirectory(
         remotePath: String,
         localPath: String,

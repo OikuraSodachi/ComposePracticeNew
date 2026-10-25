@@ -106,6 +106,8 @@ class FtpCommandExecutor @Inject constructor(
      * 일부 하위 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패를 모아 알리며, 이때 path 자체는 지우지 않는다.
      * 실패한 항목을 품은 상위 디렉터리는 비울 수 없으므로 RMD를 보내지도, 실패로 세지도 않는다(GNU rm과 같은 방식).
      * 트리 수집이 세션을 하위 폴더 안에 남기므로, RMD는 세션이 지울 폴더 안에 있으면 먼저 [path]의 상위 폴더로 나간 뒤 보낸다.
+     * 알려진 문제(방치하기로 결정): 트리에 서버가 숨긴 항목이 빠질 수 있어([collectRemoteTree]), 그런 항목이 있으면 보이는 항목을 모두 지운 뒤에야
+     * RMD 거부로 실패를 알게 된다. 이 경우 거부 메시지에 숨긴 항목이 남았을 가능성을 덧붙인다([FtpReplyRules.HIDDEN_ENTRIES_NOTE]).
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
      * @return 삭제 결과. 하위 항목 일부가 실패하면 [IoResult.PartiallyFailed]
      */
@@ -133,6 +135,8 @@ class FtpCommandExecutor @Inject constructor(
      * 깊이는 경로 한도까지 수천 단계가 될 수 있어, 재귀 대신 들어가 있는 디렉터리를 쌓아 두고 거쳐 온 식별값을 한 집합에서 넣고 뺀다 —
      * 스레드 스택 깊이에 기대지 않고, 메모리가 깊이에 비례한다.
      * 시작 디렉터리의 식별값은 그 목록의 자신 항목(MLSD `type=cdir`)에서 얻는다.
+     * 알려진 문제(방치하기로 결정): 각 목록은 서버가 드러내는 항목뿐이라([identifiedListing]) 서버가 숨긴 항목은 트리에서 빠지지만, 수집은 성공으로 끝난다.
+     * 그래서 폴더 다운로드는 숨긴 항목 없이 완료로 보고되고, 재귀 삭제는 보이는 항목을 지운 뒤 RMD에서 실패한다([removeDirectoryRecursive]).
      * @param remoteDirPath 수집할 원격 디렉터리 경로 (ftp://server/path 형식)
      * @return 하위 항목 전체 목록, 또는 조회 실패
      */
