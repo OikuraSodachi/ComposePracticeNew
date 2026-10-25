@@ -1,15 +1,19 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.RemoteConnectionState
+import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
@@ -111,4 +115,16 @@ internal object FixedMessages : OperationMessages {
     override val notiDownloadComplete = "다운로드 완료"
     override val notiUploadComplete = "업로드 완료"
     override val destinationUnverified = "목록 미확인"
+}
+
+/** 연결 상태를 테스트가 직접 바꾸는 테스트용 원격 연결 저장소. 연결·해제는 상태만 바꾼다. */
+internal class FakeConnectionRepository : RemoteConnectionRepository {
+    override val isConnecting = MutableStateFlow(false)
+    override val connectionState = MutableStateFlow(RemoteConnectionState.CONNECTED)
+    override suspend fun connect(item: RemoteStorageItem): ConnectResult {
+        connectionState.value = RemoteConnectionState.CONNECTED
+        return ConnectResult.Connected
+    }
+    override suspend fun disconnect() { connectionState.value = RemoteConnectionState.DISCONNECTED }
+    override fun rootPathOf(item: RemoteStorageItem) = "ftp://${item.address}"
 }

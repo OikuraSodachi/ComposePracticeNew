@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ConnectResult
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.StateFlow
 
@@ -10,8 +11,8 @@ interface RemoteConnectionRepository {
     /** 연결 또는 연결 해제가 진행 중이면 true를 방출한다. */
     val isConnecting: StateFlow<Boolean>
 
-    /** 서버 연결 및 로그인이 완료된 상태이면 true를 방출한다. */
-    val isConnected: StateFlow<Boolean>
+    /** 서버와의 연결 상태. 예기치 않은 끊김은 다음 연결 시도나 종료 요청까지 [RemoteConnectionState.LOST]로 남는다. */
+    val connectionState: StateFlow<RemoteConnectionState>
 
     /**
      * [item]의 접속 정보로 서버에 연결하고 로그인한다.

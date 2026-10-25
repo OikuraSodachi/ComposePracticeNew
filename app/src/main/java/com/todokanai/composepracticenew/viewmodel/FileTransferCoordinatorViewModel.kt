@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -12,12 +13,16 @@ import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
@@ -29,6 +34,7 @@ import javax.inject.Inject
  * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
  * @param messages 작업 완료 메시지 제공자
+ * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  */
 @HiltViewModel
 class FileTransferCoordinatorViewModel @Inject constructor(
@@ -37,6 +43,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: OperationMessages,
+    connectionStateUseCase: RemoteConnectionStateUseCase,
 ) : ViewModel() {
 
     /** 로컬 화면의 선택 상태 — 다운로드 대기 목록도 이 상태(다운로드 목적지 확인)에만 있다. */
@@ -70,6 +77,14 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private val uploadGate = ConflictGate()
     /** 업로드 실행 전 사용자 확인을 기다리는 충돌. */
     val uploadConflict: StateFlow<PendingConflict?> = uploadGate.pending
+
+    init {
+        // 끊김을 상태로 본다 — 어느 화면에 있든, 끊긴 뒤에 이 ViewModel이 만들어졌든 끊긴 세션에 기대는 상태를 남기지 않는다
+        connectionStateUseCase.connectionState
+            .filter { it == RemoteConnectionState.LOST }
+            .onEach { discardRemoteSessionState() }
+            .launchIn(viewModelScope)
+    }
 
     /** first 하나를 선택한 채로 로컬 화면을 다중 선택 모드로 전환한다. */
     fun startLocalMultiSelect(first: FileHolderItem) = local.startMultiSelect(first)
@@ -144,6 +159,17 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** 원격 화면을 기본 모드로 되돌린다. 선택 목록·업로드 대기 목록도 함께 사라진다. */
     fun resetRemoteSelection() = remote.reset()
+
+    /**
+     * 끊긴 원격 세션에 기대는 상태를 버린다. 로컬의 다운로드 대기(원격 경로 목록)와 원격 화면의 선택·업로드 대기, 그 확인을 기다리는 충돌이 해당한다.
+     * 다시 연결하려면 저장소 선택을 거쳐 새 세션을 열어야 하므로 이 상태로는 어떤 전송도 성공할 수 없다. 로컬의 선택·작업 상태는 로컬 저장소만 쓰므로 그대로 둔다.
+     */
+    private fun discardRemoteSessionState() {
+        local.discardReceiving()
+        downloadGate.resolve(ConflictResolution.CANCEL)
+        remote.reset()
+        uploadGate.resolve(ConflictResolution.CANCEL)
+    }
 
     /** 대기 중인 다운로드 충돌을 사용자 선택대로 처리한다. */
     fun resolveDownloadConflict(resolution: ConflictResolution) { downloadGate.resolve(resolution) }

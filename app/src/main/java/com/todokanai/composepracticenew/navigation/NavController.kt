@@ -20,6 +20,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
@@ -52,6 +53,14 @@ fun AppNavHost(
     // mainViewModel.exit()이 서비스 중단 후 emit — View는 호스트 종료 콜백 호출만 담당
     LaunchedEffect(Unit) {
         mainViewModel.exitEvent.collect { onExitApp() }
+    }
+
+    val context = LocalContext.current
+    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 세션이 끊긴 순간 어느 화면에 있든 알린다
+    LaunchedEffect(Unit) {
+        mainViewModel.connectionLost.collect {
+            Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
+        }
     }
 
     // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시 현재 화면이 REMOTE_FILE_LIST가 아니면 이동한다

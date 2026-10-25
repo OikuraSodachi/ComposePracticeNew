@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -29,10 +30,10 @@ class FtpKeepAlive @Inject constructor(
     fun start() {
         job?.cancel()
         job = scope.launch {
-            while (isActive && session.isConnected.value) {
+            while (isActive && session.connectionState.value == RemoteConnectionState.CONNECTED) {
                 delay(KEEPALIVE_INTERVAL_MS)
                 // NOOP 응답을 읽지 못하면(끊김·타임아웃) 세션이 응답 순서를 잃으므로 withConnectedClient가 세션을 종료하고,
-                // 끊김 상태가 되어 다음 루프 조건(isConnected)에서 종료된다. NOOP을 거부한 응답은 세션 유지에 영향이 없어 결과를 보지 않는다
+                // 끊김 상태가 되어 다음 루프 조건(connectionState)에서 종료된다. NOOP을 거부한 응답은 세션 유지에 영향이 없어 결과를 보지 않는다
                 session.withConnectedClient { client ->
                     client.sendNoOp()
                     IoResult.Done
