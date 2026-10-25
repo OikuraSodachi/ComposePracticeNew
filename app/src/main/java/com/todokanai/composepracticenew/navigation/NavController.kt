@@ -85,6 +85,8 @@ fun AppNavHost(
                     onExit = mainViewModel::exit
                 )
             }
+            // 그래프 안의 백스택 모양은 들어온 경로마다 다르다(의도된 동작) — 탭 전환은 그래프에 화면 하나만 남기고,
+            // 업로드 진입·원격 알림은 FILE_LIST 위에 원격 화면을 쌓으며, 다운로드 진입은 원격 화면을 꺼낸다. 원격 화면의 루트 뒤로가기 결과도 그에 따라 저장소/로컬 목록으로 갈린다
             navigation(
                 startDestination = NavDestinations.FILE_LIST,
                 route = NavDestinations.FILE_BROWSER_GRAPH
@@ -160,7 +162,8 @@ private fun FileListDestination(
         onConfirmDownload = coordinator::confirmDownload,
         onEnterUploadMode = {
             coordinator.enterUploadMode()
-            // FILE_LIST를 유지해 back 시 coordinator(uploadPendingList)가 살아남도록 — download 경로와 대칭
+            // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다 —
+            // 원격 화면에서 뒤로가면 로컬 목록으로 돌아온다(그래프 항목이 남아 coordinator의 업로드 대기 상태도 유지)
             if (!navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, false)) {
                 navController.navigate(NavDestinations.REMOTE_FILE_LIST)
             }

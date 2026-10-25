@@ -164,10 +164,13 @@ class RemoteFileListViewModel @Inject constructor(
         }
     }
 
-    /** 상위 디렉터리로 이동한다. 루트이면 toStorageFrag를 호출한다. */
-    fun onBackPressed(toStorageFrag: () -> Unit) {
+    /**
+     * 상위 디렉터리로 이동한다. 루트이면 leaveScreen을 호출한다.
+     * 화면을 떠난 뒤 어디로 가는지(저장소 또는 로컬 목록)는 이 화면에 들어온 경로가 만든 백스택이 정한다.
+     */
+    fun onBackPressed(leaveScreen: () -> Unit) {
         viewModelScope.launch {
-            fileNavigatorUseCase.navigateBack(toStorageFrag)
+            fileNavigatorUseCase.navigateBack(leaveScreen)
         }
     }
 

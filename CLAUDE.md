@@ -55,6 +55,15 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedItems()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
 - `Loaded.completeness`가 `ListingCompleteness.UNCONFIRMED`인 목록(예: FTP LIST의 450을 빈 폴더로 본 목록)은 화면에는 빈 폴더로 보이지만 항목이 있을 수 있다. 판정 결과(`DestinationConflicts.destinationCompleteness`)에 이 사실을 담고, `ConflictGate`가 충돌이 없어 보여도 덮어쓸 수 있음을 확인받은 뒤에만 실행한다.
 
+### Navigation (`navigation/NavController.kt`)
+
+`STORAGE` 밖에 `FILE_BROWSER_GRAPH`(`FILE_LIST`, `REMOTE_FILE_LIST`)가 있고, `FileTransferCoordinatorViewModel`은 이 그래프 항목에 스코프된다 — 그래프를 벗어나면(STORAGE 복귀) 전송·선택 상태가 초기화된다.
+
+그래프 안의 백스택 모양은 들어온 경로에 따라 다르며, 이는 의도된 동작이다(하나의 규칙으로 통일하지 않는다):
+- 탭 전환(`popUpTo(FILE_BROWSER_GRAPH)`)·저장소에서 원격 연결로 들어온 원격 화면은 그래프에 혼자 있어, 루트에서 뒤로가면 저장소로 나간다.
+- 업로드 진입·원격 진행 알림으로 들어온 원격 화면은 `FILE_LIST` 위에 쌓여, 루트에서 뒤로가면 로컬 목록으로 돌아온다(업로드 대기 상태 유지).
+- 다운로드 진입은 원격 화면을 꺼내고 로컬 목록으로 간다.
+
 ### UI Modes (`ui/model/SelectMode`)
 
 선택 모드는 sealed 타입이다. 화면별로 가능한 모드는 `LocalSelectMode` / `RemoteSelectMode`로, 확인 버튼을 갖는 모드는 `ConfirmMode`(라벨 `labelRes`)로 타입을 좁혀 불가능한 조합을 컴파일 단계에서 배제한다.
@@ -69,7 +78,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 화면마다 선택 상태는 `SelectionState<Op, T>` 하나다(`FileTransferCoordinatorViewModel.localSelection` / `remoteSelection`, 전환은 `SelectionStateHolder`). 모드와 항목 목록을 한 값으로 묶어, 목록이 의미 있는 상태에만 둔다.
 
 - `MultiSelect(selected)`, `Operation(operation, selected)` — 이 화면의 선택이 작업 대상(같은 저장소 작업, `SameStorageOperation`).
-- `Receiving(transfer, pending)` — 다른 화면에서 고른 항목을 받는 전송 목적지(`TransferMode`: Download/Upload). 이 화면의 선택은 없고 대기 목록만 있다.
+- `Receiving(transfer, pending)` — 다른 화면에서 고른 항목을 받는 전송 목적지(`TransferMode`: Download/Upload). 이 화면의 선택은 없고 대기 목록만 있다. 전송을 시작하면 받는 화면에 남아 있던 다중 선택·작업 목적지 확인은 묻지 않고 버린다(의도된 동작 — 새 전송이 우선).
 - `Default` — 선택도 대기 목록도 없다. 취소·뒤로가기·실행 후 모두 여기로 돌아가며 목록은 함께 사라진다.
 
 UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedStateOf`로 모드 변경 시에만 리컴포지션), 행 강조는 `selected`만 본다. 원격 같은 저장소 작업(복사·이동)을 추가할 때는 원격의 `Op`(지금 `Nothing`)에 해당 타입을 넣는다.

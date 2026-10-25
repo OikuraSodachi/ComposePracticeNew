@@ -109,13 +109,19 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /** 원격 다중 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 사용한다. */
     fun setRemoteSelectedList(list: List<FileHolderItem>) = remote.replaceSelection(list)
 
-    /** 로컬 선택 목록을 업로드 대기 목록으로 원격 화면에 넘기고, 로컬 화면은 기본 모드로 되돌린다. */
+    /**
+     * 로컬 선택 목록을 업로드 대기 목록으로 원격 화면에 넘기고, 로컬 화면은 기본 모드로 되돌린다.
+     * 원격 화면에 다중 선택이 남아 있어도 묻지 않고 버린다 — 의도된 동작이다(새로 시작한 전송이 받는 화면의 이전 선택보다 우선한다).
+     */
     fun enterUploadMode() {
         remote.receive(SelectMode.Upload, local.state.value.selected)
         local.reset()
     }
 
-    /** items를 다운로드 대기 목록으로 로컬 화면에 넘기고, 원격 화면은 기본 모드로 되돌린다. */
+    /**
+     * items를 다운로드 대기 목록으로 로컬 화면에 넘기고, 원격 화면은 기본 모드로 되돌린다.
+     * 로컬 화면에 다중 선택이나 작업(복사·이동·압축 해제) 목적지 확인이 남아 있어도 묻지 않고 버린다 — 의도된 동작이다(새로 시작한 전송이 받는 화면의 이전 선택보다 우선한다).
+     */
     fun enterDownloadMode(items: List<FileHolderItem>) {
         local.receive(SelectMode.Download, items)
         remote.reset()
