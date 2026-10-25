@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -13,15 +12,13 @@ import java.nio.file.Files
 /**
  * 작업용 트리 수집([FtpCommandExecutor.collectRemoteTree])이 MLSD 지원 서버에서는 MLSD로 빈 폴더와 조회 실패를 구분하고,
  * 자신·상위 디렉터리 항목(type=cdir/pdir)을 걸러내며, 미지원 서버에서는 LIST를 쓰고 오류 응답을 실패 결과로 보는지,
- * 목록이 상위 폴더를 하위로 보여줘도 수집이 끝나는지(식별값으로 순환 감지, 식별값이 없으면 경로 한도) 검증하는 단위 테스트.
+ * 목록이 상위 폴더를 하위로 보여줘도 수집이 끝나는지(항목·자신 항목의 식별값으로 순환 감지, 경로 한도) 검증하는 단위 테스트.
  */
 class FtpCommandExecutorTreeListingTest {
 
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
     private val commands = FtpCommandExecutor(session)
-    /** 다운로드 대상 로컬 폴더를 둘 임시 폴더. */
-    private val dir: File = Files.createTempDirectory("ftp-tree-listing-test").toFile()
 
     @Test
     fun `MLSD 서버에서 빈 하위 폴더는 실패가 아닌 빈 폴더로 수집하고 자신·상위 항목은 걸러낸다`() {
@@ -205,13 +202,51 @@ class FtpCommandExecutorTreeListingTest {
             "/r" to listOf("type=dir;unique=801U10; a", "type=file;size=3; a.txt"),
             "/r/a" to listOf("type=dir;unique=801U10; loop")
         )
-        val target = File(dir, "r")
+        val dir = Files.createTempDirectory("ftp-tree-listing-test").toFile()
+        try {
+            val target = File(dir, "r")
 
-        val result = runBlocking { FtpTransferrer(session, commands).download("ftp://host/r", target.path, isDirectory = true) }
+            val result = runBlocking { FtpTransferrer(session, commands).download("ftp://host/r", target.path, isDirectory = true) }
 
-        assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
-        assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
-        assertFalse("로컬 폴더를 만들지 않아야 함", target.exists())
+            assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
+            assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
+            assertFalse("로컬 폴더를 만들지 않아야 함", target.exists())
+        } finally {
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `항목에는 링크 자신의 식별값을 보내도 들어간 폴더의 자신 항목 식별값으로 순환을 감지한다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        client.mlsdListings = mapOf(
+            "/r" to listOf("type=cdir;unique=801U10; /r", "type=dir;unique=801U99; loop"),
+            // loop는 /r을 가리키는 링크 — 상위 목록의 항목은 링크 자신의 값(801U99), 들어간 목록의 자신 항목은 대상의 값(801U10)
+            "/r/loop" to listOf("type=cdir;unique=801U10; /r/loop", "type=dir;unique=801U99; loop")
+        )
+
+        val result = runBlocking { commands.collectRemoteTree("ftp://host/r") }
+
+        assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
+        assertEquals(listOf("MLSD /r", "MLSD /r/loop"), client.listRequests)
+    }
+
+    @Test
+    fun `들어갔다 나온 폴더의 식별값은 형제 폴더를 순환으로 보지 않도록 빠진다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        client.mlsdListings = mapOf(
+            "/r" to listOf("type=dir;unique=A; a", "type=dir;unique=B; b"),
+            "/r/a" to listOf("type=cdir;unique=A2; /r/a"),
+            // b 안의 c는 이미 나온 a의 자신 항목 값과 같다 — 상위가 아니므로 순환이 아니다
+            "/r/b" to listOf("type=dir;unique=A2; c"),
+            "/r/b/c" to emptyList()
+        )
+
+        val tree = (runBlocking { commands.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
+
+        assertEquals(listOf("ftp://host/r/a", "ftp://host/r/b", "ftp://host/r/b/c"), tree.map { it.path })
     }
 
     @Test
@@ -228,11 +263,6 @@ class FtpCommandExecutorTreeListingTest {
         assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
         assertEquals(emptyList<String>(), client.deleteRequests)
         assertEquals(emptyList<String>(), client.removeDirectoryRequests)
-    }
-
-    @After
-    fun tearDown() {
-        dir.deleteRecursively()
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */

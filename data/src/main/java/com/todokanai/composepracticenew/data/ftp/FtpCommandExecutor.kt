@@ -11,7 +11,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPFile
-import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -40,9 +39,9 @@ private data class ReceivedListing(val entries: List<ReceivedEntry>, val selfIde
 /**
  * 트리 수집이 들어가 있는 디렉터리 하나.
  * @param listed 그 디렉터리의 목록
- * @param identity 그 디렉터리의 식별값. 모르면 null
+ * @param identities 그 디렉터리의 식별값(상위 목록의 항목과 자신 항목이 알려준 값). 모르면 비어 있다
  */
-private class DirectoryVisit(val listed: IdentifiedListing, val identity: String?) {
+private class DirectoryVisit(val listed: IdentifiedListing, val identities: Set<String>) {
     /** 아직 수집하지 않은 항목. */
     val remaining: Iterator<FileEntry> = listed.listing.entries.iterator()
 }
@@ -140,12 +139,12 @@ class FtpCommandExecutor @Inject constructor(
         // 거쳐 온 디렉터리의 식별값 — 이미 있는 값이면 내려가지 않으므로 같은 값이 두 번 들어가지 않아, 그 디렉터리를 나올 때 빼도 된다
         val ancestorIdentities = HashSet<String>()
         val pending = ArrayDeque<DirectoryVisit>()
-        pending.addLast(enterDirectory(remoteDirPath, identityOf = { it.selfIdentity }, ancestorIdentities).valueOr { return it })
+        pending.addLast(enterDirectory(remoteDirPath, entryIdentity = null, ancestorIdentities).valueOr { return it })
         while (pending.isNotEmpty()) {
             val visit = pending.last()
             if (!visit.remaining.hasNext()) {
                 pending.removeLast()
-                visit.identity?.let(ancestorIdentities::remove)
+                ancestorIdentities.removeAll(visit.identities)
                 continue
             }
             val entry = visit.remaining.next()
@@ -153,29 +152,41 @@ class FtpCommandExecutor @Inject constructor(
             if (!entry.isDirectory) continue
             val identity = visit.listed.identities[entry.path]
             descentRefusal(entry.path, identity, ancestorIdentities)?.let { return it }
-            pending.addLast(enterDirectory(entry.path, identityOf = { identity }, ancestorIdentities).valueOr { return it })
+            pending.addLast(enterDirectory(entry.path, identity, ancestorIdentities).valueOr { return it })
         }
         return IoResult.Success(result)
     }
 
     /**
      * 트리 수집이 [dirPath]로 들어간다. 목록을 조회하고, 그 디렉터리의 식별값을 거쳐 온 식별값에 더한다.
+     * 식별값은 상위 목록의 항목이 알려준 값과 그 디렉터리 목록의 자신 항목(MLSD `type=cdir`)이 알려준 값 둘 다 쓴다 —
+     * 항목에는 링크 자신의 값을, 자신 항목에는 링크 대상의 값을 보내는 서버에서도 순환을 놓치지 않도록, 자신 항목의 값도 거쳐 온 식별값과 비교한다.
      * @param dirPath 들어갈 원격 디렉터리 경로 (ftp://server/path 형식)
-     * @param identityOf 조회한 목록으로 이 디렉터리의 식별값을 정한다. 모르면 null. [ancestorIdentities]에 없는 값이어야 한다
+     * @param entryIdentity 상위 목록의 항목이 알려준 이 디렉터리의 식별값. 모르거나 시작 디렉터리면 null. [ancestorIdentities]에 없는 값이어야 한다
      * @param ancestorIdentities 거쳐 온 디렉터리의 식별값. 이 디렉터리의 식별값이 더해진다
-     * @return 들어간 디렉터리, 또는 조회 실패
+     * @return 들어간 디렉터리. 조회에 실패했거나 자신 항목의 식별값이 거쳐 온 디렉터리와 같으면 그 실패
      */
     private suspend fun enterDirectory(
         dirPath: String,
-        identityOf: (IdentifiedListing) -> String?,
+        entryIdentity: String?,
         ancestorIdentities: MutableSet<String>
     ): IoResult<DirectoryVisit> {
         // 트리 수집은 확인되지 않은 빈 목록을 만들지 않는다 — 그런 응답은 거부로 해석한다([FtpReplyRules.listingReplyOf])
         val listed = list(dirPath, FtpListingPurpose.TREE).valueOr { return it }
-        val identity = identityOf(listed)
-        identity?.let(ancestorIdentities::add)
-        return IoResult.Success(DirectoryVisit(listed, identity))
+        if (listed.selfIdentity != null && listed.selfIdentity in ancestorIdentities) return cycleRefusal(dirPath)
+        // 거쳐 온 식별값에 없는 값만 담기므로, 나올 때 이 값들을 빼도 상위 디렉터리의 값은 남는다
+        val identities = setOfNotNull(entryIdentity, listed.selfIdentity)
+        ancestorIdentities.addAll(identities)
+        return IoResult.Success(DirectoryVisit(listed, identities))
     }
+
+    /**
+     * 트리 수집이 [path]에서 거쳐 온 디렉터리로 돌아왔다는 실패를 만든다.
+     * @param path 거쳐 온 디렉터리와 같은 디렉터리의 경로 (ftp://server/path 형식)
+     * @return 순환을 알리는 실패
+     */
+    private fun cycleRefusal(path: String): IoResult.ItemFailed =
+        IoResult.ItemFailed("폴더 순환 감지: ${extractFtpPath(path)} 은(는) 상위 폴더와 같은 폴더입니다")
 
     /**
      * 트리 수집이 하위 디렉터리 [path]로 내려가면 안 되는 이유를 실패로 만든다.
@@ -190,7 +201,7 @@ class FtpCommandExecutor @Inject constructor(
      * @return 내려가면 안 되면 그 이유를 담은 실패, 내려가도 되면 null
      */
     private fun descentRefusal(path: String, identity: String?, ancestorIdentities: Set<String>): IoResult.ItemFailed? = when {
-        identity != null && identity in ancestorIdentities -> IoResult.ItemFailed("폴더 순환 감지: ${extractFtpPath(path)} 은(는) 상위 폴더와 같은 폴더입니다")
+        identity != null && identity in ancestorIdentities -> cycleRefusal(path)
         exceedsPathMax(path) -> IoResult.ItemFailed(
             "경로가 너무 깁니다(${PATH_MAX_BYTES}바이트 이상): ${extractFtpPath(path)}" + if (identity == null) UNIDENTIFIABLE_NOTE else ""
         )
@@ -226,7 +237,7 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
      * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
-     * 숨김 항목을 담는 `-a` 옵션은 연결할 때 [FtpListingFormat.probeHiddenListing]의 판정대로 [client]에 정해 두었다.
+     * 숨김 항목을 담는 `-a` 옵션은 연결할 때 [FtpListingFormat.negotiateListingOptions]의 판정대로 [client]에 정해 두었다.
      * 디렉터리로 이동한 뒤 [FtpListingFormat.listCurrentDirectory]로 조회한다 — LIST 인자는 RFC 959상 경로뿐이라 옵션과 임의의 경로를 함께 보내면
      * 서버마다 해석이 갈리고(옵션을 떼고 경로로 읽거나, 전체를 한 경로로 읽음), 연결할 때의 `-a` 판정도 같은 형태로 했다.
      * 다른 명령은 모두 절대 경로를 쓰지만, 세션이 조회한 폴더 안에 남으므로 그 폴더나 상위 폴더를 지우거나 옮기는 명령은 먼저 밖으로 나간다([leavingTarget]).
@@ -255,7 +266,9 @@ class FtpCommandExecutor @Inject constructor(
      */
     private fun listWithMlsd(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<IdentifiedListing> {
         val (files, transferStarted) = watchingDataTransfer(client) { client.mlistDir(ftpPath) }
-        return listingOutcome(FtpCommand.MLSD, purpose, client, transferStarted, path) { receivedMlsdListing(files.orEmpty()) }
+        return listingOutcome(FtpCommand.MLSD, purpose, client, transferStarted, path) {
+            receivedMlsdListing(files.orEmpty(), withIdentities = purpose == FtpListingPurpose.TREE)
+        }
     }
 
     /**
@@ -307,47 +320,25 @@ class FtpCommandExecutor @Inject constructor(
     }
 
     /**
-     * MLSD로 받은 항목의 사실을 한 번씩 읽어, 나열한 디렉터리 자신·상위 항목(type=cdir/pdir)을 걸러내고 식별값을 붙인다.
-     * commons-net은 두 종류를 일반 디렉터리로 파싱하고, 서버에 따라 이름이 "."이 아닌 전체 경로로 오므로 원본 줄의 type 사실로 판별한다.
+     * MLSD로 받은 항목의 사실을 한 번씩 읽어, 나열한 디렉터리 자신·상위 항목(type=cdir/pdir)을 걸러낸다.
      * 걸러내지 않으면 트리 수집이 자기 자신을 하위 디렉터리로 보고 내려간다. 자신 항목의 식별값은 그 디렉터리의 식별값이다.
      * @param files MLSD로 받은 항목
+     * @param withIdentities 식별값을 붙일지 여부. 식별값은 트리 수집만 쓴다
      * @return 디렉터리 안의 항목과 식별값
      */
-    private fun receivedMlsdListing(files: Array<out FTPFile>): ReceivedListing {
-        val parsed = files.map { it to mlsdFacts(it) }
-        val selfIdentity = parsed.firstOrNull { (_, facts) -> mlsdType(facts) == TYPE_CDIR }?.let { (_, facts) -> mlsdIdentity(facts) }
-        val entries = parsed
-            .filterNot { (_, facts) -> mlsdType(facts) == TYPE_CDIR || mlsdType(facts) == TYPE_PDIR }
-            .map { (file, facts) -> ReceivedEntry(file, mlsdIdentity(facts)) }
+    private fun receivedMlsdListing(files: Array<out FTPFile>, withIdentities: Boolean): ReceivedListing {
+        var selfIdentity: String? = null
+        val entries = files.mapNotNull { file ->
+            val facts = FtpListingFormat.mlsdFacts(file)
+            val identity = if (withIdentities) FtpListingFormat.mlsdIdentity(facts) else null
+            when (FtpListingFormat.mlsdSelfOrParent(facts)) {
+                MlsdSelfOrParent.SELF -> null.also { if (selfIdentity == null) selfIdentity = identity }
+                MlsdSelfOrParent.PARENT -> null
+                null -> ReceivedEntry(file, identity)
+            }
+        }
         return ReceivedListing(entries, selfIdentity)
     }
-
-    /**
-     * MLSD 항목의 종류 사실을 소문자로 꺼낸다. 값은 대소문자를 구분하지 않는다(RFC 3659 §7.5.1).
-     * @param facts [mlsdFacts]로 읽은 사실
-     * @return 종류. 없으면 null
-     */
-    private fun mlsdType(facts: Map<String, String>): String? = facts[FACT_TYPE]?.lowercase(Locale.ROOT)
-
-    /**
-     * MLSD 항목의 `unique` 사실을 꺼낸다(RFC 3659 §7.5.2). 같은 디렉터리를 가리키는 항목은 경로가 달라도 값이 같다 —
-     * 디렉터리로 보고된 링크는 링크 대상의 값을 가진다(ProFTPD·Pure-FTPd는 대상의 장치·inode 번호).
-     * commons-net은 이 사실을 해석하지 않으므로 원본 줄에서 읽는다. 값은 대소문자를 구분한다.
-     * @param facts [mlsdFacts]로 읽은 사실
-     * @return 식별값. 서버가 알려주지 않았으면 null
-     */
-    private fun mlsdIdentity(facts: Map<String, String>): String? = facts[FACT_UNIQUE]?.takeIf { it.isNotEmpty() }
-
-    /**
-     * MLSD 항목 원본 줄의 사실 목록을 이름 → 값으로 읽는다. 사실 이름은 대소문자를 구분하지 않아(RFC 3659 §7.1) 소문자로 바꾸고, 값은 그대로 둔다.
-     * 값에 `=`가 들어갈 수 있으므로(예: `type=OS.unix=slink:...`) 첫 `=`에서 나눈다.
-     * @param file MLSD로 받은 항목
-     * @return 사실 이름 → 값. 원본 줄이 없으면 빈 맵
-     */
-    private fun mlsdFacts(file: FTPFile): Map<String, String> =
-        file.rawListing?.substringBefore(' ')?.split(';').orEmpty()
-            .filter { '=' in it }
-            .associate { it.substringBefore('=').lowercase(Locale.ROOT) to it.substringAfter('=') }
 
     /**
      * [ancestorPath]가 [path]를 하위 항목으로 품는 원격 디렉터리 경로인지 판별한다.
@@ -439,14 +430,6 @@ class FtpCommandExecutor @Inject constructor(
         path.trimEnd('/') == directoryPath.trimEnd('/') || isRemoteAncestorOf(directoryPath, path)
 
     companion object {
-        /** MLSD 항목 종류 사실의 이름. */
-        private const val FACT_TYPE = "type"
-        /** 나열한 디렉터리 자신을 뜻하는 MLSD 항목 종류. */
-        private const val TYPE_CDIR = "cdir"
-        /** 나열한 디렉터리의 상위 디렉터리를 뜻하는 MLSD 항목 종류. */
-        private const val TYPE_PDIR = "pdir"
-        /** MLSD 항목 식별값 사실의 이름. */
-        private const val FACT_UNIQUE = "unique"
         /** 트리 수집이 내려갈 수 있는 경로 길이의 한도(바이트, 끝의 NUL 포함). Linux(Android)의 PATH_MAX다. */
         private const val PATH_MAX_BYTES = 4096
         /** 식별값 없이 경로 한도에서 멈췄을 때 덧붙이는 설명([descentRefusal]). */
