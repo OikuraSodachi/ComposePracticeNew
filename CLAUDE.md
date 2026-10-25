@@ -125,6 +125,15 @@ Top-level `_td`-suffixed functions (e.g., `dirTree_td`, `readableFileSize_td`, `
 
 See [ROADMAP.md](ROADMAP.md).
 
+## 해결이 필요한 과잉대응 이슈
+
+비표준 동작 수용이나 정리 범위를 넘는 변경이 쌓인 곳이다(이슈 제목 `[과잉대응]`, 라벨 `refactor`). 아래 이슈는 해결이 필요하며, 해당 영역을 고칠 때 과잉대응을 더 쌓지 않는다.
+
+- #258 LIST `-a` 판정이 비표준 서버 수용의 연쇄로 커짐 — CWD 후 LIST, leavingTarget, 홈 기록
+- #259 LIST 450 = 빈 목록 수용이 UNCONFIRMED·ConflictGate 경고로 3개 레이어에 번짐
+- #260 트리 수집 순환 감지에 정밀 장치가 먼저 쌓이고 일반 상한(#257)은 미해결
+- #261 DataStore 정리 이슈(#42)에 읽기 재시도·묶음 반영 등 동작 변경이 섞임
+
 ## Compose Configuration
 
 - **Strong Skipping** is enabled. All `@Composable` functions benefit from strong-skipping optimization — unstable parameters no longer unconditionally force recomposition. Avoid adding `@Stable`/`@Immutable` annotations solely to enable skipping; strong skipping already covers the common case.
