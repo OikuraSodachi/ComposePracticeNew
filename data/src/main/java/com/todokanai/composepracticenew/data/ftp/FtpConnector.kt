@@ -35,7 +35,7 @@ class FtpConnector @Inject constructor(
      * @return 연결 결과
      */
     suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
-        session.setConnecting(true)
+        session.beginConnecting()
         val closeMark = session.closeRequestMark()
         return session.withClient { client ->
             withContext(Dispatchers.IO) {
@@ -55,7 +55,7 @@ class FtpConnector @Inject constructor(
                     closeQuietly(client)
                     ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
                 } finally {
-                    session.setConnecting(false)
+                    session.endConnecting()
                 }
             }
         }

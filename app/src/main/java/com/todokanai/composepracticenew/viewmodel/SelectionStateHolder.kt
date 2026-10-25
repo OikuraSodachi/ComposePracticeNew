@@ -44,6 +44,11 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
     /** 기본 모드로 되돌린다. 선택 목록과 전송 대기 목록도 함께 사라진다. */
     fun reset() { _state.value = SelectionState.Default }
 
+    /** 전송 목적지 확인 중이면 기본 모드로 되돌린다. 이 화면의 선택·작업 상태는 그대로 둔다. */
+    fun discardReceiving() {
+        _state.update { current -> if (current is SelectionState.Receiving) SelectionState.Default else current }
+    }
+
     /** 다중 선택 중일 때만 선택 목록에 edit를 적용한다. */
     private fun editSelection(edit: (List<FileHolderItem>) -> List<FileHolderItem>) {
         _state.update { current ->

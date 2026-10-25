@@ -82,11 +82,10 @@ object UseCaseModule {
 
     @Provides @Singleton
     fun provideRemoteConnectionResilienceUseCase(
-        connectionRepo: RemoteConnectionRepository,
         lastConnectionRepo: LastConnectionRepository,
         remoteStorageRepo: RemoteStorageRepository,
         remoteConnectionUseCase: RemoteConnectionUseCase
-    ) = RemoteConnectionResilienceUseCase(connectionRepo, lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
+    ) = RemoteConnectionResilienceUseCase(lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
 
     @Provides @Singleton
     fun provideConflictCheckUseCase(orchestrator: FileOperationOrchestrator, messages: OperationMessages) =

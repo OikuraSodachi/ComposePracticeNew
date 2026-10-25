@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,7 +29,7 @@ class FtpSession internal constructor(private val client: FTPClient) {
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
     @Inject constructor() : this(FTPClient())
 
-    /** isLoggedIn, _isConnected, _isConnecting 갱신을 직렬화한다. */
+    /** isLoggedIn, _connectionState, _isConnecting 갱신을 직렬화한다. */
     private val stateMutex = Mutex()
     /** FTP 명령 I/O를 직렬화한다. [closeBypassingIoLock]은 이 lock을 기다리지 않고 진행 중 I/O의 소켓을 닫아 즉시 중단한다. */
     private val ioMutex = Mutex()
@@ -53,9 +54,12 @@ class FtpSession internal constructor(private val client: FTPClient) {
     internal var homeDirectory: String? = null
         private set
 
-    private val _isConnected = MutableStateFlow(false)
-    /** FTP 서버와 연결 및 로그인이 모두 완료된 경우 true를 방출한다. */
-    val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
+    private val _connectionState = MutableStateFlow(RemoteConnectionState.DISCONNECTED)
+    /**
+     * FTP 서버와의 연결 상태. 예기치 않은 끊김([markConnectionDropped])과 앱이 요청한 종료([markLoggedOut]·[closeBypassingIoLock])를 구분해,
+     * 끊김은 다음 연결 시도([beginConnecting])나 종료 요청까지 [RemoteConnectionState.LOST]로 남긴다.
+     */
+    val connectionState: StateFlow<RemoteConnectionState> = _connectionState.asStateFlow()
 
     private val _isConnecting = MutableStateFlow(false)
     /** connect() 또는 disconnect() 호출이 진행 중인 경우 true를 방출한다. */
@@ -121,16 +125,28 @@ class FtpSession internal constructor(private val client: FTPClient) {
         if (cause is FTPConnectionClosedException) CONNECTION_LOST_MESSAGE
         else "$NO_RESPONSE_MESSAGE (${cause.message ?: cause.javaClass.simpleName})"
 
-    /** FTP 연결이 서버 측에서 끊긴 경우 로그인 상태를 초기화한다. 진행 중인 작업은 다음 명령에서 [withConnectedClient]가 끊김으로 알린다. */
+    /**
+     * FTP 연결이 서버 측에서 끊긴 경우 로그인 상태를 초기화한다. 진행 중인 작업은 다음 명령에서 [withConnectedClient]가 끊김으로 알린다.
+     * 연결된 세션에서만 끊김([RemoteConnectionState.LOST])으로 기록한다 — 앱이 먼저 종료한 세션의 진행 중 명령이 소켓이 닫혀 실패한 것은 끊김이 아니다.
+     */
     suspend fun markConnectionDropped() {
         stateMutex.withLock {
             isLoggedIn = false
-            _isConnected.value = false
+            if (_connectionState.value == RemoteConnectionState.CONNECTED) _connectionState.value = RemoteConnectionState.LOST
         }
     }
 
-    /** 연결 진행 중 여부를 갱신한다. */
-    internal suspend fun setConnecting(value: Boolean) = stateMutex.withLock { _isConnecting.value = value }
+    /**
+     * 새 연결 작업을 시작한다. 연결 상태는 이전 세션이 연결돼 있었든 끊겼든 [RemoteConnectionState.DISCONNECTED]로 둔다 —
+     * 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도([markConnectionDropped]) 그건 새 연결의 끊김이 아니므로 [RemoteConnectionState.LOST]가 되지 않는다.
+     */
+    internal suspend fun beginConnecting() = stateMutex.withLock {
+        _isConnecting.value = true
+        _connectionState.value = RemoteConnectionState.DISCONNECTED
+    }
+
+    /** 연결 작업이 끝났음을 기록한다. */
+    internal suspend fun endConnecting() = stateMutex.withLock { _isConnecting.value = false }
 
     /**
      * 로그인 성공 상태로 전환한다. 새 연결의 현재 디렉터리는 로그인 직후의 홈이다.
@@ -144,7 +160,7 @@ class FtpSession internal constructor(private val client: FTPClient) {
         homeDirectory = home
         workingDirectory = home
         isLoggedIn = true
-        _isConnected.value = true
+        _connectionState.value = RemoteConnectionState.CONNECTED
         true
     }
 
@@ -164,7 +180,7 @@ class FtpSession internal constructor(private val client: FTPClient) {
     /** 로그인 해제 상태로 전환한다. */
     internal suspend fun markLoggedOut() = stateMutex.withLock {
         isLoggedIn = false
-        _isConnected.value = false
+        _connectionState.value = RemoteConnectionState.DISCONNECTED
     }
 
     /**
@@ -179,7 +195,7 @@ class FtpSession internal constructor(private val client: FTPClient) {
         stateMutex.withLock {
             bypassCloseRequests.incrementAndGet()
             isLoggedIn = false
-            _isConnected.value = false
+            _connectionState.value = RemoteConnectionState.DISCONNECTED
             _isConnecting.value = true
         }
         if (ioMutex.tryLock()) {

@@ -84,6 +84,26 @@ class SelectionStateHolderTest {
         assertEquals(SelectionState.MultiSelect(listOf(a, b)), holder.state.value)
     }
 
+    @Test
+    fun `전송 대기를 버리면 기본 모드가 된다`() {
+        holder.receive(SelectMode.Download, listOf(b))
+
+        holder.discardReceiving()
+
+        assertEquals(SelectionState.Default, holder.state.value)
+    }
+
+    @Test
+    fun `전송 대기를 버려도 이 화면의 선택과 작업 상태는 남는다`() {
+        holder.startMultiSelect(a)
+        holder.discardReceiving()
+        assertEquals(SelectionState.MultiSelect(listOf(a)), holder.state.value)
+
+        holder.enterOperation(SelectMode.LocalOperation.Move)
+        holder.discardReceiving()
+        assertEquals(SelectionState.Operation(SelectMode.LocalOperation.Move, listOf(a)), holder.state.value)
+    }
+
     /** [path]의 파일 항목을 만든다. */
     private fun item(path: String) =
         FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), size = "", lastModified = "")

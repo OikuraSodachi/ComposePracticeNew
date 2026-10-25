@@ -4,11 +4,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -19,6 +21,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
@@ -34,12 +38,14 @@ import javax.inject.Inject
  * @param getStorageListUseCase 물리 스토리지 목록을 로드·갱신하는 UseCase
  * @param progressUseCase 진행 중인 작업 상태와 파일 작업 완료·실패 이벤트를 제공하는 UseCase
  * @param exitHandler 연결 서비스를 중단하고 앱 종료 이벤트를 발행하는 핸들러
+ * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val getStorageListUseCase: GetStorageListUseCase,
     progressUseCase: ProgressUseCase,
-    private val exitHandler: AppExitHandler
+    private val exitHandler: AppExitHandler,
+    connectionStateUseCase: RemoteConnectionStateUseCase
 ) : ViewModel() {
 
     /**
@@ -74,7 +80,22 @@ class MainViewModel @Inject constructor(
     /** 앱을 종료하라는 이벤트. 화면 호스트에서 수집해 Activity를 종료한다. */
     val exitEvent: Flow<Unit> = exitHandler.exitEvent
 
+    /** 원격 세션이 끊겼다는 알림을 화면이 수집할 때까지 하나만 보관하는 채널. */
+    private val _connectionLost = Channel<Unit>(Channel.CONFLATED)
+    /**
+     * 원격 세션이 끊긴 순간 발행된다. 어느 화면에 있든 알리기 위해 화면 호스트에서 수집한다.
+     * 끊김에 따른 정리(서비스 중지·전송 상태 정리·원격 화면 이탈)는 각자 연결 상태를 보고 하므로, 이 이벤트는 알림에만 쓴다.
+     */
+    val connectionLost: Flow<Unit> = _connectionLost.receiveAsFlow()
+
     init {
+        // 지금 상태는 건너뛴다 — ViewModel을 만들 때(앱을 열 때) 이미 끊겨 있던 세션은 지금 끊긴 것이 아니다
+        connectionStateUseCase.connectionState
+            .drop(1)
+            .filter { it == RemoteConnectionState.LOST }
+            .onEach { _connectionLost.trySend(Unit) }
+            .launchIn(viewModelScope)
+
         // 화면이 다이얼로그를 수집하지 않는 동안에도 새 작업의 시작을 놓치지 않도록 ViewModel이 살아 있는 동안 계속 본다
         progressUseCase.progressMap
             .map(::activeIdsOf)

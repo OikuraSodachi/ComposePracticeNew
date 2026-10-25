@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.compose.frag
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -23,13 +22,13 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
-// TODO(#143-review-4): StorageFrag.StorageConnectionEffects와 구조 동일 — Flow를 직접 받는 TwoFlowEffects 공통 함수로 추출 고려해볼 것
 /**
- * 원격 스토리지 연결 실패·유실 이벤트 Flow를 수집하고 Toast 및 콜백을 실행한다.
+ * 원격 스토리지 재연결 실패 이벤트와 세션 끊김 상태를 관찰해 콜백을 실행한다.
+ * 끊김 Toast는 끊긴 순간 앱 전역에서 띄우므로 여기서는 화면을 떠나는 콜백만 실행한다.
  *
- * @param viewModel 이벤트 Flow를 제공하는 ViewModel
+ * @param viewModel 이벤트 Flow와 끊김 상태를 제공하는 ViewModel
  * @param onReconnectFailed 재연결 실패 시 실행할 콜백
- * @param onConnectionLost 연결 유실 시 실행할 콜백
+ * @param onConnectionLost 세션이 끊긴 상태일 때(이 화면에 들어왔을 때 이미 끊겨 있던 경우 포함) 실행할 콜백
  */
 @Composable
 private fun RemoteFileListConnectionEffects(
@@ -37,9 +36,15 @@ private fun RemoteFileListConnectionEffects(
     onReconnectFailed: () -> Unit,
     onConnectionLost: () -> Unit,
 ) {
+    val sessionLost by viewModel.sessionLost.collectAsStateWithLifecycle()
+
+    // Unit 키 — 화면이 살아 있는 동안 한 번만 수집해, 리컴포지션마다 재연결 실패 이벤트를 다시 구독하지 않는다
     LaunchedEffect(Unit) {
-        launch { viewModel.reconnectFailed.collect { onReconnectFailed() } }
-        launch { viewModel.connectionLost.collect  { onConnectionLost()  } }
+        viewModel.reconnectFailed.collect { onReconnectFailed() }
+    }
+    // sessionLost를 키로 — 끊긴 상태가 되거나 끊긴 상태로 들어왔을 때 한 번 화면을 떠난다
+    LaunchedEffect(sessionLost) {
+        if (sessionLost) onConnectionLost()
     }
 }
 
@@ -80,10 +85,7 @@ fun RemoteFileListFrag(
         onReconnectFailed = {
             Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
         },
-        onConnectionLost = {
-            Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
-            onConnectionLost()
-        },
+        onConnectionLost = onConnectionLost,
     )
 
     if (unreadableServer) {

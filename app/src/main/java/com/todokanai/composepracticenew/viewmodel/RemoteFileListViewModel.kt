@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ReconnectResult
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.service.ConnectionServiceController
@@ -18,15 +19,14 @@ import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -42,7 +42,8 @@ import javax.inject.Inject
  * @param connectionServiceController 연결 유지 ForegroundService를 제어하는 컨트롤러
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param remoteFileOperationUseCase 원격 파일 조작을 실행하는 UseCase
- * @param connectionResilienceUseCase 연결 끊김 감지·자동 재연결 UseCase
+ * @param connectionResilienceUseCase 마지막 서버 자동 재연결 UseCase
+ * @param connectionStateUseCase 원격 연결 상태(끊김 포함)를 제공하는 UseCase
  * @param conflictCheckUseCase 이름 변경 시 같은 이름 항목과의 겹침을 판정하는 UseCase
  * @param messages 작업 완료 메시지 제공자
  */
@@ -53,6 +54,7 @@ class RemoteFileListViewModel @Inject constructor(
     private val sortModeUseCase: SortModeUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
+    connectionStateUseCase: RemoteConnectionStateUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: OperationMessages,
 ) : ViewModel() {
@@ -69,9 +71,13 @@ class RemoteFileListViewModel @Inject constructor(
     /** 서버의 파일 목록을 읽을 수 없다는 다이얼로그를 닫는다. */
     fun dismissUnreadableServer() = reconnectFailureNotice.dismissUnreadableServer()
 
-    private val _connectionLost = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** 서버 측 연결 종료(idle timeout 등)로 원격 연결이 끊겼을 때 발행된다. */
-    val connectionLost: SharedFlow<Unit> = _connectionLost.asSharedFlow()
+    /**
+     * 연결된 세션이 끊겨(서버 측 종료·idle timeout 등) 이 화면이 보여줄 원격 세션이 없으면 true.
+     * 끊김을 상태로 보므로, 이 화면을 떠나 있는 동안 끊긴 경우에도 돌아왔을 때 true다.
+     */
+    val sessionLost: StateFlow<Boolean> = connectionStateUseCase.connectionState
+        .map(::isLost)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, isLost(connectionStateUseCase.connectionState.value))
 
     init {
         val path = fileNavigatorUseCase.currentPath.value
@@ -94,14 +100,10 @@ class RemoteFileListViewModel @Inject constructor(
                 }
             }
         }
-        viewModelScope.launch {
-            connectionResilienceUseCase.connectionDropped.collect {
-                Log.w(TAG, "연결 끊김 감지 — 서비스 중지 및 이벤트 발행")
-                connectionServiceController.stop()
-                _connectionLost.emit(Unit)
-            }
-        }
     }
+
+    /** [state]가 연결된 세션이 끊긴 상태인지 판별한다. */
+    private fun isLost(state: RemoteConnectionState): Boolean = state == RemoteConnectionState.LOST
 
     /**
      * 원격 파일 목록 화면에 필요한 UI 상태를 담는 클래스.
@@ -162,10 +164,13 @@ class RemoteFileListViewModel @Inject constructor(
         }
     }
 
-    /** 상위 디렉터리로 이동한다. 루트이면 toStorageFrag를 호출한다. */
-    fun onBackPressed(toStorageFrag: () -> Unit) {
+    /**
+     * 상위 디렉터리로 이동한다. 루트이면 leaveScreen을 호출한다.
+     * 화면을 떠난 뒤 어디로 가는지(저장소 또는 로컬 목록)는 이 화면에 들어온 경로가 만든 백스택이 정한다.
+     */
+    fun onBackPressed(leaveScreen: () -> Unit) {
         viewModelScope.launch {
-            fileNavigatorUseCase.navigateBack(toStorageFrag)
+            fileNavigatorUseCase.navigateBack(leaveScreen)
         }
     }
 

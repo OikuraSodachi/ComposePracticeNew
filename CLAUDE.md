@@ -55,6 +55,15 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedItems()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
 - `Loaded.completeness`가 `ListingCompleteness.UNCONFIRMED`인 목록(예: FTP LIST의 450을 빈 폴더로 본 목록)은 화면에는 빈 폴더로 보이지만 항목이 있을 수 있다. 판정 결과(`DestinationConflicts.destinationCompleteness`)에 이 사실을 담고, `ConflictGate`가 충돌이 없어 보여도 덮어쓸 수 있음을 확인받은 뒤에만 실행한다.
 
+### Navigation (`navigation/NavController.kt`)
+
+`STORAGE` 밖에 `FILE_BROWSER_GRAPH`(`FILE_LIST`, `REMOTE_FILE_LIST`)가 있고, `FileTransferCoordinatorViewModel`은 이 그래프 항목에 스코프된다 — 그래프를 벗어나면(STORAGE 복귀) 전송·선택 상태가 초기화된다.
+
+그래프 안의 백스택 모양은 들어온 경로에 따라 다르며, 이는 의도된 동작이다(하나의 규칙으로 통일하지 않는다):
+- 탭 전환(`popUpTo(FILE_BROWSER_GRAPH)`)·저장소에서 원격 연결로 들어온 원격 화면은 그래프에 혼자 있어, 루트에서 뒤로가면 저장소로 나간다.
+- 업로드 진입·원격 진행 알림으로 들어온 원격 화면은 `FILE_LIST` 위에 쌓여, 루트에서 뒤로가면 로컬 목록으로 돌아온다(업로드 대기 상태 유지).
+- 다운로드 진입은 원격 화면을 꺼내고 로컬 목록으로 간다.
+
 ### UI Modes (`ui/model/SelectMode`)
 
 선택 모드는 sealed 타입이다. 화면별로 가능한 모드는 `LocalSelectMode` / `RemoteSelectMode`로, 확인 버튼을 갖는 모드는 `ConfirmMode`(라벨 `labelRes`)로 타입을 좁혀 불가능한 조합을 컴파일 단계에서 배제한다.
@@ -69,7 +78,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 화면마다 선택 상태는 `SelectionState<Op, T>` 하나다(`FileTransferCoordinatorViewModel.localSelection` / `remoteSelection`, 전환은 `SelectionStateHolder`). 모드와 항목 목록을 한 값으로 묶어, 목록이 의미 있는 상태에만 둔다.
 
 - `MultiSelect(selected)`, `Operation(operation, selected)` — 이 화면의 선택이 작업 대상(같은 저장소 작업, `SameStorageOperation`).
-- `Receiving(transfer, pending)` — 다른 화면에서 고른 항목을 받는 전송 목적지(`TransferMode`: Download/Upload). 이 화면의 선택은 없고 대기 목록만 있다.
+- `Receiving(transfer, pending)` — 다른 화면에서 고른 항목을 받는 전송 목적지(`TransferMode`: Download/Upload). 이 화면의 선택은 없고 대기 목록만 있다. 전송을 시작하면 받는 화면에 남아 있던 다중 선택·작업 목적지 확인은 묻지 않고 버린다(의도된 동작 — 새 전송이 우선).
 - `Default` — 선택도 대기 목록도 없다. 취소·뒤로가기·실행 후 모두 여기로 돌아가며 목록은 함께 사라진다.
 
 UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedStateOf`로 모드 변경 시에만 리컴포지션), 행 강조는 `selected`만 본다. 원격 같은 저장소 작업(복사·이동)을 추가할 때는 원격의 `Op`(지금 `Nothing`)에 해당 타입을 넣는다.
@@ -87,6 +96,7 @@ UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedSt
 - FTP 숨김 항목: LIST 서버의 목록은 디렉터리로 이동(CWD)한 뒤 `FtpListingFormat.listCurrentDirectory`로 `LIST` 또는 `LIST -a .`을 보낸다 — 옵션과 임의의 경로를 함께 보내면 서버마다 해석이 갈리고, 인자가 `-a` 하나뿐이면 그 이름의 항목이 있을 때 경로로 읽는 서버(ProFTPD)가 있다. 연결할 때 `FtpListingFormat.probeHiddenListing`이 현재 디렉터리를 같은 두 명령으로 조회해, `-a` 목록이 숨김 항목만 더한 것일 때만 그 세션의 LIST에 `-a`를 붙인다(`-a`는 RFC 959에 없어 경로로 읽는 서버가 있다). 판정은 연결을 실패로 만들지 않는다 — 판정이 제어 연결을 쓸 수 없게 만들면(`HiddenListingProbe.ConnectionBroken`, 데이터 연결을 열지 못한 실패는 해당 없음) `FtpConnector`가 다시 판정하지 않고 다시 연결해 `-a` 없이 쓰며, 그 끊김이 앱의 종료 요청(`FtpSession.closeBypassingIoLock`) 때문이면 다시 연결하지 않는다.
 - FTP 현재 디렉터리: LIST 조회는 세션을 조회한 폴더 안에 남긴다(`FtpSession.workingDirectory`). 로그인 직후의 현재 디렉터리(PWD)는 `FtpSession.homeDirectory`로 기록한다. 폴더를 지우거나 이름을 바꾸는 명령은 세션이 그 대상 안에 있으면 같은 잠금 안에서 먼저 대상 밖(상위 폴더, 거부되면 대상 밖의 홈)으로 CWD한 뒤 보낸다(`FtpCommandExecutor.leavingTarget`) — 현재 디렉터리의 삭제를 거부하는 서버(Apache FTP Server, Windows)를 위한 사전 조치이므로, 나가지 못해도 명령은 보내고 서버의 응답을 결과로 삼는다. 새 변경 명령도 이 규칙을 따른다. MLSD·`-a` 없는 LIST의 목록은 숨김 항목을 빠뜨릴 수 있어(RFC 3659 §7.1) 클라이언트가 누락을 알 수 없다 — 그런 세션(`FtpListingFormat.mayOmitHiddenEntries`)의 RMD 거부 메시지에만 그 가능성을 덧붙인다.
 - FTP 종료: FTPClient는 스레드에 안전하지 않으므로 ioMutex를 쥔 쪽만 명령을 보내고 `disconnect()`한다. 진행 중 I/O를 기다리지 않는 종료(`FtpSession.closeBypassingIoLock`)는 잠금 밖에서 소켓(`AbortableSocketFactory`가 만든 제어·데이터 소켓)만 닫는다 — 막힌 명령은 IOException을 받아 자기 잠금 안에서 정리하고, 진행 중인 명령이 없을 때만 종료 쪽이 잠금을 얻어 QUIT을 보낸다. 연결 작업과 겹친 종료 요청은 `FtpSession.markLoggedIn(closeMark)`가 종료 요청과 같은 잠금 안에서 확인해, 연결 작업이 어느 단계에서 끝났든 연결 성공으로 뒤집히지 않는다.
+- 원격 연결 상태: `RemoteConnectionRepository.connectionState`(`RemoteConnectionState`: `DISCONNECTED` / `CONNECTED` / `LOST`). 예기치 않은 끊김(`FtpSession.markConnectionDropped`, 연결된 세션에서만)은 사건이 아니라 `LOST` 상태로 다음 연결 시도(`beginConnecting`)나 종료 요청까지 남는다 — 끊긴 뒤에 관찰을 시작한 쪽도 알 수 있도록. 앱이 요청한 종료·서버 전환은 `DISCONNECTED`다. 연결 시도는 시작할 때(`beginConnecting`) 이전 세션이 연결돼 있었어도 `DISCONNECTED`로 둔다 — 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도 `LOST`가 되지 않도록. 끊김 처리는 화면 수명과 무관하게 각자 상태를 보고 한다: `FtpForegroundService`는 스스로 멈추고, `FileTransferCoordinatorViewModel`은 끊긴 세션에 기대는 전송 상태(다운로드 대기, 원격 선택·업로드 대기)를 버리고, 원격 화면은 `LOST`면(들어올 때 이미 끊겨 있어도) 저장소 선택으로 나간다. 끊김 Toast는 `MainViewModel.connectionLost`가 끊긴 순간에만 낸다.
 - 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다.
 
 ### Data Layer

@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -151,7 +152,8 @@ class ProgressDialogVisibilityTest {
     private fun createViewModel() = MainViewModel(
         getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
         progressUseCase = ProgressUseCase(progressRepo),
-        exitHandler = NoOpExitHandler
+        exitHandler = NoOpExitHandler,
+        connectionStateUseCase = RemoteConnectionStateUseCase(FakeConnectionRepository())
     )
 
     /** 띄울 작업의 ID가 [expected]가 될 때까지 기다린다. 끝내 되지 않으면 runTest 시간 제한으로 실패한다. */
@@ -180,13 +182,13 @@ private class MutableProgressRepository : ProgressRepository {
 }
 
 /** 스토리지가 없는 테스트용 스토리지 저장소. 이 테스트는 스토리지 목록을 쓰지 않는다. */
-private object EmptyStorageRepository : StorageVolumeRepository {
+internal object EmptyStorageRepository : StorageVolumeRepository {
     override val storageList: StateFlow<List<StorageVolumeInfo>> = MutableStateFlow(emptyList())
     override fun load() {}
 }
 
 /** 종료 이벤트를 발행하지 않는 테스트용 종료 핸들러. 이 테스트는 앱 종료를 쓰지 않는다. */
-private object NoOpExitHandler : AppExitHandler {
+internal object NoOpExitHandler : AppExitHandler {
     override val exitEvent: Flow<Unit> = emptyFlow()
     override fun execute() {}
 }
