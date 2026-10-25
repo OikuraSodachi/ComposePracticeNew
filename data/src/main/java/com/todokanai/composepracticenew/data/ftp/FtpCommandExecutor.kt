@@ -244,7 +244,8 @@ class FtpCommandExecutor @Inject constructor(
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
      * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
      * 목록은 서버가 드러내는 항목뿐이다 — 서버가 숨긴 항목(유닉스 계열의 `.` 항목 등)은 지원 범위 밖이라 `-a` 같은 비표준 옵션을 붙이지 않는다.
-     * 디렉터리로 이동한 뒤 [FtpListingFormat.listCurrentDirectory]로 인자 없이 조회한다 — 경로 인자의 해석이 서버마다 갈릴 수 있다.
+     * 디렉터리로 이동한 뒤 인자 없는 `LIST`로 조회한다(RFC 959: 인자가 없으면 현재 디렉터리, curl과 같은 방식) — LIST 인자를 옵션으로도 읽는
+     * 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다. commons-net의 숨김 항목 옵션(`listHiddenFiles`)은 켜지 않으므로 `listFiles()`는 인자 없이 나간다.
      * 다른 명령은 모두 절대 경로를 쓰지만, 세션이 조회한 폴더 안에 남으므로 그 폴더나 상위 폴더를 지우거나 옮기는 명령은 먼저 밖으로 나간다([leavingTarget]).
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
@@ -254,7 +255,7 @@ class FtpCommandExecutor @Inject constructor(
      */
     private fun listWithList(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<IdentifiedListing> {
         if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client)
-        val (files, transferStarted) = watchingDataTransfer(client) { FtpListingFormat.listCurrentDirectory(client) }
+        val (files, transferStarted) = watchingDataTransfer(client) { client.listFiles() }
         return listingOutcome(FtpCommand.LIST, purpose, client, transferStarted, path) {
             val entries = files?.filter { it.name != "." && it.name != ".." }.orEmpty()
             ReceivedListing(entries.map { ReceivedEntry(it, identity = null) }, selfIdentity = null)

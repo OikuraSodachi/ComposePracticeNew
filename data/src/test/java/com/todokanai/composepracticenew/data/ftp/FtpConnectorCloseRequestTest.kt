@@ -9,9 +9,12 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 /**
@@ -63,14 +66,14 @@ class FtpConnectorCloseRequestTest {
     @Test
     fun `옵션 요청 중 앱이 연결 종료를 요청해 연결이 끊기면 다시 연결하지 않고 실패로 알린다`() {
         val mark = session.closeRequestMark()
-        var closer: Thread? = null
+        val closer = AtomicReference<Thread?>()
         val result = connectToMlsdServer { exchange ->
-            closer = thread { runBlocking { session.closeBypassingIoLock() } }
-            while (!session.isCloseRequestedSince(mark)) Thread.yield()
+            closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
+            awaitUntil("종료 요청이 표시되지") { session.isCloseRequestedSince(mark) }
             exchange.send("421 Service not available, closing control connection")
             exchange.hangUp()
         }
-        closer?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
+        closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
         assertEquals("종료 요청을 다시 연결로 뒤집지 않는다", 1, servers.last().received.count { it == "USER" })
@@ -79,16 +82,16 @@ class FtpConnectorCloseRequestTest {
 
     @Test
     fun `옵션 요청 직전 종료 요청으로 닫힌 연결에 명령을 보내지 못해 요청이 끝나도 연결 성공으로 알리지 않는다`() {
-        var closer: Thread? = null
+        val closer = AtomicReference<Thread?>()
         client.beforeCommand = { command ->
             // OPTS를 보내기 직전에 종료를 요청해, 보내지 못한 실패가 응답을 기다리지 않는 실패로 끝나게 한다
             if (command == "OPTS") {
-                closer = thread { runBlocking { session.closeBypassingIoLock() } }
-                while (!client.isControlSocketClosed) Thread.yield()
+                closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
+                awaitUntil("제어 연결 소켓이 닫히지") { client.isControlSocketClosed }
             }
         }
         val result = connectToMlsdServer { it.send("200 MLST OPTS") }
-        closer?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
+        closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
         assertEquals("종료 요청을 다시 연결로 뒤집지 않는다", 1, servers.last().received.count { it == "USER" })
@@ -99,12 +102,12 @@ class FtpConnectorCloseRequestTest {
     @Test
     fun `목록을 받는 중 종료를 요청하면 데이터 연결까지 닫아 명령을 연결 끊김으로 끝낸다`() {
         val dataClosedByClient = AtomicBoolean(false)
-        var closer: Thread? = null
+        val closer = AtomicReference<Thread?>()
         connectToListServer { exchange ->
             exchange.data.accept().use { socket ->
                 exchange.send("150 Here comes the directory listing")
                 socket.getOutputStream().write(listingLines("a.txt").toByteArray())
-                closer = thread { runBlocking { session.closeBypassingIoLock() } }
+                closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
                 // 전송을 끝내지 않고 클라이언트가 데이터 연결을 닫을 때까지 기다린다
                 socket.soTimeout = ScriptedFtpServer.TIMEOUT_MILLIS
                 dataClosedByClient.set(socket.getInputStream().read() == -1)
@@ -112,7 +115,7 @@ class FtpConnectorCloseRequestTest {
         }
 
         val listing = runBlocking { FtpCommandExecutor(session).listFiles("ftp://host/r") }
-        closer?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
+        closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertTrue(listing.toString(), listing is IoResult.ConnectionLost)
         assertTrue("데이터 연결을 닫아 전송을 기다리지 않는다", dataClosedByClient.get())
@@ -199,6 +202,20 @@ class FtpConnectorCloseRequestTest {
      */
     private fun listingLines(vararg names: String): String =
         names.joinToString("") { name -> "-rw-r--r--   1 user group        1 Jan 01 00:00 $name\r\n" }
+
+    /**
+     * [condition]이 참이 될 때까지 기다린다. 검증 대상이 회귀해 조건이 끝내 참이 되지 않아도 테스트가 멈추지 않도록,
+     * 기한([ScriptedFtpServer.TIMEOUT_MILLIS])이 지나면 실패로 끝낸다.
+     * @param description 실패 메시지에 담을, 기다린 조건의 설명(예: "소켓이 닫히지")
+     * @param condition 기다릴 조건
+     */
+    private fun awaitUntil(description: String, condition: () -> Boolean) {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
+        while (!condition()) {
+            if (System.nanoTime() > deadline) fail("기한 안에 $description 않았다")
+            Thread.yield()
+        }
+    }
 
     /** 명령을 보내기 직전에 테스트가 끼어들 수 있는 실제 FTP 클라이언트. 연결 단계 사이에 종료 요청을 끼워 넣는 데 쓴다. */
     private class InterceptingFtpClient : FTPClient() {

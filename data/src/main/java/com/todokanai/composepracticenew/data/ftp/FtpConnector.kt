@@ -77,15 +77,11 @@ class FtpConnector @Inject constructor(
     private fun establishWithListingOptions(client: FTPClient, closeMark: Int, openUsableConnection: () -> ConnectResult): ConnectResult {
         val established = openUsableConnection()
         if (established != ConnectResult.Connected) return established
-        return when (FtpListingFormat.negotiateListingOptions(client)) {
-            ListingOptionsProbe.Decided -> ConnectResult.Connected
-            ListingOptionsProbe.ConnectionBroken -> {
-                // 쓸 수 없는 제어 연결이므로 QUIT 응답을 기다리지 않고 소켓만 닫는다
-                runCatching { client.disconnect() }
-                if (session.isCloseRequestedSince(closeMark)) ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
-                else openUsableConnection()
-            }
-        }
+        if (FtpListingFormat.negotiateListingOptions(client)) return ConnectResult.Connected
+        // 쓸 수 없는 제어 연결이므로 QUIT 응답을 기다리지 않고 소켓만 닫는다
+        runCatching { client.disconnect() }
+        return if (session.isCloseRequestedSince(closeMark)) ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
+        else openUsableConnection()
     }
 
     /**

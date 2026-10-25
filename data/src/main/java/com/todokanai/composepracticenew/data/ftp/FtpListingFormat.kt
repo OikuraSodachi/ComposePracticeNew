@@ -9,15 +9,6 @@ import org.apache.commons.net.ftp.parser.ParserInitializationException
 import java.io.IOException
 import java.util.Locale
 
-/** 연결할 때 목록 조회 옵션을 정한 결과([FtpListingFormat.negotiateListingOptions]). */
-internal sealed interface ListingOptionsProbe {
-    /** 옵션을 정했고 연결은 그대로 쓸 수 있다. 서버가 요청을 거부한 경우도 요청 없이 쓰는 것으로 마친다. */
-    data object Decided : ListingOptionsProbe
-
-    /** 옵션을 정하는 중 응답을 읽지 못했다(연결 닫힘·421·타임아웃). 받지 못한 응답이 남았을 수 있어 이 연결은 더 쓸 수 없다. */
-    data object ConnectionBroken : ListingOptionsProbe
-}
-
 /**
  * 서버의 목록을 어떤 명령으로 조회하고 해석할 수 있는지 판별한다.
  * 연결할 때의 확인([FtpConnector])과 목록 조회([FtpCommandExecutor])가 같은 판정을 쓰게 해, 연결 확인을 통과한 서버는 어느 폴더든 해석할 수 있게 한다.
@@ -51,18 +42,19 @@ internal object FtpListingFormat {
     /**
      * 연결할 때 이 세션의 목록 조회 옵션을 정한다. MLSD 서버는 항목 식별값을 요청하고([requestEntryIdentity]), LIST 서버에는 정할 옵션이 없다.
      * LIST에는 옵션을 붙이지 않는다 — 인자는 RFC 959상 경로뿐이고, 목록은 서버가 드러내는 항목이다(RFC 3659 §7.1). 서버가 숨긴 항목(유닉스 계열의 `.` 항목 등)은 지원 범위 밖이다.
-     * 정하는 일은 연결을 실패로 만들지 않는다. 제어 연결을 더 쓸 수 없게 되면 그 사실을 결과로 알린다 — 그 연결을 어떻게 할지는 연결을 맡은 쪽([FtpConnector])이 정한다.
+     * 정하는 일은 연결을 실패로 만들지 않는다. 서버가 요청을 거부하면 요청 없이 쓰는 것으로 마친다. 응답을 읽지 못해(연결 닫힘·421·타임아웃)
+     * 받지 못한 응답이 남았을 수 있으면 제어 연결을 더 쓸 수 없다고 알린다 — 그 연결을 어떻게 할지는 연결을 맡은 쪽([FtpConnector])이 정한다.
      * @param client 로그인했고 [isReadable] 확인을 통과한 FTPClient
-     * @return 정한 결과
+     * @return 옵션을 정한 뒤에도 제어 연결을 그대로 쓸 수 있으면 true
      */
-    fun negotiateListingOptions(client: FTPClient): ListingOptionsProbe {
-        if (!usesMlsd(client)) return ListingOptionsProbe.Decided
+    fun negotiateListingOptions(client: FTPClient): Boolean {
+        if (!usesMlsd(client)) return true
         return watchingReplies(client) { watch ->
             try {
                 requestEntryIdentity(client)
-                ListingOptionsProbe.Decided
+                true
             } catch (e: IOException) {
-                if (isControlChannelUnusable(e, watch)) ListingOptionsProbe.ConnectionBroken else ListingOptionsProbe.Decided
+                !isControlChannelUnusable(e, watch)
             }
         }
     }
@@ -113,16 +105,6 @@ internal object FtpListingFormat {
      * @return 식별값. 서버가 알려주지 않았으면 null
      */
     fun mlsdIdentity(facts: Map<String, String>): String? = facts[FACT_UNIQUE]?.takeIf { it.isNotEmpty() }
-
-    /**
-     * 현재 디렉터리를 인자 없는 `LIST`로 조회한다(RFC 959: 인자가 없으면 현재 디렉터리).
-     * 경로 인자를 보내지 않는다 — LIST 인자를 옵션으로도 읽는 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있으므로,
-     * 디렉터리로 이동한 뒤 인자 없이 보낸다(curl과 같은 방식). commons-net의 숨김 항목 옵션(`listHiddenFiles`)은 켜지 않으므로 인자 없이 나간다.
-     * @param client 조회할 디렉터리로 이동한 FTPClient
-     * @return 조회한 항목. 서버가 목록을 돌려주지 않았으면 빈 배열이며, 결과는 응답 코드로 판별한다
-     * @throws java.io.IOException 데이터 연결을 열지 못했거나 응답을 읽지 못한 경우
-     */
-    fun listCurrentDirectory(client: FTPClient): Array<FTPFile> = client.listFiles()
 
     /**
      * commons-net이 LIST 목록에 쓸 해석기를 [systemType]으로 만들 수 있는지 확인한다.
