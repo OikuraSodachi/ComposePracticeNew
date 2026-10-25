@@ -1,8 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ListingCompleteness
-import com.todokanai.composepracticenew.repository.FetchedListing
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import org.junit.After
@@ -50,10 +48,6 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
         val run = suspend { command.run(Fixture(executor, transferrer, dir)) }
 
         when (expectedOutcome(command, behavior)) {
-            Outcome.UNCONFIRMED_EMPTY_LISTING -> {
-                assertEquals(IoResult.Success(FetchedListing(emptyList(), ListingCompleteness.UNCONFIRMED)), runBlocking { run() })
-                assertSessionKept()
-            }
             Outcome.ITEM_FAILED -> {
                 val result = runBlocking { run() }
                 assertTrue("$result", result is IoResult.ItemFailed)
@@ -101,7 +95,6 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
      * 행렬의 명령 행.
      * @param ftpName [FakeFtpClient.serverBehaviors]의 명령 이름
      * @param name 테스트 이름에 표시할 행 이름. 같은 명령을 다른 용도로 쓰는 행을 구분한다
-     * @param emptyListingOn450 450 거부를 빈 목록으로 보는 행인지 여부 — 화면 목록의 LIST만 해당한다
      * @param refusalNote 거부 메시지에서 서버 응답 뒤에 붙는 설명. 원인을 응답만으로 알 수 없는 거부에만 붙는다([FtpReplyRules.refusal])
      * @param prepare 명령이 그 단계까지 정상 진행되도록 가짜 클라이언트를 준비하는 함수
      * @param run 공개 API로 명령을 실행하는 함수
@@ -109,7 +102,6 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     internal class CommandRow(
         val ftpName: String,
         val name: String = ftpName,
-        val emptyListingOn450: Boolean = false,
         val refusalNote: String = "",
         val prepare: (FakeFtpClient) -> Unit = {},
         val run: suspend (Fixture) -> IoResult<*>
@@ -131,14 +123,14 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     }
 
     /** 기대하는 결과 종류. */
-    internal enum class Outcome { UNCONFIRMED_EMPTY_LISTING, ITEM_FAILED, CONNECTION_LOST, NOT_SENT, THROWS }
+    internal enum class Outcome { ITEM_FAILED, CONNECTION_LOST, NOT_SENT, THROWS }
 
     companion object {
         /** 모든 명령 행. */
         private val commands = listOf(
-            CommandRow("LIST", emptyListingOn450 = true) { it.executor.listFiles("ftp://host/r") },
+            CommandRow("LIST") { it.executor.listFiles("ftp://host/r") },
             CommandRow("LIST", name = "LIST(트리 수집)") { it.executor.collectRemoteTree("ftp://host/r") },
-            // LIST 서버는 디렉터리로 이동한 뒤 LIST를 보낸다 — 이동 거부는 목록이 빈 것이 아니므로 화면 목록에서도 450을 빈 목록으로 보지 않는다
+            // LIST 서버는 디렉터리로 이동한 뒤 LIST를 보낸다
             CommandRow("CWD", name = "CWD(화면 목록)") { it.executor.listFiles("ftp://host/r") },
             CommandRow("CWD", name = "CWD(트리 수집)") { it.executor.collectRemoteTree("ftp://host/r") },
             CommandRow("MLSD", prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r" to emptyList()) }) {
@@ -174,9 +166,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
          * @return 기대 결과
          */
         private fun expectedOutcome(command: CommandRow, behavior: BehaviorColumn): Outcome = when (behavior) {
-            // 빈 디렉터리에 450을 보내는 LIST 서버가 있다 — 화면 목록의 LIST만 450을 빈 목록으로 본다
-            BehaviorColumn.REFUSED_450 -> if (command.emptyListingOn450) Outcome.UNCONFIRMED_EMPTY_LISTING else Outcome.ITEM_FAILED
-            BehaviorColumn.REFUSED_550 -> Outcome.ITEM_FAILED
+            BehaviorColumn.REFUSED_450, BehaviorColumn.REFUSED_550 -> Outcome.ITEM_FAILED
             BehaviorColumn.CONNECTION_CLOSED, BehaviorColumn.REPLY_TIMEOUT -> Outcome.CONNECTION_LOST
             BehaviorColumn.UNEXPECTED_EXCEPTION -> Outcome.THROWS
             BehaviorColumn.NOT_CONNECTED -> Outcome.NOT_SENT

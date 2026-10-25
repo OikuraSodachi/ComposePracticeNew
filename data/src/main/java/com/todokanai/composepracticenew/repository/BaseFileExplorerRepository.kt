@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
+import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,9 +58,9 @@ abstract class BaseFileExplorerRepository(
     /**
      * [path]의 파일과 하위 디렉터리 목록을 조회한다.
      * @param path 조회할 디렉터리 경로
-     * @return 조회한 항목과 그 목록이 확인된 목록인지 여부. 경로가 없거나 디렉터리가 아니거나 읽을 수 없으면 실패 결과다
+     * @return 항목 목록. 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다([DirectoryListing.Loaded]의 알려진 한계 참고). 경로가 없거나 디렉터리가 아니거나 읽을 수 없으면 실패 결과다
      */
-    protected abstract suspend fun listFiles(path: String): IoResult<FetchedListing>
+    protected abstract suspend fun listFiles(path: String): IoResult<List<FileEntry>>
 
     /** 경로를 바꾸고, 같은 경로라도 새 목록 조회 요청을 만든다. */
     override fun navigateTo(path: String?) {

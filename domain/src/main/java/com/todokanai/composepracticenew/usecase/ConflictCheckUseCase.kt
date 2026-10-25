@@ -27,7 +27,7 @@ class ConflictCheckUseCase(
      */
     fun <T> findCopyMoveConflicts(items: List<T>, destination: FileNavigatorUseCase, nameOf: (T) -> String): DestinationConflicts<T>? {
         val listing = verifiedOrReject(destination.verifiedListing()) ?: return null
-        return DestinationConflicts(listing.request.path, ConflictRules.copyMoveConflicts(items, namesOf(listing.items), nameOf), listing.completeness)
+        return DestinationConflicts(listing.request.path, ConflictRules.copyMoveConflicts(items, namesOf(listing.items), nameOf))
     }
 
     /**
@@ -39,7 +39,7 @@ class ConflictCheckUseCase(
      */
     fun <T> findUnzipConflicts(items: List<T>, destination: FileNavigatorUseCase, nameOf: (T) -> String): DestinationConflicts<T>? {
         val listing = verifiedOrReject(destination.verifiedListing()) ?: return null
-        return DestinationConflicts(listing.request.path, ConflictRules.unzipConflicts(items, namesOf(listing.items), nameOf), listing.completeness)
+        return DestinationConflicts(listing.request.path, ConflictRules.unzipConflicts(items, namesOf(listing.items), nameOf))
     }
 
     /**

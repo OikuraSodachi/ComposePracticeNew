@@ -9,10 +9,6 @@ import org.apache.commons.net.ftp.FTPClient
  * 응답 코드의 의미는 [FtpReplyRules]로 판단한다. 응답 이벤트는 ioMutex를 쥔 명령 스레드에서만 오므로([FtpSession.closeBypassingIoLock]) 동기화하지 않는다.
  */
 internal class FtpReplyWatch : ProtocolCommandListener {
-    /** 예비 응답(1xx)을 한 번이라도 받았으면 true. 목록 조회에서는 데이터 연결을 열어 전송을 시작했다는 뜻이다. */
-    var preliminaryReceived = false
-        private set
-
     /** 마지막으로 보낸 명령의 최종 응답(예비 응답이 아닌 응답)을 아직 받지 못했으면 true. 이때 난 실패는 늦게 올 응답을 제어 연결에 남긴다. */
     var awaitingFinalReply = false
         private set
@@ -22,8 +18,7 @@ internal class FtpReplyWatch : ProtocolCommandListener {
     }
 
     override fun protocolReplyReceived(event: ProtocolCommandEvent) {
-        if (FtpReplyRules.isPreliminaryReply(event.replyCode)) preliminaryReceived = true
-        else awaitingFinalReply = false
+        if (!FtpReplyRules.isPreliminaryReply(event.replyCode)) awaitingFinalReply = false
     }
 }
 

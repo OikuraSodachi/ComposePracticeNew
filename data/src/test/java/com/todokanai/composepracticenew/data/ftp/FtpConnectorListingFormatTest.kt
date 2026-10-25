@@ -87,7 +87,7 @@ class FtpConnectorListingFormatTest {
         val listing = runBlocking { FtpCommandExecutor(session).listFiles("ftp://host/r") }
 
         assertEquals(ConnectResult.Connected, result)
-        assertEquals(listOf("ftp://host/r/a.txt"), (listing as IoResult.Success).value.entries.map { it.path })
+        assertEquals(listOf("ftp://host/r/a.txt"), (listing as IoResult.Success).value.map { it.path })
         assertEquals(systSentOnConnect, server!!.received.count { it == "SYST" })
     }
 

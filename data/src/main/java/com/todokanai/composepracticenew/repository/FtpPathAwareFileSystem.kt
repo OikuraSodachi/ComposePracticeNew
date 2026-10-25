@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.ftp.FTP_SCHEME
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.fileexplorer.FileEntry
 import javax.inject.Inject
 
 /**
@@ -13,7 +14,7 @@ class FtpPathAwareFileSystem @Inject constructor(
     private val ftpCommands: FtpCommandExecutor
 ) : PathAwareFileSystem {
     override fun handles(path: String): Boolean = path.startsWith(FTP_SCHEME)
-    override suspend fun listFiles(path: String): IoResult<FetchedListing> = ftpCommands.listFiles(path)
+    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = ftpCommands.listFiles(path)
     override fun getParent(path: String): String? {
         val withoutScheme = path.removePrefix(FTP_SCHEME)
         return if (!withoutScheme.contains('/')) null
