@@ -47,7 +47,7 @@ class FtpRemoveDirectoryRecursiveTest {
     }
 
     @Test
-    fun `-a 없이 LIST로 조회한 세션에서 RMD가 거부되면 보이지 않는 항목이 남았을 수 있음을 함께 알린다`() {
+    fun `LIST로 조회한 세션에서 RMD가 거부되면 보이지 않는 항목이 남았을 수 있음을 함께 알린다`() {
         runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null) }
         client.remoteFiles = emptyList()
         client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Directory not empty"))
@@ -55,17 +55,5 @@ class FtpRemoveDirectoryRecursiveTest {
         val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
 
         assertEquals(IoResult.ItemFailed("RMD 실패: 550 Directory not empty" + FtpReplyRules.HIDDEN_ENTRIES_NOTE), result)
-    }
-
-    @Test
-    fun `-a가 숨김 항목을 더한다고 확인된 세션에서는 RMD 거부에 서버 응답만 알린다`() {
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null) }
-        client.listHiddenFiles = true
-        client.remoteFiles = emptyList()
-        client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Permission denied"))
-
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
-
-        assertEquals(IoResult.ItemFailed("RMD 실패: 550 Permission denied"), result)
     }
 }

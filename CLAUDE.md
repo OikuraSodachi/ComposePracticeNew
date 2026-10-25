@@ -93,8 +93,9 @@ UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedSt
 - 여러 항목 작업은 `forEachCollectingFailures`로 실패를 모은다. `ConnectionLost`면 남은 항목을 시도하지 않는다.
 - FTP: 서버 응답 해석(명령·조회 목적별 예외 규칙 포함, 예: 화면 목록의 LIST가 데이터 전송 전에 받은 450 = 빈 목록, 트리 수집에서는 실패)은 `FtpReplyRules`에만 둔다. `FtpSession.withConnectedClient`가 명령 실패의 의미를 정하는 유일한 경계다. 블록이 돌려준 결과는 세션 유지, 던진 IOException은 연결 끊김(세션 종료), 그 밖의 예외는 세션 종료 후 전파한다. 세션을 유지할 실패는 블록 안에서 던지지 말고 결과로 돌려준다. 명령·서버 동작 조합은 `FtpCommandContractTest` 행렬로 검증한다.
 - FTP 연결: `FtpConnector.connect`는 로그인 후 `FtpListingFormat.isReadable`로 목록을 해석할 수 있는지 확인한다(MLSD 미지원 서버가 SYST를 거부하거나 해석기 없는 종류를 알려주면 불가). 불가면 형식을 추측하지 않고 연결을 종료해 `ConnectResult.Failed(LISTING_FORMAT_UNKNOWN)`을 돌려주며, app은 `ConnectFailureNotice`로 다이얼로그를 띄운다. 그래서 연결된 세션의 목록 조회는 해석기를 고르지 못해 실패하지 않는다.
-- FTP 숨김 항목: LIST 서버의 목록은 디렉터리로 이동(CWD)한 뒤 `FtpListingFormat.listCurrentDirectory`로 `LIST` 또는 `LIST -a .`을 보낸다 — 옵션과 임의의 경로를 함께 보내면 서버마다 해석이 갈리고, 인자가 `-a` 하나뿐이면 그 이름의 항목이 있을 때 경로로 읽는 서버(ProFTPD)가 있다. 연결할 때 `FtpListingFormat.negotiateListingOptions`이 현재 디렉터리를 같은 두 명령으로 조회해, `-a` 목록이 숨김 항목만 더한 것일 때만 그 세션의 LIST에 `-a`를 붙인다(`-a`는 RFC 959에 없어 경로로 읽는 서버가 있다). 판정은 연결을 실패로 만들지 않는다 — 판정이 제어 연결을 쓸 수 없게 만들면(`ListingOptionsProbe.ConnectionBroken`, 데이터 연결을 열지 못한 실패는 해당 없음) `FtpConnector`가 다시 판정하지 않고 다시 연결해 `-a` 없이 쓰며, 그 끊김이 앱의 종료 요청(`FtpSession.closeBypassingIoLock`) 때문이면 다시 연결하지 않는다.
-- FTP 현재 디렉터리: LIST 조회는 세션을 조회한 폴더 안에 남긴다(`FtpSession.workingDirectory`). 로그인 직후의 현재 디렉터리(PWD)는 `FtpSession.homeDirectory`로 기록한다. 폴더를 지우거나 이름을 바꾸는 명령은 세션이 그 대상 안에 있으면 같은 잠금 안에서 먼저 대상 밖(상위 폴더, 거부되면 대상 밖의 홈)으로 CWD한 뒤 보낸다(`FtpCommandExecutor.leavingTarget`) — 현재 디렉터리의 삭제를 거부하는 서버(Apache FTP Server, Windows)를 위한 사전 조치이므로, 나가지 못해도 명령은 보내고 서버의 응답을 결과로 삼는다. 새 변경 명령도 이 규칙을 따른다. MLSD·`-a` 없는 LIST의 목록은 숨김 항목을 빠뜨릴 수 있어(RFC 3659 §7.1) 클라이언트가 누락을 알 수 없다 — 그런 세션(`FtpListingFormat.mayOmitHiddenEntries`)의 RMD 거부 메시지에만 그 가능성을 덧붙인다.
+- FTP 목록 범위: 목록은 서버가 드러내는 항목이다(RFC 3659 §7.1). 서버가 숨긴 항목(유닉스 계열 LIST의 `.` 항목 등)은 지원 범위 밖이며, LIST에 `-a` 같은 비표준 옵션(RFC 959에 없음)을 붙이지 않는다. 숨김 항목 표시가 필요하면 별도 기능으로 제안한다. LIST 서버의 목록은 디렉터리로 이동(CWD)한 뒤 인자 없는 `LIST`를 보낸다(`FtpCommandExecutor.listWithList`)(curl과 같은 방식) — LIST 인자를 옵션으로도 읽는 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다.
+- FTP 연결 옵션: 연결할 때 `FtpListingFormat.negotiateListingOptions`가 MLSD 서버에만 옵션을 요청한다(트리 수집의 `OPTS MLST`). 요청은 연결을 실패로 만들지 않는다 — 요청이 제어 연결을 쓸 수 없게 만들면(`negotiateListingOptions`가 false) `FtpConnector`가 다시 요청하지 않고 다시 연결해 요청 없이 쓰며, 그 끊김이 앱의 종료 요청(`FtpSession.closeBypassingIoLock`) 때문이면 다시 연결하지 않는다.
+- FTP 현재 디렉터리: LIST 조회는 세션을 조회한 폴더 안에 남긴다(`FtpSession.workingDirectory`). 로그인 직후의 현재 디렉터리(PWD)는 `FtpSession.homeDirectory`로 기록한다. 폴더를 지우거나 이름을 바꾸는 명령은 세션이 그 대상 안에 있으면 같은 잠금 안에서 먼저 대상 밖(상위 폴더, 거부되면 대상 밖의 홈)으로 CWD한 뒤 보낸다(`FtpCommandExecutor.leavingTarget`) — 현재 디렉터리의 삭제를 거부하는 서버(Apache FTP Server, Windows)를 위한 사전 조치이므로, 나가지 못해도 명령은 보내고 서버의 응답을 결과로 삼는다. 새 변경 명령도 이 규칙을 따른다. 목록에 서버가 숨긴 항목이 빠질 수 있어 클라이언트가 누락을 알 수 없으므로, RMD 거부 메시지에는 그 가능성을 덧붙인다(`FtpReplyRules.HIDDEN_ENTRIES_NOTE`).
 - FTP 트리 수집(`FtpCommandExecutor.collectRemoteTree`, 폴더 다운로드·삭제): 수집이 끝나는지를 목록의 정확성에 맡기지 않는다. 서버가 MLSD `unique`(RFC 3659 §7.5.2)를 알려주면 하위 디렉터리의 식별값(상위 목록의 항목 값과, 들어간 뒤 그 목록의 자신 항목 `type=cdir` 값)이 거쳐 온 상위 디렉터리의 식별값과 같으면 순환으로 본다. 연결할 때 `FtpListingFormat.negotiateListingOptions`가 FEAT를 보고, `unique`를 지원하지만 목록에 담지 않는 서버에는 `OPTS MLST`로 요청한다(§7.9, 거부돼도 연결은 그대로). 이와 별개로 경로가 PATH_MAX(4096바이트)에 이르면 식별값이 있든 없든 멈춘다 — 식별값이 없으면(LIST, `unique` 없는 MLSD) 순환과 깊은 트리를 구분할 수 없어 이 상한만이 수집을 끝낸다(이때만 실패 메시지에 판별할 수 없다고 덧붙인다). 어느 쪽이든 일부만 처리하지 않고 실패로 알린다. 상위가 아닌 폴더와 식별값이 같은 것(형제를 가리키는 링크)은 순환이 아니다. 이 상한은 깊이만 막으므로, 식별값이 없는 서버에서 상위를 가리키는 링크가 여럿이면 방문 수가 늘어나는 문제는 남아 있다(#257).
 - FTP 종료: FTPClient는 스레드에 안전하지 않으므로 ioMutex를 쥔 쪽만 명령을 보내고 `disconnect()`한다. 진행 중 I/O를 기다리지 않는 종료(`FtpSession.closeBypassingIoLock`)는 잠금 밖에서 소켓(`AbortableSocketFactory`가 만든 제어·데이터 소켓)만 닫는다 — 막힌 명령은 IOException을 받아 자기 잠금 안에서 정리하고, 진행 중인 명령이 없을 때만 종료 쪽이 잠금을 얻어 QUIT을 보낸다. 연결 작업과 겹친 종료 요청은 `FtpSession.markLoggedIn(closeMark)`가 종료 요청과 같은 잠금 안에서 확인해, 연결 작업이 어느 단계에서 끝났든 연결 성공으로 뒤집히지 않는다.
 - 원격 연결 상태: `RemoteConnectionRepository.connectionState`(`RemoteConnectionState`: `DISCONNECTED` / `CONNECTED` / `LOST`). 예기치 않은 끊김(`FtpSession.markConnectionDropped`, 연결된 세션에서만)은 사건이 아니라 `LOST` 상태로 다음 연결 시도(`beginConnecting`)나 종료 요청까지 남는다 — 끊긴 뒤에 관찰을 시작한 쪽도 알 수 있도록. 앱이 요청한 종료·서버 전환은 `DISCONNECTED`다. 연결 시도는 시작할 때(`beginConnecting`) 이전 세션이 연결돼 있었어도 `DISCONNECTED`로 둔다 — 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도 `LOST`가 되지 않도록. 끊김 처리는 화면 수명과 무관하게 각자 상태를 보고 한다: `FtpForegroundService`는 스스로 멈추고, `FileTransferCoordinatorViewModel`은 끊긴 세션에 기대는 전송 상태(다운로드 대기, 원격 선택·업로드 대기)를 버리고, 원격 화면은 `LOST`면(들어올 때 이미 끊겨 있어도) 저장소 선택으로 나간다. 끊김 Toast는 `MainViewModel.connectionLost`가 끊긴 순간에만 낸다.
@@ -123,6 +124,15 @@ Top-level `_td`-suffixed functions (e.g., `dirTree_td`, `readableFileSize_td`, `
 ## Feature Roadmap
 
 See [ROADMAP.md](ROADMAP.md).
+
+## 해결이 필요한 과잉대응 이슈
+
+비표준 동작 수용이나 정리 범위를 넘는 변경이 쌓인 곳이다(이슈 제목 `[과잉대응]`, 라벨 `refactor`). 아래 이슈는 해결이 필요하며, 해당 영역을 고칠 때 과잉대응을 더 쌓지 않는다.
+
+- #258 LIST `-a` 판정이 비표준 서버 수용의 연쇄로 커짐 — CWD 후 LIST, leavingTarget, 홈 기록
+- #259 LIST 450 = 빈 목록 수용이 UNCONFIRMED·ConflictGate 경고로 3개 레이어에 번짐
+- #260 트리 수집 순환 감지에 정밀 장치가 먼저 쌓이고 일반 상한(#257)은 미해결
+- #261 DataStore 정리 이슈(#42)에 읽기 재시도·묶음 반영 등 동작 변경이 섞임
 
 ## Compose Configuration
 

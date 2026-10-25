@@ -66,6 +66,8 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.
+     * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목이 toPath에 있으면 충돌 검사에 보이지 않고, RNTO가 기존 파일을 바꾸는 서버(vsftpd 등)에서는
+     * 묻지 않고 덮어쓴다([identifiedListing] 참고).
      * @param fromPath 원본 경로 (ftp://server/path 형식)
      * @param toPath 변경할 경로 (ftp://server/path 형식)
      * @return 명령 결과
@@ -104,6 +106,8 @@ class FtpCommandExecutor @Inject constructor(
      * 일부 하위 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패를 모아 알리며, 이때 path 자체는 지우지 않는다.
      * 실패한 항목을 품은 상위 디렉터리는 비울 수 없으므로 RMD를 보내지도, 실패로 세지도 않는다(GNU rm과 같은 방식).
      * 트리 수집이 세션을 하위 폴더 안에 남기므로, RMD는 세션이 지울 폴더 안에 있으면 먼저 [path]의 상위 폴더로 나간 뒤 보낸다.
+     * 알려진 문제(방치하기로 결정): 트리에 서버가 숨긴 항목이 빠질 수 있어([collectRemoteTree]), 그런 항목이 있으면 보이는 항목을 모두 지운 뒤에야
+     * RMD 거부로 실패를 알게 된다. 이 경우 거부 메시지에 숨긴 항목이 남았을 가능성을 덧붙인다([FtpReplyRules.HIDDEN_ENTRIES_NOTE]).
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
      * @return 삭제 결과. 하위 항목 일부가 실패하면 [IoResult.PartiallyFailed]
      */
@@ -131,6 +135,8 @@ class FtpCommandExecutor @Inject constructor(
      * 깊이는 경로 한도까지 수천 단계가 될 수 있어, 재귀 대신 들어가 있는 디렉터리를 쌓아 두고 거쳐 온 식별값을 한 집합에서 넣고 뺀다 —
      * 스레드 스택 깊이에 기대지 않고, 메모리가 깊이에 비례한다.
      * 시작 디렉터리의 식별값은 그 목록의 자신 항목(MLSD `type=cdir`)에서 얻는다.
+     * 알려진 문제(방치하기로 결정): 각 목록은 서버가 드러내는 항목뿐이라([identifiedListing]) 서버가 숨긴 항목은 트리에서 빠지지만, 수집은 성공으로 끝난다.
+     * 그래서 폴더 다운로드는 숨긴 항목 없이 완료로 보고되고, 재귀 삭제는 보이는 항목을 지운 뒤 RMD에서 실패한다([removeDirectoryRecursive]).
      * @param remoteDirPath 수집할 원격 디렉터리 경로 (ftp://server/path 형식)
      * @return 하위 항목 전체 목록, 또는 조회 실패
      */
@@ -237,9 +243,9 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
      * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
-     * 숨김 항목을 담는 `-a` 옵션은 연결할 때 [FtpListingFormat.negotiateListingOptions]의 판정대로 [client]에 정해 두었다.
-     * 디렉터리로 이동한 뒤 [FtpListingFormat.listCurrentDirectory]로 조회한다 — LIST 인자는 RFC 959상 경로뿐이라 옵션과 임의의 경로를 함께 보내면
-     * 서버마다 해석이 갈리고(옵션을 떼고 경로로 읽거나, 전체를 한 경로로 읽음), 연결할 때의 `-a` 판정도 같은 형태로 했다.
+     * 목록은 서버가 드러내는 항목뿐이다 — 서버가 숨긴 항목(유닉스 계열의 `.` 항목 등)은 지원 범위 밖이라 `-a` 같은 비표준 옵션을 붙이지 않는다.
+     * 디렉터리로 이동한 뒤 인자 없는 `LIST`로 조회한다(RFC 959: 인자가 없으면 현재 디렉터리, curl과 같은 방식) — LIST 인자를 옵션으로도 읽는
+     * 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다. commons-net의 숨김 항목 옵션(`listHiddenFiles`)은 켜지 않으므로 `listFiles()`는 인자 없이 나간다.
      * 다른 명령은 모두 절대 경로를 쓰지만, 세션이 조회한 폴더 안에 남으므로 그 폴더나 상위 폴더를 지우거나 옮기는 명령은 먼저 밖으로 나간다([leavingTarget]).
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
@@ -249,7 +255,7 @@ class FtpCommandExecutor @Inject constructor(
      */
     private fun listWithList(client: FTPClient, ftpPath: String, path: String, purpose: FtpListingPurpose): IoResult<IdentifiedListing> {
         if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client)
-        val (files, transferStarted) = watchingDataTransfer(client) { FtpListingFormat.listCurrentDirectory(client) }
+        val (files, transferStarted) = watchingDataTransfer(client) { client.listFiles() }
         return listingOutcome(FtpCommand.LIST, purpose, client, transferStarted, path) {
             val entries = files?.filter { it.name != "." && it.name != ".." }.orEmpty()
             ReceivedListing(entries.map { ReceivedEntry(it, identity = null) }, selfIdentity = null)
@@ -309,6 +315,10 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * 끝까지 받은 목록의 항목을 domain 항목으로 바꾸고, 서버가 알려준 식별값을 항목 경로에 묶는다.
+     *
+     * 알려진 문제(방치하기로 결정): 목록은 서버가 드러내는 항목뿐이라(RFC 3659 §7.1, 유닉스 계열 LIST의 `.` 항목·ProFTPD `HideFiles` 등)
+     * 서버가 숨긴 항목이 빠질 수 있지만 확인된 목록(`COMPLETE`)으로 보고한다. 그래서 업로드·이름 변경의 충돌 검사가 숨긴 같은 이름 항목을 보지 못해
+     * STOR·RNTO가 묻지 않고 덮어쓸 수 있다. 표준 명령으로는 항목이 없음을 증명할 수 없다(MLST·SIZE의 550은 없음과 거부를 구분하지 않는다).
      * @param received 받은 항목과 식별값
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @return 확인된 목록과 식별값

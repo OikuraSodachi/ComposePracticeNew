@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.net.ftp.FTPClient
@@ -84,6 +85,20 @@ class FtpConnectorEntryIdentityTest {
     }
 
     @Test
+    fun `요청이 연결을 끊은 뒤 다시 연결하다 로그인이 거부되면 연결 실패로 알린다`() {
+        val result = connectTo(
+            mlstFacts = "type*;unique;",
+            onPass = { it.send(if (it.connectionIndex == 0) "230 Logged in" else "530 Login incorrect") }
+        ) {
+            it.send("421 Service not available")
+            it.hangUp()
+        }
+
+        assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
+        assertFalse(runBlocking { session.isReady() })
+    }
+
+    @Test
     fun `LIST 서버에는 요청하지 않는다`() {
         val server = ScriptedFtpServer(mapOf("LIST" to { it.send("550 No files") })).also { servers += it }
 
@@ -96,14 +111,17 @@ class FtpConnectorEntryIdentityTest {
     /**
      * FEAT에 MLST와 [mlstFacts]를 알리는 서버에 연결한다.
      * @param mlstFacts FEAT의 MLST 줄에 알릴 사실 목록(예: "type*;size*;unique;")
+     * @param onPass PASS를 받았을 때의 응답
      * @param onOpts OPTS를 받았을 때의 응답. 인자는 [optsArguments]에 기록한다
      * @return 연결 결과
      */
     private fun connectTo(
         mlstFacts: String,
+        onPass: (ScriptedFtpServer.Exchange) -> Unit = { it.send("230 Logged in") },
         onOpts: (ScriptedFtpServer.Exchange) -> Unit = { it.send("200 MLST OPTS ${it.argument.substringAfter(' ')}") }
     ): ConnectResult {
         val script = mapOf<String, (ScriptedFtpServer.Exchange) -> Unit>(
+            "PASS" to onPass,
             "FEAT" to {
                 it.send("211-Features:")
                 it.send(" MLST $mlstFacts")

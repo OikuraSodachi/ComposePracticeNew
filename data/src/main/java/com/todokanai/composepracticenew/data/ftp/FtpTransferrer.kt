@@ -102,7 +102,10 @@ class FtpTransferrer @Inject constructor(
         }
     }
 
-    /** 원격 디렉터리 트리를 [localPath] 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다. */
+    /**
+     * 원격 디렉터리 트리를 [localPath] 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다.
+     * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목은 트리에 없어 받지 않으며, 누락을 알리지 않고 완료로 보고한다([FtpCommandExecutor.collectRemoteTree] 참고).
+     */
     private suspend fun downloadDirectory(
         remotePath: String,
         localPath: String,
@@ -237,6 +240,8 @@ class FtpTransferrer @Inject constructor(
         onAcked: suspend () -> Unit
     ): IoResult<Unit> {
         // 스트림을 열지 못한 경우의 처리는 [downloadOne]과 같다
+        // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
+        // ([FtpCommandExecutor.identifiedListing] 참고)
         val output = client.storeFileStream(ftpPath) ?: return FtpReplyRules.refusal(FtpCommand.STOR, client)
         return executeTransfer(client, output, onAcked = onAcked) {
             localFile.inputStream().use { input -> pump(input, output, onChunk) }
