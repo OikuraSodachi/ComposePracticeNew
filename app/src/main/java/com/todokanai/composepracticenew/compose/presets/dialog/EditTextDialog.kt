@@ -49,8 +49,10 @@ fun <E> EditTextDialog(
     var edited by rememberSaveable { mutableStateOf(initialText.isNotEmpty()) }
     // rememberUpdatedState — 아래 derivedStateOf가 재생성 없이 항상 최신 validate를 호출하도록 보장
     val currentValidate by rememberUpdatedState(validate)
-    // field·currentValidate를 추적 — 입력 문자열이 바뀔 때만 재검증하고(커서 이동은 무시), 결과 집합이 같으면 본문을 무효화하지 않음
-    val errors by remember { derivedStateOf { currentValidate(field.text) } }
+    // field를 추적해 문자열만 꺼냄 — TextFieldValue는 선택 범위까지 비교하므로, 커서 이동·선택 변경은 여기서 걸러 아래 재검증까지 가지 않게 한다
+    val text by remember { derivedStateOf { field.text } }
+    // text·currentValidate를 추적 — 입력 문자열이 바뀔 때만 재검증하고, 결과 집합이 같으면 본문을 무효화하지 않음
+    val errors by remember { derivedStateOf { currentValidate(text) } }
     val shownError = if (edited) errors.firstOrNull() else null
     // 다이얼로그가 떠 있는 동안 같은 요청자를 유지 — 리컴포지션마다 새로 만들면 포커스 요청이 연결되지 않은 요청자로 간다
     val focusRequester = remember { FocusRequester() }

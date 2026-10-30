@@ -99,7 +99,7 @@ class LocalZipCompressor @Inject constructor() {
      */
     private fun numberedFile(desired: File, index: Int): File {
         if (index == 0) return desired
-        val extension = desired.extension.let { if (it.isEmpty()) "" else ".$it" }
-        return File(desired.parentFile, FileNameParts.numbered(desired.nameWithoutExtension, extension, index))
+        val baseNameEnd = FileNameParts.baseNameEnd(desired.name)
+        return File(desired.parentFile, FileNameParts.numbered(desired.name.substring(0, baseNameEnd), desired.name.substring(baseNameEnd), index))
     }
 }
