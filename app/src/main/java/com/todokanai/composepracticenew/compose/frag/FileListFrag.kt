@@ -65,6 +65,7 @@ fun FileListFrag(
             sortMode = sortMode,
             onSortModeSelected = viewModel::onSortModeSelected,
             onNewFolder = viewModel::newFolder,
+            suggestFolderName = viewModel::suggestNewFolderName,
             validateFolderName = viewModel::validateEntryName,
             onExit = onExit
         )
@@ -99,6 +100,7 @@ fun FileListFrag(
             onRequestConfirm = viewModel::requestConfirm,
             onResolveConflict = viewModel::resolveConflict,
             onZip = viewModel::zip,
+            suggestZipName = viewModel::suggestZipName,
             validateZipName = viewModel::validateZipName,
             onRename = viewModel::rename,
             validateRename = viewModel::validateRename,

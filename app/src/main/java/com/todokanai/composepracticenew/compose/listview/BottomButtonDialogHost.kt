@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.compose.listview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.InfoDialog
@@ -23,6 +24,7 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
  * @param onResetSelection 작업 실행 후 선택 모드·선택 목록을 초기화하는 콜백
  * @param onZip 압축 실행 콜백
+ * @param suggestZipName 압축 대상으로 압축 다이얼로그에 미리 채울 이름(확장자 제외)을 만드는 함수
  * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onRename 이름 변경 실행 콜백
  * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
@@ -40,6 +42,7 @@ fun BottomButtonDialogHost(
     selectionSummary: () -> SelectionSummary,
     onResetSelection: () -> Unit,
     onZip: (List<FileHolderItem>, String) -> Unit,
+    suggestZipName: (List<FileHolderItem>) -> String,
     validateZipName: (String) -> Set<FileNameError>,
     onRename: (FileHolderItem, String) -> Unit,
     validateRename: (FileHolderItem, String) -> Set<FileNameError>,
@@ -50,7 +53,10 @@ fun BottomButtonDialogHost(
     onResolveConflict: (ConflictResolution) -> Boolean,
 ) {
     if (dialogState.zipDialog) {
+        // 키 없음 — 연 회차마다 한 번만 제안한다. 입력란은 첫 구성의 값만 쓰므로, 리컴포지션마다 목록을 다시 훑을 필요가 없다
+        val suggestedName = remember { suggestZipName(selectedList) }
         ZipDialog(
+            initialText = suggestedName,
             onConfirm = {
                 onZip(selectedList, it)
                 onResetSelection()
@@ -61,6 +67,8 @@ fun BottomButtonDialogHost(
     }
     if (dialogState.renameDialog) {
         RenameDialog(
+            currentName = selectedList.first().name,
+            isDirectory = selectedList.first().isDirectory,
             onConfirm = { onRename(selectedList.first(), it) },
             onDismiss = { dialogState.dismissRename() },
             validate = { name -> validateRename(selectedList.first(), name) }

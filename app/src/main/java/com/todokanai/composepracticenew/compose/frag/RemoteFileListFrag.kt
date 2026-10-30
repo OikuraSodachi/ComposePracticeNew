@@ -103,6 +103,7 @@ fun RemoteFileListFrag(
             sortMode = sortMode,
             onSortModeSelected = viewModel::onSortModeSelected,
             onNewFolder = viewModel::onMakeDirectory,
+            suggestFolderName = viewModel::suggestNewFolderName,
             validateFolderName = viewModel::validateEntryName,
             onExit = onExit
         )

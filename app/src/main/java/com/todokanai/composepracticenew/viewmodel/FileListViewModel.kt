@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.FileNameError
+import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.tools.OperationMessages
@@ -134,6 +135,49 @@ class FileListViewModel @Inject constructor(
 
     /** 압축 파일 이름([name].zip)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
     fun validateZipName(name: String): Set<FileNameError> = localFileOperationUseCase.validateZipName(name)
+
+    /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
+    fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
+        baseName = messages.defaultNewFolderName,
+        extension = "",
+        folder = fileNavigatorUseCase,
+        ignoreCase = LOCAL_IGNORE_CASE,
+    )
+
+    /**
+     * 압축 다이얼로그에 미리 채울 이름(확장자 제외). 같은 이름의 zip이 있으면 `이름 (n)`으로 겹치지 않게 고른다.
+     * @param selectedList 압축할 항목
+     * @return 하나면 그 항목의 이름(파일은 확장자 제외), 여러 개면 항목들이 있는 폴더의 이름
+     */
+    fun suggestZipName(selectedList: List<FileHolderItem>): String {
+        val first = selectedList.firstOrNull() ?: return ""
+        return conflictCheckUseCase.suggestNameBeside(
+            siblingPath = first.path,
+            baseName = zipBaseName(selectedList, first),
+            extension = LocalFileOperationUseCase.ZIP_EXTENSION,
+            folder = fileNavigatorUseCase,
+            ignoreCase = LOCAL_IGNORE_CASE,
+        )
+    }
+
+    /**
+     * 압축 파일의 기본 이름을 정한다. 항목들이 있는 폴더가 파일시스템 루트라 이름이 없으면 첫 항목의 이름을 쓴다.
+     * @param selectedList 압축할 항목
+     * @param first [selectedList]의 첫 항목
+     * @return 확장자를 뺀 기본 이름
+     */
+    private fun zipBaseName(selectedList: List<FileHolderItem>, first: FileHolderItem): String {
+        val folderName = File(first.path).parentFile?.name.orEmpty()
+        return if (selectedList.size > 1 && folderName.isNotEmpty()) folderName else nameWithoutExtension(first)
+    }
+
+    /**
+     * 항목의 이름에서 확장자를 뗀다. 폴더 이름의 점은 확장자가 아니므로 그대로 둔다.
+     * @param item 이름을 꺼낼 항목
+     * @return 파일은 확장자를 뺀 이름, 폴더는 이름 그대로
+     */
+    private fun nameWithoutExtension(item: FileHolderItem): String =
+        if (item.isDirectory) item.name else item.name.substring(0, FileNameParts.baseNameEnd(item.name))
 
     /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
     fun newFolder(name: String) {

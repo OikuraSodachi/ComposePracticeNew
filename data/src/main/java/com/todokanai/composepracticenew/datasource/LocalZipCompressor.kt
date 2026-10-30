@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
+import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.Dispatchers
@@ -98,7 +99,7 @@ class LocalZipCompressor @Inject constructor() {
      */
     private fun numberedFile(desired: File, index: Int): File {
         if (index == 0) return desired
-        val extension = desired.extension.let { if (it.isEmpty()) "" else ".$it" }
-        return File(desired.parentFile, "${desired.nameWithoutExtension} ($index)$extension")
+        val baseNameEnd = FileNameParts.baseNameEnd(desired.name)
+        return File(desired.parentFile, FileNameParts.numbered(desired.name.substring(0, baseNameEnd), desired.name.substring(baseNameEnd), index))
     }
 }

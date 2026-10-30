@@ -35,6 +35,7 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
  * @param sortMode 현재 정렬 기준
  * @param onSortModeSelected 정렬 기준 선택 콜백
  * @param onNewFolder 새 폴더 이름 확인 콜백
+ * @param suggestFolderName 새 폴더 다이얼로그에 미리 채울 이름을 만드는 함수
  * @param validateFolderName 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onExit 앱 종료 콜백
  */
@@ -47,6 +48,7 @@ fun OptionFrag(
     sortMode: SortMode,
     onSortModeSelected: (SortMode) -> Unit,
     onNewFolder: (String) -> Unit,
+    suggestFolderName: () -> String,
     validateFolderName: (String) -> Set<FileNameError>,
     onExit: () -> Unit,
 ) {
@@ -58,6 +60,7 @@ fun OptionFrag(
         sortMode = sortMode,
         onSortModeSelected = onSortModeSelected,
         onNewFolder = onNewFolder,
+        suggestFolderName = suggestFolderName,
         validateFolderName = validateFolderName,
     )
     Column(
@@ -163,6 +166,7 @@ private fun PathBreadcrumb(
  * @param sortMode 정렬 다이얼로그에서 선택된 것으로 보여줄 현재 정렬 기준
  * @param onSortModeSelected 정렬 기준 선택 콜백
  * @param onNewFolder 새 폴더 이름 확인 콜백
+ * @param suggestFolderName 새 폴더 다이얼로그에 미리 채울 이름을 만드는 함수
  * @param validateFolderName 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  */
 @Composable
@@ -171,15 +175,19 @@ private fun OptionDialogHost(
     sortMode: SortMode,
     onSortModeSelected: (SortMode) -> Unit,
     onNewFolder: (String) -> Unit,
+    suggestFolderName: () -> String,
     validateFolderName: (String) -> Set<FileNameError>,
 ) {
     if (dialogState.newFolderDialog) {
         // openId를 키로 — 연 회차마다 입력 상태(rememberSaveable)를 분리해, 화면 이동·프로세스 종료 때 저장된 이전 입력값이
         // 새로 연 다이얼로그에 복원되지 않게 한다. 회전 시에는 openId가 그대로라 입력값이 유지된다
         key(dialogState.openId) {
+            // key(openId) 안에서 키 없이 remember — 연 회차마다 한 번만 제안한다. 입력란은 첫 구성의 값만 쓰므로 리컴포지션마다 목록을 다시 훑지 않는다
+            val suggestedName = remember { suggestFolderName() }
             FileNameDialog(
                 title = stringResource(R.string.dialog_new_folder_title),
                 hint = stringResource(R.string.dialog_new_folder_hint),
+                initialText = suggestedName,
                 validate = validateFolderName,
                 onConfirm = onNewFolder,
                 onDismiss = dialogState::dismissNewFolder,

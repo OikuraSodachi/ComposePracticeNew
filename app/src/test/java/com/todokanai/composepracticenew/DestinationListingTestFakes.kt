@@ -115,6 +115,7 @@ internal object FixedMessages : OperationMessages {
     override val notiDownloadComplete = "다운로드 완료"
     override val notiUploadComplete = "업로드 완료"
     override val destinationUnverified = "목록 미확인"
+    override val defaultNewFolderName = "새 폴더"
 }
 
 /** 연결 상태를 테스트가 직접 바꾸는 테스트용 원격 연결 저장소. 연결·해제는 상태만 바꾼다. */

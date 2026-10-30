@@ -252,6 +252,14 @@ class RemoteFileListViewModel @Inject constructor(
         )
     }
 
+    /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
+    fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
+        baseName = messages.defaultNewFolderName,
+        extension = "",
+        folder = fileNavigatorUseCase,
+        ignoreCase = REMOTE_IGNORE_CASE,
+    )
+
     /**
      * 현재 원격 경로 아래에 dirName 이름의 새 디렉터리를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      * @param dirName 생성할 디렉터리 이름
