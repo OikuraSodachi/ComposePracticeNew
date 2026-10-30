@@ -46,6 +46,7 @@
     <!-- OptionFrag dialogs -->
     <string name="dialog_new_folder_title">Name of the new folder</string>
     <string name="dialog_new_folder_hint">folder name</string>
+    <string name="default_new_folder_name">New folder</string>
 
     <!-- File name validation -->
     <string name="error_file_name_blank">이름을 입력하세요</string>

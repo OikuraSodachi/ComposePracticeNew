@@ -114,6 +114,37 @@ class ConflictCheckVerificationTest {
         assertTrue(progressRepo.errors.isEmpty())
     }
 
+    @Test
+    fun `새 항목 이름 제안은 겹치는 이름이 있으면 압축 저장소와 같은 형식으로 번호를 붙인다`() {
+        show(DirectoryListing.Loaded(current, listOf(item("/a/New folder"), item("/a/new folder (1)"))))
+
+        assertEquals("New folder (2)", useCase.suggestNewEntryName("New folder", "", navigator, ignoreCase = true))
+        assertEquals("New folder (1)", useCase.suggestNewEntryName("New folder", "", navigator, ignoreCase = false))
+        assertTrue(progressRepo.errors.isEmpty())
+    }
+
+    @Test
+    fun `확장자를 붙여 겹침을 보고 제안은 확장자를 뺀 이름으로 돌려준다`() {
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/x.zip"))))
+
+        assertEquals("x (1)", useCase.suggestNameBeside("/a/x.txt", "x", ".zip", navigator, ignoreCase = true))
+    }
+
+    @Test
+    fun `이름 제안은 확인된 목록이 없으면 번호 없이 제안하고 거부를 알리지 않는다`() {
+        show(DirectoryListing.Loading(current, stale = DirectoryListing.Loaded(previous, listOf(item("/a/New folder")))))
+
+        assertEquals("New folder", useCase.suggestNewEntryName("New folder", "", navigator, ignoreCase = true))
+        assertTrue(progressRepo.errors.isEmpty())
+    }
+
+    @Test
+    fun `옆 항목 기준 이름 제안은 그 항목이 목록에 없으면 다른 폴더의 목록이므로 번호 없이 제안한다`() {
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.zip"))))
+
+        assertEquals("x", useCase.suggestNameBeside("/b/x.txt", "x", ".zip", navigator, ignoreCase = true))
+    }
+
     /** 현재 요청을 [current]로 두고 목록 상태를 [listing]으로 정한다. */
     private fun show(listing: DirectoryListing) {
         nav.listingRequest.value = current

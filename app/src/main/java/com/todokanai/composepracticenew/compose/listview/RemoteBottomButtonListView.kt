@@ -49,6 +49,7 @@ private fun RemoteRenameDialogHost(
             title = title,
             hint = target.name,
             initialText = target.name,
+            selectBaseNameOnly = !target.isDirectory,
             validate = { name -> validateRename(target, name) },
             onConfirm = { newName -> onRename(target, newName) },
             onDismiss = onDismiss,

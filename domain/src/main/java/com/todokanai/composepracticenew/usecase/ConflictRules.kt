@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.RenameConflict
 
 /**
@@ -54,6 +55,22 @@ internal object ConflictRules {
         val existing = siblings.firstOrNull { pathOf(it) != targetPath && nameOf(it).equals(newName, ignoreCase) }
             ?: return RenameConflict.NONE
         return conflictBetween(targetIsDirectory, isDirectoryOf(existing))
+    }
+
+    /**
+     * [baseName]+[extension]이 [existingNames]와 겹치면 [FileNameParts.numbered] 순서로 번호를 붙여 겹치지 않는 첫 기본 이름을 반환한다.
+     * @param baseName 확장자를 뺀 원하는 이름
+     * @param extension 점을 포함한 확장자(없으면 빈 문자열)
+     * @param existingNames 폴더의 기존 항목 이름
+     * @param ignoreCase 저장소가 대소문자를 구분하지 않으면 true
+     * @return 겹치지 않는 이름(확장자 제외)
+     */
+    fun firstFreeBaseName(baseName: String, extension: String, existingNames: List<String>, ignoreCase: Boolean): String {
+        val index = generateSequence(0) { it + 1 }.first { index ->
+            val candidate = FileNameParts.numbered(baseName, extension, index)
+            existingNames.none { it.equals(candidate, ignoreCase) }
+        }
+        return FileNameParts.numbered(baseName, "", index)
     }
 
     /**

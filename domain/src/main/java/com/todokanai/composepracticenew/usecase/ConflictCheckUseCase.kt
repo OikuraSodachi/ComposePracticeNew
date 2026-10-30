@@ -84,6 +84,47 @@ class ConflictCheckUseCase(
     }
 
     /**
+     * [folder]의 현재 폴더에 새로 만들 항목의 기본 이름을 제안한다. 같은 이름이 있으면 `이름 (n)` 형태로 겹치지 않는 이름을 고른다.
+     * 입력란 기본값용이라 목록을 확인하지 못했어도 거부를 알리지 않고 번호 없이 제안한다. 실행 시점의 겹침 처리는 각 작업이 한다.
+     * @param baseName 확장자를 뺀 원하는 이름
+     * @param extension 점을 포함한 확장자(없으면 빈 문자열)
+     * @param folder 항목을 만들 폴더를 탐색 중인 FileNavigatorUseCase
+     * @param ignoreCase 저장소가 대소문자를 구분하지 않으면 true
+     * @return 제안할 이름(확장자 제외)
+     */
+    fun suggestNewEntryName(baseName: String, extension: String, folder: FileNavigatorUseCase, ignoreCase: Boolean): String =
+        freeBaseName(folder.verifiedListing(), baseName, extension, ignoreCase)
+
+    /**
+     * [siblingPath] 항목이 있는 폴더에 새로 만들 항목(예: 그 항목들의 압축 파일)의 기본 이름을 제안한다.
+     * 확인된 목록에 [siblingPath]가 없으면 그 폴더의 목록이 아니므로 번호 없이 제안한다. 거부는 알리지 않는다.
+     * @param siblingPath 새 항목과 같은 폴더에 있는 항목의 경로
+     * @param baseName 확장자를 뺀 원하는 이름
+     * @param extension 점을 포함한 확장자(없으면 빈 문자열)
+     * @param folder [siblingPath]가 있는 폴더를 탐색 중인 FileNavigatorUseCase
+     * @param ignoreCase 저장소가 대소문자를 구분하지 않으면 true
+     * @return 제안할 이름(확장자 제외)
+     */
+    fun suggestNameBeside(
+        siblingPath: String,
+        baseName: String,
+        extension: String,
+        folder: FileNavigatorUseCase,
+        ignoreCase: Boolean,
+    ): String = freeBaseName(listingContaining(folder, siblingPath), baseName, extension, ignoreCase)
+
+    /**
+     * [listing]의 항목과 겹치지 않는 기본 이름을 고른다.
+     * @param listing 확인된 목록. 없으면 겹침을 알 수 없으므로 [baseName] 그대로
+     * @param baseName 확장자를 뺀 원하는 이름
+     * @param extension 점을 포함한 확장자(없으면 빈 문자열)
+     * @param ignoreCase 이름을 대소문자 무시로 비교하면 true
+     * @return 겹치지 않는 이름(확장자 제외)
+     */
+    private fun freeBaseName(listing: DirectoryListing.Loaded?, baseName: String, extension: String, ignoreCase: Boolean): String =
+        listing?.let { ConflictRules.firstFreeBaseName(baseName, extension, it.items.map { item -> item.name }, ignoreCase) } ?: baseName
+
+    /**
      * [folder]의 확인된 목록이 [targetPath] 항목을 담고 있으면 그 목록을 반환한다.
      * @param folder 항목이 있는 폴더를 탐색 중인 FileNavigatorUseCase
      * @param targetPath 목록에 있어야 하는 항목의 경로

@@ -20,6 +20,8 @@ interface OperationMessages {
     val notiUploadComplete: String
     /** 대상 폴더의 목록을 확인하지 못해 이름 충돌을 판정할 수 없어 작업을 실행하지 않았다는 메시지. */
     val destinationUnverified: String
+    /** 새 폴더 다이얼로그에 미리 채울 기본 폴더 이름. */
+    val defaultNewFolderName: String
 }
 
 /**
@@ -36,4 +38,5 @@ class CompletionMessageProvider @Inject constructor(
     override val notiDownloadComplete: String get() = context.getString(R.string.noti_download_complete)
     override val notiUploadComplete: String get() = context.getString(R.string.noti_upload_complete)
     override val destinationUnverified: String get() = context.getString(R.string.error_destination_unverified)
+    override val defaultNewFolderName: String get() = context.getString(R.string.default_new_folder_name)
 }

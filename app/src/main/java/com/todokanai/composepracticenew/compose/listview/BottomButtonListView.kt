@@ -21,6 +21,7 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
  * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
+ * @param suggestZipName 압축 대상으로 압축 다이얼로그에 미리 채울 이름(확장자 제외)을 만드는 함수
  * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
@@ -41,6 +42,7 @@ fun BottomButtonListView(
     onRequestConfirm: (List<FileHolderItem>, SelectMode.LocalOperation) -> Boolean,
     onResolveConflict: (ConflictResolution) -> Boolean,
     onZip: (List<FileHolderItem>, String) -> Unit,
+    suggestZipName: (List<FileHolderItem>) -> String,
     validateZipName: (String) -> Set<FileNameError>,
     onRename: (FileHolderItem, String) -> Unit,
     validateRename: (FileHolderItem, String) -> Set<FileNameError>,
@@ -78,6 +80,7 @@ fun BottomButtonListView(
         selectionSummary = selectionSummary,
         onResetSelection = onResetSelection,
         onZip = onZip,
+        suggestZipName = suggestZipName,
         validateZipName = validateZipName,
         onRename = onRename,
         validateRename = validateRename,
