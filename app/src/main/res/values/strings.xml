@@ -123,6 +123,7 @@
     <string name="dialog_info_loading">계산 중…</string>
     <string name="dialog_info_size_at_least">%1$s 이상 · %2$d 개 항목을 읽지 못함</string>
     <string name="dialog_info_failed">읽지 못함</string>
+    <string name="dialog_info_location_unknown">알 수 없음</string>
     <string name="dialog_info_failed_reason">읽지 못함 (%s)</string>
 
     <!-- FTP Foreground Service -->

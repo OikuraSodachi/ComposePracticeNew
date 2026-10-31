@@ -10,6 +10,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.ConfirmCancelDialog
+import com.todokanai.composepracticenew.ui.model.AttributesInfo
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.ItemKind
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
@@ -73,12 +74,12 @@ private fun SingleInfoChart(
         InfoColumn(
             modifier = Modifier,
             title = stringResource(R.string.dialog_info_location),
-            info = summary.location
+            info = summary.location ?: stringResource(R.string.dialog_info_location_unknown)
         )
         InfoColumn(
             modifier = Modifier,
             title = stringResource(R.string.dialog_info_type),
-            info = kindText(summary.kind)
+            info = kindText(summary.attributes)
         )
         InfoColumn(
             modifier = Modifier,
@@ -95,7 +96,7 @@ private fun SingleInfoChart(
         InfoColumn(
             modifier = Modifier,
             title = stringResource(R.string.dialog_info_modified),
-            info = summary.lastModified
+            info = modifiedText(summary.attributes)
         )
     }
 }
@@ -122,12 +123,28 @@ private fun MultipleInfoChart(
     }
 }
 
+/** 속성 표시 상태 중 항목 종류의 표시 문구. */
+@Composable
+private fun kindText(attributes: AttributesInfo): String = when (attributes) {
+    AttributesInfo.Loading -> stringResource(R.string.dialog_info_loading)
+    is AttributesInfo.Known -> kindText(attributes.kind)
+    is AttributesInfo.Failed -> failedText(attributes.message)
+}
+
 /** 항목 종류의 표시 문구. */
 @Composable
 private fun kindText(kind: ItemKind): String = when (kind) {
     ItemKind.Folder -> stringResource(R.string.dialog_info_type_folder)
     is ItemKind.File -> kind.extension?.let { stringResource(R.string.dialog_info_type_file_extension, it) }
         ?: stringResource(R.string.dialog_info_type_file)
+}
+
+/** 속성 표시 상태 중 수정 시각의 표시 문구. */
+@Composable
+private fun modifiedText(attributes: AttributesInfo): String = when (attributes) {
+    AttributesInfo.Loading -> stringResource(R.string.dialog_info_loading)
+    is AttributesInfo.Known -> attributes.lastModified
+    is AttributesInfo.Failed -> failedText(attributes.message)
 }
 
 /** 크기 표시 상태의 표시 문구. 하한은 읽지 못한 항목 수와 함께 보여준다. */
@@ -160,8 +177,7 @@ private fun InfoDialogPreview(){
             summary = SelectionSummary.Single(
                 name = "photo.jpg",
                 location = "/storage/emulated/0/DCIM",
-                kind = ItemKind.File("jpg"),
-                lastModified = "2026. 10. 31. 오후 3:00:00",
+                attributes = AttributesInfo.Known(kind = ItemKind.File("jpg"), lastModified = "2026. 10. 31. 오후 3:00:00"),
                 size = SizeInfo.Exact("2.4 MB"),
                 childCount = null
             )

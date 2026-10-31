@@ -1,11 +1,13 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -16,7 +18,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 
-/** [LocalFileInfoDataSource]가 하위 항목까지 크기를 더하고, 읽지 못한 항목을 하한으로 구분하며, 링크 순환에서도 끝나는지 검증하는 단위 테스트. */
+/** [LocalFileInfoDataSource]가 위치·속성을 구하고, 하위 항목까지 크기를 더하며, 읽지 못한 항목을 하한으로 구분하고, 링크 순환에서도 끝나는지 검증하는 단위 테스트. */
 class LocalFileInfoDataSourceTest {
 
     @get:Rule
@@ -109,6 +111,38 @@ class LocalFileInfoDataSourceTest {
         assertThrows(CancellationException::class.java) {
             Files.walkFileTree(root.toPath(), LocalFileInfoDataSource.SizeVisitor(cancelled))
         }
+    }
+
+    @Test
+    fun `위치는 항목이 들어 있는 폴더다`() {
+        val dir = temp.newFolder("d")
+
+        assertEquals(dir.absolutePath, dataSource.locationOf(dir.resolve("a.txt").absolutePath))
+    }
+
+    @Test
+    fun `루트 바로 아래 항목의 위치는 루트이고, 상위가 없는 경로는 없음이다`() {
+        val root = temp.root.toPath().root
+
+        assertEquals(root.toString(), dataSource.locationOf(root.resolve("a.txt").toString()))
+        assertNull(dataSource.locationOf("a.txt"))
+    }
+
+    @Test
+    fun `속성은 지금 디스크의 종류와 수정 시각이다`() = runTest {
+        val file = temp.newFile("a.txt").apply { setLastModified(1_000_000_000_000) }
+        val dir = temp.newFolder("d")
+
+        assertEquals(
+            IoResult.Success(ItemAttributes(isDirectory = false, lastModifiedMillis = file.lastModified())),
+            dataSource.readAttributes(file.absolutePath)
+        )
+        assertEquals(true, (dataSource.readAttributes(dir.absolutePath) as IoResult.Success).value.isDirectory)
+    }
+
+    @Test
+    fun `그사이 없어진 항목의 속성은 실패다`() = runTest {
+        assertTrue(dataSource.readAttributes(temp.root.resolve("missing").absolutePath) is IoResult.ItemFailed)
     }
 
     @Test

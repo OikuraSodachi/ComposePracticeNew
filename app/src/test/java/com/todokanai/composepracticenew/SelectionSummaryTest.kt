@@ -2,8 +2,10 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
+import com.todokanai.composepracticenew.ui.model.AttributesInfo
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ItemKind
@@ -12,21 +14,20 @@ import com.todokanai.composepracticenew.ui.model.SizeInfo
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** [SelectionSummary.loading]이 선택 수에 따라 단일 상세·여러 항목 요약을 고르고, 측정 결과가 표시 상태로 바뀌는지 검증하는 단위 테스트. */
+/** [SelectionSummary.loading]이 선택 수에 따라 단일 상세·여러 항목 요약을 고르고, 읽은 속성·측정 결과가 표시 상태로 바뀌는지 검증하는 단위 테스트. */
 class SelectionSummaryTest {
 
     @Test
-    fun `항목 하나면 이름·위치·종류·수정 시각을 담은 단일 상세다`() {
-        val file = item(path = "/storage/DCIM/photo.jpg", isDirectory = false, lastModified = "어제")
+    fun `항목 하나면 이름과 넘겨받은 규칙의 위치를 담고 속성·크기는 읽는 중인 단일 상세다`() {
+        val file = item(path = "/storage/DCIM/photo.jpg", lastModified = "어제")
 
-        val summary = SelectionSummary.loading(listOf(file))
+        val summary = SelectionSummary.loading(listOf(file), locationOf = { "/storage/DCIM" })
 
         assertEquals(
             SelectionSummary.Single(
                 name = "photo.jpg",
                 location = "/storage/DCIM",
-                kind = ItemKind.File("jpg"),
-                lastModified = "어제",
+                attributes = AttributesInfo.Loading,
                 size = SizeInfo.Loading,
                 childCount = null
             ),
@@ -35,19 +36,18 @@ class SelectionSummaryTest {
     }
 
     @Test
-    fun `폴더 하나면 하위 항목 수도 계산 중으로 시작한다`() {
-        val summary = SelectionSummary.loading(listOf(item(path = "/storage/Music", isDirectory = true)))
+    fun `읽은 속성이 폴더면 폴더, 읽지 못하면 실패다`() {
+        val folder = AttributesInfo.from(IoResult.Success(ItemAttributes(isDirectory = true, lastModifiedMillis = 0)), "Music")
 
-        summary as SelectionSummary.Single
-        assertEquals(ItemKind.Folder, summary.kind)
-        assertEquals(ChildCountInfo.Loading, summary.childCount)
+        assertEquals(ItemKind.Folder, (folder as AttributesInfo.Known).kind)
+        assertEquals(AttributesInfo.Failed("원인"), AttributesInfo.from(IoResult.ItemFailed("원인"), "Music"))
     }
 
     @Test
-    fun `루트 바로 아래 항목의 위치는 루트다`() {
-        val summary = SelectionSummary.loading(listOf(item("/a.txt"))) as SelectionSummary.Single
+    fun `상위가 없는 경로의 위치는 항목 자신이 아니라 없음이다`() {
+        val summary = SelectionSummary.loading(listOf(item("a.txt")), locationOf = { null }) as SelectionSummary.Single
 
-        assertEquals("/", summary.location)
+        assertEquals(null, summary.location)
     }
 
     @Test
@@ -60,10 +60,10 @@ class SelectionSummaryTest {
 
     @Test
     fun `항목이 없거나 둘 이상이면 개수 요약이다`() {
-        assertEquals(SelectionSummary.Multiple(0, SizeInfo.Loading), SelectionSummary.loading(emptyList()))
+        assertEquals(SelectionSummary.Multiple(0, SizeInfo.Loading), SelectionSummary.loading(emptyList(), locationOf = { null }))
         assertEquals(
             SelectionSummary.Multiple(2, SizeInfo.Loading),
-            SelectionSummary.loading(listOf(item("/a"), item("/b")))
+            SelectionSummary.loading(listOf(item("/a"), item("/b")), locationOf = { null })
         )
     }
 
@@ -87,7 +87,7 @@ class SelectionSummaryTest {
     }
 
     private fun kindOf(name: String): ItemKind =
-        (SelectionSummary.loading(listOf(item("/d/$name"))) as SelectionSummary.Single).kind
+        (AttributesInfo.from(IoResult.Success(ItemAttributes(isDirectory = false, lastModifiedMillis = 0)), name) as AttributesInfo.Known).kind
 
     private fun item(path: String, isDirectory: Boolean = false, lastModified: String = "") = FileHolderItem(
         path = path, isDirectory = isDirectory, name = path.substringAfterLast('/'), size = "", lastModified = lastModified

@@ -25,14 +25,4 @@ sealed interface SizeMeasurement {
             require(unreadable.isNotEmpty()) { "읽지 못한 항목이 없는 하한은 만들 수 없다" }
         }
     }
-
-    /**
-     * 측정 밖에서 이미 알고 있는 크기를 더한다. 하한이면 하한으로 남는다.
-     * @param extraBytes 더할 크기(bytes)
-     * @return 크기를 더한 같은 종류의 측정 결과
-     */
-    fun withExtraBytes(extraBytes: Long): SizeMeasurement = when (this) {
-        is Complete -> copy(bytes = bytes + extraBytes)
-        is LowerBound -> copy(bytes = bytes + extraBytes)
-    }
 }

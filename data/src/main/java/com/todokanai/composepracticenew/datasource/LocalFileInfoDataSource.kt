@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.model.map
 import kotlinx.coroutines.Dispatchers
@@ -19,7 +20,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import javax.inject.Inject
 
 /**
- * 로컬 항목의 정보(하위 항목을 포함한 크기, 하위 항목 수)를 읽는다.
+ * 로컬 항목의 정보(속성, 하위 항목을 포함한 크기, 하위 항목 수)를 읽는다.
  *
  * 크기는 일반 파일의 크기만 더한다. 트리 안의 심볼릭 링크는 따라가지 않고 크기에도 넣지 않는다 — 링크 대상은 이 폴더의 내용이 아니며,
  * 따라가지 않으므로 링크 순환이 있어도 측정이 끝난다. 측정 대상 자신이 링크면 그 대상을 잰다.
@@ -28,6 +29,25 @@ import javax.inject.Inject
 class LocalFileInfoDataSource @Inject constructor(
     private val localFiles: LocalFileDataSource
 ) {
+
+    /**
+     * 항목 [path]가 들어 있는 폴더의 경로를 구한다. 디스크를 읽지 않는다.
+     * @param path 항목의 절대 경로
+     * @return 상위 폴더 경로(루트 바로 아래면 루트). 경로에 상위가 없으면 null
+     */
+    fun locationOf(path: String): String? = Paths.get(path).parent?.toString()
+
+    /**
+     * 항목 [path]의 속성을 읽는다. 항목이 심볼릭 링크면 링크가 가리키는 대상의 속성이다(크기 측정과 같은 대상).
+     * @param path 항목의 절대 경로
+     * @return 항목 속성, 또는 항목을 읽지 못한 실패(없어진 항목, 끊긴 링크 등)
+     */
+    suspend fun readAttributes(path: String): IoResult<ItemAttributes> = withContext(Dispatchers.IO) {
+        localIo {
+            val attrs = Files.readAttributes(Paths.get(path), BasicFileAttributes::class.java)
+            IoResult.Success(ItemAttributes(isDirectory = attrs.isDirectory, lastModifiedMillis = attrs.lastModifiedTime().toMillis()))
+        }
+    }
 
     /**
      * [paths]의 크기를 하위 항목까지 더해 측정한다. 읽지 못한 항목은 건너뛰고 모으며, 코루틴이 취소되면 측정을 멈춘다.
