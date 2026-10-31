@@ -18,7 +18,7 @@ class ProgressStateModelTest {
 
     @Test
     fun `크기를 아는 부분은 그 부분의 합에 대한 퍼센트와 크기 문자열로 바뀐다`() {
-        val model = ProgressState(knownSize = KnownSizeProgress(200, 50, 1, 7)).toModel().knownSize!!
+        val model = ProgressState(knownSize = KnownSizeProgress(200, 50, 0, 1, 7)).toModel().knownSize!!
 
         assertEquals(25, model.progress)
         assertEquals(readableFileSize_td(50), model.writtenSize)
@@ -29,6 +29,16 @@ class ProgressStateModelTest {
 
     @Test
     fun `크기를 아는 부분의 합이 0이면 나눌 기준이 없어 퍼센트가 없다`() {
-        assertNull(ProgressState(knownSize = KnownSizeProgress(0, 0, 2, 7)).toModel().knownSize?.progress)
+        assertNull(ProgressState(knownSize = KnownSizeProgress(0, 0, 0, 2, 7)).toModel().knownSize?.progress)
+    }
+
+    @Test
+    fun `크기를 아는 부분을 다 받았어도 처리 완료 전이면 100%가 아니다`() {
+        assertEquals(99, ProgressState(knownSize = KnownSizeProgress(200, 200, 150, 1, 7)).toModel().knownSize?.progress)
+    }
+
+    @Test
+    fun `크기를 아는 파일이 모두 처리 완료되면 100%다`() {
+        assertEquals(100, ProgressState(knownSize = KnownSizeProgress(200, 200, 200, 1, 7)).toModel().knownSize?.progress)
     }
 }

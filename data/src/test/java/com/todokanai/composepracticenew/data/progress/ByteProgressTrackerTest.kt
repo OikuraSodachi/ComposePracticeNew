@@ -76,14 +76,43 @@ class ByteProgressTrackerTest {
         val tracker = unknownTotalTracker(totalFileCount = 2, knownBytes = 100, unknownFileCount = 1)
 
         tracker.startFile()
-        tracker.addBytes(40, "known", 100)
+        tracker.addBytes(100, "known", 100)
+        tracker.onFileCompleted("known", 100)
         now += INTERVAL
         tracker.startFile()
         tracker.addBytes(500, "unknown", null)
 
-        assertEquals(KnownSizeProgress(100, 40, 1, 0), reports[0].knownSize)
-        assertEquals(KnownSizeProgress(100, 40, 1, 500), reports[1].knownSize)
-        assertEquals(540L, reports[1].writtenBytes)
+        assertEquals(KnownSizeProgress(100, 100, 0, 1, 0), reports[0].knownSize)
+        assertEquals(KnownSizeProgress(100, 100, 100, 1, 500), reports[1].knownSize)
+        assertEquals(600L, reports[1].writtenBytes)
+    }
+
+    @Test
+    fun `완료 응답을 받지 못한 파일의 몫은 확정하지 않고 다음 파일에서 버린다`() {
+        val tracker = unknownTotalTracker(totalFileCount = 3, knownBytes = 8, unknownFileCount = 1)
+
+        tracker.startFile()
+        tracker.addBytes(4, "failed", 4)
+        now += INTERVAL
+        tracker.startFile()
+        tracker.addBytes(2, "next", 4)
+
+        assertEquals(KnownSizeProgress(8, 4, 0, 1, 0), reports[0].knownSize)
+        assertEquals(KnownSizeProgress(8, 2, 0, 1, 0), reports[1].knownSize)
+    }
+
+    @Test
+    fun `완료된 파일은 받은 바이트가 알려진 크기보다 적어도 알려진 크기 전부로 센다`() {
+        val tracker = unknownTotalTracker(totalFileCount = 2, knownBytes = 100, unknownFileCount = 1)
+
+        tracker.startFile()
+        tracker.addBytes(40, "shrunk", 100)
+        tracker.onFileCompleted("shrunk", 100)
+        now += INTERVAL
+        tracker.startFile()
+        tracker.addBytes(10, "unknown", null)
+
+        assertEquals(KnownSizeProgress(100, 100, 100, 1, 10), reports.last().knownSize)
     }
 
     @Test

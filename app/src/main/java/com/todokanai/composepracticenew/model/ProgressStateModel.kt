@@ -30,7 +30,7 @@ data class ProgressStateModel(
 
 /**
  * 크기를 아는 파일과 모르는 파일을 나눈 진행의 UI 상태.
- * @param progress 크기를 아는 파일들에 대한 진행도(0~100 퍼센트). 크기를 아는 부분의 합이 0이면(그런 파일이 없거나 모두 빈 파일) null
+ * @param progress 크기를 아는 파일들에 대한 진행도(0~100 퍼센트). 모두 처리 완료되기 전에는 99까지다. 크기를 아는 부분의 합이 0이면(그런 파일이 없거나 모두 빈 파일) null
  * @param writtenSize 크기를 아는 파일들에서 처리한 크기(사람이 읽을 수 있는 문자열)
  * @param totalSize 크기를 아는 파일들의 크기 합(사람이 읽을 수 있는 문자열)
  * @param unknownFileCount 크기를 모르는 파일 수
@@ -60,7 +60,7 @@ fun ProgressState.toModel(): ProgressStateModel = ProgressStateModel(
 
 /** KnownSizeProgress → KnownSizeProgressModel 변환. */
 private fun KnownSizeProgress.toModel(): KnownSizeProgressModel = KnownSizeProgressModel(
-    progress = knownPercentOf(knownWrittenBytes, knownTotalBytes),
+    progress = knownPercentOf(knownWrittenBytes, knownCompletedBytes, knownTotalBytes),
     writtenSize = readableFileSize_td(knownWrittenBytes),
     totalSize = readableFileSize_td(knownTotalBytes),
     unknownFileCount = unknownFileCount,
@@ -68,10 +68,14 @@ private fun KnownSizeProgress.toModel(): KnownSizeProgressModel = KnownSizeProgr
 )
 
 /**
- * 크기를 아는 부분의 퍼센트를 구한다.
- * @param written 처리한 바이트
+ * 크기를 아는 부분의 퍼센트를 구한다. 100%는 끝났다는 뜻이므로, 모든 파일이 처리 완료되기 전에는 99까지만 낸다.
+ * @param written 진행 바이트
+ * @param completed 처리 완료된 파일들의 크기 합
  * @param total 크기 합
  * @return 0~100 퍼센트. [total]이 0이면 나눌 기준이 없어 null
  */
-private fun knownPercentOf(written: Long, total: Long): Int? =
-    if (total > 0) (written * 100 / total).toInt().coerceIn(0, 100) else null
+private fun knownPercentOf(written: Long, completed: Long, total: Long): Int? = when {
+    total <= 0 -> null
+    completed >= total -> 100
+    else -> (written * 100 / total).toInt().coerceIn(0, 99)
+}
