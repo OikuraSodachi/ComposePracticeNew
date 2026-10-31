@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.KnownSizeProgress
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -41,6 +42,7 @@ class FtpTransferrerDirectoryProgressTest {
         val inProgress = reports.dropLast(1)
         assertTrue(inProgress.isNotEmpty())
         assertTrue(inProgress.all { it.progress == null && it.totalBytes == null })
+        assertEquals(KnownSizeProgress(knownTotalBytes = 4, knownWrittenBytes = 4, unknownFileCount = 1, unknownWrittenBytes = 0), inProgress.first().knownSize)
         assertEquals(100, reports.last().progress)
         assertEquals(8L, reports.last().totalBytes)
     }

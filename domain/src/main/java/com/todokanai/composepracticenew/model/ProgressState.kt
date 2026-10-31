@@ -11,6 +11,7 @@ package com.todokanai.composepracticenew.model
  * @param currentFileName 현재 작업중인 파일명
  * @param currentFileBytes 현재 작업중인 파일의 전체 용량(bytes)
  * @param operationType 진행 중인 작업 종류
+ * @param knownSize 크기를 모르는 파일이 섞여 [progress]가 null일 때 크기를 아는 부분의 진행. 그 밖에는 null
  */
 data class ProgressState(
     val progress: Int? = null,
@@ -21,5 +22,6 @@ data class ProgressState(
     val currentIndex: Int? = null,
     val currentFileName: String? = null,
     val currentFileBytes: Long? = null,
-    val operationType: FileOperationType? = null
+    val operationType: FileOperationType? = null,
+    val knownSize: KnownSizeProgress? = null
 )

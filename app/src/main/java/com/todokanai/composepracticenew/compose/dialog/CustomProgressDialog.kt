@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
 
 /**
@@ -89,6 +90,7 @@ private fun ProgressItem(state: ProgressStateModel) {
             Text(text = progressText(progress), style = MaterialTheme.typography.bodySmall)
             sizeText(state)?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
         }
+        state.knownSize?.let { KnownSizePart(it) }
         if (state.currentFileName != null) {
             Text(
                 text = state.currentFileName,
@@ -117,6 +119,34 @@ private fun ProgressItem(state: ProgressStateModel) {
             )
         }
     }
+}
+
+/**
+ * 크기를 모르는 파일이 섞인 작업에서 크기를 아는 파일들의 진행과, 크기를 모르는 파일들에서 받은 크기를 나눠 보여준다.
+ * 크기를 모르는 파일을 처리하는 동안에는 아는 부분의 막대는 서 있고 모르는 파일의 받은 크기가 늘어난다.
+ */
+@Composable
+private fun KnownSizePart(knownSize: KnownSizeProgressModel) {
+    knownSize.progress?.let { progress ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(text = stringResource(R.string.progress_known_part, progress), style = MaterialTheme.typography.bodySmall)
+            Text(text = "${knownSize.writtenSize} / ${knownSize.totalSize}", style = MaterialTheme.typography.bodySmall)
+        }
+        ProgressLinearIndicator(
+            modifier = Modifier.fillMaxWidth().height(6.dp),
+            progress = progress / 100f,
+            progressColor = MaterialTheme.colorScheme.tertiary,
+            backgroundColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.24f)
+        )
+    }
+    Text(
+        text = stringResource(R.string.progress_unknown_files, knownSize.unknownFileCount, knownSize.unknownWrittenSize),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 /** 진행률의 표시 문구. 모르면 퍼센트 대신 알 수 없음을 보여준다. */
@@ -175,6 +205,29 @@ private fun CustomProgressDialogPreview() {
     Surface {
         CustomProgressDialog(
             progress = ProgressStateModel(progress = 42, operationType = FileOperationType.COPY)
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CustomProgressDialogKnownSizePreview() {
+    Surface {
+        CustomProgressDialog(
+            progress = ProgressStateModel(
+                currentSize = "300 MB",
+                listSize = 2,
+                currentIndex = 2,
+                currentFileName = "unknown.bin",
+                operationType = FileOperationType.DOWNLOAD,
+                knownSize = KnownSizeProgressModel(
+                    progress = 100,
+                    writtenSize = "4 KB",
+                    totalSize = "4 KB",
+                    unknownFileCount = 1,
+                    unknownWrittenSize = "300 MB"
+                )
+            )
         )
     }
 }

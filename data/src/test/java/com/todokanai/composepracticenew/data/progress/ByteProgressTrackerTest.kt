@@ -1,11 +1,15 @@
 package com.todokanai.composepracticenew.data.progress
 
+import com.todokanai.composepracticenew.model.KnownSizeProgress
 import com.todokanai.composepracticenew.model.ProgressState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** [ByteProgressTracker]가 전체 크기를 알면 퍼센트로, 모르면 퍼센트를 지어내지 않고 누적 바이트만 시간 간격마다 보고하는지 검증하는 단위 테스트. */
+/**
+ * [ByteProgressTracker]가 전체 크기를 알면 퍼센트로, 모르면 퍼센트를 지어내지 않고 누적 바이트와 크기를 아는 부분의 진행을
+ * 시간 간격마다 보고하는지 검증하는 단위 테스트.
+ */
 class ByteProgressTrackerTest {
 
     private val reports = mutableListOf<ProgressState>()
@@ -64,10 +68,41 @@ class ByteProgressTrackerTest {
         assertEquals(100, last.progress)
         assertEquals(30L, last.totalBytes)
         assertEquals(30L, last.writtenBytes)
+        assertNull(last.knownSize)
     }
 
-    private fun unknownTotalTracker(totalFileCount: Int) = ByteProgressTracker(
-        totalBytes = null,
+    @Test
+    fun `전체 크기를 모르면 크기를 아는 파일과 모르는 파일의 몫을 나눠 보고한다`() {
+        val tracker = unknownTotalTracker(totalFileCount = 2, knownBytes = 100, unknownFileCount = 1)
+
+        tracker.startFile()
+        tracker.addBytes(40, "known", 100)
+        now += INTERVAL
+        tracker.startFile()
+        tracker.addBytes(500, "unknown", null)
+
+        assertEquals(KnownSizeProgress(100, 40, 1, 0), reports[0].knownSize)
+        assertEquals(KnownSizeProgress(100, 40, 1, 500), reports[1].knownSize)
+        assertEquals(540L, reports[1].writtenBytes)
+    }
+
+    @Test
+    fun `목록 조회 뒤 커진 파일은 아는 부분에 알려진 크기까지만 센다`() {
+        val tracker = unknownTotalTracker(totalFileCount = 2, knownBytes = 100, unknownFileCount = 1)
+
+        tracker.startFile()
+        tracker.addBytes(80, "grown", 100)
+        tracker.addBytes(80, "grown", 100)
+        now += INTERVAL
+        tracker.addBytes(80, "grown", 100)
+
+        assertEquals(100L, reports.last().knownSize?.knownWrittenBytes)
+        assertEquals(0L, reports.last().knownSize?.unknownWrittenBytes)
+        assertEquals(240L, reports.last().writtenBytes)
+    }
+
+    private fun unknownTotalTracker(totalFileCount: Int, knownBytes: Long = 0, unknownFileCount: Int = totalFileCount) = ByteProgressTracker(
+        total = TransferTotal.Partial(knownBytes, unknownFileCount),
         totalFileCount = totalFileCount,
         onProgress = { reports += it },
         holdBelow100 = true,
