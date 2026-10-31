@@ -101,6 +101,7 @@
     <string name="progress_downloading">다운로드 중</string>
     <string name="progress_uploading">업로드 중</string>
     <string name="progress_processing">처리 중</string>
+    <string name="progress_unknown">진행률 알 수 없음</string>
 
     <!-- Dialogs -->
     <string name="dialog_delete_message">Delete?</string>

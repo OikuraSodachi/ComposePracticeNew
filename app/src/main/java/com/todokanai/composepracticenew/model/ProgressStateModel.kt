@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 
 /**
  * app 모듈에서 사용하는 Progress UI 상태. ProgressState를 app 레이어에서 매핑해 사용한다.
- * @param progress 진행도(0~100 퍼센트)
+ * @param progress 진행도(0~100 퍼센트). 보고 전이거나 전체 크기를 몰라 알 수 없으면 null — 0%로 바꿔 멈춘 것처럼 보이지 않게 한다
  * @param totalSize 전체 파일 크기(사람이 읽을 수 있는 문자열)
  * @param currentSize 작업 진행된 크기(사람이 읽을 수 있는 문자열)
  * @param listSize 전체 목록의 갯수
@@ -16,7 +16,7 @@ import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
  */
 @Immutable
 data class ProgressStateModel(
-    val progress: Int = 0,
+    val progress: Int? = null,
     val totalSize: String? = null,
     val currentSize: String? = null,
     val listSize: Int? = null,
@@ -28,7 +28,7 @@ data class ProgressStateModel(
 
 /** ProgressState → ProgressStateModel 변환. bytes 값을 사람이 읽을 수 있는 문자열로 변환한다. */
 fun ProgressState.toModel(): ProgressStateModel = ProgressStateModel(
-    progress = this.progress ?: 0,
+    progress = this.progress,
     totalSize = this.totalBytes?.let { readableFileSize_td(it) },
     currentSize = this.writtenBytes?.let { readableFileSize_td(it) },
     listSize = this.listSize,

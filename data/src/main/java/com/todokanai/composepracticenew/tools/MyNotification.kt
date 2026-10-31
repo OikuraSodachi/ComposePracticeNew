@@ -60,15 +60,15 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         notifyIfPermitted(notifId, builder)
     }
 
-    /** 퍼센트 진행률로 진행 알림을 표시한다. 진행률 정보가 없으면 표시하지 않는다. */
+    /** 퍼센트 진행률로 진행 알림을 표시한다. 전체 크기를 몰라 진행률이 없으면 불확정 막대로 진행 중임만 표시한다. */
     private fun showPercentProgress(type: FileOperationType?, state: ProgressState, notifId: Int) {
-        val progress = state.progress ?: return
+        val progress = state.progress
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
             .setContentTitle(titleFor(type))
-            .setOngoing(progress < 100)
-            .setContentText("$progress %")
-            .setProgress(100, progress, false)
+            .setOngoing(progress == null || progress < 100)
+            .setContentText(progress?.let { "$it %" })
+            .setProgress(100, progress ?: 0, progress == null)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(buildClickIntent(type?.id ?: 0, notifId))
         notifyIfPermitted(notifId, builder)

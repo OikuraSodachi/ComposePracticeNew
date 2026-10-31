@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
+import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -113,9 +114,7 @@ class FtpTransferrer @Inject constructor(
     ): IoResult<Unit> {
         val allEntries = cmd.collectRemoteTree(remotePath).valueOr { return it }
         val fileEntries = allEntries.filter { !it.isDirectory }
-        // 크기를 알 수 없는 파일은 합계에 넣지 않는다 — 100%는 마지막 파일 완료 때만 보고하므로 넘쳐도 조기 완료로 보이지 않는다.
-        // 그런 파일을 받는 동안에는 합계를 넘긴 진행률이 보고되지 않아 멈춘 것처럼 보인다
-        val progress = directoryProgress(fileEntries.sumOf { it.size ?: 0L }.coerceAtLeast(1), fileEntries.size, onProgress)
+        val progress = directoryProgress(totalBytesOf(fileEntries), fileEntries.size, onProgress)
         File(localPath).mkdirs()
         return forEachCollectingFailures(allEntries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
             val localTarget = File(localPath, relativeRemotePath(entry.path, remotePath))
@@ -358,15 +357,24 @@ class FtpTransferrer @Inject constructor(
 
     /**
      * 디렉터리 전송용 누적 진행률 계산기를 만든다. 서버 ACK 전 100% 조기 보고를 막기 위해 100%는 마지막 파일 완료 시에만 보고한다.
-     * @param totalBytes 전송 대상 전체 바이트 수
+     * @param totalBytes 전송 대상 전체 바이트 수. 모르면 null
      * @param totalCount 전송 대상 파일 개수
      * @param onProgress 진행 상태를 수신하는 콜백
      */
-    private fun directoryProgress(totalBytes: Long, totalCount: Int, onProgress: (ProgressState) -> Unit) =
+    private fun directoryProgress(totalBytes: Long?, totalCount: Int, onProgress: (ProgressState) -> Unit) =
         ByteProgressTracker(totalBytes, totalCount, onProgress, holdBelow100 = true, reportProgressFloat = true)
 
+    /**
+     * 받을 파일들의 크기 합을 구한다. 크기를 모르는 파일이 하나라도 있으면 합계도 모른다 — 아는 크기만 더하면 받는 바이트가 합계를 넘어 진행률이 거짓이 된다.
+     * @param fileEntries 받을 파일 항목 목록
+     * @return 크기 합(0 나눗셈 방지를 위해 1 이상), 모르면 null
+     */
+    private fun totalBytesOf(fileEntries: List<FileEntry>): Long? =
+        fileEntries.sumOf { it.size ?: return null }.coerceAtLeast(1)
+
+    /** 단일 파일 전송의 진행 상태를 만든다. [totalBytes]가 0 이하(크기 모름)면 진행률과 전체 크기를 비운다. */
     private fun buildProgressState(totalBytes: Long, writtenBytes: Long, fileName: String) = ProgressState(
-        totalBytes = totalBytes,
+        totalBytes = totalBytes.takeIf { it > 0 },
         writtenBytes = writtenBytes,
         progress = if (totalBytes > 0) (writtenBytes * 100 / totalBytes).toInt() else null,
         progressFloat = if (totalBytes > 0) writtenBytes.toFloat() / totalBytes else null,

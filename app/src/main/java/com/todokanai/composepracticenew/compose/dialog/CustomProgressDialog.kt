@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,27 +63,31 @@ fun CustomProgressDialog(
 
 @Composable
 private fun ProgressItem(state: ProgressStateModel) {
-    val progress = state.progress ?: 0
+    val progress = state.progress
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = operationLabel(state.operationType),
             style = MaterialTheme.typography.labelMedium
         )
-        ProgressLinearIndicator(
-            modifier = Modifier.fillMaxWidth().height(8.dp),
-            progress = progress / 100f
-        )
+        if (progress != null) {
+            ProgressLinearIndicator(
+                modifier = Modifier.fillMaxWidth().height(8.dp),
+                progress = progress / 100f
+            )
+        } else {
+            // 진행률을 모르면 0%로 멈춘 막대 대신 계속 움직이는 막대로 작업이 진행 중임을 보여준다
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(16.dp)),
+                color = Color.Red,
+                trackColor = Color.Red.copy(0.24f)
+            )
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = "$progress%", style = MaterialTheme.typography.bodySmall)
-            if (state.currentSize != null && state.totalSize != null) {
-                Text(
-                    text = "${state.currentSize} / ${state.totalSize}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
+            Text(text = progressText(progress), style = MaterialTheme.typography.bodySmall)
+            sizeText(state)?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
         }
         if (state.currentFileName != null) {
             Text(
@@ -112,6 +117,17 @@ private fun ProgressItem(state: ProgressStateModel) {
             )
         }
     }
+}
+
+/** 진행률의 표시 문구. 모르면 퍼센트 대신 알 수 없음을 보여준다. */
+@Composable
+private fun progressText(progress: Int?): String =
+    progress?.let { "$it%" } ?: stringResource(R.string.progress_unknown)
+
+/** 처리한 크기의 표시 문구. 전체 크기를 알면 "처리 / 전체", 모르면 처리한 크기만, 처리한 크기도 없으면 null이다. */
+private fun sizeText(state: ProgressStateModel): String? {
+    val current = state.currentSize ?: return null
+    return state.totalSize?.let { "$current / $it" } ?: current
 }
 
 @Composable
