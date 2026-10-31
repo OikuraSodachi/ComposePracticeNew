@@ -31,6 +31,17 @@ class LocalFileDataSourceListFilesTest {
     }
 
     @Test
+    fun `파일은 실제 크기를, 디렉터리는 크기 없음을 담는다`() {
+        val dir = temp.newFolder("d")
+        dir.resolve("a.bin").writeBytes(ByteArray(3))
+        dir.resolve("sub").mkdirs()
+
+        val sizes = (dataSource.listFiles(dir.absolutePath) as IoResult.Success).value.associate { it.name to it.size }
+
+        assertEquals(mapOf("a.bin" to 3L, "sub" to null), sizes)
+    }
+
+    @Test
     fun `없는 경로는 빈 목록 대신 실패다`() {
         val missing = temp.root.resolve("missing")
 

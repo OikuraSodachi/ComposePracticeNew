@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.di
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
+import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -15,6 +16,7 @@ import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
+import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
@@ -43,6 +45,10 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideOpenFileUseCase(nav: FileNavigatorRepository) =
         OpenFileUseCase(nav) { _ -> } // stub — not yet implemented
+
+    @Provides @Singleton
+    fun provideFileInfoUseCase(repo: FileInfoRepository) =
+        FileInfoUseCase(repo)
 
     @Provides @Singleton
     fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =

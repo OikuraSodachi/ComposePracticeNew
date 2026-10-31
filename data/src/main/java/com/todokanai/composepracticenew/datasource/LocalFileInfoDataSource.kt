@@ -1,0 +1,150 @@
+package com.todokanai.composepracticenew.datasource
+
+import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ItemAttributes
+import com.todokanai.composepracticenew.model.SizeMeasurement
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
+import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.nio.file.AccessDeniedException
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
+import java.nio.file.NoSuchFileException
+import java.nio.file.NotDirectoryException
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import javax.inject.Inject
+
+/**
+ * 로컬 항목의 정보(속성, 하위 항목을 포함한 크기, 하위 항목 수)를 읽는다.
+ *
+ * 크기는 일반 파일 내용의 바이트 합이다. 특수 파일(FIFO, 장치 파일, 소켓)은 디스크에 내용이 없어 0으로 친다 — stat이 보고하는 크기도 0이며,
+ * 읽지 못한 항목이 아니므로 하한으로 알리지 않는다. 트리 안의 심볼릭 링크는 따라가지 않고 크기에도 넣지 않는다 — 링크 대상은 이 폴더의 내용이 아니며,
+ * 따라가지 않으므로 링크 순환이 있어도 측정이 끝난다. 측정 대상 자신이 링크면 그 대상을 잰다.
+ */
+class LocalFileInfoDataSource @Inject constructor() {
+
+    /**
+     * 항목 [path]가 들어 있는 폴더의 경로를 구한다. 디스크를 읽지 않는다.
+     * @param path 항목의 절대 경로
+     * @return 상위 폴더 경로(루트 바로 아래면 루트). 경로에 상위가 없으면 null
+     */
+    fun locationOf(path: String): String? = Paths.get(path).parent?.toString()
+
+    /**
+     * 항목 [path]의 속성을 읽는다. 항목이 심볼릭 링크면 링크가 가리키는 대상의 속성이다(크기 측정과 같은 대상).
+     * @param path 항목의 절대 경로
+     * @return 항목 속성, 또는 항목을 읽지 못한 실패(없어진 항목, 끊긴 링크 등)
+     */
+    suspend fun readAttributes(path: String): IoResult<ItemAttributes> = withContext(Dispatchers.IO) {
+        localIo {
+            val attrs = Files.readAttributes(Paths.get(path), BasicFileAttributes::class.java)
+            IoResult.Success(ItemAttributes(isDirectory = attrs.isDirectory, lastModifiedMillis = attrs.lastModifiedTime().toMillis()))
+        }
+    }
+
+    /**
+     * [paths]의 크기를 하위 항목까지 더해 측정한다. 읽지 못한 항목은 건너뛰고 모으며, 코루틴이 취소되면 측정을 멈춘다.
+     * @param paths 측정할 항목의 절대 경로 목록
+     * @return 측정 결과. 읽지 못한 항목이 있으면 [SizeMeasurement.LowerBound]
+     */
+    suspend fun measureSize(paths: List<String>): IoResult<SizeMeasurement> = withContext(Dispatchers.IO) {
+        val visitor = SizeVisitor(coroutineContext.job)
+        paths.forEach { measureRoot(Paths.get(it), visitor) }
+        IoResult.Success(visitor.result())
+    }
+
+    /**
+     * 디렉터리 [path] 바로 아래의 항목 수를 센다. 이름만 나열하고 항목마다 속성을 읽지 않는다.
+     * @param path 디렉터리의 절대 경로
+     * @return 바로 아래 항목 수, 또는 디렉터리를 읽지 못한 실패(디렉터리가 아님, 권한 없음 등)
+     */
+    suspend fun countChildren(path: String): IoResult<Int> = withContext(Dispatchers.IO) {
+        localIo(describe = ::listFailureMessage) {
+            IoResult.Success(Files.newDirectoryStream(Paths.get(path)).use { entries -> entries.count() })
+        }
+    }
+
+    /**
+     * 디렉터리를 나열하지 못한 원인을 표시 문구로 바꾼다. NIO 예외의 메시지는 경로뿐인 경우가 많아 예외 종류로 원인을 적는다.
+     * @param e 나열 중 난 입출력 실패
+     * @return 표시할 실패 메시지
+     */
+    private fun listFailureMessage(e: IOException): String? = when (e) {
+        is NotDirectoryException -> "디렉터리가 아닙니다"
+        is AccessDeniedException -> "읽을 권한이 없습니다"
+        is NoSuchFileException -> "항목이 없습니다"
+        else -> e.message
+    }
+
+    /**
+     * 측정 대상 하나를 [visitor]로 훑는다. 대상 자신의 링크를 풀지 못하면(끊긴 링크 등) 그 대상을 읽지 못한 항목으로 남긴다.
+     * @param root 측정 대상 경로
+     * @param visitor 크기와 실패를 모으는 방문자
+     */
+    private fun measureRoot(root: Path, visitor: SizeVisitor) {
+        val walked = localIo {
+            Files.walkFileTree(resolvedRoot(root), visitor)
+            IoResult.Done
+        }
+        if (walked is IoResult.Failure) visitor.addUnreadable(root, walked.message)
+    }
+
+    /** 측정 대상 자신이 심볼릭 링크면 링크가 가리키는 경로를, 아니면 그대로 돌려준다. 링크를 풀지 못하면 IOException을 던진다. */
+    private fun resolvedRoot(root: Path): Path = if (Files.isSymbolicLink(root)) root.toRealPath() else root
+
+    /**
+     * 일반 파일의 크기를 더하고, 읽지 못한 항목을 모으는 방문자. 방문할 때마다 [job]의 취소를 확인한다.
+     * walkFileTree는 이 방문자가 IOException을 던지지 않는 한 실패를 [visitFileFailed]로만 알린다.
+     * 취소 확인을 테스트에서 검증할 수 있도록 internal로 둔다.
+     * @param job 측정을 수행하는 코루틴의 Job
+     */
+    internal class SizeVisitor(private val job: Job) : SimpleFileVisitor<Path>() {
+        /** 지금까지 더한 일반 파일 크기 합. */
+        private var bytes = 0L
+        /** 읽지 못한 항목 목록. */
+        private val unreadable = mutableListOf<FailedItem>()
+
+        override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
+            job.ensureActive()
+            return FileVisitResult.CONTINUE
+        }
+
+        override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+            job.ensureActive()
+            if (attrs.isRegularFile) bytes += attrs.size()
+            return FileVisitResult.CONTINUE
+        }
+
+        override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
+            addUnreadable(file, exc.message)
+            return FileVisitResult.CONTINUE
+        }
+
+        override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
+            // 디렉터리를 끝까지 나열하지 못했다 — 이미 더한 항목은 남기고 이 디렉터리를 읽지 못한 항목으로 둔다
+            if (exc != null) addUnreadable(dir, exc.message)
+            return FileVisitResult.CONTINUE
+        }
+
+        /**
+         * 읽지 못한 항목을 남긴다.
+         * @param path 읽지 못한 항목 경로
+         * @param reason 실패 원인 메시지. 모르면 null
+         */
+        fun addUnreadable(path: Path, reason: String?) {
+            unreadable += FailedItem(path.toString(), reason)
+        }
+
+        /** 모은 크기와 실패로 측정 결과를 만든다. */
+        fun result(): SizeMeasurement =
+            if (unreadable.isEmpty()) SizeMeasurement.Complete(bytes)
+            else SizeMeasurement.LowerBound(bytes, unreadable.toList())
+    }
+}

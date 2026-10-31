@@ -6,11 +6,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
-/** BottomButtonListView의 입력·확인용 다이얼로그 open/close 상태를 보유한다. 파일 충돌 상태는 ViewModel이 보유한다. */
+/** BottomButtonListView의 입력·확인용 다이얼로그 open/close 상태를 보유한다. 파일 충돌 상태와 정보 다이얼로그(계산을 수반함)는 ViewModel이 보유한다. */
 class BottomButtonDialogState {
     var zipDialog          by mutableStateOf(false); private set
     var renameDialog       by mutableStateOf(false); private set
-    var infoDialog         by mutableStateOf(false); private set
     var deleteDialog       by mutableStateOf(false); private set
 
     fun openZip()    { zipDialog = true }
@@ -18,9 +17,6 @@ class BottomButtonDialogState {
 
     fun openRename()    { renameDialog = true }
     fun dismissRename() { renameDialog = false }
-
-    fun openInfo()    { infoDialog = true }
-    fun dismissInfo() { infoDialog = false }
 
     fun openDelete()    { deleteDialog = true }
     fun dismissDelete() { deleteDialog = false }

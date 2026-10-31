@@ -30,6 +30,7 @@ import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistr
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
+import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
@@ -126,14 +127,16 @@ private fun FileListDestination(
     mainViewModel: MainViewModel
 ) {
     val viewModel: FileListViewModel = hiltViewModel()
+    /** 정보 다이얼로그의 표시 상태와 선택 항목의 정보 계산을 맡는다. 화면 회전에도 다이얼로그 내용이 유지되도록 이 destination의 백스택 항목에 스코프된다. */
+    val infoViewModel: FileInfoViewModel = hiltViewModel()
     val coordinator = rememberGraphCoordinator(navController)
 
     // State 객체만 보관하고 선택 목록은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
     val localSelection = coordinator.localSelection.collectAsStateWithLifecycle()
     // localSelection을 추적하되 모드가 바뀔 때만 이 destination을 리컴포지션 — 선택 목록만 바뀐 경우는 무시
     val localSelectMode by remember(localSelection) { derivedStateOf { localSelection.value.localMode() } }
-    // 선택 요약도 State 객체만 보관 — 값은 정보 다이얼로그가 열렸을 때 그 안에서만 읽는다
-    val localSelectionSummary = coordinator.localSelectionSummary.collectAsStateWithLifecycle()
+    // 선택 요약도 State 객체만 보관 — 값은 다이얼로그 호스트에서만 읽어, 계산 결과가 올 때 이 destination 전체가 리컴포지션되지 않도록
+    val selectionSummary = infoViewModel.summary.collectAsStateWithLifecycle()
     val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
 
     ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
@@ -146,7 +149,9 @@ private fun FileListDestination(
         modifier = Modifier,
         selectMode = localSelectMode,
         selectedList = { localSelection.value.selected },
-        selectionSummary = { localSelectionSummary.value },
+        selectionSummary = { selectionSummary.value },
+        onShowInfo = infoViewModel::show,
+        onDismissInfo = infoViewModel::dismiss,
         onStartMultiSelect = coordinator::startLocalMultiSelect,
         onSelectOperation = coordinator::enterLocalOperation,
         onResetSelection = coordinator::resetLocalSelection,

@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
-import com.todokanai.composepracticenew.datasource.LocalFileChecks.sumBytesOrOne
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.Dispatchers
@@ -32,10 +31,10 @@ class LocalArchiveExtraction @Inject constructor(
                 path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${File(path).name}"))
             }
             val sizes = archives.map { (path, extractor) -> extractor.measure(path) }
-            val totalBytes = sumBytesOrOne(sizes.map { it.bytes })
+            val totalBytes = sizes.sumOf { it.bytes }
             checkDiskSpace(totalBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
             onProgress(ProgressState(progress = 0))
-            val tracker = ByteProgressTracker(totalBytes, sizes.sumOf { it.fileCount }, onProgress)
+            val tracker = ByteProgressTracker(totalBytes, sizes.sumOf { it.fileCount }, onProgress, clampTo100 = true)
 
             var skippedEntries = 0
             archives.forEach { (zipFilePath, extractor) ->

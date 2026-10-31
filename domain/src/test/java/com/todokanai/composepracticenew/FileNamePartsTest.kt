@@ -23,6 +23,15 @@ class FileNamePartsTest {
     }
 
     @Test
+    fun `확장자는 점 없이 돌려주고, 숨김 파일의 첫 점이나 끝의 점만 있으면 없다`() {
+        assertEquals("gz", FileNameParts.extensionOf("archive.tar.gz"))
+        assertEquals("txt", FileNameParts.extensionOf(".notes.txt"))
+        assertEquals(null, FileNameParts.extensionOf(".bashrc"))
+        assertEquals(null, FileNameParts.extensionOf("README"))
+        assertEquals(null, FileNameParts.extensionOf("name."))
+    }
+
+    @Test
     fun `번호 0은 원래 이름이고 그 밖에는 확장자 앞에 번호를 붙인다`() {
         assertEquals("x.zip", FileNameParts.numbered("x", ".zip", 0))
         assertEquals("x (3).zip", FileNameParts.numbered("x", ".zip", 3))

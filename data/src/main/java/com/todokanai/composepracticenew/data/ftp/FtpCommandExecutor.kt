@@ -344,7 +344,8 @@ class FtpCommandExecutor @Inject constructor(
         name = file.name,
         path = path.trimEnd('/') + "/" + file.name,
         isDirectory = file.isDirectory,
-        size = file.size,
+        // 디렉터리는 자기 크기가 없고, FTPFile.size는 목록에 크기가 없으면 -1이다
+        size = file.size.takeUnless { file.isDirectory || it < 0 },
         lastModified = file.timestamp?.timeInMillis ?: 0L
     )
 

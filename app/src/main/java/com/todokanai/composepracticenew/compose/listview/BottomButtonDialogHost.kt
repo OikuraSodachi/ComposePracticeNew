@@ -21,7 +21,8 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param dialogState 입력·확인용 다이얼로그 open/close 상태 홀더
  * @param pendingConflict ViewModel이 보유한 사용자 확인 대기 충돌. null이면 충돌 다이얼로그를 표시하지 않음
  * @param selectedList 현재 선택된 파일 목록
- * @param selectionSummary 선택 목록 요약을 반환하는 함수 — 정보 다이얼로그가 열렸을 때만 읽는다
+ * @param selectionSummary 정보 다이얼로그에 표시할 선택 요약을 반환하는 함수. null이면 정보 다이얼로그를 표시하지 않음
+ * @param onDismissInfo 정보 다이얼로그를 닫는 콜백
  * @param onResetSelection 작업 실행 후 선택 모드·선택 목록을 초기화하는 콜백
  * @param onZip 압축 실행 콜백
  * @param suggestZipName 압축 대상으로 압축 다이얼로그에 미리 채울 이름(확장자 제외)을 만드는 함수
@@ -39,7 +40,8 @@ fun BottomButtonDialogHost(
     dialogState: BottomButtonDialogState,
     pendingConflict: PendingConflict?,
     selectedList: List<FileHolderItem>,
-    selectionSummary: () -> SelectionSummary,
+    selectionSummary: () -> SelectionSummary?,
+    onDismissInfo: () -> Unit,
     onResetSelection: () -> Unit,
     onZip: (List<FileHolderItem>, String) -> Unit,
     suggestZipName: (List<FileHolderItem>) -> String,
@@ -82,10 +84,10 @@ fun BottomButtonDialogHost(
             onDismiss = onCancelRename
         )
     }
-    if (dialogState.infoDialog) {
+    selectionSummary()?.let { summary ->
         InfoDialog(
-            summary = selectionSummary(),
-            onDismiss = { dialogState.dismissInfo() }
+            summary = summary,
+            onDismiss = onDismissInfo
         )
     }
     if (dialogState.deleteDialog) {

@@ -14,9 +14,9 @@ import java.text.DateFormat
  * @param path 파일 절대 경로
  * @param isDirectory 디렉터리 여부
  * @param name 파일명
- * @param size 파일 크기(사람이 읽을 수 있는 문자열, 디렉터리는 빈 문자열)
+ * @param size 파일 크기(사람이 읽을 수 있는 문자열, 크기가 없으면 빈 문자열)
  * @param lastModified 마지막 수정 시각 문자열
- * @param sizeBytes 파일 크기(bytes)
+ * @param sizeBytes 파일 크기(bytes). 디렉터리와 크기를 알 수 없는 파일은 null
  * @param lastModifiedMillis 마지막 수정 시각(epoch millis)
  * @param data 로컬 파일의 URI 문자열; 원격 파일이면 null
  */
@@ -28,8 +28,8 @@ data class FileHolderItem(
     val name: String,
     val size: String,
     val lastModified: String,
-    val sizeBytes: Long = 0L,
-    val lastModifiedMillis: Long = 0L,
+    val sizeBytes: Long?,
+    val lastModifiedMillis: Long,
     val data: String? = null
 ) : Parcelable {
     companion object {
@@ -53,7 +53,7 @@ data class FileHolderItem(
             path = domain.path,
             isDirectory = domain.isDirectory,
             name = domain.name,
-            size = if (domain.isDirectory) "" else readableFileSize_td(domain.sizeBytes),
+            size = domain.sizeBytes?.let(::readableFileSize_td) ?: "",
             lastModified = dateFormat.format(domain.lastModifiedMillis),
             sizeBytes = domain.sizeBytes,
             lastModifiedMillis = domain.lastModifiedMillis,

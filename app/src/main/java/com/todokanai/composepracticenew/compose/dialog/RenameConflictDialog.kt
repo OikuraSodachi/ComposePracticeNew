@@ -56,7 +56,7 @@ private fun renameConflictMessage(pending: PendingRename, isRemote: Boolean): St
 private fun RenameConflictDialogPreview() {
     RenameConflictDialog(
         pending = PendingRename(
-            target = FileHolderItem(path = "/a", isDirectory = true, name = "a", size = "", lastModified = ""),
+            target = FileHolderItem(path = "/a", isDirectory = true, name = "a", size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L),
             newName = "b",
             conflict = RenameConflict.FOLDER
         ),

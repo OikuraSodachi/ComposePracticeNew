@@ -106,5 +106,5 @@ class SelectionStateHolderTest {
 
     /** [path]의 파일 항목을 만든다. */
     private fun item(path: String) =
-        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), size = "", lastModified = "")
+        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
 }

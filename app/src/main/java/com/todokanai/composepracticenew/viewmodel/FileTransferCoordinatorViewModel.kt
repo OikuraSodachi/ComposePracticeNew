@@ -10,20 +10,15 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
-import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
@@ -56,17 +51,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** 원격 파일 목록 화면의 선택 상태(모드와 선택·업로드 대기 목록). */
     val remoteSelection: StateFlow<SelectionState<Nothing, SelectMode.Upload>> = remote.state
-
-    /** 로컬 선택 목록의 요약(개수·총 크기 표시 문자열). 정보 다이얼로그가 표시하며, 선택이 바뀔 때만 다시 계산한다. */
-    val localSelectionSummary: StateFlow<SelectionSummary> = local.state
-        .map { it.selected }
-        .distinctUntilChanged()
-        .map(SelectionSummary::from)
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = SelectionSummary.from(emptyList())
-        )
 
     /** 다운로드의 "충돌 검사 → 즉시 실행 / 사용자 확인 대기" 흐름을 관리한다. */
     private val downloadGate = ConflictGate()

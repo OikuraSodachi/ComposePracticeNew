@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
-import com.todokanai.composepracticenew.datasource.LocalFileChecks.sumBytesOrOne
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
@@ -43,7 +42,7 @@ class LocalTreeTransfer internal constructor(
                     .onEach { totalBytesAcc += it.length() }
                     .toList()
             }
-            val totalBytes = totalBytesAcc.coerceAtLeast(1)
+            val totalBytes = totalBytesAcc
             checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(it) }
             onProgress(ProgressState(progress = 0))
             val tracker = ByteProgressTracker(totalBytes, allFiles.size, onProgress)
@@ -72,7 +71,7 @@ class LocalTreeTransfer internal constructor(
             }
             val leafSizes = treeEntries.map { list -> list.filter { !it.isDirectory }.sumOf { it.length() } }
             val leafCounts = treeEntries.map { list -> list.count { !it.isDirectory } }
-            val totalBytes = sumBytesOrOne(leafSizes)
+            val totalBytes = leafSizes.sum()
 
             val crossBytes = roots.indices
                 .filter { !isSamePartition(roots[it], destDir) }

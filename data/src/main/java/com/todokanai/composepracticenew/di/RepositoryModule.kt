@@ -13,6 +13,8 @@ import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
+import com.todokanai.composepracticenew.repository.FileInfoRepository
+import com.todokanai.composepracticenew.repository.LocalFileInfoRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
@@ -62,6 +64,10 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindFileActionRepository(impl: FileActionRepositoryImpl): FileActionRepository
+
+    /** 정보 다이얼로그는 로컬 목록 화면에만 있으므로 로컬 구현만 바인딩한다. 원격 화면에 붙이려면 원격 구현을 따로 둔다. */
+    @Binds
+    abstract fun bindFileInfoRepository(impl: LocalFileInfoRepositoryImpl): FileInfoRepository
 
     @Binds
     abstract fun bindProgressRepository(impl: ProgressTracker): ProgressRepository
