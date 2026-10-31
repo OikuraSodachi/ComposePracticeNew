@@ -104,11 +104,7 @@ sealed interface AttributesInfo {
 
         /** 항목 종류. 파일이면 이름에서 확장자를 나눈다. */
         private fun kindOf(attributes: ItemAttributes, name: String): ItemKind =
-            if (attributes.isDirectory) ItemKind.Folder else ItemKind.File(extensionOf(name))
-
-        /** 이름의 확장자(점 제외). 확장자가 없으면(숨김 파일의 첫 점 포함) null이다. */
-        private fun extensionOf(name: String): String? =
-            name.substring(FileNameParts.baseNameEnd(name)).removePrefix(".").takeIf { it.isNotEmpty() }
+            if (attributes.isDirectory) ItemKind.Folder else ItemKind.File(FileNameParts.extensionOf(name))
     }
 }
 

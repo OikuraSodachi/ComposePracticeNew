@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.KnownSizeProgress
 import com.todokanai.composepracticenew.model.ProgressState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
@@ -82,9 +83,50 @@ class ByteProgressTrackerTest {
         tracker.startFile()
         tracker.addBytes(500, "unknown", null)
 
-        assertEquals(KnownSizeProgress(100, 100, 0, 1, 0), reports[0].knownSize)
-        assertEquals(KnownSizeProgress(100, 100, 100, 1, 500), reports[1].knownSize)
-        assertEquals(600L, reports[1].writtenBytes)
+        assertEquals(KnownSizeProgress(100, 100, 0, 1, 0), reports.first().knownSize)
+        assertEquals(KnownSizeProgress(100, 100, 100, 1, 500), reports.last().knownSize)
+        assertEquals(600L, reports.last().writtenBytes)
+    }
+
+    @Test
+    fun `크기를 아는 파일의 확정은 보고 간격을 기다리지 않고 바로 보고한다`() {
+        val tracker = unknownTotalTracker(totalFileCount = 2, knownBytes = 4, unknownFileCount = 1)
+
+        tracker.startFile()
+        tracker.addBytes(4, "known", 4)
+        tracker.onFileCompleted("known", 4)
+
+        assertEquals(KnownSizeProgress(4, 4, 4, 1, 0), reports.last().knownSize)
+        assertEquals(2, reports.size)
+    }
+
+    @Test
+    fun `전체 크기가 0이면 진행 중 퍼센트를 내지 않고 완료 때 0바이트로 100%를 보고한다`() {
+        val tracker = ByteProgressTracker(totalBytes = 0, totalFileCount = 1, onProgress = { reports += it })
+
+        tracker.startFile()
+        tracker.addBytes(5, "grown", 0)
+        tracker.reportComplete()
+
+        assertEquals(listOf(100), reports.map { it.progress })
+        assertEquals(0L, reports.single().totalBytes)
+    }
+
+    @Test
+    fun `clampTo100이면 크기 정보보다 많이 처리해도 100을 넘겨 보고하지 않는다`() {
+        val tracker = ByteProgressTracker(totalBytes = 10, totalFileCount = 1, onProgress = { reports += it }, clampTo100 = true)
+
+        tracker.startFile()
+        tracker.addBytes(30, "entry", 10)
+
+        assertEquals(100, reports.single().progress)
+    }
+
+    @Test
+    fun `모순된 전체 크기는 만들 때 거부한다`() {
+        assertThrows(IllegalArgumentException::class.java) { TransferTotal.Known(-1) }
+        assertThrows(IllegalArgumentException::class.java) { TransferTotal.Partial(knownBytes = 10, unknownFileCount = 0) }
+        assertThrows(IllegalArgumentException::class.java) { TransferTotal.Partial(knownBytes = -1, unknownFileCount = 1) }
     }
 
     @Test

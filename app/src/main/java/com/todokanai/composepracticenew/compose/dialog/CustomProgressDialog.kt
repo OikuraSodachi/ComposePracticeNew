@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.compose.dialog
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -90,7 +91,7 @@ private fun ProgressItem(state: ProgressStateModel) {
             Text(text = progressText(progress), style = MaterialTheme.typography.bodySmall)
             sizeText(state)?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
         }
-        state.knownSize?.let { KnownSizePart(it) }
+        state.knownSize?.let { KnownSizePart(it, state.operationType) }
         if (state.currentFileName != null) {
             Text(
                 text = state.currentFileName,
@@ -122,11 +123,13 @@ private fun ProgressItem(state: ProgressStateModel) {
 }
 
 /**
- * 크기를 모르는 파일이 섞인 작업에서 크기를 아는 파일들의 진행과, 크기를 모르는 파일들에서 받은 크기를 나눠 보여준다.
- * 크기를 모르는 파일을 처리하는 동안에는 아는 부분의 막대는 서 있고 모르는 파일의 받은 크기가 늘어난다.
+ * 크기를 모르는 파일이 섞인 작업에서 크기를 아는 파일들의 진행과, 크기를 모르는 파일들에서 처리한 크기를 나눠 보여준다.
+ * 크기를 모르는 파일을 처리하는 동안에는 아는 부분의 막대는 서 있고 모르는 파일의 처리한 크기가 늘어난다.
+ * @param knownSize 크기를 아는 부분과 모르는 부분의 진행
+ * @param operationType 작업 종류 — 크기를 모르는 파일의 처리 문구(받음·보냄·처리)를 고른다
  */
 @Composable
-private fun KnownSizePart(knownSize: KnownSizeProgressModel) {
+private fun KnownSizePart(knownSize: KnownSizeProgressModel, operationType: FileOperationType?) {
     knownSize.progress?.let { progress ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -143,10 +146,23 @@ private fun KnownSizePart(knownSize: KnownSizeProgressModel) {
         )
     }
     Text(
-        text = stringResource(R.string.progress_unknown_files, knownSize.unknownFileCount, knownSize.unknownWrittenSize),
+        text = stringResource(unknownFilesTextRes(operationType), knownSize.unknownFileCount, knownSize.unknownWrittenSize),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+/**
+ * 크기를 모르는 파일의 처리 문구를 작업 종류로 고른다. 작업 종류를 모두 나열해 새 종류가 생기면 컴파일 단계에서 드러나게 한다.
+ * @param operationType 작업 종류. 모르면 null
+ * @return 문자열 리소스 ID
+ */
+@StringRes
+private fun unknownFilesTextRes(operationType: FileOperationType?): Int = when (operationType) {
+    FileOperationType.DOWNLOAD -> R.string.progress_unknown_files_received
+    FileOperationType.UPLOAD -> R.string.progress_unknown_files_sent
+    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE,
+    FileOperationType.ZIP, FileOperationType.UNZIP, null -> R.string.progress_unknown_files_processed
 }
 
 /** 진행률의 표시 문구. 모르면 퍼센트 대신 알 수 없음을 보여준다. */

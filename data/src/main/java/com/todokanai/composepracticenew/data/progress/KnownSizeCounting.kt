@@ -28,23 +28,29 @@ internal class KnownSizeCounting(
         currentFileKnownBytes = 0
     }
 
-    override fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?, clampTo100: Boolean): ProgressReading? {
+    override fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ProgressReading? {
         if (fileBytes == null) {
             unknownWrittenBytes += bytes
         } else {
             currentFileKnownBytes = (currentFileKnownBytes + bytes).coerceAtMost(fileBytes)
         }
         if (!throttle.shouldReport(null)) return null
-        return ProgressReading(progress = null, progressFloat = null, totalBytes = null, knownSize = snapshot())
+        return reading()
     }
 
-    override fun onFileCompleted(fileBytes: Long?) {
-        if (fileBytes != null) completedKnownBytes += fileBytes
+    /** 크기를 아는 파일의 확정은 파일마다 한 번이므로 [throttle]을 거치지 않고 바로 보고한다 — 다음 청크를 기다리면 확정이 늦게 보인다. */
+    override fun onFileCompleted(fileBytes: Long?): ProgressReading? {
         currentFileKnownBytes = 0
+        if (fileBytes == null) return null
+        completedKnownBytes += fileBytes
+        return reading()
     }
 
     /** 합계를 몰랐으므로 실제로 처리한 누적 바이트가 전체다. */
     override fun completedBytes(writtenBytes: Long): Long = writtenBytes
+
+    /** 퍼센트 없이 크기를 아는 부분의 진행만 담은 진행 값을 만든다. */
+    private fun reading() = ProgressReading(progress = null, progressFloat = null, totalBytes = null, knownSize = snapshot())
 
     /** 지금까지 센 몫으로 크기를 아는 부분의 진행을 만든다. */
     private fun snapshot() = KnownSizeProgress(

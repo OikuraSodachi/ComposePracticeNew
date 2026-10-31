@@ -28,8 +28,8 @@ data class FileHolderItem(
     val name: String,
     val size: String,
     val lastModified: String,
-    val sizeBytes: Long? = null,
-    val lastModifiedMillis: Long = 0L,
+    val sizeBytes: Long?,
+    val lastModifiedMillis: Long,
     val data: String? = null
 ) : Parcelable {
     companion object {

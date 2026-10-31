@@ -40,7 +40,7 @@ class LocalZipCompressor @Inject constructor() {
         val allEntries = roots.flatMap { root -> root.walkTopDown().map { root to it }.toList() }
         if (allEntries.isEmpty()) return IoResult.ItemFailed("압축할 항목이 없습니다.")
         val allFiles = allEntries.filter { (_, f) -> !f.isDirectory }
-        val totalBytes = allFiles.sumOf { (_, f) -> f.length() }.coerceAtLeast(1)
+        val totalBytes = allFiles.sumOf { (_, f) -> f.length() }
         checkDiskSpace(totalBytes, (File(zipFile).parentFile ?: File(zipFile)).freeSpace)
             ?.let { return IoResult.ItemFailed(it) }
         onProgress(ProgressState(progress = 0))

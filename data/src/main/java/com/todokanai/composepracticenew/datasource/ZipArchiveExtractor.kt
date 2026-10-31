@@ -14,7 +14,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     override fun measure(path: String): ArchiveSize =
         ZipFile(path).use { zf ->
             val entries = zf.entries().toList()
-            ArchiveSize(bytes = entries.sumOf { it.size }, fileCount = entries.count { !it.isDirectory })
+            ArchiveSize(bytes = entries.sumOf { it.size.coerceAtLeast(0) }, fileCount = entries.count { !it.isDirectory })
         }
 
     override fun extract(path: String, root: File, tracker: ByteProgressTracker): Int {

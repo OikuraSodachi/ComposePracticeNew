@@ -4,15 +4,17 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
-import com.todokanai.composepracticenew.model.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import java.nio.file.AccessDeniedException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
+import java.nio.file.NoSuchFileException
+import java.nio.file.NotDirectoryException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.SimpleFileVisitor
@@ -25,11 +27,8 @@ import javax.inject.Inject
  * 크기는 일반 파일 내용의 바이트 합이다. 특수 파일(FIFO, 장치 파일, 소켓)은 디스크에 내용이 없어 0으로 친다 — stat이 보고하는 크기도 0이며,
  * 읽지 못한 항목이 아니므로 하한으로 알리지 않는다. 트리 안의 심볼릭 링크는 따라가지 않고 크기에도 넣지 않는다 — 링크 대상은 이 폴더의 내용이 아니며,
  * 따라가지 않으므로 링크 순환이 있어도 측정이 끝난다. 측정 대상 자신이 링크면 그 대상을 잰다.
- * @param localFiles 디렉터리 목록 읽기를 담당하는 LocalFileDataSource
  */
-class LocalFileInfoDataSource @Inject constructor(
-    private val localFiles: LocalFileDataSource
-) {
+class LocalFileInfoDataSource @Inject constructor() {
 
     /**
      * 항목 [path]가 들어 있는 폴더의 경로를 구한다. 디스크를 읽지 않는다.
@@ -62,12 +61,26 @@ class LocalFileInfoDataSource @Inject constructor(
     }
 
     /**
-     * 디렉터리 [path] 바로 아래의 항목 수를 센다.
+     * 디렉터리 [path] 바로 아래의 항목 수를 센다. 이름만 나열하고 항목마다 속성을 읽지 않는다.
      * @param path 디렉터리의 절대 경로
-     * @return 바로 아래 항목 수, 또는 디렉터리를 읽지 못한 실패
+     * @return 바로 아래 항목 수, 또는 디렉터리를 읽지 못한 실패(디렉터리가 아님, 권한 없음 등)
      */
     suspend fun countChildren(path: String): IoResult<Int> = withContext(Dispatchers.IO) {
-        localFiles.listFiles(path).map { it.size }
+        localIo(describe = ::listFailureMessage) {
+            IoResult.Success(Files.newDirectoryStream(Paths.get(path)).use { entries -> entries.count() })
+        }
+    }
+
+    /**
+     * 디렉터리를 나열하지 못한 원인을 표시 문구로 바꾼다. NIO 예외의 메시지는 경로뿐인 경우가 많아 예외 종류로 원인을 적는다.
+     * @param e 나열 중 난 입출력 실패
+     * @return 표시할 실패 메시지
+     */
+    private fun listFailureMessage(e: IOException): String? = when (e) {
+        is NotDirectoryException -> "디렉터리가 아닙니다"
+        is AccessDeniedException -> "읽을 권한이 없습니다"
+        is NoSuchFileException -> "항목이 없습니다"
+        else -> e.message
     }
 
     /**

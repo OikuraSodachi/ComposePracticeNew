@@ -65,6 +65,7 @@ fun BottomButtonListView(
     val onConfirmWithConflictCheck: (SelectMode.LocalOperation) -> Unit = remember {
         { mode -> if (onRequestConfirm(latestSelectedList, mode)) onResetSelection() }
     }
+    /** 누른 시점의 선택 목록으로 정보 다이얼로그를 연다. */
     // 키 없음 — 선택 목록은 rememberUpdatedState로 실행 시점에 읽고, onShowInfo는 안정 참조
     val onShowSelectedInfo: () -> Unit = remember { { onShowInfo(latestSelectedList) } }
 

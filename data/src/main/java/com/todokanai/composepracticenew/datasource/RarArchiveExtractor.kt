@@ -84,7 +84,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
                 currentOutputStream = out
                 ISequentialOutStream { data ->
                     out.write(data)
-                    tracker.addBytes(data.size.toLong(), currentNormalizedName, currentItemSize, clampTo100 = true)
+                    tracker.addBytes(data.size.toLong(), currentNormalizedName, currentItemSize)
                     data.size
                 }
             } catch (e: Exception) { skipCurrent = true; skippedEntries++; null }

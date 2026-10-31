@@ -24,7 +24,7 @@ class LocalFileInfoDataSourceTest {
     @get:Rule
     val temp = TemporaryFolder()
 
-    private val dataSource = LocalFileInfoDataSource(LocalFileDataSource())
+    private val dataSource = LocalFileInfoDataSource()
 
     @Test
     fun `중첩 폴더의 파일 크기를 모두 더한다`() = runTest {
@@ -157,7 +157,14 @@ class LocalFileInfoDataSourceTest {
 
     @Test
     fun `읽지 못한 폴더의 하위 항목 수는 0이 아니라 실패다`() = runTest {
-        assertTrue(dataSource.countChildren(temp.root.resolve("missing").absolutePath) is IoResult.ItemFailed)
+        assertEquals(IoResult.ItemFailed("항목이 없습니다"), dataSource.countChildren(temp.root.resolve("missing").absolutePath))
+    }
+
+    @Test
+    fun `폴더가 아닌 항목의 하위 항목 수는 그 원인을 적은 실패다`() = runTest {
+        val file = temp.newFile("a.txt")
+
+        assertEquals(IoResult.ItemFailed("디렉터리가 아닙니다"), dataSource.countChildren(file.absolutePath))
     }
 
     /** [link]에 [target]을 가리키는 심볼릭 링크를 만든다. 링크를 만들 수 없는 환경(권한 없는 Windows 등)이면 테스트를 건너뛴다. */

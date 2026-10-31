@@ -153,7 +153,7 @@ class TransferDestinationGuardTest {
 
     /** [path]의 앱 레이어 파일 항목을 만든다. */
     private fun appItem(path: String) =
-        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), size = "", lastModified = "")
+        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
 
     /** [path]의 domain 파일 항목을 만든다. */
     private fun domainItem(path: String) =

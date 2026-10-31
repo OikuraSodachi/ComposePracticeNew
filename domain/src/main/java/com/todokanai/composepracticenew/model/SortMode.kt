@@ -28,4 +28,5 @@ enum class SortMode(val id: String, val comparator: Comparator<FileHolderItem>) 
     }
 }
 
-private fun FileHolderItem.extension(): String = name.substringAfterLast('.', "")
+/** '종류' 정렬에 쓰는 확장자. 확장자가 없는 항목은 빈 문자열이라 오름차순에서 앞에 온다. */
+private fun FileHolderItem.extension(): String = FileNameParts.extensionOf(name) ?: ""

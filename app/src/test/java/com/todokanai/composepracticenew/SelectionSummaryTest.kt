@@ -90,6 +90,7 @@ class SelectionSummaryTest {
         (AttributesInfo.from(IoResult.Success(ItemAttributes(isDirectory = false, lastModifiedMillis = 0)), name) as AttributesInfo.Known).kind
 
     private fun item(path: String, isDirectory: Boolean = false, lastModified: String = "") = FileHolderItem(
-        path = path, isDirectory = isDirectory, name = path.substringAfterLast('/'), size = "", lastModified = lastModified
+        path = path, isDirectory = isDirectory, name = path.substringAfterLast('/'), size = "", lastModified = lastModified,
+        sizeBytes = null, lastModifiedMillis = 0L
     )
 }

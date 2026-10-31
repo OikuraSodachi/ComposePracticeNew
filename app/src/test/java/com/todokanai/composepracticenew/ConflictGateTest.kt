@@ -78,5 +78,5 @@ class ConflictGateTest {
     }
 
     /** [name] 파일 항목을 만든다. */
-    private fun item(name: String) = FileHolderItem(path = "/src/$name", isDirectory = false, name = name, size = "", lastModified = "")
+    private fun item(name: String) = FileHolderItem(path = "/src/$name", isDirectory = false, name = name, size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
 }

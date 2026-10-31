@@ -47,10 +47,10 @@ class LocalOperationDestinationGuardTest {
     private lateinit var request: ListingRequest
 
     private val selected = listOf(
-        FileHolderItem(path = "/src/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "")
+        FileHolderItem(path = "/src/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
     )
     private val renameTarget =
-        FileHolderItem(path = "/dest/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "")
+        FileHolderItem(path = "/dest/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
 
     @Before
     fun setUp() {

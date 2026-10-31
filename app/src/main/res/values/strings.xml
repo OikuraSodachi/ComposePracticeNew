@@ -103,7 +103,9 @@
     <string name="progress_processing">처리 중</string>
     <string name="progress_unknown">진행률 알 수 없음</string>
     <string name="progress_known_part">크기를 아는 파일 %1$d%%</string>
-    <string name="progress_unknown_files">크기 모르는 파일 %1$d개: %2$s 받음</string>
+    <string name="progress_unknown_files_received">크기를 모르는 파일 %1$d개: %2$s 받음</string>
+    <string name="progress_unknown_files_sent">크기를 모르는 파일 %1$d개: %2$s 보냄</string>
+    <string name="progress_unknown_files_processed">크기를 모르는 파일 %1$d개: %2$s 처리</string>
 
     <!-- Dialogs -->
     <string name="dialog_delete_message">Delete?</string>

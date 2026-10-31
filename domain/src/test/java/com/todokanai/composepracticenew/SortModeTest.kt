@@ -55,6 +55,13 @@ class SortModeTest {
     }
 
     @Test
+    fun `숨김 파일의 첫 점은 확장자가 아니라 확장자 없는 항목과 함께 정렬된다`() {
+        val dotFile = item(name = ".zshrc", isDirectory = false, size = 1, modified = 0)
+
+        assertEquals(listOf(dotFile, fileA, fileC), listOf(fileC, dotFile, fileA).sortedWith(SortMode.BY_TYPE_ASCENDING.comparator))
+    }
+
+    @Test
     fun `수정일 정렬`() {
         assertSorted(SortMode.BY_DATE_ASCENDING, fileC, fileA, dirB)
         assertSorted(SortMode.BY_DATE_DESCENDING, dirB, fileA, fileC)

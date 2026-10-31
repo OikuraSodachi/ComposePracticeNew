@@ -36,7 +36,7 @@ interface ArchiveExtractor {
 
 /**
  * 아카이브 추출 대상의 크기 정보.
- * @param bytes 항목 바이트 합
+ * @param bytes 항목 바이트 합(0 이상). 아카이브가 크기를 알려주지 않는 항목은 0으로 친다 — 추출 진행률은 크기 정보가 부정확할 수 있어 100%로 제한된다
  * @param fileCount 파일(디렉터리 제외) 개수
  */
 data class ArchiveSize(val bytes: Long, val fileCount: Int)

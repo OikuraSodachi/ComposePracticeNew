@@ -31,8 +31,8 @@ class FileInfoViewModelTest {
     private val repo = GatedFileInfoRepository()
     private lateinit var viewModel: FileInfoViewModel
 
-    private val folder = FileHolderItem(path = "/d/music", isDirectory = true, name = "music", size = "", lastModified = "")
-    private val file = FileHolderItem(path = "/d/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "", sizeBytes = 7)
+    private val folder = FileHolderItem(path = "/d/music", isDirectory = true, name = "music", size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
+    private val file = FileHolderItem(path = "/d/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "", sizeBytes = 7, lastModifiedMillis = 0L)
 
     @Before
     fun setUp() {

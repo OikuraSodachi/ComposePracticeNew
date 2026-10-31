@@ -175,7 +175,7 @@ class FtpTransferrer @Inject constructor(
     ): IoResult<Unit> {
         val allEntries = localDir.walkTopDown().toList()
         val fileEntries = allEntries.filter { it.isFile }
-        val progress = directoryProgress(TransferTotal.Known(fileEntries.sumOf { it.length() }.coerceAtLeast(1)), fileEntries.size, onProgress)
+        val progress = directoryProgress(TransferTotal.Known(fileEntries.sumOf { it.length() }), fileEntries.size, onProgress)
         return forEachCollectingFailures(allEntries, "업로드 실패", nameOf = { localDir.slashRelativePathOf(it).ifEmpty { it.name } }) { entry ->
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
@@ -369,12 +369,12 @@ class FtpTransferrer @Inject constructor(
      * 받을 파일들의 전체 크기를 구한다. 크기를 모르는 파일이 하나라도 있으면 전체 크기를 모른다 — 아는 크기만 더한 합계로 퍼센트를 내면
      * 받는 바이트가 합계를 넘어 진행률이 거짓이 되므로, 아는 크기의 합은 따로 둔다.
      * @param fileEntries 받을 파일 항목 목록
-     * @return 모두 알면 크기 합(0 나눗셈 방지를 위해 1 이상), 아니면 아는 크기의 합과 모르는 파일 수
+     * @return 모두 알면 크기 합, 아니면 아는 크기의 합과 모르는 파일 수
      */
     private fun transferTotalOf(fileEntries: List<FileEntry>): TransferTotal {
         val knownSizes = fileEntries.mapNotNull { it.size }
         val unknownCount = fileEntries.size - knownSizes.size
-        return if (unknownCount == 0) TransferTotal.Known(knownSizes.sum().coerceAtLeast(1))
+        return if (unknownCount == 0) TransferTotal.Known(knownSizes.sum())
                else TransferTotal.Partial(knownSizes.sum(), unknownCount)
     }
 

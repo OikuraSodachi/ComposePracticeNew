@@ -10,7 +10,7 @@ import org.junit.Test
 /** [RenameConfirmGate]가 겹침 종류에 따라 즉시 실행하거나 덮어쓰기 확인을 기다리는지 검증하는 단위 테스트. */
 class RenameConfirmGateTest {
 
-    private val item = FileHolderItem(path = "/d/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "")
+    private val item = FileHolderItem(path = "/d/a.txt", isDirectory = false, name = "a.txt", size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
     private val gate = RenameConfirmGate()
     private val calls = mutableListOf<Boolean>()
 
