@@ -73,9 +73,9 @@ class ByteProgressTracker internal constructor(
     /**
      * 현재 파일의 처리 완료(서버 ACK 등)를 알린다. 마지막 파일이면 100%를 보고한다.
      * @param fileName 완료된 파일명
-     * @param fileBytes 완료된 파일의 전체 크기
+     * @param fileBytes 완료된 파일의 전체 크기 — null이면 보고에서 생략
      */
-    fun onFileCompleted(fileName: String, fileBytes: Long) {
+    fun onFileCompleted(fileName: String, fileBytes: Long?) {
         if (fileIndex == totalFileCount) onProgress(stateOf(100, 1f, totalBytes, fileName, fileBytes))
     }
 

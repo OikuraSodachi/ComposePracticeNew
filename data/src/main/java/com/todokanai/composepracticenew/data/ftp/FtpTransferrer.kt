@@ -113,7 +113,9 @@ class FtpTransferrer @Inject constructor(
     ): IoResult<Unit> {
         val allEntries = cmd.collectRemoteTree(remotePath).valueOr { return it }
         val fileEntries = allEntries.filter { !it.isDirectory }
-        val progress = directoryProgress(fileEntries.sumOf { it.size }.coerceAtLeast(1), fileEntries.size, onProgress)
+        // 크기를 알 수 없는 파일은 합계에 넣지 않는다 — 100%는 마지막 파일 완료 때만 보고하므로 넘쳐도 조기 완료로 보이지 않는다.
+        // 그런 파일을 받는 동안에는 합계를 넘긴 진행률이 보고되지 않아 멈춘 것처럼 보인다
+        val progress = directoryProgress(fileEntries.sumOf { it.size ?: 0L }.coerceAtLeast(1), fileEntries.size, onProgress)
         File(localPath).mkdirs()
         return forEachCollectingFailures(allEntries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
             val localTarget = File(localPath, relativeRemotePath(entry.path, remotePath))

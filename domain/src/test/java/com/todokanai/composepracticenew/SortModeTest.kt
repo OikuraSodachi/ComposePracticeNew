@@ -8,7 +8,7 @@ import org.junit.Test
 /** [SortMode]의 저장 식별자 호환성, 복원 폴백, 모드별 정렬 규칙을 검증하는 단위 테스트. */
 class SortModeTest {
 
-    private val dirB = item(name = "b", isDirectory = true, size = 0, modified = 30)
+    private val dirB = item(name = "b", isDirectory = true, size = null, modified = 30)
     private val fileA = item(name = "a.txt", isDirectory = false, size = 300, modified = 20)
     private val fileC = item(name = "c.zip", isDirectory = false, size = 100, modified = 10)
     private val all = listOf(fileC, dirB, fileA)
@@ -63,6 +63,6 @@ class SortModeTest {
     private fun assertSorted(mode: SortMode, vararg expected: FileHolderItem) =
         assertEquals(expected.toList(), all.sortedWith(mode.comparator))
 
-    private fun item(name: String, isDirectory: Boolean, size: Long, modified: Long) =
+    private fun item(name: String, isDirectory: Boolean, size: Long?, modified: Long) =
         FileHolderItem(path = "/$name", isDirectory = isDirectory, name = name, sizeBytes = size, lastModifiedMillis = modified)
 }

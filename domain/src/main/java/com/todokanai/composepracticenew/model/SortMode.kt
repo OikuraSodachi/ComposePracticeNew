@@ -10,8 +10,9 @@ enum class SortMode(val id: String, val comparator: Comparator<FileHolderItem>) 
     BY_DEFAULT("BY_DEFAULT", compareBy<FileHolderItem> { !it.isDirectory }.thenBy { it.name }),
     BY_NAME_ASCENDING("BY_NAME_ASCENDING", compareBy { it.name }),
     BY_NAME_DESCENDING("BY_NAME_DESCENDING", compareByDescending { it.name }),
-    BY_SIZE_ASCENDING("BY_SIZE_ASCENDING", compareBy { it.sizeBytes }),
-    BY_SIZE_DESCENDING("BY_SIZE_DESCENDING", compareByDescending { it.sizeBytes }),
+    // 크기가 없는 항목(디렉터리·크기 미확인)은 오름차순에서 앞, 내림차순에서 뒤에 둔다
+    BY_SIZE_ASCENDING("BY_SIZE_ASCENDING", compareBy(nullsFirst(naturalOrder())) { it.sizeBytes }),
+    BY_SIZE_DESCENDING("BY_SIZE_DESCENDING", compareBy(nullsLast(reverseOrder())) { it.sizeBytes }),
     BY_TYPE_ASCENDING("BY_TYPE_ASCENDING", compareBy { it.extension() }),
     BY_TYPE_DESCENDING("BY_TYPE_DESCENDING", compareByDescending { it.extension() }),
     BY_DATE_ASCENDING("BY_DATE_ASCENDING", compareBy { it.lastModifiedMillis }),

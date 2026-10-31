@@ -111,6 +111,19 @@
     <string name="dialog_info_selected">Selected</string>
     <string name="dialog_info_size">Size</string>
     <string name="dialog_info_selected_count">%d 개</string>
+    <string name="dialog_info_name">Name</string>
+    <string name="dialog_info_location">Location</string>
+    <string name="dialog_info_type">Type</string>
+    <string name="dialog_info_modified">Modified</string>
+    <string name="dialog_info_contents">Contents</string>
+    <string name="dialog_info_child_count">%d 개 항목</string>
+    <string name="dialog_info_type_folder">폴더</string>
+    <string name="dialog_info_type_file">파일</string>
+    <string name="dialog_info_type_file_extension">%s 파일</string>
+    <string name="dialog_info_loading">계산 중…</string>
+    <string name="dialog_info_size_at_least">%1$s 이상 · %2$d 개 항목을 읽지 못함</string>
+    <string name="dialog_info_failed">읽지 못함</string>
+    <string name="dialog_info_failed_reason">읽지 못함 (%s)</string>
 
     <!-- FTP Foreground Service -->
     <string name="ftp_notification_channel_name">FTP 연결</string>

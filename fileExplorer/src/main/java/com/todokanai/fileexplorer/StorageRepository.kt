@@ -28,7 +28,7 @@ abstract class StorageRepository {
                 name = current.substringAfterLast('/').ifEmpty { current!! },
                 path = current,
                 isDirectory = true,
-                size = 0L,
+                size = null,
                 lastModified = 0L,
             ))
             current = getParent(current)
