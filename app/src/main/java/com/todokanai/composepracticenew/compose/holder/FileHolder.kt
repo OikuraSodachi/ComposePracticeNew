@@ -28,7 +28,7 @@ import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
-/** 숨김 항목(이름이 점으로 시작)의 아이콘 불투명도. 아이콘만 흐리게 하고 텍스트는 그대로 둔다. */
+/** 숨김 항목(이름이 점으로 시작)의 아이콘 불투명도. placeholder와 불러온 썸네일 모두 흐리게 하고 텍스트는 그대로 둔다. */
 private const val HIDDEN_ICON_ALPHA = 0.4f
 
 /** 파일 목록의 개별 항목을 표시하는 컴포저블. icon 선택·isAsyncImage 판별은 호출부에서 결정하고, 숨김 항목은 아이콘을 흐리게 표시한다. */

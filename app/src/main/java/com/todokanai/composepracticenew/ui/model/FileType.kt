@@ -7,13 +7,22 @@ enum class FileType {
     Folder, Image, Video, Audio, Document, Pdf, Archive, Apk, Other;
 
     companion object {
+        /** [Image]로 분류하는 확장자(소문자, 점 제외). */
         private val IMAGE_EXTENSIONS = setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif")
+
+        /** [Video]로 분류하는 확장자(소문자, 점 제외). TypeScript와 겹치는 `ts`는 넣지 않는다. */
         private val VIDEO_EXTENSIONS = setOf("mp4", "mkv", "avi", "mov", "wmv", "webm", "3gp", "m4v", "flv")
+
+        /** [Audio]로 분류하는 확장자(소문자, 점 제외). */
         private val AUDIO_EXTENSIONS = setOf("mp3", "flac", "wav", "m4a", "aac", "ogg", "opus", "wma", "amr", "mid", "midi")
+
+        /** [Document]로 분류하는 확장자(소문자, 점 제외). 텍스트 계열과 오피스·한글 문서를 묶는다. */
         private val DOCUMENT_EXTENSIONS = setOf(
             "txt", "md", "log", "csv", "json", "xml",
             "doc", "docx", "hwp", "hwpx", "xls", "xlsx", "ppt", "pptx", "rtf", "odt", "ods", "odp"
         )
+
+        /** [Archive]로 분류하는 확장자(소문자, 점 제외). */
         private val ARCHIVE_EXTENSIONS = setOf("zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz")
 
         /**
