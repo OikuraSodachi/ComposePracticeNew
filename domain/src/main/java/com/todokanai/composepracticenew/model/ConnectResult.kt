@@ -34,6 +34,9 @@ sealed interface ReconnectResult {
     /** 다시 연결할 서버가 저장돼 있지 않다. */
     data object NoSavedServer : ReconnectResult
 
+    /** 설정을 읽지 못해 다시 연결할 서버를 알 수 없다. 저장된 서버가 없는 것과 구별한다. */
+    data object SettingsUnreadable : ReconnectResult
+
     /**
      * 저장된 서버에 연결하지 못했다.
      * @param reason 실패한 이유

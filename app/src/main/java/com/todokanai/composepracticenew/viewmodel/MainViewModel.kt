@@ -3,12 +3,14 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,18 +36,20 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Activity 스코프의 앱 전역 관심사(스토리지 목록 초기화·진행률 다이얼로그 표시·작업 완료/실패 이벤트·앱 종료)를 담당하는 ViewModel.
+ * Activity 스코프의 앱 전역 관심사(스토리지 목록 초기화·진행률 다이얼로그 표시·작업 완료/실패 이벤트·설정 저장소 실패 알림·앱 종료)를 담당하는 ViewModel.
  * @param getStorageListUseCase 물리 스토리지 목록을 로드·갱신하는 UseCase
  * @param progressUseCase 진행 중인 작업 상태와 파일 작업 완료·실패 이벤트를 제공하는 UseCase
  * @param exitHandler 연결 서비스를 중단하고 앱 종료 이벤트를 발행하는 핸들러
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
+ * @param preferenceFailureUseCase 설정 저장소의 읽기·저장 실패와 손상 초기화를 알려주는 UseCase
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
     private val getStorageListUseCase: GetStorageListUseCase,
     progressUseCase: ProgressUseCase,
     private val exitHandler: AppExitHandler,
-    connectionStateUseCase: RemoteConnectionStateUseCase
+    connectionStateUseCase: RemoteConnectionStateUseCase,
+    preferenceFailureUseCase: PreferenceFailureUseCase
 ) : ViewModel() {
 
     /**
@@ -87,6 +91,9 @@ class MainViewModel @Inject constructor(
      * 끊김에 따른 정리(서비스 중지·전송 상태 정리·원격 화면 이탈)는 각자 연결 상태를 보고 하므로, 이 이벤트는 알림에만 쓴다.
      */
     val connectionLost: Flow<Unit> = _connectionLost.receiveAsFlow()
+
+    /** 설정 저장소에서 실패가 일어날 때마다 발행된다. 어느 화면에 있든 알리기 위해 화면 호스트에서 수집한다. 앱을 열자마자 일어난 실패도 수집을 시작하면 받는다. */
+    val preferenceFailures: Flow<PreferenceFailure> = preferenceFailureUseCase.failures
 
     init {
         // 지금 상태는 건너뛴다 — ViewModel을 만들 때(앱을 열 때) 이미 끊겨 있던 세션은 지금 끊긴 것이 아니다

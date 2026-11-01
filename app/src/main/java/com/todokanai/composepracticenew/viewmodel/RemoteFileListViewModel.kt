@@ -93,6 +93,11 @@ class RemoteFileListViewModel @Inject constructor(
                         Log.w(TAG, "reconnectLast — 재연결할 서버 없음")
                         reconnectFailureNotice.notifyConnectionFailed()
                     }
+                    // 읽기 실패 자체는 설정 저장소가 알리므로, 여기서는 다시 연결하지 못했음만 알린다
+                    ReconnectResult.SettingsUnreadable -> {
+                        Log.w(TAG, "reconnectLast — 설정을 읽지 못해 재연결할 서버를 알 수 없음")
+                        reconnectFailureNotice.notifyConnectionFailed()
+                    }
                     is ReconnectResult.Failed -> {
                         Log.w(TAG, "reconnectLast — 재연결 실패: ${result.reason}")
                         reconnectFailureNotice.report(result.reason)

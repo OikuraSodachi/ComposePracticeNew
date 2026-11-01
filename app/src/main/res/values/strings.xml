@@ -156,6 +156,9 @@
     <string name="toast_cannot_open_file">Cannot open the file</string>
     <string name="toast_connection_failed">원격 스토리지 연결에 실패했습니다</string>
     <string name="toast_connection_lost">서버 연결이 끊어졌습니다</string>
+    <string name="toast_preference_read_failed">설정을 읽지 못해 기본 설정으로 동작합니다</string>
+    <string name="toast_preference_save_failed">설정을 저장하지 못했습니다</string>
+    <string name="toast_preference_reset">설정 파일이 손상돼 설정을 초기화했습니다</string>
 
     <!-- File search -->
     <string name="btn_search">검색</string>

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
@@ -58,7 +59,7 @@ class RemoteStorageInputValidationTest {
 
     /** validateInput이 마지막 연결 정보를 쓰지 않음을 전제로 한, 아무 동작도 하지 않는 테스트용 저장소. */
     private object NoOpLastConnectionRepository : LastConnectionRepository {
-        override suspend fun lastRemoteId(): Long? = null
+        override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
         override fun setLastRemoteId(id: Long?) {}
         override fun clearLastRemoteIdIf(id: Long) {}
     }

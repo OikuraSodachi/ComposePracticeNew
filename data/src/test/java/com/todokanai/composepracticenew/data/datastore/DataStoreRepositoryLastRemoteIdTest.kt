@@ -1,7 +1,9 @@
 package com.todokanai.composepracticenew.data.datastore
 
 import androidx.datastore.preferences.core.preferencesOf
+import com.todokanai.composepracticenew.model.SavedRemoteId
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -10,7 +12,10 @@ import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
 
-/** [DataStoreRepository.clearLastRemoteIdIf]가 직전 저장이 반영된 값을 기준으로 확인·초기화를 한 번에 처리하는지 검증하는 단위 테스트. */
+/**
+ * [DataStoreRepository.clearLastRemoteIdIf]가 직전 저장이 반영된 값을 기준으로 확인·초기화를 한 번에 처리하는지,
+ * [DataStoreRepository.lastRemoteId]가 저장된 id가 없는 것과 설정을 읽지 못한 것을 구별하는지 검증하는 단위 테스트.
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DataStoreRepositoryLastRemoteIdTest {
 
@@ -25,7 +30,7 @@ class DataStoreRepositoryLastRemoteIdTest {
     fun `저장 직후 같은 id로 초기화하면 저장이 늦게 도착해도 초기화된다`() = runTest {
         // 저장 편집이 반영 전 100ms를 기다린다 — 확인을 편집 밖에서 하던 이전 구현에서는 저장 전 값을 보고 초기화를 건너뛰어 id가 남는다
         val fake = FakePreferencesDataStore(preferencesOf(), writeDelays = mutableListOf(100L, 0L))
-        val repo = DataStoreRepository(PreferencesStore(fake, storeScopes.scopeFor(this)))
+        val repo = repoOf(fake)
 
         repo.setLastRemoteId(5L)
         runCurrent() // 저장이 반영되는 중(100ms 대기)에 초기화를 요청한다
@@ -38,11 +43,31 @@ class DataStoreRepositoryLastRemoteIdTest {
     @Test
     fun `저장된 id가 다르면 초기화하지 않는다`() = runTest {
         val fake = FakePreferencesDataStore(preferencesOf(key to 5L))
-        val repo = DataStoreRepository(PreferencesStore(fake, storeScopes.scopeFor(this)))
+        val repo = repoOf(fake)
 
         repo.clearLastRemoteIdIf(7L)
         advanceUntilIdle()
 
         assertEquals(5L, fake.state.value[key])
     }
+
+    @Test
+    fun `저장된 id를 읽는다`() = runTest {
+        assertEquals(SavedRemoteId.Saved(5L), repoOf(FakePreferencesDataStore(preferencesOf(key to 5L))).lastRemoteId())
+    }
+
+    @Test
+    fun `저장된 id가 없으면 없음으로 읽는다`() = runTest {
+        assertEquals(SavedRemoteId.None, repoOf(FakePreferencesDataStore(preferencesOf())).lastRemoteId())
+    }
+
+    @Test
+    fun `설정을 읽지 못하면 없음이 아니라 읽지 못함으로 읽는다`() = runTest {
+        // 기본값으로 대신하는 data를 읽던 이전 구현에서는 빈 설정을 받아 "저장된 서버 없음"이 된다
+        assertEquals(SavedRemoteId.Unreadable, repoOf(FakePreferencesDataStore(preferencesOf(key to 5L), failingReads = 1)).lastRemoteId())
+    }
+
+    /** [fake] 위에 검증 대상을 만든다. */
+    private fun TestScope.repoOf(fake: FakePreferencesDataStore) =
+        DataStoreRepository(PreferencesStore(fake, storeScopes.scopeFor(this), PreferenceFailureChannel()))
 }

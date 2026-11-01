@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.navigation
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +28,7 @@ import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
+import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
@@ -63,6 +65,13 @@ fun AppNavHost(
     LaunchedEffect(Unit) {
         mainViewModel.connectionLost.collect {
             Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // Unit 키 — NavHost 생존 동안 1회만 수집. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유)
+    LaunchedEffect(Unit) {
+        mainViewModel.preferenceFailures.collect { failure ->
+            Toast.makeText(context, context.getString(preferenceFailureMessage(failure)), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -274,4 +283,16 @@ private fun ToastEffect(vararg messageFlows: Flow<String>) {
             launch { flow.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() } }
         }
     }
+}
+
+/**
+ * 설정 저장소의 실패 [failure]를 사용자에게 알릴 문구로 바꾼다.
+ * @param failure 일어난 실패
+ * @return 알릴 문구의 문자열 리소스 id
+ */
+@StringRes
+private fun preferenceFailureMessage(failure: PreferenceFailure): Int = when (failure) {
+    PreferenceFailure.READ -> R.string.toast_preference_read_failed
+    PreferenceFailure.SAVE -> R.string.toast_preference_save_failed
+    PreferenceFailure.RESET -> R.string.toast_preference_reset
 }

@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.di
 import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
+import com.todokanai.composepracticenew.data.datastore.PreferenceFailureChannel
 import com.todokanai.composepracticenew.datasource.ArchiveExtractor
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSource
@@ -24,6 +25,7 @@ import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.LocalFileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.LocalPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.PathAwareFileSystem
+import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
@@ -54,6 +56,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindLastConnectionRepository(impl: DataStoreRepository): LastConnectionRepository
+
+    @Binds
+    abstract fun bindPreferenceFailureRepository(impl: PreferenceFailureChannel): PreferenceFailureRepository
 
     @Binds
     abstract fun bindRemoteStorageRepository(impl: RemoteStorageRepositoryImpl): RemoteStorageRepository

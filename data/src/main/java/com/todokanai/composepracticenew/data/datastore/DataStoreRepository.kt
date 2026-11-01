@@ -2,12 +2,12 @@ package com.todokanai.composepracticenew.data.datastore
 
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -44,6 +44,9 @@ class DataStoreRepository @Inject constructor(
         if (it[DATASTORE_LAST_REMOTE_ID] == id) it.remove(DATASTORE_LAST_REMOTE_ID)
     }
 
-    override suspend fun lastRemoteId(): Long? =
-        store.data.first()[DATASTORE_LAST_REMOTE_ID]
+    override suspend fun lastRemoteId(): SavedRemoteId {
+        // 기본값으로 대신하는 data가 아니라 한 번 읽기를 쓴다 — 읽지 못한 것이 "저장된 서버 없음"으로 보이지 않도록
+        val prefs = store.readOnce() ?: return SavedRemoteId.Unreadable
+        return prefs[DATASTORE_LAST_REMOTE_ID]?.let(SavedRemoteId::Saved) ?: SavedRemoteId.None
+    }
 }

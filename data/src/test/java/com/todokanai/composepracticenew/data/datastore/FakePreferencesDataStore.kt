@@ -32,6 +32,14 @@ internal class FakePreferencesDataStore(
     var writeCount = 0
         private set
 
+    /**
+     * 다음 [count]회의 수집을 다시 [readError]로 실패시킨다. 읽기가 회복된 뒤 다시 실패하는 상황을 재현한다.
+     * @param count 실패시킬 수집 횟수
+     */
+    fun failNextReads(count: Int) {
+        failingReads = count
+    }
+
     override val data: Flow<Preferences> = flow {
         if (failingReads > 0) {
             failingReads--
