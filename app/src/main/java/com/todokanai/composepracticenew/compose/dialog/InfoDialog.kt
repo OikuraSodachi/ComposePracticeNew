@@ -1,21 +1,26 @@
 package com.todokanai.composepracticenew.compose.dialog
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.ConfirmCancelDialog
+import com.todokanai.composepracticenew.compose.presets.text.MarqueeText
 import com.todokanai.composepracticenew.ui.model.AttributesInfo
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.ItemKind
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.ui.model.SizeInfo
 
+/** 정보 다이얼로그에서 속성과 속성 사이의 간격. 한 속성의 이름·값보다 넓게 두어 어느 이름이 어느 값의 것인지 묶여 보이게 한다. */
+private val INFO_ROW_SPACING = 12.dp
 
 /**
  * 선택한 항목의 정보 다이얼로그. 항목이 하나면 이름·위치·종류·크기·수정 시각(폴더면 하위 항목 수)을, 여럿이면 개수와 전체 크기를 보여준다.
@@ -42,6 +47,11 @@ fun InfoDialog(
     }
 }
 
+/**
+ * 속성 하나를 이름(작고 흐린 글씨) 아래 값(본문 글씨)으로 표시한다. 둘 다 한 줄이며, 잘리면 가로로 흐른다.
+ * @param title 속성 이름
+ * @param info 속성 값
+ */
 @Composable
 private fun InfoColumn(
     modifier: Modifier,
@@ -52,8 +62,15 @@ private fun InfoColumn(
         modifier = modifier
             .fillMaxWidth()
     ){
-        Text(title)
-        Text(info)
+        MarqueeText(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        MarqueeText(
+            text = info,
+            style = MaterialTheme.typography.bodyLarge
+        )
     }
 }
 
@@ -64,7 +81,8 @@ private fun SingleInfoChart(
     summary: SelectionSummary.Single
 ){
     Column(
-        modifier = modifier
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(INFO_ROW_SPACING)
     ) {
         InfoColumn(
             modifier = Modifier,
@@ -108,7 +126,8 @@ private fun MultipleInfoChart(
     summary: SelectionSummary.Multiple
 ){
     Column(
-        modifier = modifier
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(INFO_ROW_SPACING)
     ) {
         InfoColumn(
             modifier = Modifier,
