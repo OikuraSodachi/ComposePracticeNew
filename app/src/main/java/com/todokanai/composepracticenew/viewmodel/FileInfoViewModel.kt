@@ -73,7 +73,11 @@ class FileInfoViewModel @Inject constructor(
         if (isDirectory(result)) loadChildCount(item)
     }
 
-    /** 폴더 [directory]의 하위 항목 수를 구해 표시 중인 단일 항목 상세에 반영한다. */
+    /**
+     * 폴더 [directory]의 하위 항목 수를 구해 표시 중인 단일 항목 상세에 반영한다.
+     * 폴더 행이 이미 셌어도 다시 센다 — 다이얼로그의 다른 값과 같은 시점(연 시점)의 값을 보이기 위해서이며,
+     * 그래서 목록 조회 시점에 센 행의 값과 다를 수 있다(의도된 동작).
+     */
     private suspend fun loadChildCount(directory: FileHolderItem) {
         _summary.update { summary -> withSingle(summary) { it.copy(childCount = ChildCountInfo.Loading) } }
         val count = ChildCountInfo.from(fileInfoUseCase.countChildren(directory.toDomain()))

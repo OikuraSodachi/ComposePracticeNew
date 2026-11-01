@@ -111,10 +111,12 @@ fun RemoteFileListFrag(
             modifier = Modifier.weight(1f),
             listing = uiState.value.listing,
             onRetry = viewModel::retryListing
-        ) { items ->
+        ) { loaded ->
             FileListView(
                 modifier = Modifier.fillMaxSize(),
-                fileHolderItemList = items,
+                fileHolderItemList = loaded.items,
+                // 원격 폴더는 하위 항목 수를 세지 않는다 — 세려면 폴더마다 LIST를 보내 하나뿐인 연결을 사용자 작업과 나눠 써야 한다(범위 밖)
+                childCounts = null,
                 selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it) },

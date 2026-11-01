@@ -184,14 +184,14 @@ private fun sizeText(size: SizeInfo): String = when (size) {
 @Composable
 private fun childCountText(childCount: ChildCountInfo): String = when (childCount) {
     ChildCountInfo.Loading -> stringResource(R.string.dialog_info_loading)
-    is ChildCountInfo.Known -> stringResource(R.string.dialog_info_child_count, childCount.count)
+    is ChildCountInfo.Known -> stringResource(R.string.child_count, childCount.count)
     is ChildCountInfo.Failed -> failedText(childCount.message)
 }
 
 /** 읽기 실패의 표시 문구. 원인을 알면 함께 보여준다. */
 @Composable
 private fun failedText(message: String?): String =
-    message?.let { stringResource(R.string.dialog_info_failed_reason, it) } ?: stringResource(R.string.dialog_info_failed)
+    message?.let { stringResource(R.string.dialog_info_failed_reason, it) } ?: stringResource(R.string.read_failed)
 
 @Preview
 @Composable

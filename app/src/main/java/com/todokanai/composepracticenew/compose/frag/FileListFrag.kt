@@ -15,6 +15,8 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
+import com.todokanai.composepracticenew.ui.model.ListingKey
+import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 
 /**
@@ -26,6 +28,7 @@ import com.todokanai.composepracticenew.viewmodel.FileListViewModel
  * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
+ * @param childCountsFor 목록 조회 요청을 받아 그 결과의 폴더별 하위 항목 수를 읽는 창구를 돌려주는 함수. 상태를 바꾸지 않아 컴포지션 중에 부른다
  */
 @Composable
 fun FileListFrag(
@@ -41,6 +44,7 @@ fun FileListFrag(
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
+    childCountsFor: (ListingKey) -> ChildCountSource,
     onSwitchToRemote: () -> Unit = {},
     onConfirmDownload: () -> Unit = {},
     onEnterUploadMode: () -> Unit = {},
@@ -77,10 +81,11 @@ fun FileListFrag(
             modifier = Modifier.weight(1f),
             listing = uiState.value.listing,
             onRetry = viewModel::retryListing
-        ) { items ->
+        ) { loaded ->
             FileListView(
                 modifier = Modifier.fillMaxSize(),
-                fileHolderItemList = items,
+                fileHolderItemList = loaded.items,
+                childCounts = childCountsFor(loaded.key),
                 selectedList = selectedList,
                 selectMode = selectMode,
                 onItemClick = { viewModel.onItemClick(it, selectMode) },

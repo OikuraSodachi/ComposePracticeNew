@@ -21,7 +21,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.ListingFailureReason
-import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 
 /**
@@ -31,14 +30,14 @@ import com.todokanai.composepracticenew.ui.model.ListingUiState
  * @param modifier 목록 영역의 크기·배치를 정하는 Modifier
  * @param listing 표시할 목록 상태
  * @param onRetry 조회 실패 안내의 다시 시도 버튼이 호출하는 콜백
- * @param content 항목이 하나 이상일 때 목록을 그리는 컴포저블. [modifier]가 적용된 영역 안에 그려진다
+ * @param content 항목이 하나 이상일 때 그 목록 상태로 목록을 그리는 컴포저블. [modifier]가 적용된 영역 안에 그려진다
  */
 @Composable
 fun DirectoryListingContent(
     modifier: Modifier,
     listing: ListingUiState,
     onRetry: () -> Unit,
-    content: @Composable (List<FileHolderItem>) -> Unit
+    content: @Composable (ListingUiState.Loaded) -> Unit
 ) {
     when (listing) {
         ListingUiState.NoPath -> Box(modifier = modifier)
@@ -56,7 +55,7 @@ fun DirectoryListingContent(
                     text = stringResource(R.string.empty_directory)
                 )
             } else {
-                content(listing.items)
+                content(listing)
             }
             if (listing.isRefreshing) RefreshingIndicator(modifier = Modifier.align(Alignment.TopCenter))
         }

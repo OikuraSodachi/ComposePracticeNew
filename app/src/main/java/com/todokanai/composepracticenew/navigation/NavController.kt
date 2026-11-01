@@ -30,6 +30,7 @@ import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistr
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
+import com.todokanai.composepracticenew.viewmodel.ChildCountViewModel
 import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
@@ -129,6 +130,8 @@ private fun FileListDestination(
     val viewModel: FileListViewModel = hiltViewModel()
     /** 정보 다이얼로그의 표시 상태와 선택 항목의 정보 계산을 맡는다. 화면 회전에도 다이얼로그 내용이 유지되도록 이 destination의 백스택 항목에 스코프된다. */
     val infoViewModel: FileInfoViewModel = hiltViewModel()
+    /** 폴더 행의 하위 항목 수를 목록 조회 결과마다 세어 둔다. 화면 회전에도 센 결과가 유지되도록 이 destination의 백스택 항목에 스코프된다. */
+    val childCountViewModel: ChildCountViewModel = hiltViewModel()
     val coordinator = rememberGraphCoordinator(navController)
 
     // State 객체만 보관하고 선택 목록은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
@@ -158,6 +161,7 @@ private fun FileListDestination(
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,
         onRangeSelect = coordinator::setLocalSelectedList,
+        childCountsFor = childCountViewModel::countsFor,
         onSwitchToRemote = {
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                 // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
