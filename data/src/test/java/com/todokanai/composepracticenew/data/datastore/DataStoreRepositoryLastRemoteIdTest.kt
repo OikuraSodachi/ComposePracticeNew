@@ -64,7 +64,12 @@ class DataStoreRepositoryLastRemoteIdTest {
     @Test
     fun `설정을 읽지 못하면 없음이 아니라 읽지 못함으로 읽는다`() = runTest {
         // 기본값으로 대신하는 data를 읽던 이전 구현에서는 빈 설정을 받아 "저장된 서버 없음"이 된다
-        assertEquals(SavedRemoteId.Unreadable, repoOf(FakePreferencesDataStore(preferencesOf(key to 5L), failingReads = 1)).lastRemoteId())
+        val fake = FakePreferencesDataStore(preferencesOf(key to 5L))
+        val repo = repoOf(fake)
+        runCurrent() // 저장소 공유 수집의 첫 읽기를 마친 뒤 이 읽기만 실패시킨다
+        fake.failNextReads(1)
+
+        assertEquals(SavedRemoteId.Unreadable, repo.lastRemoteId())
     }
 
     /** [fake] 위에 검증 대상을 만든다. */

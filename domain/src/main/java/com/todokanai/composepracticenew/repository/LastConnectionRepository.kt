@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.SavedRemoteId
 interface LastConnectionRepository {
     /**
      * 마지막 접속 서버 id를 읽는다. 저장된 id가 없는 것과 설정을 읽지 못한 것을 구별해 돌려준다.
+     * 앞서 호출한 [setLastRemoteId]·[clearLastRemoteIdIf]가 반영된 값을 읽는다(저장에 실패한 것은 반영되지 않는다).
      *
      * 의도치 않게 서버 연결이 끊어졌을 때 재연결 용도로만 사용할 것.
      */

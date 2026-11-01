@@ -6,7 +6,9 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.todokanai.composepracticenew.model.PreferenceFailure
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
@@ -152,8 +154,11 @@ class PreferencesStoreTest {
 
     @Test
     fun `한 번 읽기가 실패하면 기본값 대신 null을 돌려주고, 결과로 돌려준 실패는 따로 알리지 않는다`() = runTest {
-        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 1))
+        val fake = FakePreferencesDataStore(stored)
+        val store = storeOf(fake)
         val reported = collectFailures()
+        runCurrent() // 공유 수집의 첫 읽기를 마친 뒤 한 번 읽기만 실패시킨다 — 한 번 읽기는 장벽을 기다리는 동안 공유 수집에 차례를 넘긴다
+        fake.failNextReads(1)
 
         assertNull(store.readOnce())
         runCurrent()
@@ -162,12 +167,50 @@ class PreferencesStoreTest {
     }
 
     @Test
-    fun `앞선 한 번 읽기의 실패는 Flow 읽기 실패 알림을 막지 않는다`() = runTest {
-        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 2))
+    fun `반영을 기다리는 편집이 있으면 한 번 읽기는 그 편집이 반영된 뒤의 값을 돌려준다`() = runTest {
+        // 편집은 반영 전 100ms를 기다린다 — 대기열을 거치지 않고 바로 읽던 이전 구현에서는 반영 전 값 "v"를 돌려준다
+        val store = storeOf(FakePreferencesDataStore(stored, writeDelays = mutableListOf(100L)))
+
+        store.launchEdit { it[key] = "w" }
+
+        assertEquals(preferencesOf(key to "w"), store.readOnce())
+    }
+
+    @Test
+    fun `앞선 편집이 저장에 실패해도 한 번 읽기는 멈추지 않고 저장된 값을 돌려준다`() = runTest {
+        val store = storeOf(FakePreferencesDataStore(stored, failingWrites = 1))
         val reported = collectFailures()
 
+        store.launchEdit { it[key] = "lost" }
+
+        assertEquals(stored, store.readOnce())
+        runCurrent()
+        assertEquals(listOf(PreferenceFailure.SAVE), reported)
+    }
+
+    @Test
+    fun `한 번 읽기는 그 뒤에 호출한 편집을 기다리지 않는다`() = runTest {
+        // 첫 편집이 반영된 뒤 들어온 두 번째 편집은 반영 전 100ms를 기다린다 — 읽기가 이를 기다리면 "second"를 돌려준다
+        val store = storeOf(FakePreferencesDataStore(stored, writeDelays = mutableListOf(0L, 100L)))
+
+        store.launchEdit { it[key] = "first" }
+        val read = async(start = CoroutineStart.UNDISPATCHED) { store.readOnce() } // 두 번째 편집보다 먼저 장벽을 넣도록 바로 시작한다
+        store.launchEdit { it[key] = "second" }
+
+        assertEquals(preferencesOf(key to "first"), read.await())
+    }
+
+    @Test
+    fun `앞선 한 번 읽기의 실패는 Flow 읽기 실패 알림을 막지 않는다`() = runTest {
+        val fake = FakePreferencesDataStore(stored)
+        val store = storeOf(fake)
+        val reported = collectFailures()
+        runCurrent() // 공유 수집의 첫 읽기를 마친 뒤 한 번 읽기를 먼저 실패시킨다
+        fake.failNextReads(1)
+
         assertNull(store.readOnce())
-        store.data.take(2).toList()
+        fake.failActiveCollections(0)
+        runCurrent()
 
         assertEquals(listOf(PreferenceFailure.READ), reported)
     }

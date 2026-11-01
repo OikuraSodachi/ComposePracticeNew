@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.PreferenceFailure
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -92,24 +93,48 @@ class PreferencesStore @Inject constructor(
      * 지금의 설정 값을 한 번 읽는다. [data]와 달리 읽지 못하면 기본값으로 대신하지 않는다 — 저장된 값이 없는 것과 읽지 못한 것을 구별해야 하는 호출부를 위해.
      * 공유된 [data]의 마지막 값이 아니라 DataStore를 직접 읽는다 — [data]가 재시도를 기다리는 중이어도 지금 읽을 수 있는지를 돌려주기 위해.
      * 읽기 실패는 결과로 받는 호출부가 사용자에게 알리므로 [failures]로 알리지 않는다 — [PreferenceFailure.READ]는 기본값으로 대신해 결과로 드러나지 않는 [data]의 실패만 뜻한다.
+     * 먼저 호출한 [launchEdit]가 반영되거나 저장 실패로 끝난 뒤에 읽는다 — 반영을 기다리는 편집이 "저장된 값 없음"으로 보이지 않도록. 이후에 호출한 편집은 기다리지 않는다.
      * @return 설정 값. 읽기 IOException이면 null
      */
-    suspend fun readOnce(): Preferences? = try {
-        dataStore.data.first().also { onAccessSucceeded() }
-    } catch (_: IOException) {
-        null
+    suspend fun readOnce(): Preferences? {
+        awaitEarlierEdits()
+        return try {
+            dataStore.data.first().also { onAccessSucceeded() }
+        } catch (_: IOException) {
+            null
+        }
     }
 
     /**
-     * 반영을 기다리는 편집 대기열. [launchEdit]가 호출 스레드에서 바로 넣고, [appScope]의 소비자 코루틴 하나가 넣은 순서대로 꺼내 반영한다.
+     * [pendingWork]에 넣는 일. 소비자 코루틴이 넣은 순서대로 처리하므로, 쓰기와 그 뒤의 읽기가 이 순서 하나로 정해진다.
+     */
+    private sealed interface PendingWork {
+        /**
+         * DataStore에 반영할 편집.
+         * @param transform 저장할 값을 MutablePreferences에 기록하는 편집 람다
+         */
+        class Edit(val transform: (MutablePreferences) -> Unit) : PendingWork
+
+        /**
+         * 앞서 넣은 편집이 모두 끝났음을 알리는 표시. 소비자가 여기에 닿으면 [reached]를 완료한다.
+         * @param reached 앞선 편집이 모두 반영되거나 실패로 끝났을 때 완료되는 신호
+         */
+        class Barrier(val reached: CompletableDeferred<Unit>) : PendingWork
+    }
+
+    /**
+     * 처리를 기다리는 편집·장벽 대기열. [launchEdit]·[readOnce]가 호출 스레드에서 바로 넣고, [appScope]의 소비자 코루틴 하나가 넣은 순서대로 꺼내 처리한다.
      * 용량 제한이 없어 넣기가 일시 중단되거나 실패하지 않는다.
      */
-    private val pendingEdits = Channel<(MutablePreferences) -> Unit>(Channel.UNLIMITED)
+    private val pendingWork = Channel<PendingWork>(Channel.UNLIMITED)
 
     init {
-        // 소비자는 하나뿐이고 앞선 edit이 끝나야 다음을 꺼내므로, 반영 순서가 대기열에 넣은 순서(= launchEdit 호출 순서)와 같다
+        // 소비자는 하나뿐이고 앞선 edit이 끝나야 다음을 꺼내므로, 반영 순서가 대기열에 넣은 순서(= launchEdit 호출 순서)와 같고, 장벽에 닿으면 그 앞의 편집은 모두 끝난 것이다
         appScope.launch {
-            for (transform in pendingEdits) applyEdit(transform)
+            for (work in pendingWork) when (work) {
+                is PendingWork.Edit -> applyEdit(work.transform)
+                is PendingWork.Barrier -> work.reached.complete(Unit)
+            }
         }
     }
 
@@ -121,7 +146,14 @@ class PreferencesStore @Inject constructor(
      * @param transform 저장할 값을 MutablePreferences에 기록하는 편집 람다
      */
     fun launchEdit(transform: (MutablePreferences) -> Unit) {
-        pendingEdits.trySend(transform)
+        pendingWork.trySend(PendingWork.Edit(transform))
+    }
+
+    /** 지금까지 [launchEdit]로 넣은 편집이 모두 반영되거나 저장 실패로 끝날 때까지 기다린다. 대기열에 장벽을 넣고 소비자가 거기에 닿기를 기다린다. */
+    private suspend fun awaitEarlierEdits() {
+        val barrier = CompletableDeferred<Unit>()
+        pendingWork.trySend(PendingWork.Barrier(barrier))
+        barrier.await()
     }
 
     /**
