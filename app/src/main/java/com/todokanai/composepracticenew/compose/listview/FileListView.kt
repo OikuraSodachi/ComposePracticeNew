@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.compose.listview
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -14,32 +15,30 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.compose.util.verticalScrollbar
-import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileType
 import com.todokanai.composepracticenew.ui.model.SelectMode
-import com.todokanai.composepracticenew.data.R as DataR
+import com.todokanai.composepracticenew.R
 
 /** 스크롤바 터치 영역 너비 — Material 최소 터치 타겟(48dp), thumb 시각 너비(8dp)와 별개 */
 private val ScrollbarTouchTargetWidth = 48.dp
 
-private fun resolveExtensionAndIcon(
-    name: String,
-    isDirectory: Boolean,
-    folderIcon: Painter,
-    pdfIcon: Painter,
-    fileIcon: Painter,
-): Pair<String, Painter> {
-    val ext = name.substringAfterLast('.', "")
-    return ext to when {
-        isDirectory  -> folderIcon
-        ext == "pdf" -> pdfIcon
-        else         -> fileIcon
-    }
+/** 항목 종류별 placeholder 아이콘 리소스. */
+@DrawableRes
+private fun FileType.iconRes(): Int = when (this) {
+    FileType.Folder -> R.drawable.ic_baseline_folder_24
+    FileType.Image -> R.drawable.ic_file_image
+    FileType.Video -> R.drawable.ic_file_video
+    FileType.Audio -> R.drawable.ic_file_audio
+    FileType.Document -> R.drawable.ic_file_document
+    FileType.Pdf -> R.drawable.ic_pdf
+    FileType.Archive -> R.drawable.ic_file_archive
+    FileType.Apk -> R.drawable.ic_file_apk
+    FileType.Other -> R.drawable.ic_baseline_insert_drive_file_24
 }
 
 /**
@@ -58,10 +57,11 @@ fun FileListView(
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit
 ) {
-    // items{} 밖에서 1회 생성 — 스크롤 시 painterResource가 item 수만큼 호출되는 것을 방지
-    val folderIcon = painterResource(DataR.drawable.ic_baseline_folder_24)
-    val fileIcon = painterResource(DataR.drawable.ic_baseline_insert_drive_file_24)
-    val pdfIcon = painterResource(DataR.drawable.ic_pdf)
+    // items{} 밖에서 종류별로 한 번씩 호출 — 행마다 Painter를 만들지 않고 모든 행이 공유한다
+    val typePainters = FileType.entries.map { painterResource(it.iconRes()) }
+    // Painter 인스턴스들을 키로 — painterResource는 리컴포지션마다 같은 Painter를 돌려주므로 묶음도 같은 인스턴스로 유지되어,
+    // 행(FileHolder)이 Strong Skipping의 인스턴스 비교로 생략된다. 테마·밀도 변경으로 Painter가 바뀔 때만 다시 묶는다
+    val typeIcons = remember(*typePainters.toTypedArray()) { FileType.entries.zip(typePainters).toMap() }
 
     // LazyColumn과 verticalScrollbar가 동일한 스크롤 상태를 공유해야 하므로 remember로 1회 생성 — 리컴포지션 간 스크롤 위치 보존
     val listState = rememberLazyListState()
@@ -97,17 +97,11 @@ fun FileListView(
                     derivedStateOf { fileHolderItem.path in selectedPathsState.value }
                 }
 
-                // name 또는 isDirectory가 바뀔 때만 재계산 — extension과 icon을 단일 블록으로 통합
-                val (extension, icon) = remember(fileHolderItem.name, fileHolderItem.isDirectory) {
-                    resolveExtensionAndIcon(fileHolderItem.name, fileHolderItem.isDirectory, folderIcon, pdfIcon, fileIcon)
-                }
-
                 FileHolder(
                     modifier = Modifier,
                     file = fileHolderItem,
                     isSelected = isSelected,
-                    icon = icon,
-                    isAsyncImage = extension.lowercase() in AppConstants.ASYNC_IMAGE_EXTENSIONS,
+                    typeIcons = typeIcons,
                     // Strong Skipping이 캡처값 기준으로 람다를 memoize하므로 수동 remember 불필요
                     onClick = {
                         if (selectMode == SelectMode.MultiSelect) {

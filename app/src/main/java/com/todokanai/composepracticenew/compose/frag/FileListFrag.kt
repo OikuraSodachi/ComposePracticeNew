@@ -108,6 +108,7 @@ fun FileListFrag(
             onZip = viewModel::zip,
             suggestZipName = viewModel::suggestZipName,
             validateZipName = viewModel::validateZipName,
+            canUnzip = viewModel::canUnzip,
             onRename = viewModel::rename,
             validateRename = viewModel::validateRename,
             pendingRename = pendingRename,

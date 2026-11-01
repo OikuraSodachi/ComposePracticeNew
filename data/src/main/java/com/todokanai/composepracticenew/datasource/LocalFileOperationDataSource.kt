@@ -45,6 +45,11 @@ interface LocalFileOperationDataSource {
      */
     suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit>
     /**
+     * @param path 압축 해제할 수 있는지 확인할 파일 경로
+     * @return [unzipAction]이 처리할 수 있는 형식이면 true
+     */
+    fun canExtract(path: String): Boolean
+    /**
      * @param parentPath 새 폴더를 생성할 부모 디렉터리 경로
      * @param name 생성할 폴더 이름
      */

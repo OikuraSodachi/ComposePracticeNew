@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
@@ -26,16 +27,22 @@ import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.FileType
 
-/** 파일 목록의 개별 항목을 표시하는 컴포저블. icon 선택·isAsyncImage 판별은 호출부에서 결정한다. */
+/** 숨김 항목(이름이 점으로 시작)의 아이콘 불투명도. placeholder와 불러온 썸네일 모두 흐리게 하고 텍스트는 그대로 둔다. */
+private const val HIDDEN_ICON_ALPHA = 0.4f
+
+/**
+ * 파일 목록의 개별 항목을 표시하는 컴포저블. 아이콘과 썸네일 여부는 [file]의 종류로 정하고, 숨김 항목은 아이콘을 흐리게 표시한다.
+ * @param typeIcons 항목 종류별 placeholder 아이콘 — 목록 전체가 공유하는 같은 인스턴스여야 행 리컴포지션이 생략된다
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileHolder(
     modifier: Modifier,
     file: FileHolderItem,
     isSelected: Boolean,
-    icon: Painter,
-    isAsyncImage: Boolean,
+    typeIcons: Map<FileType, Painter>,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -54,10 +61,11 @@ fun FileHolder(
             modifier = Modifier
                 .width(AppConstants.THUMBNAIL_SIZE_DP)
                 .fillMaxHeight()
-                .padding(5.dp),
-            isAsyncImage = isAsyncImage,
+                .padding(5.dp)
+                .alpha(if (file.isHidden) HIDDEN_ICON_ALPHA else 1f),
+            isAsyncImage = file.hasImagePreview,
             data = imageData,
-            icon = icon
+            icon = typeIcons.getValue(file.fileType)
         )
 
         Column(

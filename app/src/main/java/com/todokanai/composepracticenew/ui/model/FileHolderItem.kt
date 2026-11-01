@@ -4,7 +4,9 @@ import android.os.Parcelable
 import androidx.compose.runtime.Immutable
 import androidx.core.net.toUri
 import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolderItem
+import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
+import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import java.io.File
 import java.text.DateFormat
@@ -32,6 +34,19 @@ data class FileHolderItem(
     val lastModifiedMillis: Long,
     val data: String? = null
 ) : Parcelable {
+
+    /** 아이콘·미리보기 방식을 고르는 항목 종류. name·isDirectory에서 생성 시 한 번 정하므로 두 값과 어긋날 수 없다. */
+    @IgnoredOnParcel
+    val fileType: FileType = FileType.of(name, isDirectory)
+
+    /** 이름이 점으로 시작하는 숨김 항목인지 여부. name에서 생성 시 한 번 정한다. */
+    @IgnoredOnParcel
+    val isHidden: Boolean = FileNameParts.isHidden(name)
+
+    /** 썸네일 이미지를 불러올 수 있는 항목인지 여부. 이미지 종류이면서 불러올 로컬 URI(data)가 있어야 한다 — 원격 항목은 data가 없다. */
+    @IgnoredOnParcel
+    val hasImagePreview: Boolean = fileType == FileType.Image && data != null
+
     companion object {
         /**
          * domain 모델 목록을 앱 레이어 모델 목록으로 변환한다. 날짜 포맷터는 목록당 1개만 만들어 재사용한다.

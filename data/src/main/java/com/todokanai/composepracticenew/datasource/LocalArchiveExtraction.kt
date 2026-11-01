@@ -49,6 +49,13 @@ class LocalArchiveExtraction @Inject constructor(
     }
 
     /**
+     * [path]를 압축 해제할 수 있는지 판별한다. [unzip]이 쓰는 추출기 집합으로만 정하므로 실제 지원 형식과 어긋나지 않는다.
+     * @param path 아카이브 파일 경로
+     * @return 처리할 추출기가 있으면 true
+     */
+    fun canExtract(path: String): Boolean = extractorFor(path) != null
+
+    /**
      * [path] 형식을 처리하는 추출기를 찾는다.
      * @param path 아카이브 파일 경로
      * @return 추출기. 지원하지 않는 형식이면 null

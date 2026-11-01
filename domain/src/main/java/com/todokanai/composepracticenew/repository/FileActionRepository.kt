@@ -29,6 +29,9 @@ interface FileActionRepository {
     // If [unzipHere] is true, extracts directly into [destPath] without creating a subfolder.
     suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean = false, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
+    // Returns true if [unzipAction] supports the archive format of [path].
+    fun canExtract(path: String): Boolean
+
     // Creates a new directory named [name] under [parentPath].
     suspend fun makeDirectory(parentPath: String, name: String): IoResult<Unit>
 }

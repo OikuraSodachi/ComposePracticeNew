@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.ui.model.SelectMode
  * @param modifier 레이아웃 수정자
  * @param selectMode 현재 로컬 선택 모드
  * @param selectedList 현재 선택된 파일 목록
+ * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
  * @param onConfirmWithConflictCheck 로컬 작업 실행을 요청하는 콜백 — 충돌 판단은 ViewModel이 수행한다
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
@@ -27,6 +28,7 @@ fun ModeAwareButtons(
     modifier: Modifier,
     selectMode: LocalSelectMode,
     selectedList: List<FileHolderItem>,
+    canUnzip: (FileHolderItem) -> Boolean,
     dialogState: BottomButtonDialogState,
     onConfirmWithConflictCheck: (SelectMode.LocalOperation) -> Unit,
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
@@ -52,7 +54,8 @@ fun ModeAwareButtons(
                     onEnterUploadMode()
                     onResetSelection()
                 },
-                selectedList = selectedList
+                selectedList = selectedList,
+                canUnzip = canUnzip
             )
         }
         is SelectMode.LocalOperation -> ConfirmButtons(

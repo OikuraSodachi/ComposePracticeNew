@@ -77,6 +77,7 @@ class LocalDeleteFailureMessageTest {
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override fun canExtract(path: String) = false
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
 

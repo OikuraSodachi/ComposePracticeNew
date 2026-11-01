@@ -114,6 +114,9 @@ class FileListViewModel @Inject constructor(
     /** 새 폴더에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
     fun validateEntryName(name: String): Set<FileNameError> = localFileOperationUseCase.validateEntryName(name)
 
+    /** [item]을 압축 해제할 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식을 따르는 UseCase가 한다. */
+    fun canUnzip(item: FileHolderItem): Boolean = localFileOperationUseCase.canUnzip(item.toDomain())
+
     /**
      * [item]을 [name]으로 바꿀 때의 위반 규칙 집합을 반환한다. 이름 규칙에 더해, 같은 폴더에 종류가 다른 같은 이름 항목이 있으면
      * [FileNameError.EXISTS_AS_OTHER_TYPE]을 포함한다. 같은 종류의 겹침은 오류가 아니라 확인 대상이다.

@@ -19,5 +19,6 @@ class FileActionRepositoryImpl @Inject constructor(
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = dataSource.deleteFile(targetFile, onProgress)
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = dataSource.moveFile(targetFiles, targetPath, onProgress)
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = dataSource.unzipAction(zipFiles, destPath, unzipHere, onProgress)
+    override fun canExtract(path: String) = dataSource.canExtract(path)
     override suspend fun makeDirectory(parentPath: String, name: String) = dataSource.makeDirectory(parentPath, name)
 }

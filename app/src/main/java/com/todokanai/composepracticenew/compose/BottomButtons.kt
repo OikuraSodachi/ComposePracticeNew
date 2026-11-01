@@ -19,6 +19,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
 private fun buildDropdownItems(
     selectedList: List<FileHolderItem>,
+    canUnzip: (FileHolderItem) -> Boolean,
     strZip: String,
     strInfo: String,
     strUpload: String,
@@ -36,14 +37,17 @@ private fun buildDropdownItems(
         .apply {
             if (selectedList.size == 1) {
                 add(Pair(strRename, rename))
-                if (selectedList.first().name.substringAfterLast('.', "") == "zip") {
+                if (canUnzip(selectedList.first())) {
                     add(Pair(strUnzip, unzip))
                     add(Pair(strUnzipHere, unzipHere))
                 }
             }
         }
 
-/** 멀티셀렉트 모드에서 이동·복사·삭제·더보기(압축·정보·업로드·이름변경·압축해제) 버튼을 제공한다. */
+/**
+ * 멀티셀렉트 모드에서 이동·복사·삭제·더보기(압축·정보·업로드·이름변경·압축해제) 버튼을 제공한다.
+ * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수 — 하나만 선택했을 때 압축 해제 버튼 표시 여부를 정한다
+ */
 @Composable
 fun BottomButtons(
     modifier: Modifier,
@@ -56,7 +60,8 @@ fun BottomButtons(
     rename:()->Unit,
     info:()->Unit,
     upload:()->Unit,
-    selectedList: List<FileHolderItem>
+    selectedList: List<FileHolderItem>,
+    canUnzip: (FileHolderItem) -> Boolean
 ) {
     val strMove = stringResource(R.string.btn_move)
     val strCopy = stringResource(R.string.btn_copy)
@@ -92,8 +97,9 @@ fun BottomButtons(
         ) {
             Text(strDelete)
         }
-        val dropdownContents = remember(selectedList) {
-            buildDropdownItems(selectedList, strZip, strInfo, strUpload, strRename, strUnzip, strUnzipHere, zip, info, upload, rename, unzip, unzipHere)
+        // selectedList·canUnzip을 키로 — 선택이 바뀌거나 판별 출처가 바뀔 때만 메뉴 항목을 다시 만든다
+        val dropdownContents = remember(selectedList, canUnzip) {
+            buildDropdownItems(selectedList, canUnzip, strZip, strInfo, strUpload, strRename, strUnzip, strUnzipHere, zip, info, upload, rename, unzip, unzipHere)
         }
         Box(
             modifier = Modifier

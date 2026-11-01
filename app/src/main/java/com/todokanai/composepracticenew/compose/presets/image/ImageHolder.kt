@@ -11,7 +11,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.todokanai.composepracticenew.myobjects.AppConstants
 
-/** 파일 썸네일 또는 비동기 이미지를 표시하는 이미지 컴포저블. */
+/** 파일 썸네일 또는 비동기 이미지를 표시하는 이미지 컴포저블. 이미지를 불러오는 중이거나 불러오지 못하면 [icon]을 표시한다. */
 @Composable
 fun ImageHolder(
     modifier: Modifier,
@@ -34,7 +34,9 @@ fun ImageHolder(
             model = imageRequest,
             contentDescription = null,
             modifier = modifier,
-            placeholder = icon
+            placeholder = icon,
+            // 디코딩 실패(손상·미지원 형식) 시에도 빈 칸이 아닌 종류 아이콘을 남긴다
+            error = icon
         )
     } else {
         Image(
