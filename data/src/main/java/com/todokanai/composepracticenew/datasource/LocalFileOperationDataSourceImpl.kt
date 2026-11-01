@@ -37,6 +37,8 @@ class LocalFileOperationDataSourceImpl @Inject constructor(
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) =
         archiveExtraction.unzip(zipFiles, destPath, unzipHere, onProgress)
 
+    override fun canExtract(path: String) = archiveExtraction.canExtract(path)
+
     override suspend fun makeDirectory(parentPath: String, name: String) =
         entryMutator.makeDirectory(parentPath, name)
 }

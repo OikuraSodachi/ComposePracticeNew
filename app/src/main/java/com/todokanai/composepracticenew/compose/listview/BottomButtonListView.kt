@@ -25,6 +25,7 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param onDismissInfo 정보 다이얼로그를 닫는 콜백
  * @param suggestZipName 압축 대상으로 압축 다이얼로그에 미리 채울 이름(확장자 제외)을 만드는 함수
  * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
+ * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수 — 압축 해제 버튼 표시 여부를 정한다
  * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
  * @param onConfirmRename 이름 변경 덮어쓰기(합치기) 확인 콜백
@@ -48,6 +49,7 @@ fun BottomButtonListView(
     onZip: (List<FileHolderItem>, String) -> Unit,
     suggestZipName: (List<FileHolderItem>) -> String,
     validateZipName: (String) -> Set<FileNameError>,
+    canUnzip: (FileHolderItem) -> Boolean,
     onRename: (FileHolderItem, String) -> Unit,
     validateRename: (FileHolderItem, String) -> Set<FileNameError>,
     pendingRename: PendingRename?,
@@ -73,6 +75,7 @@ fun BottomButtonListView(
         modifier = modifier,
         selectMode = selectMode,
         selectedList = currentSelectedList,
+        canUnzip = canUnzip,
         dialogState = dialogState,
         onConfirmWithConflictCheck = onConfirmWithConflictCheck,
         onSelectOperation = onSelectOperation,

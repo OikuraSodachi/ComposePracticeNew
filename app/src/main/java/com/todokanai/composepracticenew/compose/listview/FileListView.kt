@@ -41,9 +41,6 @@ private fun FileType.iconRes(): Int = when (this) {
     FileType.Other -> R.drawable.ic_baseline_insert_drive_file_24
 }
 
-/** 썸네일 이미지를 불러올 수 있는 항목인지 판별한다. 이미지 종류이면서 불러올 로컬 URI(data)가 있어야 한다 — 원격 항목은 data가 없다. */
-private fun hasImagePreview(item: FileHolderItem): Boolean = item.fileType == FileType.Image && item.data != null
-
 /**
  * 파일 목록을 스크롤바와 함께 표시하고, longPress 드래그 다중 선택을 지원한다.
  * @param selectedList 선택 목록을 반환하는 함수 — 항목별 선택 여부를 derivedStateOf로 구독해, 선택이 바뀐 행만 리컴포지션한다
@@ -60,8 +57,11 @@ fun FileListView(
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit
 ) {
-    // items{} 밖에서 종류별 1회 생성 — 스크롤 시 painterResource가 item 수만큼 호출되는 것을 방지
-    val typeIcons = FileType.entries.associateWith { painterResource(it.iconRes()) }
+    // items{} 밖에서 종류별로 한 번씩 호출 — 행마다 Painter를 만들지 않고 모든 행이 공유한다
+    val typePainters = FileType.entries.map { painterResource(it.iconRes()) }
+    // Painter 인스턴스들을 키로 — painterResource는 리컴포지션마다 같은 Painter를 돌려주므로 묶음도 같은 인스턴스로 유지되어,
+    // 행(FileHolder)이 Strong Skipping의 인스턴스 비교로 생략된다. 테마·밀도 변경으로 Painter가 바뀔 때만 다시 묶는다
+    val typeIcons = remember(*typePainters.toTypedArray()) { FileType.entries.zip(typePainters).toMap() }
 
     // LazyColumn과 verticalScrollbar가 동일한 스크롤 상태를 공유해야 하므로 remember로 1회 생성 — 리컴포지션 간 스크롤 위치 보존
     val listState = rememberLazyListState()
@@ -101,8 +101,7 @@ fun FileListView(
                     modifier = Modifier,
                     file = fileHolderItem,
                     isSelected = isSelected,
-                    icon = typeIcons.getValue(fileHolderItem.fileType),
-                    isAsyncImage = hasImagePreview(fileHolderItem),
+                    typeIcons = typeIcons,
                     // Strong Skipping이 캡처값 기준으로 람다를 memoize하므로 수동 remember 불필요
                     onClick = {
                         if (selectMode == SelectMode.MultiSelect) {

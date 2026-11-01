@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
@@ -122,6 +123,13 @@ class LocalFileOperationUseCase(
             fileActionRepo.unzipAction(zipFiles, destPath, unzipHere, onProgress)
         }
     }
+
+    /**
+     * [item]을 [unzip]으로 압축 해제할 수 있는지 판별한다. 형식은 압축 해제 구현이 지원하는 것으로만 정한다.
+     * @param item 확인할 항목
+     * @return 폴더가 아니고 지원하는 아카이브 형식이면 true
+     */
+    fun canUnzip(item: FileHolderItem): Boolean = !item.isDirectory && fileActionRepo.canExtract(item.path)
 
     /**
      * [path]의 파일 이름을 [newName]으로 변경한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
