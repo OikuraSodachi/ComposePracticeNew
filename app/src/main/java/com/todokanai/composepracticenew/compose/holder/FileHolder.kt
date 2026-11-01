@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
@@ -27,7 +28,10 @@ import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 
-/** 파일 목록의 개별 항목을 표시하는 컴포저블. icon 선택·isAsyncImage 판별은 호출부에서 결정한다. */
+/** 숨김 항목(이름이 점으로 시작)의 아이콘 불투명도. 아이콘만 흐리게 하고 텍스트는 그대로 둔다. */
+private const val HIDDEN_ICON_ALPHA = 0.4f
+
+/** 파일 목록의 개별 항목을 표시하는 컴포저블. icon 선택·isAsyncImage 판별은 호출부에서 결정하고, 숨김 항목은 아이콘을 흐리게 표시한다. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FileHolder(
@@ -54,7 +58,8 @@ fun FileHolder(
             modifier = Modifier
                 .width(AppConstants.THUMBNAIL_SIZE_DP)
                 .fillMaxHeight()
-                .padding(5.dp),
+                .padding(5.dp)
+                .alpha(if (file.isHidden) HIDDEN_ICON_ALPHA else 1f),
             isAsyncImage = isAsyncImage,
             data = imageData,
             icon = icon

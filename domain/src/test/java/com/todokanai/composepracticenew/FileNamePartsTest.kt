@@ -37,4 +37,12 @@ class FileNamePartsTest {
         assertEquals("x (3).zip", FileNameParts.numbered("x", ".zip", 3))
         assertEquals("New folder (1)", FileNameParts.numbered("New folder", "", 1))
     }
+
+    @Test
+    fun `점으로 시작하는 이름만 숨김 항목이다`() {
+        assertEquals(true, FileNameParts.isHidden(".bashrc"))
+        assertEquals(true, FileNameParts.isHidden(".thumbnails"))
+        assertEquals(false, FileNameParts.isHidden("photo.jpg"))
+        assertEquals(false, FileNameParts.isHidden("name."))
+    }
 }

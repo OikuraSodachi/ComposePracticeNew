@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.model
 
 /**
  * 파일 이름을 기본 이름과 확장자로 나누고, 같은 이름이 있을 때 번호를 붙이는 규칙.
- * 기본 이름 제안·입력란 선택 범위·압축 파일 생성·'종류' 정렬·정보 다이얼로그의 종류 표시가 같은 규칙을 쓰도록 한 곳에 둔다.
+ * 기본 이름 제안·입력란 선택 범위·압축 파일 생성·'종류' 정렬·정보 다이얼로그의 종류 표시·목록의 종류 아이콘과 숨김 표시가 같은 규칙을 쓰도록 한 곳에 둔다.
  */
 object FileNameParts {
 
@@ -19,6 +19,13 @@ object FileNameParts {
      * @return 점을 뺀 확장자. 확장자가 없거나 이름이 점으로 끝나면 null
      */
     fun extensionOf(name: String): String? = name.substring(baseNameEnd(name)).removePrefix(".").takeIf { it.isNotEmpty() }
+
+    /**
+     * [name]이 숨김 항목 이름인지 판별한다. [baseNameEnd]가 확장자로 나누지 않는 첫 글자의 점과 같은 규칙이다(예: `.bashrc`, `.thumbnails`).
+     * @param name 파일 또는 폴더 이름
+     * @return 이름이 점으로 시작하면 true
+     */
+    fun isHidden(name: String): Boolean = name.startsWith('.')
 
     /**
      * [baseName]에 번호 [index]를 붙인 이름을 만든다. 0이면 번호 없이 원래 이름이다.
