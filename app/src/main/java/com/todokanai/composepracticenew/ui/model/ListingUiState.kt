@@ -19,9 +19,10 @@ sealed interface ListingUiState {
     /**
      * 보여줄 목록이 있는 상태.
      * @param items 표시할 디렉터리 항목. 비어 있으면 빈 폴더다
+     * @param key [items]가 나온 목록 조회 요청. 다시 조회하는 중이면 직전 목록의 요청이다
      * @param isRefreshing 같은 경로를 다시 조회하는 중이라 [items]가 직전 목록이면 true. 이 동안에는 이름 충돌을 판정할 수 없어 작업이 거부된다
      */
-    data class Loaded(val items: List<FileHolderItem>, val isRefreshing: Boolean = false) : ListingUiState
+    data class Loaded(val items: List<FileHolderItem>, val key: ListingKey, val isRefreshing: Boolean = false) : ListingUiState
 
     /**
      * 현재 경로의 목록 조회에 실패한 상태.
@@ -51,8 +52,8 @@ class ListingUiStateMapper(private val isLocalFile: Boolean) {
      */
     fun map(listing: DirectoryListing): ListingUiState = when (listing) {
         DirectoryListing.NoPath -> ListingUiState.NoPath
-        is DirectoryListing.Loading -> listing.stale?.let { ListingUiState.Loaded(itemsOf(it), isRefreshing = true) } ?: ListingUiState.Loading
-        is DirectoryListing.Loaded -> ListingUiState.Loaded(itemsOf(listing))
+        is DirectoryListing.Loading -> listing.stale?.let { ListingUiState.Loaded(itemsOf(it), ListingKey.from(it.request), isRefreshing = true) } ?: ListingUiState.Loading
+        is DirectoryListing.Loaded -> ListingUiState.Loaded(itemsOf(listing), ListingKey.from(listing.request))
         is DirectoryListing.Failed -> ListingUiState.Failed(listing.reason, listing.detail)
     }
 

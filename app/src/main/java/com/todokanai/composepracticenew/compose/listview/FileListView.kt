@@ -25,7 +25,7 @@ import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.FileType
 import com.todokanai.composepracticenew.ui.model.SelectMode
-import com.todokanai.composepracticenew.viewmodel.ListingChildCounts
+import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 import com.todokanai.composepracticenew.R
 
 /** 스크롤바 터치 영역 너비 — Material 최소 터치 타겟(48dp), thumb 시각 너비(8dp)와 별개 */
@@ -54,7 +54,7 @@ private fun FileType.iconRes(): Int = when (this) {
 fun FileListView(
     modifier: Modifier,
     fileHolderItemList: List<FileHolderItem>,
-    childCounts: ListingChildCounts?,
+    childCounts: ChildCountSource?,
     selectedList: () -> List<FileHolderItem>,
     selectMode: SelectMode,
     onItemClick: (FileHolderItem) -> Unit,
@@ -140,8 +140,9 @@ fun FileListView(
  * @return 지금의 표시 상태
  */
 @Composable
-private fun childCountOf(childCounts: ListingChildCounts, directory: FileHolderItem): ChildCountInfo =
-    // childCounts·directory 키 — 행은 경로 키로 새 목록에서도 재사용되므로, 키가 바뀌면 구독 상태를 새로 만들어 이전 목록에서 센 값이 새 목록의 값으로 보이지 않게 한다
+private fun childCountOf(childCounts: ChildCountSource, directory: FileHolderItem): ChildCountInfo =
+    // childCounts·directory 키(값 비교) — 정렬 변경 등으로 같은 조회 결과의 항목이 새로 만들어져도 키가 같아 구독을 이어 가고,
+    // 행은 경로 키로 새 조회 결과에서도 재사용되므로 조회 결과가 바뀌면 구독 상태를 새로 만들어 이전 결과에서 센 값이 새 결과의 값으로 보이지 않게 한다
     key(childCounts, directory) {
         // 키 블록 안에서 1회 생성 — 리컴포지션마다 Flow를 새로 만들면 구독을 다시 시작한다
         val count = remember { childCounts.countOf(directory) }

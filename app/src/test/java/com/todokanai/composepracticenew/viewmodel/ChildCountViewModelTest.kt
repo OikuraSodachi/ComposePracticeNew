@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ListingKey
 import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -15,11 +16,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotSame
-import org.junit.Assert.assertSame
+import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
-/** [ChildCountViewModel]이 목록 조회 결과마다 폴더의 하위 항목 수를 한 번만 세어 다시 쓰고, 새 조회 결과는 다시 세며, 동시에 세는 수를 제한하는지 검증하는 단위 테스트. */
+/** [ChildCountViewModel]이 목록 조회 요청마다 폴더의 하위 항목 수를 한 번만 세어 다시 쓰고, 새 조회 요청은 다시 세며, 동시에 세는 수를 제한하는지 검증하는 단위 테스트. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChildCountViewModelTest {
 
@@ -30,7 +30,8 @@ class ChildCountViewModelTest {
         FileHolderItem(path = "/d/$name", isDirectory = true, name = name, size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
 
     private val music = folder("music")
-    private val listing = listOf(music)
+    /** music이 나온 목록 조회 요청. */
+    private val listing = ListingKey(path = "/d", generation = 1)
 
     @Test
     fun `센 결과는 같은 목록에서 다시 세지 않고 지금 상태로도 돌려준다`() = runTest(UnconfinedTestDispatcher()) {
@@ -47,21 +48,42 @@ class ChildCountViewModelTest {
     }
 
     @Test
-    fun `같은 목록 인스턴스에는 같은 결과를, 새 조회 결과에는 새로 센 결과를 돌려준다`() = runTest(UnconfinedTestDispatcher()) {
+    fun `같은 조회 요청이면 항목을 새로 만들어도 센 결과를 다시 쓰고, 새 조회 요청이면 다시 센다`() = runTest(UnconfinedTestDispatcher()) {
         val counts = viewModel.countsFor(listing)
-        assertSame(counts, viewModel.countsFor(listing))
         val first = async { counts.countOf(music).first() }
         repo.complete(music.path, IoResult.Success(3))
         first.await()
 
-        // 값이 같아도 새로 조회한 목록이다 — 폴더 내용이 바뀌었을 수 있다
-        val refreshed = viewModel.countsFor(listOf(music.copy()))
+        // 정렬 변경·화면 상태 재구독 — 같은 조회 요청에서 항목과 창구가 새로 만들어진다
+        val resorted = viewModel.countsFor(listing.copy())
+        assertEquals(counts, resorted)
+        assertEquals(ChildCountInfo.Known(3), resorted.currentOf(music.copy()))
+        assertEquals(ChildCountInfo.Known(3), resorted.countOf(music.copy()).first())
+        assertEquals(1, repo.requestCount(music.path))
 
-        assertNotSame(counts, refreshed)
+        // 같은 경로라도 새로 조회한 결과다 — 폴더 내용이 바뀌었을 수 있다
+        val refreshed = viewModel.countsFor(listing.copy(generation = 2))
+        assertNotEquals(counts, refreshed)
         assertEquals(ChildCountInfo.Loading, refreshed.currentOf(music))
         val second = async { refreshed.countOf(music).first() }
         repo.complete(music.path, IoResult.Success(5))
         assertEquals(ChildCountInfo.Known(5), second.await())
+        assertEquals(2, repo.requestCount(music.path))
+    }
+
+    @Test
+    fun `지나간 조회 요청의 세기는 가장 나중 요청의 센 결과를 버리지 않는다`() = runTest(UnconfinedTestDispatcher()) {
+        val newer = viewModel.countsFor(listing.copy(generation = 2))
+        val counted = async { newer.countOf(music).first() }
+        repo.complete(music.path, IoResult.Success(3))
+        counted.await()
+
+        val older = async { viewModel.countsFor(listing).countOf(music).first() }
+        repo.complete(music.path, IoResult.Success(7))
+
+        assertEquals(ChildCountInfo.Known(7), older.await())
+        assertEquals(ChildCountInfo.Known(3), newer.currentOf(music))
+        assertEquals(ChildCountInfo.Known(3), newer.countOf(music).first())
         assertEquals(2, repo.requestCount(music.path))
     }
 
@@ -90,7 +112,7 @@ class ChildCountViewModelTest {
     @Test
     fun `동시에 세는 폴더는 4개까지이고, 하나가 끝나면 기다리던 폴더를 센다`() = runTest(UnconfinedTestDispatcher()) {
         val folders = (1..5).map { folder("f$it") }
-        val counts = viewModel.countsFor(folders)
+        val counts = viewModel.countsFor(listing)
 
         val results = folders.map { async { counts.countOf(it).first() } }
 
