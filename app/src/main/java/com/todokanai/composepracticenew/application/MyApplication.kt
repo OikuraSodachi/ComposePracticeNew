@@ -12,8 +12,7 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FileOperationServiceController
 import com.todokanai.composepracticenew.service.FtpForegroundService
-import com.todokanai.composepracticenew.ui.thumbnail.VideoThumbnailFetcher
-import com.todokanai.composepracticenew.ui.thumbnail.VideoThumbnailKeyer
+import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -34,13 +33,10 @@ class MyApplication : Application(), ImageLoaderFactory {
         observeFileOperations()
     }
 
-    // 앱 전체가 쓰는 Coil ImageLoader — 동영상 썸네일 모델(VideoThumbnail)을 불러오고 메모리 캐시에 담을 수 있도록 등록한다
+    // 앱 전체가 쓰는 Coil ImageLoader — 파일 목록 썸네일 요청 모델(Thumbnail)의 처리기를 등록한다
     override fun newImageLoader(): ImageLoader =
         ImageLoader.Builder(this)
-            .components {
-                add(VideoThumbnailFetcher.Factory())
-                add(VideoThumbnailKeyer())
-            }
+            .components { addThumbnailComponents() }
             .build()
 
     // progressMap이 비어있지 않을 때 서비스 시작, 비워지면 종료 — appScope로 앱 생명주기 동안 유지

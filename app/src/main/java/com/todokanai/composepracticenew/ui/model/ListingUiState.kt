@@ -35,7 +35,7 @@ sealed interface ListingUiState {
  * domain 목록 조회 상태를 화면용 [ListingUiState]로 바꾸는 변환기.
  * 직전에 변환한 domain 목록과 같은 인스턴스가 다시 오면(다시 조회하는 동안의 직전 목록) 화면용 항목을 다시 만들지 않고 재사용한다.
  * 변환 결과를 기억하므로 하나의 수집 코루틴 안에서만 쓴다.
- * @param isLocalFile 로컬 파일 목록이면 true — 항목의 URI 문자열을 채운다
+ * @param isLocalFile 로컬 파일 목록이면 true — 항목을 로컬로 표시해 썸네일을 불러온다
  */
 class ListingUiStateMapper(private val isLocalFile: Boolean) {
 

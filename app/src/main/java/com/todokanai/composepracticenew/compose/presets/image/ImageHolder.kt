@@ -10,16 +10,17 @@ import androidx.compose.ui.platform.LocalDensity
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.todokanai.composepracticenew.myobjects.AppConstants
+import com.todokanai.composepracticenew.ui.thumbnail.Thumbnail
 
 /**
  * 파일 썸네일 또는 종류 아이콘을 표시하는 이미지 컴포저블. 썸네일을 불러오는 중이거나 불러오지 못하면 [icon]을 표시한다.
- * @param data Coil이 불러올 썸네일 요청 모델. null이면 썸네일 없이 [icon]만 표시한다
+ * @param data 불러올 썸네일 요청 모델. null이면 썸네일 없이 [icon]만 표시한다
  */
 @Composable
 fun ImageHolder(
     modifier: Modifier,
     icon: Painter,
-    data: Any?
+    data: Thumbnail?
 ) {
     if (data != null) {
         val context = LocalContext.current
