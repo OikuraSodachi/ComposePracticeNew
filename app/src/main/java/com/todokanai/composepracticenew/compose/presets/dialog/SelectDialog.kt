@@ -42,7 +42,9 @@ fun <T> SelectDialog(
         title = title,
         onConfirm = null,
         onDismiss = onDismiss,
-        dismissText = dismissText
+        dismissText = dismissText,
+        // 선택지 목록이 LazyColumn으로 스스로 스크롤한다
+        contentScrollsItself = true
     ) {
         LazyColumn(modifier = Modifier.selectableGroup()) {
             items(options) { option ->
