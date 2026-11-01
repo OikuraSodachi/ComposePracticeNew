@@ -6,6 +6,7 @@ import androidx.core.net.toUri
 import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolderItem
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
+import com.todokanai.composepracticenew.ui.thumbnail.VideoThumbnail
 import kotlinx.parcelize.IgnoredOnParcel
 import kotlinx.parcelize.Parcelize
 import java.io.File
@@ -43,9 +44,18 @@ data class FileHolderItem(
     @IgnoredOnParcel
     val isHidden: Boolean = FileNameParts.isHidden(name)
 
-    /** 썸네일 이미지를 불러올 수 있는 항목인지 여부. 이미지 종류이면서 불러올 로컬 URI(data)가 있어야 한다 — 원격 항목은 data가 없다. */
+    /**
+     * 목록에 표시할 썸네일의 Coil 요청 모델. 이미지는 로컬 URI, 동영상은 [VideoThumbnail]이며 그 밖의 종류와 원격 항목(data 없음)은 null이다.
+     * 종류에서 생성 시 한 번 정하므로 썸네일 여부와 불러오는 방법이 [fileType]과 어긋날 수 없다.
+     */
     @IgnoredOnParcel
-    val hasImagePreview: Boolean = fileType == FileType.Image && data != null
+    val thumbnail: Any? = data?.let { uri ->
+        when (fileType) {
+            FileType.Image -> uri.toUri()
+            FileType.Video -> VideoThumbnail(path, lastModifiedMillis)
+            else -> null
+        }
+    }
 
     companion object {
         /**
