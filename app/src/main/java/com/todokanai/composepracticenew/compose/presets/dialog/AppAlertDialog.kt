@@ -1,5 +1,8 @@
 package com.todokanai.composepracticenew.compose.presets.dialog
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -38,12 +41,14 @@ val LocalOpenDialogRegistry = staticCompositionLocalOf<OpenDialogRegistry?> { nu
 /**
  * 진행률 다이얼로그를 뺀 앱의 모든 다이얼로그가 쓰는 [AlertDialog].
  * 떠 있는 동안 [LocalOpenDialogRegistry]에 등록되어, 진행률 다이얼로그가 이 다이얼로그를 덮지 않고 비켜난다.
+ * 본문은 남는 높이를 넘으면 세로로 스크롤된다 — [AlertDialog]는 본문을 남는 높이로 줄이기만 하므로, 감싸지 않으면 넘치는 부분이 표시 없이 잘린다.
  * @param onDismissRequest 바깥 탭·뒤로가기로 닫을 때의 콜백
  * @param confirmButton 확인 버튼 영역
  * @param modifier 다이얼로그에 적용할 Modifier
  * @param dismissButton 취소 버튼 영역. null이면 두지 않는다
  * @param title 제목 영역. null이면 두지 않는다
  * @param text 본문 영역. null이면 두지 않는다
+ * @param textScrollsItself 본문이 스스로 세로 스크롤하면(LazyColumn 등) true — 세로 스크롤 안에 세로 스크롤을 넣으면 측정에 실패하므로 감싸지 않는다
  */
 @Composable
 fun AppAlertDialog(
@@ -52,7 +57,8 @@ fun AppAlertDialog(
     modifier: Modifier = Modifier,
     dismissButton: (@Composable () -> Unit)? = null,
     title: (@Composable () -> Unit)? = null,
-    text: (@Composable () -> Unit)? = null
+    text: (@Composable () -> Unit)? = null,
+    textScrollsItself: Boolean = false
 ) {
     RegisterOpenDialog()
     AlertDialog(
@@ -61,8 +67,18 @@ fun AppAlertDialog(
         modifier = modifier,
         dismissButton = dismissButton,
         title = title,
-        text = text
+        text = if (text == null || textScrollsItself) text else { { ScrollableText(text) } }
     )
+}
+
+/** 다이얼로그 본문 [content]를 세로 스크롤 영역에 둔다. [AlertDialog]의 본문 슬롯처럼 Box로 감싸 본문의 배치는 그대로다. */
+@Composable
+private fun ScrollableText(content: @Composable () -> Unit) {
+    // 키 없음 — 다이얼로그가 떠 있는 동안 스크롤 위치를 유지하고, 회전 후에도 보던 위치로 돌아오도록 saveable 상태를 쓴다
+    val scrollState = rememberScrollState()
+    Box(modifier = Modifier.verticalScroll(scrollState)) {
+        content()
+    }
 }
 
 /** 이 composable이 composition에 있는 동안 다이얼로그가 떠 있다고 [LocalOpenDialogRegistry]에 알린다. */

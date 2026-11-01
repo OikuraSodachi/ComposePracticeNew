@@ -19,6 +19,7 @@ import com.todokanai.composepracticenew.R
  * 버튼 라벨은 항상 값을 가지므로 라벨 없는 버튼은 만들어지지 않는다.
  * [onConfirm]이 null이면 확인 버튼을 표시하지 않고, [title]이 null이면 제목 영역 자체를 두지 않는다.
  * 확인은 다이얼로그 인스턴스당 한 번만 처리되어, 닫히기 전 연타로 [onConfirm]이 중복 실행되지 않는다.
+ * [content]는 남는 높이를 넘으면 세로로 스크롤된다. 스스로 세로 스크롤하는 본문(LazyColumn 등)이면 [contentScrollsItself]를 true로 준다.
  */
 @Composable
 fun ConfirmCancelDialog(
@@ -29,6 +30,7 @@ fun ConfirmCancelDialog(
     confirmEnabled: Boolean = true,
     confirmText: String = stringResource(R.string.btn_confirm),
     dismissText: String = stringResource(R.string.btn_cancel),
+    contentScrollsItself: Boolean = false,
     content: @Composable () -> Unit
 ) {
     // 키 없음 — 다이얼로그 인스턴스가 살아 있는 동안 확인을 한 번만 처리; 상태 쓰기는 리컴포지션 전에도 즉시 보여 연타의 두 번째 클릭을 걸러낸다
@@ -38,6 +40,7 @@ fun ConfirmCancelDialog(
         onDismissRequest = onDismiss,
         title = title?.let { t -> @Composable { Text(text = t) } },
         text = content,
+        textScrollsItself = contentScrollsItself,
         confirmButton = {
             onConfirm?.let {
                 Button(

@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
@@ -48,7 +50,7 @@ fun InfoDialog(
 }
 
 /**
- * 속성 하나를 이름(작고 흐린 글씨) 아래 값(본문 글씨)으로 표시한다. 둘 다 한 줄이며, 잘리면 가로로 흐른다.
+ * 속성 하나를 이름(작고 흐린 글씨) 아래 값(본문 글씨)으로 표시한다. 둘 다 한 줄이며, 값은 잘리면 가로로 흐르고 이름은 잘리면 말줄임표로 끝난다.
  * @param title 속성 이름
  * @param info 속성 값
  */
@@ -62,10 +64,13 @@ private fun InfoColumn(
         modifier = modifier
             .fillMaxWidth()
     ){
-        MarqueeText(
+        // 이름은 짧은 고정 문구라 흐르게 하지 않고, 드물게 잘리면 말줄임표로 잘렸음을 보인다
+        Text(
             text = title,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
         MarqueeText(
             text = info,
