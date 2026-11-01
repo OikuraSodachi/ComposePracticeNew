@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingKey
@@ -78,7 +79,7 @@ class ChildCountViewModel @Inject constructor(
      * @return 아직 아무 폴더도 세지 않은 보관소
      */
     private fun newCounts(): ListingChildCounts =
-        ListingChildCounts(countChildren = { fileInfoUseCase.countChildren(it.toDomain()) }, permits = permits)
+        ListingChildCounts(countChildren = { fileInfoUseCase.countChildren(it.toDomain()) }, permits = permits, scope = viewModelScope)
 
     /**
      * 목록 조회 요청 하나에 묶인 [ChildCountSource]. 같은 요청이면 서로 같아(equals) 폴더 행이 구독을 다시 시작하지 않는다.

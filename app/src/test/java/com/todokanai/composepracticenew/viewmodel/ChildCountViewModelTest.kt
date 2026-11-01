@@ -9,26 +9,46 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingKey
 import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Before
 import org.junit.Test
 
-/** [ChildCountViewModel]이 목록 조회 요청마다 폴더의 하위 항목 수를 한 번만 세어 다시 쓰고, 새 조회 요청은 다시 세며, 동시에 세는 수를 제한하는지 검증하는 단위 테스트. */
+/** [ChildCountViewModel]이 목록 조회 요청마다 폴더의 하위 항목 수를 한 번만 세어 다시 쓰고, 새 조회 요청은 다시 세며, 같은 폴더를 한 번만 읽고, 동시에 세는 수를 제한하는지 검증하는 단위 테스트. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChildCountViewModelTest {
 
+    /** 테스트가 경로별로 세기 결과를 내주는 저장소. */
     private val repo = GatedFileInfoRepository()
+    /** 검증 대상 ViewModel. */
     private val viewModel = ChildCountViewModel(FileInfoUseCase(repo))
+
+    /** viewModelScope가 쓰는 Main 디스패처를 테스트 디스패처로 바꾼다 — 세기가 즉시 실행되도록. */
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(UnconfinedTestDispatcher())
+    }
+
+    /** Main 디스패처를 되돌린다. */
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
 
     private fun folder(name: String) =
         FileHolderItem(path = "/d/$name", isDirectory = true, name = name, size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
 
+    /** 목록 조회 결과의 폴더 하나. */
     private val music = folder("music")
     /** music이 나온 목록 조회 요청. */
     private val listing = ListingKey(path = "/d", generation = 1)
@@ -98,15 +118,44 @@ class ChildCountViewModelTest {
     }
 
     @Test
-    fun `세는 중에 구독을 취소하면 결과를 남기지 않아 다시 나타날 때 다시 센다`() = runTest(UnconfinedTestDispatcher()) {
+    fun `읽기를 시작한 세기는 구독이 떠나도 끝까지 세어 결과를 남긴다`() = runTest(UnconfinedTestDispatcher()) {
         val counts = viewModel.countsFor(listing)
 
         launch { counts.countOf(music).first() }.cancel()
-
-        assertEquals(ChildCountInfo.Loading, counts.currentOf(music))
-        val again = async { counts.countOf(music).first() }
         repo.complete(music.path, IoResult.Success(1))
-        assertEquals(ChildCountInfo.Known(1), again.await())
+
+        assertEquals(ChildCountInfo.Known(1), counts.currentOf(music))
+        assertEquals(ChildCountInfo.Known(1), counts.countOf(music).first())
+        assertEquals(1, repo.requestCount(music.path))
+    }
+
+    @Test
+    fun `같은 폴더를 여러 구독이 기다리면 한 번만 센다`() = runTest(UnconfinedTestDispatcher()) {
+        val counts = viewModel.countsFor(listing)
+
+        val first = async { counts.countOf(music).first() }
+        val second = async { counts.countOf(music).first() }
+        repo.complete(music.path, IoResult.Success(2))
+
+        assertEquals(ChildCountInfo.Known(2), first.await())
+        assertEquals(ChildCountInfo.Known(2), second.await())
+        assertEquals(1, repo.requestCount(music.path))
+    }
+
+    @Test
+    fun `차례를 기다리던 세기는 구독이 모두 떠나면 세지 않고, 다시 나타나면 센다`() = runTest(UnconfinedTestDispatcher()) {
+        val folders = (1..5).map { folder("f$it") }
+        val counts = viewModel.countsFor(listing)
+        folders.take(4).forEach { launch { counts.countOf(it).first() } }
+
+        launch { counts.countOf(folders[4]).first() }.cancel()
+        repo.complete(folders[0].path, IoResult.Success(0))
+
+        assertEquals(0, repo.requestCount(folders[4].path))
+        val again = async { counts.countOf(folders[4]).first() }
+        repo.complete(folders[4].path, IoResult.Success(4))
+        assertEquals(ChildCountInfo.Known(4), again.await())
+        folders.drop(1).take(3).forEach { repo.complete(it.path, IoResult.Success(1)) }
     }
 
     @Test

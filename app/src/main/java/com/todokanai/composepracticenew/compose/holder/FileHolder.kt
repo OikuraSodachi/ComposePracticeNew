@@ -104,12 +104,12 @@ fun FileHolder(
 
 /**
  * 오른쪽 아래 칸에 표시할 항목의 양. 하위 항목 수 표시 상태가 없으면 [file]의 크기이고, 있으면 하위 항목 수다.
- * 세는 중이면 비워 두고, 읽지 못했으면 0개로 보이지 않도록 읽을 수 없음을 적는다.
+ * 세는 중이면 비워 두고, 읽지 못했으면 0개로 보이지 않도록 읽지 못함을 적는다.
  */
 @Composable
 private fun amountText(file: FileHolderItem, childCount: ChildCountInfo?): String = when (childCount) {
     null -> file.size
     ChildCountInfo.Loading -> ""
-    is ChildCountInfo.Known -> stringResource(R.string.holder_child_count, childCount.count)
-    is ChildCountInfo.Failed -> stringResource(R.string.holder_child_count_failed)
+    is ChildCountInfo.Known -> stringResource(R.string.child_count, childCount.count)
+    is ChildCountInfo.Failed -> stringResource(R.string.read_failed)
 }
