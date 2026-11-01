@@ -22,7 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
 
-/** [PreferencesStore]의 읽기 재시도·실패 시 기본값 방출, 읽기·저장 실패 알림, 손상 파일 교체 뒤의 초기화 알림, 저장이 호출 순서대로 하나씩 반영되는지를 검증하는 단위 테스트. */
+/** [PreferencesStore]의 공유 읽기 재시도(타이머·성공 시 즉시)·실패 시 기본값 방출, 읽기·저장 실패 알림, 손상 파일 교체 뒤의 초기화 알림, 저장이 호출 순서대로 하나씩 반영되는지를 검증하는 단위 테스트. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PreferencesStoreTest {
 
@@ -69,17 +69,56 @@ class PreferencesStoreTest {
     }
 
     @Test
-    fun `읽기가 회복된 뒤 다시 실패하면 다시 알린다`() = runTest {
-        val fake = FakePreferencesDataStore(stored, failingReads = 1)
-        val store = storeOf(fake)
-        val reported = collectFailures()
+    fun `재시도를 기다리는 동안 편집이 성공하면 타이머를 기다리지 않고 다시 읽는다`() = runTest {
+        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 2))
+        val emitted = mutableListOf<Preferences>()
+        val job = launch { store.data.take(2).toList(emitted) }
 
-        store.data.take(2).toList() // 실패 → 기본값 → 재시도 성공
-        fake.failNextReads(1)
-        store.data.take(2).toList() // 새 수집이 다시 실패 → 기본값 → 재시도 성공
+        advanceTimeBy(1_000 + 500) // 두 번째 실패 뒤 2초 대기 중(타이머는 3초 시점)
+        runCurrent()
+        store.launchEdit { it[key] = "w" }
         runCurrent()
 
+        assertEquals(listOf(emptyPreferences(), preferencesOf(key to "w")), emitted)
+        job.join()
+    }
+
+    @Test
+    fun `재시도를 기다리는 동안 한 번 읽기가 성공하면 타이머를 기다리지 않고 다시 읽는다`() = runTest {
+        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 2))
+        val emitted = mutableListOf<Preferences>()
+        val job = launch { store.data.take(2).toList(emitted) }
+
+        advanceTimeBy(1_000 + 500) // 두 번째 실패 뒤 2초 대기 중(타이머는 3초 시점)
+        runCurrent()
+        assertEquals(stored, store.readOnce())
+        runCurrent()
+
+        assertEquals(listOf(emptyPreferences(), stored), emitted)
+        job.join()
+    }
+
+    @Test
+    fun `같은 수집 안에서 회복한 뒤 다시 실패해도 기본값을 방출하고 다시 알리며, 대기는 처음부터 시작한다`() = runTest {
+        val fake = FakePreferencesDataStore(stored, failingReads = 3)
+        val store = storeOf(fake)
+        val reported = collectFailures()
+        val emitted = mutableListOf<Preferences>()
+        val job = launch { store.data.take(4).toList(emitted) }
+
+        advanceTimeBy(1_000 + 2_000 + 4_000 + 1) // 세 번 실패 뒤 회복 — retryWhen의 attempt는 3까지 올라가 있다
+        runCurrent()
+        assertEquals(listOf(emptyPreferences(), stored), emitted)
+
+        fake.failActiveCollections(nextReads = 0)
+        runCurrent()
+        assertEquals(listOf(emptyPreferences(), stored, emptyPreferences()), emitted) // attempt를 이어 세면 기본값 없이 대기만 한다
+
+        advanceTimeBy(1_000 + 1) // 대기가 1초부터 — attempt를 이어 세면 8초를 기다린다
+        runCurrent()
+        assertEquals(listOf(emptyPreferences(), stored, emptyPreferences(), stored), emitted)
         assertEquals(listOf(PreferenceFailure.READ, PreferenceFailure.READ), reported)
+        job.join()
     }
 
     @Test
@@ -99,10 +138,10 @@ class PreferencesStoreTest {
     }
 
     @Test
-    fun `IOException이 아닌 읽기 예외는 전파된다`() = runTest {
-        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 1, readError = IllegalStateException("x")))
-        val result = runCatching { store.data.take(1).toList() }
-        assertTrue(result.exceptionOrNull() is IllegalStateException)
+    fun `IOException이 아닌 읽기 예외는 공유 수집을 끝내고 스코프로 전파된다`() = runTest {
+        storeOf(FakePreferencesDataStore(stored, failingReads = 1, readError = IllegalStateException("x")))
+        runCurrent()
+        assertTrue(storeScopes.takeUncaught().single() is IllegalStateException)
     }
 
     @Test
@@ -195,6 +234,7 @@ class PreferencesStoreTest {
     fun `손상 파일 교체는 핸들러가 불릴 때가 아니라 그 뒤 읽기가 성공할 때 한 번 알린다`() = runTest {
         val store = storeOf(FakePreferencesDataStore(stored))
         val reported = collectFailures()
+        runCurrent() // 공유 수집이 처음 읽기를 마친 상태 — 값이 바뀌지 않으면 다시 읽지 않는다
 
         corruptionReset.handler.handleCorruption(CorruptionException("corrupt"))
         runCurrent()
@@ -209,8 +249,11 @@ class PreferencesStoreTest {
     @Test
     fun `교체 파일을 쓰지 못해 핸들러가 거듭 불려도 읽기가 실패하는 동안은 초기화를 알리지 않고, 교체 뒤 한 번만 알린다`() = runTest {
         // DataStore는 교체 쓰기가 실패하면 손상 예외(IOException)를 다시 던진다 — 읽기 실패로 보인다
-        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 2))
+        val fake = FakePreferencesDataStore(stored)
+        val store = storeOf(fake)
         val reported = collectFailures()
+        runCurrent() // 공유 수집이 처음 읽기를 마친 상태 — 아래 실패는 한 번 읽기만 겪는다
+        fake.failNextReads(2)
 
         repeat(2) {
             corruptionReset.handler.handleCorruption(CorruptionException("corrupt"))
@@ -228,6 +271,7 @@ class PreferencesStoreTest {
     fun `손상 파일 교체 뒤 편집이 성공해도 초기화를 알린다`() = runTest {
         val store = storeOf(FakePreferencesDataStore(stored))
         val reported = collectFailures()
+        runCurrent() // 공유 수집이 처음 읽기를 마친 상태 — 아래 초기화 알림은 편집 성공에서 나온다
 
         corruptionReset.handler.handleCorruption(CorruptionException("corrupt"))
         store.launchEdit { it[key] = "w" }
