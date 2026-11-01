@@ -69,5 +69,5 @@ class DataStoreRepositoryLastRemoteIdTest {
 
     /** [fake] 위에 검증 대상을 만든다. */
     private fun TestScope.repoOf(fake: FakePreferencesDataStore) =
-        DataStoreRepository(PreferencesStore(fake, storeScopes.scopeFor(this), PreferenceFailureChannel()))
+        PreferenceFailureChannel().let { failures -> DataStoreRepository(PreferencesStore(fake, storeScopes.scopeFor(this), failures, CorruptionReset(failures))) }
 }

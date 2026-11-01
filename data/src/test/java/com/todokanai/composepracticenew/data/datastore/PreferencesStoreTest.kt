@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.datastore
 
+import androidx.datastore.core.CorruptionException
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.preferencesOf
@@ -21,7 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.io.IOException
 
-/** [PreferencesStore]의 읽기 재시도·실패 시 기본값 방출, 읽기·저장 실패 알림, 저장이 호출 순서대로 하나씩 반영되는지를 검증하는 단위 테스트. */
+/** [PreferencesStore]의 읽기 재시도·실패 시 기본값 방출, 읽기·저장 실패 알림, 손상 파일 교체 뒤의 초기화 알림, 저장이 호출 순서대로 하나씩 반영되는지를 검증하는 단위 테스트. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PreferencesStoreTest {
 
@@ -34,6 +35,9 @@ class PreferencesStoreTest {
 
     /** 검증 대상이 실패를 넣는 대기열. */
     private val failures = PreferenceFailureChannel()
+
+    /** 검증 대상이 손상 파일 교체를 확인해 알리는 곳. 테스트는 핸들러를 직접 불러 교체가 일어난 상황을 만든다. */
+    private val corruptionReset = CorruptionReset(failures)
 
     @Test
     fun `읽기 IOException 시 기본값을 한 번 방출하고 재시도 후 실제 값을 방출한다`() = runTest {
@@ -72,7 +76,7 @@ class PreferencesStoreTest {
 
         store.data.take(2).toList() // 실패 → 기본값 → 재시도 성공
         fake.failNextReads(1)
-        assertNull(store.readOnce())
+        store.data.take(2).toList() // 새 수집이 다시 실패 → 기본값 → 재시도 성공
         runCurrent()
 
         assertEquals(listOf(PreferenceFailure.READ, PreferenceFailure.READ), reported)
@@ -108,12 +112,23 @@ class PreferencesStoreTest {
     }
 
     @Test
-    fun `한 번 읽기가 실패하면 기본값 대신 null을 돌려주고 읽기 실패를 알린다`() = runTest {
+    fun `한 번 읽기가 실패하면 기본값 대신 null을 돌려주고, 결과로 돌려준 실패는 따로 알리지 않는다`() = runTest {
         val store = storeOf(FakePreferencesDataStore(stored, failingReads = 1))
         val reported = collectFailures()
 
         assertNull(store.readOnce())
         runCurrent()
+
+        assertEquals(emptyList<PreferenceFailure>(), reported)
+    }
+
+    @Test
+    fun `앞선 한 번 읽기의 실패는 Flow 읽기 실패 알림을 막지 않는다`() = runTest {
+        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 2))
+        val reported = collectFailures()
+
+        assertNull(store.readOnce())
+        store.data.take(2).toList()
 
         assertEquals(listOf(PreferenceFailure.READ), reported)
     }
@@ -176,8 +191,53 @@ class PreferencesStoreTest {
         assertEquals(listOf(PreferenceFailure.SAVE), reported)
     }
 
+    @Test
+    fun `손상 파일 교체는 핸들러가 불릴 때가 아니라 그 뒤 읽기가 성공할 때 한 번 알린다`() = runTest {
+        val store = storeOf(FakePreferencesDataStore(stored))
+        val reported = collectFailures()
+
+        corruptionReset.handler.handleCorruption(CorruptionException("corrupt"))
+        runCurrent()
+        assertEquals(emptyList<PreferenceFailure>(), reported) // 교체 파일을 쓰기 전
+
+        store.readOnce()
+        store.readOnce()
+        runCurrent()
+        assertEquals(listOf(PreferenceFailure.RESET), reported)
+    }
+
+    @Test
+    fun `교체 파일을 쓰지 못해 핸들러가 거듭 불려도 읽기가 실패하는 동안은 초기화를 알리지 않고, 교체 뒤 한 번만 알린다`() = runTest {
+        // DataStore는 교체 쓰기가 실패하면 손상 예외(IOException)를 다시 던진다 — 읽기 실패로 보인다
+        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 2))
+        val reported = collectFailures()
+
+        repeat(2) {
+            corruptionReset.handler.handleCorruption(CorruptionException("corrupt"))
+            assertNull(store.readOnce())
+        }
+        runCurrent()
+        assertEquals(emptyList<PreferenceFailure>(), reported)
+
+        store.readOnce() // 세 번째 시도에서 교체 파일 쓰기가 성공한 상황
+        runCurrent()
+        assertEquals(listOf(PreferenceFailure.RESET), reported)
+    }
+
+    @Test
+    fun `손상 파일 교체 뒤 편집이 성공해도 초기화를 알린다`() = runTest {
+        val store = storeOf(FakePreferencesDataStore(stored))
+        val reported = collectFailures()
+
+        corruptionReset.handler.handleCorruption(CorruptionException("corrupt"))
+        store.launchEdit { it[key] = "w" }
+        advanceUntilIdle()
+
+        assertEquals(listOf(PreferenceFailure.RESET), reported)
+    }
+
     /** [fake] 위에 검증 대상을 만든다. */
-    private fun TestScope.storeOf(fake: FakePreferencesDataStore) = PreferencesStore(fake, storeScopes.scopeFor(this), failures)
+    private fun TestScope.storeOf(fake: FakePreferencesDataStore) = PreferencesStore(fake, storeScopes.scopeFor(this), failures, corruptionReset)
 
     /**
      * 알린 실패를 테스트가 끝날 때까지 모아 두는 목록을 돌려준다.

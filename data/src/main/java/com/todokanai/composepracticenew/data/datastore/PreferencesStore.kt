@@ -22,17 +22,20 @@ import javax.inject.Singleton
 
 /**
  * Preferences DataStore 접근의 실행 위치·재시도·실패 정책을 한 곳에서 정의하는 래퍼.
- * 파일 손상은 DataStore 생성 시의 corruptionHandler가 빈 설정으로 바꾸고 알린다. 이 클래스는 I/O 실패를 처리한다 —
- * 읽기 실패는 기본값으로 대신하며 다시 읽고, 저장 실패는 이전 값을 남긴다. 어느 쪽이든 [failures]로 알려, 실패가 기본값이나 "바뀌지 않음"으로만 보이지 않게 한다.
+ * 파일 손상은 [corruptionReset]의 핸들러가 빈 설정으로 바꾸며, 교체가 쓰였음은 이 클래스의 읽기·편집 성공으로 확인해 알린다. 이 클래스는 I/O 실패를 처리한다 —
+ * [data]의 읽기 실패는 기본값으로 대신하며 다시 읽고, 저장 실패는 이전 값을 남긴다. 어느 쪽이든 결과를 받는 호출부가 없으므로 [failures]로 알려, 실패가 기본값이나 "바뀌지 않음"으로만 보이지 않게 한다.
+ * [readOnce]의 읽기 실패는 null로 호출부에 돌려준다.
  * @param dataStore 앱 전역에서 단일 인스턴스로 제공되는 Preferences DataStore
  * @param appScope 저장 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  * @param failures 읽기·저장 실패를 화면에 알리기 위해 넣는 대기열
+ * @param corruptionReset 손상 파일 교체를 읽기·편집 성공 뒤에 알리는 곳
  */
 @Singleton
 class PreferencesStore @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     @ApplicationScope private val appScope: CoroutineScope,
-    private val failures: PreferenceFailureChannel
+    private val failures: PreferenceFailureChannel,
+    private val corruptionReset: CorruptionReset
 ) {
     companion object {
         private const val INITIAL_RETRY_DELAY_MS = 1_000L
@@ -49,7 +52,7 @@ class PreferencesStore @Inject constructor(
      * IOException이 아닌 예외는 그대로 전파한다.
      */
     val data: Flow<Preferences> = dataStore.data
-        .onEach { readFailing.set(false) }
+        .onEach { onReadSucceeded() }
         .retryWhen { cause, attempt ->
             if (cause !is IOException) return@retryWhen false
             if (attempt == 0L) {
@@ -62,12 +65,12 @@ class PreferencesStore @Inject constructor(
 
     /**
      * 지금의 설정 값을 한 번 읽는다. [data]와 달리 읽지 못하면 기본값으로 대신하지 않는다 — 저장된 값이 없는 것과 읽지 못한 것을 구별해야 하는 호출부를 위해.
-     * @return 설정 값. 읽기 IOException이면 [PreferenceFailure.READ]를 알리고 null
+     * 읽기 실패는 결과로 받는 호출부가 사용자에게 알리므로 [failures]로 알리지 않는다 — [PreferenceFailure.READ]는 기본값으로 대신해 결과로 드러나지 않는 [data]의 실패만 뜻한다.
+     * @return 설정 값. 읽기 IOException이면 null
      */
     suspend fun readOnce(): Preferences? = try {
-        dataStore.data.first().also { readFailing.set(false) }
+        dataStore.data.first().also { onReadSucceeded() }
     } catch (_: IOException) {
-        reportReadFailure()
         null
     }
 
@@ -102,9 +105,16 @@ class PreferencesStore @Inject constructor(
     private suspend fun applyEdit(transform: (MutablePreferences) -> Unit) {
         try {
             dataStore.edit { transform(it) }
+            corruptionReset.confirmIfReplaced()
         } catch (_: IOException) {
             failures.report(PreferenceFailure.SAVE)
         }
+    }
+
+    /** 읽기가 성공했을 때의 처리. 읽기 실패가 끝났음을 표시하고, 손상 파일을 교체한 뒤의 첫 성공이면 초기화를 알린다. */
+    private fun onReadSucceeded() {
+        readFailing.set(false)
+        corruptionReset.confirmIfReplaced()
     }
 
     /** 읽기 실패를 알린다. 이미 실패가 이어지는 중이면(다른 수집이 알렸으면) 다시 알리지 않는다. */

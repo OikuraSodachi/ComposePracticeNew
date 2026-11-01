@@ -9,7 +9,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 설정 저장소([PreferencesStore], DataStore의 손상 핸들러)가 실패를 넣고, 화면 호스트가 꺼내 알리는 대기열.
+ * 설정 저장소([PreferencesStore], [CorruptionReset])가 실패를 넣고, 화면 호스트가 꺼내 알리는 대기열.
  * 앱을 열자마자(화면이 수집하기 전) 일어난 실패도 잃지 않도록 수집할 때까지 보관한다.
  */
 @Singleton
