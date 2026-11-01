@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -23,7 +22,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -46,9 +44,6 @@ fun FileHolder(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
-    // data URI 문자열이 바뀔 때만 Uri 객체 재생성 — 매 리컴포지션마다 toUri() 호출 방지
-    val imageData = remember(file.data) { file.data?.toUri() }
-
     Row(
         modifier = modifier
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -63,8 +58,7 @@ fun FileHolder(
                 .fillMaxHeight()
                 .padding(5.dp)
                 .alpha(if (file.isHidden) HIDDEN_ICON_ALPHA else 1f),
-            isAsyncImage = file.hasImagePreview,
-            data = imageData,
+            data = file.thumbnail,
             icon = typeIcons.getValue(file.fileType)
         )
 

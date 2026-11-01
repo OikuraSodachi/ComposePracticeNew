@@ -3,6 +3,8 @@ package com.todokanai.composepracticenew.application
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -10,6 +12,7 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FileOperationServiceController
 import com.todokanai.composepracticenew.service.FtpForegroundService
+import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -18,7 +21,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
-class MyApplication : Application() {
+class MyApplication : Application(), ImageLoaderFactory {
 
     @Inject lateinit var progressRepo: ProgressRepository
     @Inject lateinit var fileOperationServiceController: FileOperationServiceController
@@ -29,6 +32,12 @@ class MyApplication : Application() {
         createNotificationChannels()
         observeFileOperations()
     }
+
+    // 앱 전체가 쓰는 Coil ImageLoader — 파일 목록 썸네일 요청 모델(Thumbnail)의 처리기를 등록한다
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .components { addThumbnailComponents() }
+            .build()
 
     // progressMap이 비어있지 않을 때 서비스 시작, 비워지면 종료 — appScope로 앱 생명주기 동안 유지
     private fun observeFileOperations() {
