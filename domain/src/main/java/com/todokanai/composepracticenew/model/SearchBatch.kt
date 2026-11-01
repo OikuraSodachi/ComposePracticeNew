@@ -1,0 +1,9 @@
+package com.todokanai.composepracticenew.model
+
+/**
+ * 검색이 지난 보고 이후 새로 찾은 항목과 읽지 못한 항목의 묶음. 검색은 이 묶음을 찾는 대로 여러 번 내보낸다.
+ * @param found 이름이 검색어와 맞는 항목. 찾은 순서다
+ * @param unreadable 읽지 못한 항목(나열하지 못한 폴더 등). 이 아래는 훑지 못해 결과가 빠졌을 수 있다
+ * @param limitReached 결과가 상한을 넘어 다 훑기 전에 검색을 멈췄으면 true. 이 묶음이 마지막이며, 상한을 넘은 항목은 [found]에 넣지 않았다
+ */
+data class SearchBatch(val found: List<FileHolderItem>, val unreadable: List<FailedItem>, val limitReached: Boolean = false)

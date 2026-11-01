@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingRequest
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
@@ -63,7 +64,7 @@ class RemoteConnectionPortCheckTest {
         override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest: StateFlow<ListingRequest?> = MutableStateFlow(null)
         override val directoryListing: StateFlow<DirectoryListing> = MutableStateFlow(DirectoryListing.NoPath)
-        override suspend fun navigate(path: String) = Unit
+        override suspend fun navigate(path: String) = NavigateResult.Navigated
         override fun refresh() = Unit
         override fun getParentPath(path: String): String? = null
     }

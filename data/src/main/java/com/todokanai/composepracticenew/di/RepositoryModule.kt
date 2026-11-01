@@ -15,6 +15,8 @@ import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.LocalFileInfoRepositoryImpl
+import com.todokanai.composepracticenew.repository.FileSearchRepository
+import com.todokanai.composepracticenew.repository.LocalFileSearchRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
@@ -68,6 +70,10 @@ abstract class RepositoryModule {
     /** 정보 다이얼로그는 로컬 목록 화면에만 있으므로 로컬 구현만 바인딩한다. 원격 화면에 붙이려면 원격 구현을 따로 둔다. */
     @Binds
     abstract fun bindFileInfoRepository(impl: LocalFileInfoRepositoryImpl): FileInfoRepository
+
+    /** 파일 검색은 로컬 목록 화면에만 있으므로 로컬 구현만 바인딩한다. 원격(FTP)은 폴더마다 LIST를 보내 하나뿐인 연결을 나눠 써야 해 범위 밖이다. */
+    @Binds
+    abstract fun bindFileSearchRepository(impl: LocalFileSearchRepositoryImpl): FileSearchRepository
 
     @Binds
     abstract fun bindProgressRepository(impl: ProgressTracker): ProgressRepository

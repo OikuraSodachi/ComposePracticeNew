@@ -156,4 +156,15 @@
     <string name="toast_cannot_open_file">Cannot open the file</string>
     <string name="toast_connection_failed">원격 스토리지 연결에 실패했습니다</string>
     <string name="toast_connection_lost">서버 연결이 끊어졌습니다</string>
+
+    <!-- File search -->
+    <string name="btn_search">검색</string>
+    <string name="btn_open_location">위치 열기</string>
+    <string name="search_hint">모든 저장소에서 이름 검색</string>
+    <string name="search_close">검색 닫기</string>
+    <string name="search_clear">검색어 지우기</string>
+    <string name="search_no_results">검색 결과 없음</string>
+    <string name="search_no_storage">검색할 저장소를 찾지 못했습니다</string>
+    <string name="search_unreadable">읽지 못한 항목 %d개 — 결과가 빠졌을 수 있습니다</string>
+    <string name="search_limit_reached">결과가 %d개를 넘어 검색을 멈췄습니다 — 검색어를 더 구체적으로 입력하세요</string>
 </resources>

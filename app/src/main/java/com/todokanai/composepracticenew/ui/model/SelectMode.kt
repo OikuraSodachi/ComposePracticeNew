@@ -45,6 +45,18 @@ sealed interface SelectMode {
 /** 로컬 파일 목록 화면에서 가능한 선택 모드. */
 sealed interface LocalSelectMode : SelectMode
 
+/**
+ * 이 모드에서 로컬 항목 [item]을 눌렀을 때 여는지(폴더는 그리로 이동, 파일은 외부 앱으로 열기) 판별한다. 목록 행과 검색 결과가 같은 규칙을 따르도록 한 곳에 둔다.
+ * 기본 모드에서는 모두 열고, 다중 선택 중에는 열지 않으며, 목적지 확인 중에는 목적지를 찾아 들어갈 폴더만 연다.
+ * @param item 누른 항목
+ * @return 열면 true
+ */
+fun LocalSelectMode.opensOnClick(item: FileHolderItem): Boolean = when (this) {
+    SelectMode.Default -> true
+    SelectMode.MultiSelect -> false
+    is SelectMode.LocalOperation, SelectMode.Download -> item.isDirectory
+}
+
 /** 원격 파일 목록 화면에서 가능한 선택 모드. */
 sealed interface RemoteSelectMode : SelectMode
 

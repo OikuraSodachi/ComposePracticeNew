@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
@@ -44,7 +45,7 @@ internal class FakeNavigator : FileNavigatorRepository {
         return ListingRequest(path, ++generation).also { listingRequest.value = it }
     }
 
-    override suspend fun navigate(path: String) {}
+    override suspend fun navigate(path: String) = NavigateResult.Navigated
     override fun refresh() {}
     override fun getParentPath(path: String): String? = null
 }

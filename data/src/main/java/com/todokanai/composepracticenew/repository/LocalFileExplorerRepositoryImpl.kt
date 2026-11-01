@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,7 +28,9 @@ class LocalFileExplorerRepositoryImpl(
 
     override fun getParentPath(path: String): String? = getParent(path)
 
-    override suspend fun navigate(path: String) {
-        if (localFiles.canRead(path)) navigateTo(path)
+    override suspend fun navigate(path: String): NavigateResult {
+        if (!localFiles.canRead(path)) return NavigateResult.Rejected
+        navigateTo(path)
+        return NavigateResult.Navigated
     }
 }

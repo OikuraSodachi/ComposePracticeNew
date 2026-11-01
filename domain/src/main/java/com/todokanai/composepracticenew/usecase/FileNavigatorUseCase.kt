@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.Flow
@@ -18,9 +19,9 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     /**
      * [path] 경로로 이동한다.
      * @param path 이동할 디렉터리의 절대 경로 또는 URI
-     * @return Unit
+     * @return 이동했는지, 구현체가 거부했는지
      */
-    suspend fun setPath(path: String) = nav.navigate(path)
+    suspend fun setPath(path: String): NavigateResult = nav.navigate(path)
     /**
      * 현재 디렉터리의 파일 목록을 강제로 새로 고침한다.
      * @return Unit

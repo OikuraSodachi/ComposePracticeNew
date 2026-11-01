@@ -90,14 +90,11 @@ class LocalFileInfoDataSource @Inject constructor() {
      */
     private fun measureRoot(root: Path, visitor: SizeVisitor) {
         val walked = localIo {
-            Files.walkFileTree(resolvedRoot(root), visitor)
+            Files.walkFileTree(walkRootOf(root), visitor)
             IoResult.Done
         }
         if (walked is IoResult.Failure) visitor.addUnreadable(root, walked.message)
     }
-
-    /** 측정 대상 자신이 심볼릭 링크면 링크가 가리키는 경로를, 아니면 그대로 돌려준다. 링크를 풀지 못하면 IOException을 던진다. */
-    private fun resolvedRoot(root: Path): Path = if (Files.isSymbolicLink(root)) root.toRealPath() else root
 
     /**
      * 일반 파일의 크기를 더하고, 읽지 못한 항목을 모으는 방문자. 방문할 때마다 [job]의 취소를 확인한다.
