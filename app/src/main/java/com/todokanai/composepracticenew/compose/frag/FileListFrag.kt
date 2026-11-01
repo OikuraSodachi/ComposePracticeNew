@@ -18,6 +18,7 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.ui.model.ListingKey
 import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
+import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
 
 /**
  * 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다.
@@ -29,6 +30,7 @@ import com.todokanai.composepracticenew.viewmodel.FileListViewModel
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
  * @param childCountsFor 목록 조회 요청을 받아 그 결과의 폴더별 하위 항목 수를 읽는 창구를 돌려주는 함수. 상태를 바꾸지 않아 컴포지션 중에 부른다
+ * @param searchViewModel 파일 검색의 열림 여부·검색어·결과를 맡는 ViewModel. 검색이 열려 있으면 목록 대신 검색 화면을 그린다
  */
 @Composable
 fun FileListFrag(
@@ -50,7 +52,8 @@ fun FileListFrag(
     onEnterUploadMode: () -> Unit = {},
     navigateToStorage: () -> Unit,
     onExit: () -> Unit,
-    viewModel: FileListViewModel
+    viewModel: FileListViewModel,
+    searchViewModel: FileSearchViewModel
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val pendingConflict by viewModel.pendingConflict.collectAsStateWithLifecycle()
@@ -58,8 +61,23 @@ fun FileListFrag(
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
+    val searchState by searchViewModel.state.collectAsStateWithLifecycle()
 
     BackHandler(enabled = selectMode == SelectMode.MultiSelect, onBack = onResetSelection)
+
+    // 검색이 열려 있으면 목록 대신 검색 화면을 그린다 — destination이 아니라 이 화면 안의 상태라 백스택에 쌓이지 않는다
+    searchState?.let { state ->
+        FileSearchFrag(
+            modifier = modifier,
+            query = searchViewModel.query,
+            state = state,
+            onQueryChange = searchViewModel::onQueryChange,
+            onClose = searchViewModel::close,
+            onResultClick = { searchViewModel.onResultClick(it, selectMode) },
+            onOpenLocation = searchViewModel::onOpenLocation
+        )
+        return
+    }
 
     Column(
         modifier = modifier
@@ -75,7 +93,9 @@ fun FileListFrag(
             onNewFolder = viewModel::newFolder,
             suggestFolderName = viewModel::suggestNewFolderName,
             validateFolderName = viewModel::validateEntryName,
-            onExit = onExit
+            onExit = onExit,
+            // 다중 선택 중에는 검색을 열지 않는다 — 검색 결과의 선택·작업은 범위 밖이다
+            onSearchClick = searchViewModel::open.takeIf { selectMode != SelectMode.MultiSelect }
         )
         DirectoryListingContent(
             modifier = Modifier.weight(1f),

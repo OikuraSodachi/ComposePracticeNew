@@ -33,6 +33,7 @@ import com.todokanai.composepracticenew.ui.model.remoteMode
 import com.todokanai.composepracticenew.viewmodel.ChildCountViewModel
 import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
+import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
@@ -132,6 +133,8 @@ private fun FileListDestination(
     val infoViewModel: FileInfoViewModel = hiltViewModel()
     /** 폴더 행의 하위 항목 수를 목록 조회 결과마다 세어 둔다. 화면 회전에도 센 결과가 유지되도록 이 destination의 백스택 항목에 스코프된다. */
     val childCountViewModel: ChildCountViewModel = hiltViewModel()
+    /** 파일 검색의 열림 여부·검색어·결과를 맡는다. 검색은 destination이 아니라 이 화면 안의 상태이며, 화면 회전에도 이어지도록 이 destination의 백스택 항목에 스코프된다. */
+    val searchViewModel: FileSearchViewModel = hiltViewModel()
     val coordinator = rememberGraphCoordinator(navController)
 
     // State 객체만 보관하고 선택 목록은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
@@ -179,7 +182,8 @@ private fun FileListDestination(
         },
         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
         onExit = mainViewModel::exit,
-        viewModel = viewModel
+        viewModel = viewModel,
+        searchViewModel = searchViewModel
     )
 
     downloadConflict?.let { conflict ->

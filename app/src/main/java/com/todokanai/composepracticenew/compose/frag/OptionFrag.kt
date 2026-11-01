@@ -38,6 +38,7 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
  * @param suggestFolderName 새 폴더 다이얼로그에 미리 채울 이름을 만드는 함수
  * @param validateFolderName 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onExit 앱 종료 콜백
+ * @param onSearchClick 검색 버튼 클릭 콜백. null이면 검색 버튼을 두지 않는다(원격 화면, 다중 선택 중)
  */
 @Composable
 fun OptionFrag(
@@ -51,6 +52,7 @@ fun OptionFrag(
     suggestFolderName: () -> String,
     validateFolderName: (String) -> Set<FileNameError>,
     onExit: () -> Unit,
+    onSearchClick: (() -> Unit)? = null,
 ) {
     // 화면 단위 ViewModel에 보관된 다이얼로그 상태 — 회전 시 유지, 화면 이동·프로세스 종료 후 복귀 시 닫힘(rememberOptionDialogState 참고)
     val dialogState = rememberOptionDialogState()
@@ -72,6 +74,7 @@ fun OptionFrag(
             onNewFolderClick = dialogState::openNewFolder,
             onSortClick = dialogState::openSort,
             onExit = onExit,
+            onSearchClick = onSearchClick,
         )
         PathBreadcrumb(
             dirTree = dirTree,
@@ -81,11 +84,12 @@ fun OptionFrag(
 }
 
 /**
- * 저장소 이동 버튼과 더보기 메뉴(새 폴더·정렬·종료)를 보여주는 상단 버튼 바. 더보기 메뉴의 열림 상태는 이 컴포저블이 보유한다.
+ * 저장소 이동 버튼, 검색 버튼, 더보기 메뉴(새 폴더·정렬·종료)를 보여주는 상단 버튼 바. 더보기 메뉴의 열림 상태는 이 컴포저블이 보유한다.
  * @param navigateToStorage 저장소 선택 화면으로 이동하는 콜백
  * @param onNewFolderClick 더보기 메뉴의 새 폴더 항목 클릭 콜백
  * @param onSortClick 더보기 메뉴의 정렬 항목 클릭 콜백
  * @param onExit 더보기 메뉴의 종료 항목 클릭 콜백
+ * @param onSearchClick 검색 버튼 클릭 콜백. null이면 검색 버튼을 두지 않는다
  */
 @Composable
 private fun OptionTopBar(
@@ -93,6 +97,7 @@ private fun OptionTopBar(
     onNewFolderClick: () -> Unit,
     onSortClick: () -> Unit,
     onExit: () -> Unit,
+    onSearchClick: (() -> Unit)?,
 ) {
     Row(
         modifier = Modifier
@@ -104,6 +109,16 @@ private fun OptionTopBar(
                 .weight(1f)
         ) {
             Text(stringResource(R.string.btn_storage))
+        }
+
+        if (onSearchClick != null) {
+            TextButton(
+                onClick = onSearchClick,
+                modifier = Modifier
+                    .weight(1f)
+            ) {
+                Text(stringResource(R.string.btn_search))
+            }
         }
 
         // 키 없음 — 메뉴 열림 여부는 이 바가 화면에 있는 동안만 유지하는 일시 상태라 구성 변경 시 닫혀도 된다

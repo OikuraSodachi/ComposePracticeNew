@@ -38,10 +38,11 @@ class LocalFileDataSource @Inject constructor() {
      * 크기는 일반 파일만 담는다 — File.length()는 디렉터리에서 정해지지 않은 값을, 읽지 못하면(사라진 파일, 끊긴 링크) 0을 돌려줘 실제 크기와 구분되지 않으므로 쓰지 않는다.
      * 속성을 읽지 못한 것은 목록 조회의 실패가 아니라 이 항목의 크기를 모르는 것이므로 크기는 null로 두고(크기가 필요한 쪽이 다시 재어 실패를 알린다),
      * 종류와 수정 시각은 java.io로 읽는다.
+     * 검색 결과 항목도 목록과 같은 항목으로 보이도록 이 함수로 만든다.
      * @param file 항목을 만들 파일
      * @return 목록 항목
      */
-    private fun entryOf(file: File): FileEntry {
+    fun entryOf(file: File): FileEntry {
         val attrs = attributesOf(file)
         return FileEntry(
             name = file.name,
