@@ -40,10 +40,12 @@ class LocalFileDataSource @Inject constructor() {
      * 종류와 수정 시각은 java.io로 읽는다.
      * 검색 결과 항목도 목록과 같은 항목으로 보이도록 이 함수로 만든다.
      * @param file 항목을 만들 파일
+     * @param walkedAttrs 트리를 훑으며 이미 읽은, 링크를 따라가지 않은 [file]의 속성. 있으면 다시 읽지 않는다.
+     * 링크의 속성이면 링크 자신의 것이라 목록과 다르게 보이므로 버리고 대상의 속성을 다시 읽는다
      * @return 목록 항목
      */
-    fun entryOf(file: File): FileEntry {
-        val attrs = attributesOf(file)
+    fun entryOf(file: File, walkedAttrs: BasicFileAttributes? = null): FileEntry {
+        val attrs = walkedAttrs?.takeUnless { it.isSymbolicLink } ?: attributesOf(file)
         return FileEntry(
             name = file.name,
             path = file.absolutePath,

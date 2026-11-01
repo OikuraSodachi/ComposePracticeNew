@@ -6,13 +6,14 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -21,6 +22,7 @@ import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.compose.util.verticalScrollbar
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 
@@ -28,13 +30,30 @@ import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 private val ScrollbarTouchTargetWidth = 48.dp
 
 /**
+ * 보이는 목록의 경로마다 스크롤 위치를 하나씩 만든다. 목록(FileListView)을 화면에서 빼는 분기(검색, 조회 중 표시 등)보다 위인 화면 단위에서 불러야 한다 —
+ * 그래야 목록이 잠시 빠졌다 돌아와도 같은 경로면 위치가 남는다.
+ * @param listing 지금 목록 상태. 항목을 보여 주는 상태가 아니면(조회 중·실패) 위치를 버린다
+ * @return 지금 경로의 목록 스크롤 상태
+ */
+@Composable
+fun rememberListingScrollState(listing: ListingUiState): LazyListState {
+    /** 지금 보이는 목록의 경로. 목록을 보여 주지 않는 상태(조회 중·실패)면 null. */
+    val listedPath = (listing as? ListingUiState.Loaded)?.key?.path
+    // 보이는 목록의 경로를 키로 — 다른 경로가 되거나 목록이 없어지면 맨 위부터 새로 시작하고, 같은 경로를 다시 조회하는 동안(직전 목록 표시)은 위치를 유지한다.
+    // rememberSaveable이라 화면 회전 뒤에도 같은 경로의 위치가 복원된다
+    return rememberSaveable(listedPath, saver = LazyListState.Saver) { LazyListState() }
+}
+
+/**
  * 파일 목록을 스크롤바와 함께 표시하고, longPress 드래그 다중 선택을 지원한다.
+ * @param listState 목록과 스크롤바가 함께 쓰는 스크롤 상태. 목록이 화면에서 빠져도 위치가 남도록 호출부가 [rememberListingScrollState]로 만들어 넘긴다
  * @param selectedList 선택 목록을 반환하는 함수 — 항목별 선택 여부를 derivedStateOf로 구독해, 선택이 바뀐 행만 리컴포지션한다
  * @param childCounts [fileHolderItemList]의 폴더별 하위 항목 수. 폴더 행이 화면에 있는 동안에만 센다. null이면 세지 않는다(원격 목록)
  */
 @Composable
 fun FileListView(
     modifier: Modifier,
+    listState: LazyListState,
     fileHolderItemList: List<FileHolderItem>,
     childCounts: ChildCountSource?,
     selectedList: () -> List<FileHolderItem>,
@@ -47,9 +66,6 @@ fun FileListView(
 ) {
     // items{} 밖에서 한 번 만들어 모든 행(FileHolder)이 같은 인스턴스를 공유 — 행이 Strong Skipping의 인스턴스 비교로 생략된다
     val typeIcons = rememberTypeIcons()
-
-    // LazyColumn과 verticalScrollbar가 동일한 스크롤 상태를 공유해야 하므로 remember로 1회 생성 — 리컴포지션 간 스크롤 위치 보존
-    val listState = rememberLazyListState()
 
     // long-press는 Box 레벨 dragSelectGesture에서 처리 — combinedClickable 이중 발화 방지
     val noOpLongClick: () -> Unit = remember { {} }

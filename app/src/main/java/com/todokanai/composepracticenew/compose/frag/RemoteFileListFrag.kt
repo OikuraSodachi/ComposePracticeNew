@@ -16,6 +16,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
+import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
@@ -78,6 +79,8 @@ fun RemoteFileListFrag(
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
+    /** 목록 스크롤 상태. 목록(FileListView)을 화면에서 빼는 분기보다 위에서 만든다 — 위치가 남는 기간을 목록의 컴포지션 여부가 아니라 경로로 정한다 */
+    val listState = rememberListingScrollState(uiState.value.listing)
 
     val context = LocalContext.current
     RemoteFileListConnectionEffects(
@@ -114,6 +117,7 @@ fun RemoteFileListFrag(
         ) { loaded ->
             FileListView(
                 modifier = Modifier.fillMaxSize(),
+                listState = listState,
                 fileHolderItemList = loaded.items,
                 // 원격 폴더는 하위 항목 수를 세지 않는다 — 세려면 폴더마다 LIST를 보내 하나뿐인 연결을 사용자 작업과 나눠 써야 한다(범위 밖)
                 childCounts = null,

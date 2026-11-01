@@ -60,7 +60,7 @@ class LocalFileSearchDataSource @Inject constructor(
     private fun searchRoot(root: Path, query: SearchQuery, job: Job, reporter: SearchReporter) {
         val walked = localIo {
             val walkRoot = walkRootOf(root)
-            Files.walkFileTree(walkRoot, SearchVisitor(walkRoot, query, job, { localFiles.entryOf(it.toFile()) }, reporter))
+            Files.walkFileTree(walkRoot, SearchVisitor(walkRoot, query, job, { path, attrs -> localFiles.entryOf(path.toFile(), attrs) }, reporter))
             IoResult.Done
         }
         if (walked is IoResult.Failure) reporter.unreadable(FailedItem(root.toString(), walked.message))
@@ -73,34 +73,34 @@ class LocalFileSearchDataSource @Inject constructor(
      * @param root 훑는 루트. 루트 자신은 결과에 넣지 않는다
      * @param query 검색어
      * @param job 검색을 수행하는 코루틴의 Job
-     * @param entryOf 찾은 경로의 목록 항목을 만드는 함수
+     * @param entryOf 찾은 경로와 훑으며 받은 그 속성(받지 못했으면 null)으로 목록 항목을 만드는 함수
      * @param reporter 찾은 항목과 읽지 못한 항목을 모아 보내는 보고자
      */
     internal class SearchVisitor(
         private val root: Path,
         private val query: SearchQuery,
         private val job: Job,
-        private val entryOf: (Path) -> FileEntry,
+        private val entryOf: (Path, BasicFileAttributes?) -> FileEntry,
         private val reporter: SearchReporter
     ) : SimpleFileVisitor<Path>() {
 
         override fun preVisitDirectory(dir: Path, attrs: BasicFileAttributes): FileVisitResult {
             job.ensureActive()
-            if (dir != root) check(dir)
+            if (dir != root) check(dir, attrs)
             reporter.reportIfDue()
             return FileVisitResult.CONTINUE
         }
 
         override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
             job.ensureActive()
-            check(file)
+            check(file, attrs)
             reporter.reportIfDue()
             return FileVisitResult.CONTINUE
         }
 
         override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
             // 열지 못한 폴더도 이름은 알 수 있다 — 이름이 맞으면 결과에 넣고, 그 아래는 훑지 못했음을 함께 알린다
-            if (file != root) check(file)
+            if (file != root) check(file, null)
             reporter.unreadable(FailedItem(file.toString(), exc.message))
             return FileVisitResult.CONTINUE
         }
@@ -111,10 +111,10 @@ class LocalFileSearchDataSource @Inject constructor(
             return FileVisitResult.CONTINUE
         }
 
-        /** [path]의 이름이 검색어와 맞으면 찾은 항목으로 넘긴다. */
-        private fun check(path: Path) {
+        /** [path]의 이름이 검색어와 맞으면 [attrs](훑으며 받은 속성, 없으면 null)로 항목을 만들어 찾은 항목으로 넘긴다. 맞지 않는 항목은 항목을 만들지 않는다. */
+        private fun check(path: Path, attrs: BasicFileAttributes?) {
             val name = path.fileName?.toString() ?: return
-            if (query.matches(name)) reporter.found(entryOf(path))
+            if (query.matches(name)) reporter.found(entryOf(path, attrs))
         }
     }
 

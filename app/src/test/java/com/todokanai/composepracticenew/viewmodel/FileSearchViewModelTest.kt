@@ -39,7 +39,7 @@ import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolder
 
 /**
  * [FileSearchViewModel]이 검색어 입력이 멈춘 뒤에만 찾고, 찾는 대로 결과를 더해 다 훑으면 끝났음을 표시하며,
- * 검색어가 바뀌면 이전 결과를 버리고, 저장소가 없거나 읽지 못한 항목이 있으면 결과 없음과 구별하며,
+ * 검색어가 바뀌면 이전 결과를 버리고, 저장소가 없거나 읽지 못한 항목이 있거나 상한에서 멈추면 결과 없음·다 훑음과 구별하며,
  * 결과를 누르면 목록 행과 같은 규칙으로 이동·열기를 하고, 이동이 거부되면 검색을 닫지 않고 알리는지 검증하는 단위 테스트.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -145,6 +145,19 @@ class FileSearchViewModelTest {
 
         val finished = awaitState { it.status == SearchStatus.Finished }
         assertEquals(3, finished.unreadableCount)
+    }
+
+    @Test
+    fun `결과가 상한을 넘으면 다 훑은 것이 아니라 상한에서 멈춘 것으로 표시한다`() {
+        viewModel.onQueryChange("mus")
+        passDebounce()
+        val many = List(FileSearchUseCase.MAX_RESULTS + 1) {
+            DomainFileHolderItem(path = "/storage/0/mus$it", isDirectory = false, name = "mus$it", sizeBytes = 0, lastModifiedMillis = 0L)
+        }
+        repo.send(SearchBatch(many, emptyList()))
+
+        val stopped = awaitState { it.status == SearchStatus.LimitReached }
+        assertEquals(FileSearchUseCase.MAX_RESULTS, stopped.results.size)
     }
 
     @Test

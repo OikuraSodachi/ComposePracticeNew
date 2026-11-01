@@ -17,6 +17,8 @@ import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 
 /**
  * [LocalFileSearchDataSource]가 여러 루트 아래에서 이름이 맞는 파일·폴더를 찾고(루트 자신은 빼고), 읽지 못한 루트를 알리며,
@@ -87,6 +89,29 @@ class LocalFileSearchDataSourceTest {
     }
 
     @Test
+    fun `트리 안의 폴더 링크는 링크 자신이 아니라 목록과 같이 대상의 종류로 항목을 만든다`() = runTest {
+        val root = temp.newFolder("root").apply { resolve("target").mkdirs() }
+        assumeSymlink(root.resolve("match_link"), root.resolve("target"))
+
+        val entries = search(listOf(root), "match").flatMap { it.found }.associateBy { it.name }
+
+        assertTrue(entries.getValue("match_link").isDirectory)
+    }
+
+    @Test
+    fun `훑으며 받은 속성이 있으면 다시 읽지 않고 그 속성으로 항목을 만든다`() {
+        val dir = temp.newFolder("dir")
+        val file = temp.newFile("file.bin").apply { writeBytes(ByteArray(4)) }
+        val dirAttrs = Files.readAttributes(dir.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+
+        // 파일에 폴더의 속성을 넘기면 다시 읽지 않았음을 종류로 확인할 수 있다
+        val entry = LocalFileDataSource().entryOf(file, dirAttrs)
+
+        assertTrue(entry.isDirectory)
+        assertEquals(null, entry.size)
+    }
+
+    @Test
     fun `취소되면 다음 방문에서 멈춘다`() {
         val root = temp.newFolder("root").apply { resolve("a.txt").writeText("x") }
         val cancelled = Job().apply { cancel() }
@@ -140,7 +165,8 @@ class LocalFileSearchDataSourceTest {
         search(roots, text).flatMap { it.found }.map { it.path }
 
     /** 방문자가 찾은 경로의 목록 항목을 만드는 함수 — 취소 검증에서는 항목 내용을 보지 않는다. */
-    private fun entryOf(path: java.nio.file.Path): FileEntry = entry(path.toString())
+    @Suppress("UNUSED_PARAMETER")
+    private fun entryOf(path: java.nio.file.Path, attrs: BasicFileAttributes?): FileEntry = entry(path.toString())
 
     /** 이름이 [name]인 파일 항목. */
     private fun entry(name: String): FileEntry = FileEntry(name = name, path = "/$name", isDirectory = false, size = null, lastModified = 0L)

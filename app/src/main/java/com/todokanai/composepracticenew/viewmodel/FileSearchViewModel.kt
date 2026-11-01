@@ -13,7 +13,7 @@ import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SearchResult
 import com.todokanai.composepracticenew.ui.model.SearchStatus
 import com.todokanai.composepracticenew.ui.model.SearchUiState
-import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.opensOnClick
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -26,8 +26,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -36,6 +36,7 @@ import javax.inject.Inject
  * 로컬 목록 화면의 파일 검색 상태(열림 여부, 검색어, 결과)와 모든 저장소 검색을 맡는다.
  * 검색은 내비게이션 destination이 아니라 이 화면 안의 상태라 백스택에 쌓이지 않는다. 목록 destination의 백스택 항목에 스코프되므로 화면 회전에도 검색과 결과가 이어진다.
  * 검색어 입력이 [QUERY_DEBOUNCE_MILLIS] 동안 멈추면 진행 중인 검색을 취소하고 새로 시작한다. 파일을 열고 돌아와도 결과가 남도록 화면 수명과 무관하게 끝까지 훑는다.
+ * 결과가 [FileSearchUseCase.MAX_RESULTS]를 넘으면 그 자리에서 멈추고, 다 훑은 것과 구별해 표시한다.
  * @param fileSearchUseCase 모든 저장소에서 이름으로 항목을 찾고 찾은 폴더나 항목의 위치로 이동하는 UseCase
  * @param openFileUseCase 파일 결과를 외부 앱으로 여는 UseCase
  */
@@ -104,17 +105,14 @@ class FileSearchViewModel @Inject constructor(
     }
 
     /**
-     * 검색 결과 [item]을 누른 동작. 목록 행 클릭과 같은 규칙을 따른다 — 폴더는 그리로 이동하고 이동했으면 검색을 닫으며,
-     * 파일은 기본 모드에서만 열고 검색은 그대로 둔다(돌아와 다른 결과를 볼 수 있도록). 다중 선택 중에는 무시한다.
+     * 검색 결과 [item]을 누른 동작. 여는지는 목록 행 클릭과 같은 규칙([opensOnClick])으로 정한다 — 폴더는 그리로 이동하고 이동했으면 검색을 닫으며,
+     * 파일은 열고 검색은 그대로 둔다(돌아와 다른 결과를 볼 수 있도록).
      * @param item 누른 결과 항목
      * @param selectMode 지금 로컬 화면의 선택 모드
      */
     fun onResultClick(item: FileHolderItem, selectMode: LocalSelectMode) {
-        when (selectMode) {
-            SelectMode.Default -> if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) } else openFile(item)
-            SelectMode.MultiSelect -> { }
-            is SelectMode.LocalOperation, SelectMode.Download -> if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) }
-        }
+        if (!selectMode.opensOnClick(item)) return
+        if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) } else openFile(item)
     }
 
     /**
@@ -126,7 +124,7 @@ class FileSearchViewModel @Inject constructor(
     }
 
     /**
-     * 모든 저장소에서 [searchQuery]를 찾아 결과를 찾는 대로 [state]에 더하고, 다 훑으면 끝났음을 표시한다.
+     * 모든 저장소에서 [searchQuery]를 찾아 결과를 찾는 대로 [state]에 더하고, 다 훑으면 끝났음을, 상한에서 멈췄으면 그렇다고 표시한다.
      * 검색할 저장소가 없으면 결과 없음이 아니라 저장소 없음으로 표시한다.
      */
     private suspend fun search(searchQuery: SearchQuery) {
@@ -135,25 +133,36 @@ class FileSearchViewModel @Inject constructor(
             _state.update { it?.copy(status = SearchStatus.NoStorage) }
             return
         }
-        uiBatches(batches).collect { (found, unreadableCount) ->
-            _state.update { it?.copy(results = it.results + found, unreadableCount = it.unreadableCount + unreadableCount) }
-        }
-        _state.update { it?.copy(status = SearchStatus.Finished) }
+        accumulated(batches).collect { progress -> _state.update { it?.let { progress } } }
+        _state.update { it?.let(::finished) }
     }
 
     /**
-     * domain 결과 묶음을 화면용 결과와 읽지 못한 항목 수로 바꾼다. 항목마다 썸네일 URI를 만드는 비용이 있어 메인 스레드 밖에서 바꾼다.
+     * domain 결과 묶음을 화면용 결과로 바꿔 지금까지의 표시 상태로 모은다. 항목마다 썸네일 URI를 만드는 비용이 있고,
+     * 모을 때마다 결과 리스트를 새로 만들므로 둘 다 메인 스레드 밖에서 한다 — 메인 스레드는 모은 상태를 넣기만 한다.
      * @param batches domain 결과 묶음 Flow
-     * @return 화면용 결과와 읽지 못한 항목 수의 쌍 Flow
+     * @return 묶음마다 지금까지의 결과·읽지 못한 항목 수·진행 상태를 담은 표시 상태 Flow
      */
-    private fun uiBatches(batches: Flow<SearchBatch>): Flow<Pair<List<SearchResult>, Int>> = batches
-        .map { batch ->
-            val results = FileHolderItem.fromList(batch.found, isLocalFile = true).zip(batch.found) { item, domain ->
+    private fun accumulated(batches: Flow<SearchBatch>): Flow<SearchUiState> = batches
+        .runningFold(SearchUiState(status = SearchStatus.Searching)) { acc, batch ->
+            val found = FileHolderItem.fromList(batch.found, isLocalFile = true).zip(batch.found) { item, domain ->
                 SearchResult(item, fileSearchUseCase.locationOf(domain))
             }
-            results to batch.unreadable.size
+            acc.copy(
+                results = acc.results + found,
+                unreadableCount = acc.unreadableCount + batch.unreadable.size,
+                status = if (batch.limitReached) SearchStatus.LimitReached else SearchStatus.Searching
+            )
         }
         .flowOn(Dispatchers.IO)
+
+    /**
+     * 훑기가 끝난 뒤의 표시 상태. 상한에서 멈춘 검색은 그대로 두고, 아직 찾는 중으로 표시된 검색은 다 훑은 것으로 바꾼다.
+     * @param state 마지막으로 모은 표시 상태
+     * @return 끝난 뒤의 표시 상태
+     */
+    private fun finished(state: SearchUiState): SearchUiState =
+        if (state.status == SearchStatus.Searching) state.copy(status = SearchStatus.Finished) else state
 
     /** [item] 파일을 연다. */
     private fun openFile(item: FileHolderItem) {

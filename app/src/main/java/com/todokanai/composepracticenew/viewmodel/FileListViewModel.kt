@@ -17,6 +17,7 @@ import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.opensOnClick
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
@@ -210,15 +211,10 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    /** 선택 모드에 따라 항목을 열거나(디렉터리 진입 포함) 무시한다. */
+    /** 선택 모드에 따라 항목을 열거나(디렉터리 진입 포함) 무시한다. 여는지는 [opensOnClick]이 정한다. */
     fun onItemClick(selected: FileHolderItem, selectMode: LocalSelectMode) {
-        viewModelScope.launch {
-            when (selectMode) {
-                SelectMode.Default -> openFileUseCase.open(selected.toDomain())
-                SelectMode.MultiSelect -> { }
-                is SelectMode.LocalOperation, SelectMode.Download -> if (selected.isDirectory) openFileUseCase.open(selected.toDomain())
-            }
-        }
+        if (!selectMode.opensOnClick(selected)) return
+        viewModelScope.launch { openFileUseCase.open(selected.toDomain()) }
     }
 
     /**

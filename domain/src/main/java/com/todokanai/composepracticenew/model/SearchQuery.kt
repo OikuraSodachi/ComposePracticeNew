@@ -29,7 +29,8 @@ class SearchQuery private constructor(val text: String) {
          */
         fun of(text: String): SearchQuery? = text.takeIf { it.isNotBlank() }?.let(::SearchQuery)
 
-        /** [value]를 NFC로 맞춘다. */
-        private fun normalized(value: String): String = Normalizer.normalize(value, Normalizer.Form.NFC)
+        /** [value]를 NFC로 맞춘다. 대부분의 이름은 이미 NFC이므로 먼저 확인해, 그때는 새 문자열을 만들지 않고 그대로 돌려준다. */
+        private fun normalized(value: String): String =
+            if (Normalizer.isNormalized(value, Normalizer.Form.NFC)) value else Normalizer.normalize(value, Normalizer.Form.NFC)
     }
 }

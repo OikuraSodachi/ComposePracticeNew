@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -15,6 +17,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -66,22 +69,19 @@ fun FileListFrag(
     val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTree.collectAsStateWithLifecycle()
-    val searchState by searchViewModel.state.collectAsStateWithLifecycle()
+    /** 파일 검색의 결과 표시 상태. 여기서는 열림 여부만 읽고, 결과·검색어는 FileSearchFrag가 읽는다. */
+    val searchState = searchViewModel.state.collectAsStateWithLifecycle()
+    // searchState를 추적 — 결과 묶음·글자 입력마다 바뀌는 상태 대신 열림 여부가 바뀔 때만 이 화면을 다시 실행한다. searchState(State 객체)가 바뀌면 새로 만든다
+    val isSearchOpen by remember(searchState) { derivedStateOf { searchState.value != null } }
+    /** 목록 스크롤 상태. 검색이 열려 목록을 그리지 않는 동안에도 남도록 이른 return보다 위에서 만든다 — 검색을 닫으면 같은 경로의 스크롤 위치로 돌아온다 */
+    val listState = rememberListingScrollState(uiState.value.listing)
 
     BackHandler(enabled = selectMode == SelectMode.MultiSelect, onBack = onResetSelection)
 
     // 검색이 열려 있으면 목록 대신 검색 화면을 그린다 — destination이 아니라 이 화면 안의 상태라 백스택에 쌓이지 않는다
-    searchState?.let { state ->
+    if (isSearchOpen) {
         UnopenableFolderToast(unopenableFolder = searchViewModel.unopenableFolder)
-        FileSearchFrag(
-            modifier = modifier,
-            query = searchViewModel.query,
-            state = state,
-            onQueryChange = searchViewModel::onQueryChange,
-            onClose = searchViewModel::close,
-            onResultClick = { searchViewModel.onResultClick(it, selectMode) },
-            onOpenLocation = searchViewModel::onOpenLocation
-        )
+        FileSearchFrag(modifier = modifier, selectMode = selectMode, viewModel = searchViewModel)
         return
     }
 
@@ -110,6 +110,7 @@ fun FileListFrag(
         ) { loaded ->
             FileListView(
                 modifier = Modifier.fillMaxSize(),
+                listState = listState,
                 fileHolderItemList = loaded.items,
                 childCounts = childCountsFor(loaded.key),
                 selectedList = selectedList,
@@ -163,6 +164,7 @@ fun FileListFrag(
  */
 @Composable
 private fun UnopenableFolderToast(unopenableFolder: Flow<Unit>) {
+    /** Toast를 띄울 Context. */
     val context = LocalContext.current
     // unopenableFolder 키 — 같은 ViewModel의 알림이면 검색이 열린 동안 수집을 1회만 시작해 중복 수집을 방지
     LaunchedEffect(unopenableFolder) {

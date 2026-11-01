@@ -31,41 +31,47 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.holder.SearchResultHolder
 import com.todokanai.composepracticenew.compose.listview.rememberTypeIcons
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SearchResult
 import com.todokanai.composepracticenew.ui.model.SearchStatus
 import com.todokanai.composepracticenew.ui.model.SearchUiState
+import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
 
 /**
  * 모든 저장소에서 이름으로 항목을 찾는 검색 화면. 검색창, 진행·읽지 못한 항목 안내, 결과 목록을 조합한다.
  * 로컬 목록 화면 안에서 목록 대신 그려지며 내비게이션 destination이 아니다 — 뒤로가기는 검색만 닫고 백스택·현재 경로는 건드리지 않는다.
+ * 검색어와 결과는 이 화면에서 읽는다 — 결과 묶음·글자 입력마다의 리컴포지션이 로컬 목록 화면(FileListFrag)까지 번지지 않도록.
  * @param modifier 검색 화면의 크기·배치를 정하는 Modifier
- * @param query 검색창에 표시할 검색어
- * @param state 검색 결과 표시 상태
- * @param onQueryChange 검색어를 바꾸는 콜백
- * @param onClose 검색을 닫는 콜백(뒤로가기·닫기 버튼)
- * @param onResultClick 결과 항목을 누른 콜백
- * @param onOpenLocation 결과 항목의 위치 열기 콜백
+ * @param selectMode 지금 로컬 화면의 선택 모드. 결과를 눌렀을 때 여는지를 목록 행과 같은 규칙으로 정하는 데 쓴다
+ * @param viewModel 검색어·결과를 갖고 검색어 변경·닫기·결과 열기를 받는 ViewModel
  */
 @Composable
 fun FileSearchFrag(
     modifier: Modifier,
-    query: String,
-    state: SearchUiState,
-    onQueryChange: (String) -> Unit,
-    onClose: () -> Unit,
-    onResultClick: (FileHolderItem) -> Unit,
-    onOpenLocation: (FileHolderItem) -> Unit
+    selectMode: LocalSelectMode,
+    viewModel: FileSearchViewModel
 ) {
+    /** 검색 결과 표시 상태. 검색이 닫혔으면(null) 그릴 것이 없다. */
+    val state = viewModel.state.collectAsStateWithLifecycle().value ?: return
+
     // 이 화면이 그려지는 동안(검색이 열린 동안)만 등록 — 목록 destination의 상위 폴더 이동보다 나중에 등록돼 먼저 받는다
-    BackHandler(onBack = onClose)
+    BackHandler(onBack = viewModel::close)
 
     Column(modifier = modifier.fillMaxSize()) {
-        SearchField(query = query, onQueryChange = onQueryChange, onClose = onClose)
+        SearchField(query = viewModel.query, onQueryChange = viewModel::onQueryChange, onClose = viewModel::close)
         if (state.status == SearchStatus.Searching) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+        if (state.status == SearchStatus.LimitReached) {
+            Text(
+                text = stringResource(R.string.search_limit_reached, state.results.size),
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+            )
+        }
         if (state.unreadableCount > 0) {
             Text(
                 text = stringResource(R.string.search_unreadable, state.unreadableCount),
@@ -74,7 +80,11 @@ fun FileSearchFrag(
             )
         }
         Box(modifier = Modifier.weight(1f)) {
-            SearchResultContent(state = state, onResultClick = onResultClick, onOpenLocation = onOpenLocation)
+            SearchResultContent(
+                state = state,
+                onResultClick = { viewModel.onResultClick(it, selectMode) },
+                onOpenLocation = viewModel::onOpenLocation
+            )
         }
     }
 }
@@ -91,6 +101,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, onClose:
     val focusRequester = remember { FocusRequester() }
     // Unit 키 — 검색을 열 때(이 입력칸이 처음 그려질 때) 한 번만 포커스를 준다. 화면 회전으로 다시 그려지면 다시 준다
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    /** 검색 키를 누르면 입력칸의 포커스를 거둬 키보드를 내리는 데 쓰는 포커스 관리자. */
     val focusManager = LocalFocusManager.current
 
     TextField(
