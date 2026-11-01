@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.SearchBatch
 import com.todokanai.composepracticenew.model.SearchQuery
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
@@ -40,11 +41,17 @@ class FileSearchUseCase(
     fun locationOf(item: FileHolderItem): String? = nav.getParentPath(item.path)
 
     /**
+     * 검색으로 찾은 폴더 [folder]로 이동한다. 찾은 뒤 지워졌거나 처음부터 읽지 못한 폴더면 이동하지 않는다.
+     * @param folder 검색으로 찾은 폴더
+     * @return 이동했는지, 거부됐는지
+     */
+    suspend fun openFolder(folder: FileHolderItem): NavigateResult = nav.navigate(folder.path)
+
+    /**
      * [item]이 들어 있는 폴더로 이동한다.
      * @param item 검색으로 찾은 항목
-     * @return Unit
+     * @return 이동했는지, 거부됐는지. 상위 폴더가 없으면 갈 곳이 없으므로 거부다
      */
-    suspend fun openLocation(item: FileHolderItem) {
-        locationOf(item)?.let { nav.navigate(it) }
-    }
+    suspend fun openLocation(item: FileHolderItem): NavigateResult =
+        locationOf(item)?.let { nav.navigate(it) } ?: NavigateResult.Rejected
 }

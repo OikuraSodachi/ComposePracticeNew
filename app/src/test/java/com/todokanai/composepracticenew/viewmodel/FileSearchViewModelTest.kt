@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.ListingRequest
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.SearchBatch
 import com.todokanai.composepracticenew.model.SearchQuery
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
@@ -39,7 +40,7 @@ import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolder
 /**
  * [FileSearchViewModel]이 검색어 입력이 멈춘 뒤에만 찾고, 찾는 대로 결과를 더해 다 훑으면 끝났음을 표시하며,
  * 검색어가 바뀌면 이전 결과를 버리고, 저장소가 없거나 읽지 못한 항목이 있으면 결과 없음과 구별하며,
- * 결과를 누르면 목록 행과 같은 규칙으로 이동·열기를 하는지 검증하는 단위 테스트.
+ * 결과를 누르면 목록 행과 같은 규칙으로 이동·열기를 하고, 이동이 거부되면 검색을 닫지 않고 알리는지 검증하는 단위 테스트.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class FileSearchViewModelTest {
@@ -158,6 +159,32 @@ class FileSearchViewModelTest {
     }
 
     @Test
+    fun `폴더 결과로 이동이 거부되면 검색과 결과를 그대로 두고 열 수 없음을 알린다`() {
+        nav.rejected += music.path
+        val result = searchedResults().first { it.isDirectory }
+        val before = viewModel.state.value
+
+        viewModel.onResultClick(result, SelectMode.Default)
+
+        awaitUnopenableFolder()
+        assertEquals(emptyList<String>(), nav.navigated)
+        assertEquals(before, viewModel.state.value)
+        assertEquals("mus", viewModel.query)
+    }
+
+    @Test
+    fun `위치 열기가 거부되면 검색과 결과를 그대로 두고 열 수 없음을 알린다`() {
+        nav.rejected += "/storage/0/music"
+        val file = searchedResults().first { !it.isDirectory }
+        val before = viewModel.state.value
+
+        viewModel.onOpenLocation(file)
+
+        awaitUnopenableFolder()
+        assertEquals(before, viewModel.state.value)
+    }
+
+    @Test
     fun `기본 모드에서 파일 결과를 누르면 열고 검색은 그대로 둔다`() {
         val result = searchedResults().first { !it.isDirectory }
 
@@ -221,6 +248,11 @@ class FileSearchViewModelTest {
         withTimeout(5_000) { viewModel.state.first { it != null && predicate(it) }!! }
     }
 
+    /** 이동이 거부됐다는 알림이 올 때까지 기다린다. 오지 않으면 시간 초과로 실패한다. */
+    private fun awaitUnopenableFolder() = runBlocking {
+        withTimeout(5_000) { viewModel.unopenableFolder.first() }
+    }
+
     /**
      * 검색마다 채널을 하나 만들어, 테스트가 그 채널로 결과 묶음을 보내고 닫아 검색을 끝내게 하는 저장소.
      */
@@ -245,18 +277,22 @@ class FileSearchViewModelTest {
         }
     }
 
-    /** 이동한 경로를 기록하고, 상위 폴더를 마지막 '/' 앞까지로 구하는 탐색 저장소. */
+    /** 이동한 경로를 기록하고, 상위 폴더를 마지막 '/' 앞까지로 구하는 탐색 저장소. [rejected]에 든 경로로는 이동을 거부한다. */
     private class RecordingNavigator : FileNavigatorRepository {
-        /** [navigate]로 이동한 경로. 이동한 순서다. */
+        /** [navigate]로 이동한 경로. 이동한 순서다. 거부한 경로는 넣지 않는다. */
         val navigated = mutableListOf<String>()
+        /** 읽을 수 없는 폴더처럼 이동을 거부할 경로. */
+        val rejected = mutableSetOf<String>()
 
         override val currentPath = MutableStateFlow<String?>(null)
         override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
 
-        override suspend fun navigate(path: String) {
+        override suspend fun navigate(path: String): NavigateResult {
+            if (path in rejected) return NavigateResult.Rejected
             navigated += path
+            return NavigateResult.Navigated
         }
 
         override fun refresh() {}

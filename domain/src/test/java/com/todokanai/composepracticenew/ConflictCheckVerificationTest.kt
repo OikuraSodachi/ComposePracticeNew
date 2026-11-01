@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -172,7 +173,7 @@ class ConflictCheckVerificationTest {
         override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
-        override suspend fun navigate(path: String) {}
+        override suspend fun navigate(path: String) = NavigateResult.Navigated
         override fun refresh() {}
         override fun getParentPath(path: String): String? = null
     }

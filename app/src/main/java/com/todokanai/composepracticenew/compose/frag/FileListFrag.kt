@@ -1,12 +1,16 @@
 package com.todokanai.composepracticenew.compose.frag
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
@@ -19,6 +23,7 @@ import com.todokanai.composepracticenew.ui.model.ListingKey
 import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
+import kotlinx.coroutines.flow.Flow
 
 /**
  * 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다.
@@ -67,6 +72,7 @@ fun FileListFrag(
 
     // 검색이 열려 있으면 목록 대신 검색 화면을 그린다 — destination이 아니라 이 화면 안의 상태라 백스택에 쌓이지 않는다
     searchState?.let { state ->
+        UnopenableFolderToast(unopenableFolder = searchViewModel.unopenableFolder)
         FileSearchFrag(
             modifier = modifier,
             query = searchViewModel.query,
@@ -149,4 +155,17 @@ fun FileListFrag(
         )
     }
 
+}
+
+/**
+ * 검색 결과의 폴더나 위치로 이동이 거부될 때마다 "폴더를 열 수 없습니다" Toast를 띄운다. 검색은 열린 채로 남는다.
+ * @param unopenableFolder 이동이 거부됐음을 알리는 일회성 알림 Flow
+ */
+@Composable
+private fun UnopenableFolderToast(unopenableFolder: Flow<Unit>) {
+    val context = LocalContext.current
+    // unopenableFolder 키 — 같은 ViewModel의 알림이면 검색이 열린 동안 수집을 1회만 시작해 중복 수집을 방지
+    LaunchedEffect(unopenableFolder) {
+        unopenableFolder.collect { Toast.makeText(context, R.string.listing_failed_unreadable, Toast.LENGTH_SHORT).show() }
+    }
 }

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingRequest
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,8 +15,11 @@ interface FileNavigatorRepository {
     val listingRequest: StateFlow<ListingRequest?>
     /** [listingRequest]의 목록 조회 상태. 조회 실패·조회 중을 빈 목록으로 바꾸지 않고 그대로 나타낸다. */
     val directoryListing: StateFlow<DirectoryListing>
-    /** 경로 이동의 단일 진입점. 경로 종류 판단과 접근성 검증은 구현체가 수행한다. */
-    suspend fun navigate(path: String)
+    /**
+     * 경로 이동의 단일 진입점. 경로 종류 판단과 접근성 검증은 구현체가 수행한다.
+     * 검증에 실패하면 현재 경로를 바꾸지 않고 [NavigateResult.Rejected]를 돌려준다 — 호출자가 거부된 이동을 이동한 것으로 보지 않도록.
+     */
+    suspend fun navigate(path: String): NavigateResult
     /** 현재 경로의 목록을 새 요청으로 다시 조회한다. */
     fun refresh()
     /** 주어진 경로의 부모 경로를 반환한다. 루트이면 null을 반환한다. */

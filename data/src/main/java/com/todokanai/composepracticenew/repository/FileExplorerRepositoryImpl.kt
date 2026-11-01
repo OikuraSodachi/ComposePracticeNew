@@ -4,6 +4,7 @@ import android.util.Log
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.fileexplorer.FileEntry
@@ -55,8 +56,10 @@ class FileExplorerRepositoryImpl(
 
     override fun getParentPath(path: String): String? = getParent(path)
 
-    override suspend fun navigate(path: String) {
-        resolveFileSystem(path)?.resolveNavigationPath(path)?.let { navigateTo(it) }
+    override suspend fun navigate(path: String): NavigateResult {
+        val resolved = resolveFileSystem(path)?.resolveNavigationPath(path) ?: return NavigateResult.Rejected
+        navigateTo(resolved)
+        return NavigateResult.Navigated
     }
 
     override suspend fun connectRemote(item: RemoteStorageItem): ConnectResult = connection.connect(item)

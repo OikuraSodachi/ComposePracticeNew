@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.SearchBatch
 import com.todokanai.composepracticenew.model.SearchQuery
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -18,6 +19,7 @@ import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -33,8 +36,8 @@ import javax.inject.Inject
  * 로컬 목록 화면의 파일 검색 상태(열림 여부, 검색어, 결과)와 모든 저장소 검색을 맡는다.
  * 검색은 내비게이션 destination이 아니라 이 화면 안의 상태라 백스택에 쌓이지 않는다. 목록 destination의 백스택 항목에 스코프되므로 화면 회전에도 검색과 결과가 이어진다.
  * 검색어 입력이 [QUERY_DEBOUNCE_MILLIS] 동안 멈추면 진행 중인 검색을 취소하고 새로 시작한다. 파일을 열고 돌아와도 결과가 남도록 화면 수명과 무관하게 끝까지 훑는다.
- * @param fileSearchUseCase 모든 저장소에서 이름으로 항목을 찾고 항목의 위치로 이동하는 UseCase
- * @param openFileUseCase 항목 열기(디렉터리 진입 포함)를 수행하는 UseCase
+ * @param fileSearchUseCase 모든 저장소에서 이름으로 항목을 찾고 찾은 폴더나 항목의 위치로 이동하는 UseCase
+ * @param openFileUseCase 파일 결과를 외부 앱으로 여는 UseCase
  */
 @HiltViewModel
 class FileSearchViewModel @Inject constructor(
@@ -57,6 +60,13 @@ class FileSearchViewModel @Inject constructor(
      */
     var query by mutableStateOf("")
         private set
+
+    /**
+     * [unopenableFolder]의 원본. 화면이 다시 만들어지는 동안(회전 등) 보낸 알림도 잃지 않도록 받을 때까지 보관하며, 연달아 거부되면 한 번만 알린다.
+     */
+    private val _unopenableFolder = Channel<Unit>(Channel.CONFLATED)
+    /** 결과의 폴더나 위치로 이동하려 했지만 거부됐음을 알리는 일회성 알림. 검색은 열린 채로 남는다. */
+    val unopenableFolder: Flow<Unit> = _unopenableFolder.receiveAsFlow()
 
     /** 지금 검색어의 검색. 검색어가 바뀌거나 검색을 닫으면 취소한다. */
     private var searchJob: Job? = null
@@ -94,21 +104,21 @@ class FileSearchViewModel @Inject constructor(
     }
 
     /**
-     * 검색 결과 [item]을 누른 동작. 목록 행 클릭과 같은 규칙을 따른다 — 폴더는 그리로 이동하고 검색을 닫으며,
+     * 검색 결과 [item]을 누른 동작. 목록 행 클릭과 같은 규칙을 따른다 — 폴더는 그리로 이동하고 이동했으면 검색을 닫으며,
      * 파일은 기본 모드에서만 열고 검색은 그대로 둔다(돌아와 다른 결과를 볼 수 있도록). 다중 선택 중에는 무시한다.
      * @param item 누른 결과 항목
      * @param selectMode 지금 로컬 화면의 선택 모드
      */
     fun onResultClick(item: FileHolderItem, selectMode: LocalSelectMode) {
         when (selectMode) {
-            SelectMode.Default -> if (item.isDirectory) navigateAndClose { openFileUseCase.open(item.toDomain()) } else openFile(item)
+            SelectMode.Default -> if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) } else openFile(item)
             SelectMode.MultiSelect -> { }
-            is SelectMode.LocalOperation, SelectMode.Download -> if (item.isDirectory) navigateAndClose { openFileUseCase.open(item.toDomain()) }
+            is SelectMode.LocalOperation, SelectMode.Download -> if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) }
         }
     }
 
     /**
-     * 검색 결과 [item]이 들어 있는 폴더로 이동하고 검색을 닫는다.
+     * 검색 결과 [item]이 들어 있는 폴더로 이동하고, 이동했으면 검색을 닫는다.
      * @param item 위치를 열 결과 항목
      */
     fun onOpenLocation(item: FileHolderItem) {
@@ -150,10 +160,17 @@ class FileSearchViewModel @Inject constructor(
         viewModelScope.launch { openFileUseCase.open(item.toDomain()) }
     }
 
-    /** 검색을 닫고 [navigate]로 다른 폴더로 이동한다. */
-    private fun navigateAndClose(navigate: suspend () -> Unit) {
-        close()
-        viewModelScope.launch { navigate() }
+    /**
+     * [navigate]로 다른 폴더로 이동하고, 이동했을 때만 검색을 닫는다. 거부되면 검색과 결과를 그대로 두고 [unopenableFolder]로 알린다 —
+     * 이동하지 못했는데 검색만 닫혀 결과를 잃고 아무 일도 없었던 것처럼 보이지 않도록.
+     */
+    private fun navigateAndClose(navigate: suspend () -> NavigateResult) {
+        viewModelScope.launch {
+            when (navigate()) {
+                NavigateResult.Navigated -> close()
+                NavigateResult.Rejected -> _unopenableFolder.trySend(Unit)
+            }
+        }
     }
 
     /** 진행 중인 검색을 취소한다. */
