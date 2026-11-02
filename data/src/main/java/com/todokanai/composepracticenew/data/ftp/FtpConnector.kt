@@ -74,7 +74,7 @@ class FtpConnector @Inject constructor(
     }
 
     /**
-     * [client]를 서버에 접속하고 로그인해 쓸 수 있는 연결인지 확인한다. 하나라도 실패하면 연결을 쓸 수 없는 단계들이다.
+     * [client]를 서버에 접속하고 로그인해 쓸 수 있는 연결인지 확인한다.
      * @param client 연결할 FTPClient
      * @param server 서버 호스트명 또는 IP
      * @param port FTP 포트

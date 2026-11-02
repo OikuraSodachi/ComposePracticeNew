@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -144,7 +145,7 @@ class FtpCommandExecutorTreeListingTest {
         assertEquals(listOf("MLSD /r", "MLSD /r/self"), client.listRequests)
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `LIST 서버가 하위 경로마다 같은 하위 폴더를 보여주면 경로 한도에서 멈추고 판별할 수 없음을 알린다`() {
         loggedIn()
         // 서버 오류로 어느 하위 경로를 조회해도 같은 목록을 돌려준다 — 이름이 한 글자라 한도까지 가장 깊이 내려간다
@@ -158,7 +159,7 @@ class FtpCommandExecutorTreeListingTest {
         assertEquals(2047, client.listRequests.count { it == "LIST" })
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `식별값을 보내지 않는 MLSD 서버도 경로 한도에서 멈추고 판별할 수 없음을 알린다`() {
         loggedIn()
         client.features = setOf("MLST")
@@ -169,7 +170,7 @@ class FtpCommandExecutorTreeListingTest {
         assertEquals(IoResult.ItemFailed("경로가 너무 깁니다(4096바이트 이상): /r${"/a".repeat(2047)}$UNIDENTIFIABLE"), result)
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `식별값이 모두 달라도 경로 한도에서 멈추며 판별할 수 없다는 설명은 붙이지 않는다`() {
         loggedIn()
         client.features = setOf("MLST")
@@ -181,7 +182,7 @@ class FtpCommandExecutorTreeListingTest {
         assertEquals(IoResult.ItemFailed("경로가 너무 깁니다(4096바이트 이상): /r${"/a".repeat(2047)}"), result)
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `식별값이 있는 폴더에서 경로 한도에 이르러도 경로 위에 식별값 없는 폴더가 있으면 판별할 수 없음을 알린다`() {
         loggedIn()
         client.features = setOf("MLST")
@@ -234,7 +235,7 @@ class FtpCommandExecutorTreeListingTest {
         assertEquals(listOf("ftp://host/r/a", "ftp://host/r/b", "ftp://host/r/b/c"), tree.map { it.path })
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `LIST 서버에서 상위를 가리키는 링크가 여럿이어도 메모리 상한에서 멈추고 판별할 수 없음을 알린다`() {
         loggedIn()
         // 어느 하위 경로를 조회해도 같은 두 폴더를 돌려준다 — 단계마다 방문 수가 배로 늘어난다(#257)
@@ -250,7 +251,7 @@ class FtpCommandExecutorTreeListingTest {
         assertTrue(client.listRequests.toString(), client.listRequests.count { it == "LIST" } <= SMALL_LIMIT_BYTES / 170)
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `식별값이 모두 다른 큰 트리도 메모리 상한에서 멈추며 판별할 수 없다는 설명은 붙이지 않는다`() {
         loggedIn()
         client.features = setOf("MLST")
@@ -265,7 +266,7 @@ class FtpCommandExecutorTreeListingTest {
         assertFalse(message, message.endsWith(UNIDENTIFIABLE))
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `식별값 없는 폴더를 끝내고 나온 뒤 상한에 이르면 판별할 수 없다는 설명은 붙이지 않는다`() {
         loggedIn()
         client.features = setOf("MLST")
@@ -336,6 +337,12 @@ class FtpCommandExecutorTreeListingTest {
     }
 
     @Test
+    fun `메모리 상한이 0 이하면 명령 실행기를 만들지 않는다`() {
+        assertThrows(IllegalArgumentException::class.java) { FtpCommandExecutor(session, treeMemoryLimitBytes = 0) }
+        assertThrows(IllegalArgumentException::class.java) { FtpCommandExecutor(session, treeMemoryLimitBytes = -1) }
+    }
+
+    @Test
     fun `화면 목록에는 트리 수집의 메모리 상한을 두지 않는다`() {
         loggedIn()
         client.features = setOf("MLST")
@@ -347,7 +354,7 @@ class FtpCommandExecutorTreeListingTest {
         assertEquals(1000, (listing as IoResult.Success).value.size)
     }
 
-    @Test
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `메모리 상한에 이른 폴더는 하위 항목을 하나도 지우지 않고 실패를 알린다`() {
         loggedIn()
         client.remoteDirectories = listOf("a", "b")
@@ -385,6 +392,11 @@ class FtpCommandExecutorTreeListingTest {
         const val UNIDENTIFIABLE = " — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다"
         /** 메모리 상한 테스트가 쓰는 작은 상한(바이트). 기본 상한(32MiB)까지 조회하면 테스트가 오래 걸린다. */
         const val SMALL_LIMIT_BYTES = 16L * 1024
+        /**
+         * 끝없는 트리를 수집하는 테스트의 시간 제한(밀리초). 멈추는 장치(경로 한도·메모리 상한)가 회귀하면 테스트가 실패하지 않고
+         * 끝나지 않으므로 시간으로 실패시킨다. 장치가 동작하면 순식간에 끝난다.
+         */
+        const val TEST_TIMEOUT_MILLIS = 10_000L
         /** 경로가 긴 폴더의 이름(500자). 항목 경로가 길어 받은 뒤의 메모리 추정치가 받는 동안의 추정치보다 크다. */
         val DEEP_NAME = "p".repeat(500)
         /** [DEEP_NAME] 폴더의 경로. */

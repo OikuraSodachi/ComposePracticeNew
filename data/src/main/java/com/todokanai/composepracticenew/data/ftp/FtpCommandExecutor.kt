@@ -154,7 +154,7 @@ private class BoundedListingStream(stream: InputStream, private val peakBytes: L
  * 모든 명령은 실패를 결과로 알리며, 연결이 없거나 끊기면 [IoResult.ConnectionLost]를 돌려준다.
  * 서버 응답의 해석은 [FtpReplyRules]에 맡긴다.
  * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
- * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree])
+ * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree]). 0보다 커야 한다
  */
 @Singleton
 class FtpCommandExecutor internal constructor(
@@ -164,6 +164,11 @@ class FtpCommandExecutor internal constructor(
 
     /** 트리 수집 메모리 상한을 [TREE_MEMORY_LIMIT_BYTES]로 둔 명령 실행기를 만든다. Hilt가 사용하는 생성자다. */
     @Inject constructor(session: FtpSession) : this(session, TREE_MEMORY_LIMIT_BYTES)
+
+    init {
+        // 0 이하는 상한이 아니다 — 어떤 목록도 받을 수 없어 빈 시작 폴더 말고는 모두 실패한다
+        require(treeMemoryLimitBytes > 0) { "treeMemoryLimitBytes must be positive: $treeMemoryLimitBytes" }
+    }
 
     /** 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행한다. */
     private val dataCommands = DataCommandRunner(session)
@@ -254,7 +259,7 @@ class FtpCommandExecutor internal constructor(
      * 알려진 문제(방치하기로 결정): 각 목록은 서버가 드러내는 항목뿐이라([identifiedListing]) 서버가 숨긴 항목은 트리에서 빠지지만, 수집은 성공으로 끝난다.
      * 그래서 폴더 다운로드는 숨긴 항목 없이 완료로 보고되고, 재귀 삭제는 보이는 항목을 지운 뒤 RMD에서 실패한다([removeDirectoryRecursive]).
      * @param remoteDirPath 수집할 원격 디렉터리 경로 (ftp://server/path 형식)
-     * @return 하위 항목 전체 목록, 또는 조회 실패
+     * @return 하위 항목 전체 목록, 또는 조회 실패나 메모리 상한·순환·경로 한도에 의한 실패
      */
     internal suspend fun collectRemoteTree(remoteDirPath: String): IoResult<List<FileEntry>> {
         val result = mutableListOf<FileEntry>()
