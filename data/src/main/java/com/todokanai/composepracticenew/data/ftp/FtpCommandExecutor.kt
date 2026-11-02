@@ -99,50 +99,83 @@ private class ListingTooLargeException : IOException("목록이 메모리 상한
  * 받은 목록 데이터의 양으로 그 목록을 받고 해석하는 동안의 메모리를 추정해, 상한을 넘으면 받기를 멈추는 스트림.
  * 목록 해석기는 받은 줄을 모두 들고 있다가 항목으로 바꾸므로, 끝까지 받은 뒤에 세면 한 폴더의 항목이 아주 많거나
  * 서버가 목록을 끝없이 보낼 때 세기 전에 메모리가 바닥난다. 데이터가 조금씩이라도 계속 오면 읽기 상한에도 걸리지 않는다.
+ *
+ * 변환한 항목의 경로는 조회한 디렉터리의 경로를 앞부분으로 가지지만 받은 데이터에는 그 앞부분이 없으므로, 줄마다 앞부분의 길이를 문자당
+ * 2바이트로 더한다 — 세지 않으면 깊은 폴더(앞부분 수천 자)의 큰 목록은 받는 동안의 추정치보다 수십 배의 메모리를 받은 뒤의 추정([TreeMemoryBudget])
+ * 전에 쓴다. 그래서 받는 동안의 추정치가 같은 목록의 받은 뒤 추정치보다 항상 크다.
+ *
+ * 줄 끝은 해석기(`BufferedReader.readLine`)와 같은 규칙으로 센다 — CR·LF·CRLF가 각각 줄 끝 하나다. 해석기가 들고 있는 줄 수와 달리 세면
+ * 줄마다의 메모리([lineOverheadBytes])가 빠진다 — LF만 세면 줄을 CR로만 끝내는 목록(LIST는 binary(`TYPE I`)로 받아 서버 시스템의 줄 끝이
+ * 오므로 클래식 Mac OS 서버)에서 실제 메모리가 추정치의 수십 배(깊은 폴더)가 되고, CR·LF를 따로 세면 CRLF 목록(MLSD는 줄 끝이 CRLF여야 한다,
+ * RFC 3659 `data-response = *( entry CRLF )`)의 추정치가 두 배 가까이 부풀어 상한 안의 트리를 실패시킨다.
  * @param stream 목록 데이터 스트림
  * @param peakBytes 추정 메모리 상한(바이트)
+ * @param entryPathPrefixLength 변환한 항목 경로의 앞부분(조회한 디렉터리의 경로)의 문자 수
  */
-private class BoundedListingStream(stream: InputStream, private val peakBytes: Long) : FilterInputStream(stream) {
+private class BoundedListingStream(
+    stream: InputStream,
+    private val peakBytes: Long,
+    entryPathPrefixLength: Int
+) : FilterInputStream(stream) {
+    /** 줄 하나를 받고 해석·변환하는 동안 받은 데이터와 별도로 드는 메모리(바이트): 고정 부분과 항목 경로의 앞부분. */
+    private val lineOverheadBytes = LINE_OVERHEAD_BYTES + 2L * entryPathPrefixLength
     /** 지금까지 받은 바이트 수. */
     private var receivedBytes = 0L
-    /** 지금까지 받은 줄바꿈(LF) 수 — 해석기가 들고 있는 줄 수다. */
+    /** 지금까지 받은 줄 끝 수 — 해석기가 들고 있는 줄 수다. */
     private var receivedLines = 0L
+    /** 직전에 받은 바이트가 CR인지. CRLF를 줄 끝 하나로 세려고 읽기 사이에도 남긴다. */
+    private var afterCarriageReturn = false
 
     override fun read(): Int {
         val b = super.read()
-        if (b >= 0) count(1, if (b == LINE_FEED) 1 else 0)
+        if (b >= 0) count(1, if (endsLine(b)) 1 else 0)
         return b
     }
 
     override fun read(b: ByteArray, off: Int, len: Int): Int {
         val n = super.read(b, off, len)
-        if (n > 0) count(n.toLong(), (off until off + n).count { b[it].toInt() == LINE_FEED }.toLong())
+        if (n > 0) count(n.toLong(), (off until off + n).count { endsLine(b[it].toInt()) }.toLong())
         return n
+    }
+
+    /**
+     * 받은 바이트 하나가 줄을 끝내는지 해석기와 같은 규칙으로 판별한다 — CR은 줄 끝이고, LF는 CR 바로 뒤(CRLF)가 아닐 때만 줄 끝이다.
+     * 받은 순서대로 불러야 한다.
+     * @param byte 받은 바이트
+     * @return 이 바이트로 줄 하나가 끝났으면 true
+     */
+    private fun endsLine(byte: Int): Boolean {
+        val ends = byte == CARRIAGE_RETURN || (byte == LINE_FEED && !afterCarriageReturn)
+        afterCarriageReturn = byte == CARRIAGE_RETURN
+        return ends
     }
 
     /**
      * 받은 양을 더하고, 추정 메모리가 상한을 넘었으면 받기를 멈춘다.
      * @param bytes 새로 받은 바이트 수
-     * @param lines 새로 받은 줄바꿈 수
+     * @param lines 새로 받은 줄 끝 수
      * @throws ListingTooLargeException 추정 메모리가 상한을 넘은 경우
      */
     private fun count(bytes: Long, lines: Long) {
         receivedBytes += bytes
         receivedLines += lines
-        if (LINE_OVERHEAD_BYTES * receivedLines + BYTE_FACTOR * receivedBytes > peakBytes) throw ListingTooLargeException()
+        if (lineOverheadBytes * receivedLines + BYTE_FACTOR * receivedBytes > peakBytes) throw ListingTooLargeException()
     }
 
     private companion object {
-        /** 줄바꿈 바이트. */
+        /** 줄바꿈(LF) 바이트. */
         const val LINE_FEED = '\n'.code
+        /** 캐리지 리턴(CR) 바이트. */
+        const val CARRIAGE_RETURN = '\r'.code
         /**
          * 줄 하나를 받고 해석하는 동안 문자 데이터와 별도로 드는 메모리(바이트): 줄 문자열·해석한 항목·변환한 항목의 객체와 목록의 참조.
          * JVM에서 줄 10만 개를 받아 해석·변환한 뒤 모두 들고 있으니 줄마다 236~372바이트였다(LIST·MLSD, 줄 17~88바이트).
          * 이 값과 [BYTE_FACTOR]로 낸 추정치(250 + 4 × 줄 바이트)는 네 경우 모두 측정값의 1.4배 이상이다.
+         * 항목 경로의 앞부분은 폴더의 깊이에 따라 달라 이 값에 넣지 않고 따로 더한다([lineOverheadBytes]).
          */
         const val LINE_OVERHEAD_BYTES = 250L
         /**
-         * 받은 바이트 하나당 드는 메모리(바이트). 줄 문자열(ASCII는 바이트당 1, 그 밖은 문자당 2)과 변환한 항목의 이름·경로를 함께 들고,
+         * 받은 바이트 하나당 드는 메모리(바이트). 줄 문자열(ASCII는 바이트당 1, 그 밖은 문자당 2)과 변환한 항목의 이름·경로의 이름 부분을 함께 들고,
          * 줄바꿈 없이 긴 줄은 읽는 동안 버퍼가 두 배씩 자라므로 넉넉히 잡는다.
          */
         const val BYTE_FACTOR = 4L
@@ -430,7 +463,7 @@ class FtpCommandExecutor internal constructor(
     ): IoResult<IdentifiedListing> {
         val engine = FTPListParseEngine(parser)
         val outcome = dataCommands.run(client, open) { stream ->
-            val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes) } ?: stream
+            val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes, childPathPrefix(path).length) } ?: stream
             engine.readServerList(keepingOpen(bounded), client.controlEncoding)
         }
         return when (outcome) {
@@ -490,7 +523,14 @@ class FtpCommandExecutor internal constructor(
      * @param path 하위 후보 항목 경로
      * @return [path]가 [ancestorPath] 아래에 있으면 true
      */
-    private fun isRemoteAncestorOf(ancestorPath: String, path: String): Boolean = path.startsWith(ancestorPath.trimEnd('/') + "/")
+    private fun isRemoteAncestorOf(ancestorPath: String, path: String): Boolean = path.startsWith(childPathPrefix(ancestorPath))
+
+    /**
+     * 원격 디렉터리 아래 항목의 경로 앞부분. 항목 경로는 이 앞부분에 항목 이름을 붙인 것이다.
+     * @param path ftp://server/path 형식의 디렉터리 경로
+     * @return 끝에 `/` 하나를 붙인 디렉터리 경로
+     */
+    private fun childPathPrefix(path: String): String = path.trimEnd('/') + "/"
 
     /**
      * FTP 목록 항목 하나를 domain 항목으로 바꾼다.
@@ -500,7 +540,7 @@ class FtpCommandExecutor internal constructor(
      */
     private fun toFileEntry(file: FTPFile, path: String): FileEntry = FileEntry(
         name = file.name,
-        path = path.trimEnd('/') + "/" + file.name,
+        path = childPathPrefix(path) + file.name,
         isDirectory = file.isDirectory,
         // 디렉터리는 자기 크기가 없고, FTPFile.size는 목록에 크기가 없으면 -1이다
         size = file.size.takeUnless { file.isDirectory || it < 0 },
