@@ -197,17 +197,17 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
     }
 
     /**
-     * 지금까지 [closeBypassingIoLock]이 요청된 횟수를 돌려준다. 연결 작업이 시작할 때 읽어 두었다가 [isCloseRequestedSince]·[markLoggedIn]으로 그 사이의 종료 요청을 확인한다.
+     * 지금까지 [closeBypassingIoLock]이 요청된 횟수를 돌려준다. 연결 작업이 시작할 때 읽어 두었다가 [markLoggedIn]으로 그 사이의 종료 요청을 확인한다.
      * @return 종료 요청 표지
      */
     internal fun closeRequestMark(): Int = bypassCloseRequests.get()
 
     /**
-     * [mark]를 읽은 뒤 [closeBypassingIoLock]이 요청됐는지 판별한다. 연결 작업이 끊긴 연결을 스스로 다시 열기 전에, 그 끊김이 종료 요청 때문인지 확인하는 데 쓴다.
+     * [mark]를 읽은 뒤 [closeBypassingIoLock]이 요청됐는지 판별한다.
      * @param mark [closeRequestMark]로 읽어 둔 표지
      * @return 그 뒤 종료가 요청됐으면 true
      */
-    internal fun isCloseRequestedSince(mark: Int): Boolean = bypassCloseRequests.get() != mark
+    private fun isCloseRequestedSince(mark: Int): Boolean = bypassCloseRequests.get() != mark
 
     /** 로그인 해제 상태로 전환한다. */
     internal suspend fun markLoggedOut() = stateMutex.withLock {
@@ -220,7 +220,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * 진행 중인 명령이 없으면 ioMutex를 얻어 로그아웃한 뒤 연결을 닫는다.
      * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 중단으로 닫는다(업로드가 서버에 파일 끝으로 읽히지 않도록) — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
      * 그 명령은 IOException을 받아 자기 잠금 안에서 세션을 정리하고, 이 함수는 ioMutex를 얻은 뒤 남은 연결을 닫는다.
-     * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn], [isCloseRequestedSince]), 소켓을 닫기 전에 요청을 기록한다.
+     * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn]), 소켓을 닫기 전에 요청을 기록한다.
      * 호출 전 소켓이 열려 있는지 [isSocketOpen]으로 확인해야 한다.
      */
     internal suspend fun closeBypassingIoLock() {

@@ -2,12 +2,10 @@ package com.todokanai.composepracticenew.data.ftp
 
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
-import org.apache.commons.net.ftp.FTPConnectionClosedException
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPFileEntryParser
 import org.apache.commons.net.ftp.parser.DefaultFTPFileEntryParserFactory
 import org.apache.commons.net.ftp.parser.ParserInitializationException
-import java.io.IOException
 import java.util.Locale
 
 /**
@@ -41,42 +39,6 @@ internal object FtpListingFormat {
     }
 
     /**
-     * 연결할 때 이 세션의 목록 조회 옵션을 정한다. MLSD 서버는 항목 식별값을 요청하고([requestEntryIdentity]), LIST 서버에는 정할 옵션이 없다.
-     * LIST에는 옵션을 붙이지 않는다 — 인자는 RFC 959상 경로뿐이고, 목록은 서버가 드러내는 항목이다(RFC 3659 §7.1). 서버가 숨긴 항목(유닉스 계열의 `.` 항목 등)은 지원 범위 밖이다.
-     * 정하는 일은 연결을 실패로 만들지 않는다. 서버가 요청을 거부하면 요청 없이 쓰는 것으로 마친다. 응답을 읽지 못해(연결 닫힘·421·타임아웃)
-     * 받지 못한 응답이 남았을 수 있으면 제어 연결을 더 쓸 수 없다고 알린다 — 그 연결을 어떻게 할지는 연결을 맡은 쪽([FtpConnector])이 정한다.
-     * @param client 로그인했고 [isReadable] 확인을 통과한 FTPClient
-     * @return 옵션을 정한 뒤에도 제어 연결을 그대로 쓸 수 있으면 true
-     */
-    fun negotiateListingOptions(client: FTPClient): Boolean {
-        if (!usesMlsd(client)) return true
-        return watchingReplies(client) { watch ->
-            try {
-                requestEntryIdentity(client)
-                true
-            } catch (e: IOException) {
-                !isControlChannelUnusable(e, watch)
-            }
-        }
-    }
-
-    /**
-     * MLSD 목록이 항목 식별값(`unique`, RFC 3659 §7.5.2)을 담도록 요청한다. 트리 수집이 이 값으로 순환을 판별한다.
-     * 서버는 FEAT의 MLST 줄에 지원하는 사실을 알리고 지금 목록에 담는 사실에 `*`를 붙인다(§7.8). `unique`를 지원하지만 담지 않으면
-     * 지금 담는 사실에 `unique`를 더해 `OPTS MLST`로 요청한다(§7.9) — 요청에 적지 않은 사실은 빠지므로 지금 담는 사실을 모두 다시 적는다.
-     * 서버가 거부해도 연결은 그대로 쓴다. 식별값이 없으면 트리 수집은 경로 한도로 끝난다.
-     * @param client 로그인했고 MLSD를 쓰는 FTPClient
-     * @throws java.io.IOException 응답을 읽지 못한 경우
-     */
-    private fun requestEntryIdentity(client: FTPClient) {
-        val facts = client.featureValues(FTPCmd.MLST.command)?.firstOrNull()?.split(';')?.filter { it.isNotEmpty() } ?: return
-        val enabled = facts.filter { it.endsWith(ENABLED_FACT_MARK) }.map { it.removeSuffix(ENABLED_FACT_MARK) }
-        val supportsIdentity = facts.any { it.removeSuffix(ENABLED_FACT_MARK).equals(FACT_UNIQUE, ignoreCase = true) }
-        if (!supportsIdentity || enabled.any { it.equals(FACT_UNIQUE, ignoreCase = true) }) return
-        client.sendCommand(OPTS_COMMAND, "${FTPCmd.MLST.command} " + (enabled + FACT_UNIQUE).joinToString("") { "$it;" })
-    }
-
-    /**
      * MLSD 항목 원본 줄의 사실 목록을 이름 → 값으로 읽는다. 사실 이름은 대소문자를 구분하지 않아(RFC 3659 §7.1) 소문자로 바꾸고, 값은 그대로 둔다.
      * 값에 `=`가 들어갈 수 있으므로(예: `type=OS.unix=slink:...`) 첫 `=`에서 나눈다. commons-net은 `unique` 등 일부 사실을 해석하지 않으므로 원본 줄에서 읽는다.
      * @param file MLSD로 받은 항목
@@ -91,17 +53,15 @@ internal object FtpListingFormat {
      * MLSD 항목이 나열한 디렉터리 자신(type=cdir)이나 상위 디렉터리(type=pdir)인지 판별한다. 종류 값은 대소문자를 구분하지 않는다(RFC 3659 §7.5.1).
      * commons-net은 두 종류를 일반 디렉터리로 파싱하고, 서버에 따라 이름이 "."이 아닌 전체 경로로 오므로 원본 줄의 type 사실로 판별한다.
      * @param facts [mlsdFacts]로 읽은 사실
-     * @return 자신 항목이면 [MlsdSelfOrParent.SELF], 상위 항목이면 [MlsdSelfOrParent.PARENT], 디렉터리 안의 항목이면 null
+     * @return 자신 항목이나 상위 항목이면 true, 디렉터리 안의 항목이면 false
      */
-    fun mlsdSelfOrParent(facts: Map<String, String>): MlsdSelfOrParent? = when (facts[FACT_TYPE]?.lowercase(Locale.ROOT)) {
-        TYPE_CDIR -> MlsdSelfOrParent.SELF
-        TYPE_PDIR -> MlsdSelfOrParent.PARENT
-        else -> null
-    }
+    fun isMlsdSelfOrParent(facts: Map<String, String>): Boolean = facts[FACT_TYPE]?.lowercase(Locale.ROOT) in SELF_OR_PARENT_TYPES
 
     /**
      * MLSD 항목의 `unique` 사실을 꺼낸다(RFC 3659 §7.5.2). 같은 디렉터리를 가리키는 항목은 경로가 달라도 값이 같다 —
      * 디렉터리로 보고된 링크는 링크 대상의 값을 가진다(ProFTPD·Pure-FTPd는 대상의 장치·inode 번호). 값은 대소문자를 구분한다.
+     * 서버가 이미 목록에 담아 보내는 값만 쓰고, 담도록 요청하지 않는다(`OPTS MLST`) — 트리 수집이 끝나는 것은 메모리 상한이 보장하므로
+     * 이 값은 순환을 더 일찍 알리는 데만 쓴다.
      * @param facts [mlsdFacts]로 읽은 사실
      * @return 식별값. 서버가 알려주지 않았으면 null
      */
@@ -137,34 +97,10 @@ internal object FtpListingFormat {
      */
     private fun parserFor(systemType: String): FTPFileEntryParser = DefaultFTPFileEntryParserFactory().createFileEntryParser(systemType)
 
-    /**
-     * 판정 중 난 [cause] 뒤에 제어 연결을 더 쓸 수 없는지 판별한다.
-     * 서버가 연결을 닫았거나(421 포함), 보낸 명령의 최종 응답을 받기 전에 실패했으면 늦게 온 응답이 다음 명령의 응답으로 읽혀 순서가 어긋난다.
-     * @param cause 판정 중 난 예외
-     * @param watch 판정 동안 명령과 응답을 지켜본 수신기
-     * @return 제어 연결을 더 쓸 수 없으면 true
-     */
-    private fun isControlChannelUnusable(cause: IOException, watch: FtpReplyWatch): Boolean =
-        cause is FTPConnectionClosedException || watch.awaitingFinalReply
-
-    /** MLSD 목록에 담을 사실을 정하는 명령([requestEntryIdentity]). commons-net의 FTPCmd에 없다. */
-    private const val OPTS_COMMAND = "OPTS"
-    /** FEAT의 MLST 줄에서 지금 목록에 담는 사실에 붙는 표시(RFC 3659 §7.8). */
-    private const val ENABLED_FACT_MARK = "*"
     /** MLSD 항목 종류 사실의 이름. */
     private const val FACT_TYPE = "type"
     /** MLSD 항목 식별값 사실의 이름. */
     private const val FACT_UNIQUE = "unique"
-    /** 나열한 디렉터리 자신을 뜻하는 MLSD 항목 종류. */
-    private const val TYPE_CDIR = "cdir"
-    /** 나열한 디렉터리의 상위 디렉터리를 뜻하는 MLSD 항목 종류. */
-    private const val TYPE_PDIR = "pdir"
-}
-
-/** MLSD 목록에서 디렉터리 안의 항목이 아닌, 나열한 디렉터리 자신이나 상위 디렉터리를 가리키는 항목의 종류([FtpListingFormat.mlsdSelfOrParent]). */
-internal enum class MlsdSelfOrParent {
-    /** 나열한 디렉터리 자신(type=cdir). */
-    SELF,
-    /** 나열한 디렉터리의 상위 디렉터리(type=pdir). */
-    PARENT,
+    /** 나열한 디렉터리 자신(cdir)이나 상위 디렉터리(pdir)를 뜻하는 MLSD 항목 종류. */
+    private val SELF_OR_PARENT_TYPES = setOf("cdir", "pdir")
 }

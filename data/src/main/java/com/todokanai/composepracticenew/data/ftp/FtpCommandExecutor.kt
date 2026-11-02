@@ -21,9 +21,8 @@ import javax.inject.Singleton
  * 목록 조회 결과와, 서버가 알려준 식별값(MLSD `unique`). 트리 수집이 순환을 판별하는 데 쓴다.
  * @param entries 조회한 항목
  * @param identities 항목 경로 → 식별값. 서버가 식별값을 알려준 항목만 담는다
- * @param selfIdentity 나열한 디렉터리 자신의 식별값. 모르면 null
  */
-private data class IdentifiedListing(val entries: List<FileEntry>, val identities: Map<String, String>, val selfIdentity: String?)
+private data class IdentifiedListing(val entries: List<FileEntry>, val identities: Map<String, String>)
 
 /**
  * 서버에게 받은 목록 항목 하나와 그 식별값.
@@ -33,20 +32,48 @@ private data class IdentifiedListing(val entries: List<FileEntry>, val identitie
 private data class ReceivedEntry(val file: FTPFile, val identity: String?)
 
 /**
- * 서버에게 받은 목록에서 나열한 디렉터리 자신·상위 항목을 걸러낸 항목들.
- * @param entries 디렉터리 안의 항목
- * @param selfIdentity 나열한 디렉터리 자신의 식별값. 모르면 null
- */
-private data class ReceivedListing(val entries: List<ReceivedEntry>, val selfIdentity: String?)
-
-/**
  * 트리 수집이 들어가 있는 디렉터리 하나.
  * @param listed 그 디렉터리의 목록
- * @param identities 그 디렉터리의 식별값(상위 목록의 항목과 자신 항목이 알려준 값). 모르면 비어 있다
+ * @param identity 상위 목록의 항목이 알려준 그 디렉터리의 식별값. 모르거나 시작 디렉터리면 null
  */
-private class DirectoryVisit(val listed: IdentifiedListing, val identities: Set<String>) {
+private class DirectoryVisit(val listed: IdentifiedListing, val identity: String?) {
     /** 아직 수집하지 않은 항목. */
     val remaining: Iterator<FileEntry> = listed.entries.iterator()
+}
+
+/**
+ * 트리 수집 하나가 받은 목록의 메모리를 추정해 더한다. 받은 항목은 수집이 끝날 때까지 메모리에 남으므로, 받은 만큼이 수집이 쓰는 메모리다.
+ * @param limitBytes 수집이 쓸 수 있는 메모리의 추정 상한(바이트)
+ */
+private class TreeMemoryBudget(private val limitBytes: Long) {
+    /** 지금까지 받은 항목의 추정 메모리(바이트). */
+    private var usedBytes = 0L
+
+    /**
+     * 받은 목록의 추정 메모리를 더한다.
+     * @param entries 받은 목록의 항목
+     * @return 더한 뒤에도 상한 안이면 true
+     */
+    fun admit(entries: List<FileEntry>): Boolean {
+        usedBytes += entries.sumOf(::estimatedBytes)
+        return usedBytes <= limitBytes
+    }
+
+    /**
+     * 항목 하나가 차지하는 메모리의 상한 추정치. 고정 부분([ENTRY_OVERHEAD_BYTES])에 경로·이름을 문자당 2바이트(UTF-16)로 더한다 —
+     * ASCII만인 문자열은 실제로 그 절반이므로, 어느 문자로 된 경로든 실제 메모리가 추정치를 넘지 않는다.
+     * @param entry 받은 항목
+     * @return 추정 메모리(바이트)
+     */
+    private fun estimatedBytes(entry: FileEntry): Long = ENTRY_OVERHEAD_BYTES + 2L * (entry.path.length + entry.name.length)
+
+    private companion object {
+        /**
+         * 항목 하나에서 경로·이름의 문자 데이터를 뺀 메모리(바이트): 항목·문자열·크기 객체의 헤더와 필드, 목록의 참조.
+         * JVM에서 경로 79자인 ASCII 항목 10만 개가 항목당 약 269바이트였다(문자 데이터 약 100바이트를 빼면 약 165바이트).
+         */
+        const val ENTRY_OVERHEAD_BYTES = 170L
+    }
 }
 
 /**
@@ -54,11 +81,16 @@ private class DirectoryVisit(val listed: IdentifiedListing, val identities: Set<
  * 모든 명령은 실패를 결과로 알리며, 연결이 없거나 끊기면 [IoResult.ConnectionLost]를 돌려준다.
  * 서버 응답의 해석은 [FtpReplyRules]에 맡긴다.
  * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
+ * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree])
  */
 @Singleton
-class FtpCommandExecutor @Inject constructor(
-    private val session: FtpSession
+class FtpCommandExecutor internal constructor(
+    private val session: FtpSession,
+    private val treeMemoryLimitBytes: Long
 ) {
+
+    /** 트리 수집 메모리 상한을 [TREE_MEMORY_LIMIT_BYTES]로 둔 명령 실행기를 만든다. Hilt가 사용하는 생성자다. */
+    @Inject constructor(session: FtpSession) : this(session, TREE_MEMORY_LIMIT_BYTES)
 
     /** 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행한다. */
     private val dataCommands = DataCommandRunner(session)
@@ -137,10 +169,13 @@ class FtpCommandExecutor @Inject constructor(
     /**
      * remoteDirPath 하위의 모든 항목을 깊이 우선으로 평탄화한 목록을 반환한다. 디렉터리는 자신의 자식보다 앞에 온다.
      * 어느 하위 디렉터리라도 조회에 실패하거나 내려갈 수 없으면([descentRefusal]) 일부만 담긴 목록 대신 그 실패를 돌려준다.
-     * 목록이 상위 디렉터리를 하위로 보여줘도(디렉터리로 보고된 링크, 서버 오류) 수집은 끝난다.
+     * 목록이 상위 디렉터리를 하위로 보여줘도(디렉터리로 보고된 링크, 서버 오류) 수집은 끝난다 — 서버가 무엇을 보여주든 받은 목록의 추정 메모리가
+     * [treeMemoryLimitBytes]를 넘으면 멈추므로([TreeMemoryBudget]), 순환과 구분할 수 없는 큰 트리(아래 지원 범위)와 순환 모두 실패로 끝난다.
+     * 방문한 디렉터리도 모두 받은 항목이므로 이 상한이 메모리와 함께 방문 수(목록 조회 횟수)도 막는다.
+     * 그 위에서 서버가 식별값(MLSD `unique`)을 알려주면 순환을 더 일찍, 순환이라는 이유로 알린다([descentRefusal]).
+     * 지원 범위: 받은 목록의 추정 메모리가 상한 안인 트리. 넘는 트리는 일부만 처리하지 않고 실패로 알린다.
      * 깊이는 경로 한도까지 수천 단계가 될 수 있어, 재귀 대신 들어가 있는 디렉터리를 쌓아 두고 거쳐 온 식별값을 한 집합에서 넣고 뺀다 —
-     * 스레드 스택 깊이에 기대지 않고, 메모리가 깊이에 비례한다.
-     * 시작 디렉터리의 식별값은 그 목록의 자신 항목(MLSD `type=cdir`)에서 얻는다.
+     * 스레드 스택 깊이에 기대지 않는다.
      * 알려진 문제(방치하기로 결정): 각 목록은 서버가 드러내는 항목뿐이라([identifiedListing]) 서버가 숨긴 항목은 트리에서 빠지지만, 수집은 성공으로 끝난다.
      * 그래서 폴더 다운로드는 숨긴 항목 없이 완료로 보고되고, 재귀 삭제는 보이는 항목을 지운 뒤 RMD에서 실패한다([removeDirectoryRecursive]).
      * @param remoteDirPath 수집할 원격 디렉터리 경로 (ftp://server/path 형식)
@@ -148,15 +183,18 @@ class FtpCommandExecutor @Inject constructor(
      */
     internal suspend fun collectRemoteTree(remoteDirPath: String): IoResult<List<FileEntry>> {
         val result = mutableListOf<FileEntry>()
+        val budget = TreeMemoryBudget(treeMemoryLimitBytes)
         // 거쳐 온 디렉터리의 식별값 — 이미 있는 값이면 내려가지 않으므로 같은 값이 두 번 들어가지 않아, 그 디렉터리를 나올 때 빼도 된다
         val ancestorIdentities = HashSet<String>()
+        // 식별값 없이 들어간 하위 디렉터리가 있었는지 — 있었으면 상한에 이른 것이 순환 때문인지 판별할 수 없다
+        var enteredUnidentified = false
         val pending = ArrayDeque<DirectoryVisit>()
-        pending.addLast(enterDirectory(remoteDirPath, entryIdentity = null, ancestorIdentities).valueOr { return it })
+        pending.addLast(enterDirectory(remoteDirPath, identity = null, budget, enteredUnidentified).valueOr { return it })
         while (pending.isNotEmpty()) {
             val visit = pending.last()
             if (!visit.remaining.hasNext()) {
                 pending.removeLast()
-                ancestorIdentities.removeAll(visit.identities)
+                visit.identity?.let(ancestorIdentities::remove)
                 continue
             }
             val entry = visit.remaining.next()
@@ -164,31 +202,32 @@ class FtpCommandExecutor @Inject constructor(
             if (!entry.isDirectory) continue
             val identity = visit.listed.identities[entry.path]
             descentRefusal(entry.path, identity, ancestorIdentities)?.let { return it }
-            pending.addLast(enterDirectory(entry.path, identity, ancestorIdentities).valueOr { return it })
+            if (identity == null) enteredUnidentified = true
+            pending.addLast(enterDirectory(entry.path, identity, budget, enteredUnidentified).valueOr { return it })
+            identity?.let(ancestorIdentities::add)
         }
         return IoResult.Success(result)
     }
 
     /**
-     * 트리 수집이 [dirPath]로 들어간다. 목록을 조회하고, 그 디렉터리의 식별값을 거쳐 온 식별값에 더한다.
-     * 식별값은 상위 목록의 항목이 알려준 값과 그 디렉터리 목록의 자신 항목(MLSD `type=cdir`)이 알려준 값 둘 다 쓴다 —
-     * 항목에는 링크 자신의 값을, 자신 항목에는 링크 대상의 값을 보내는 서버에서도 순환을 놓치지 않도록, 자신 항목의 값도 거쳐 온 식별값과 비교한다.
+     * 트리 수집이 [dirPath]로 들어간다. 목록을 조회하고, 받은 목록을 수집의 메모리 상한에 더한다.
      * @param dirPath 들어갈 원격 디렉터리 경로 (ftp://server/path 형식)
-     * @param entryIdentity 상위 목록의 항목이 알려준 이 디렉터리의 식별값. 모르거나 시작 디렉터리면 null. [ancestorIdentities]에 없는 값이어야 한다
-     * @param ancestorIdentities 거쳐 온 디렉터리의 식별값. 이 디렉터리의 식별값이 더해진다
-     * @return 들어간 디렉터리. 조회에 실패했거나 자신 항목의 식별값이 거쳐 온 디렉터리와 같으면 그 실패
+     * @param identity 상위 목록의 항목이 알려준 이 디렉터리의 식별값. 모르거나 시작 디렉터리면 null
+     * @param budget 이 수집의 메모리 상한
+     * @param enteredUnidentified 식별값 없이 들어간 하위 디렉터리가 있었으면 true — 상한에 이른 실패에 판별할 수 없다는 설명을 붙인다
+     * @return 들어간 디렉터리. 조회에 실패했거나 받은 목록이 상한을 넘기면 그 실패
      */
     private suspend fun enterDirectory(
         dirPath: String,
-        entryIdentity: String?,
-        ancestorIdentities: MutableSet<String>
+        identity: String?,
+        budget: TreeMemoryBudget,
+        enteredUnidentified: Boolean
     ): IoResult<DirectoryVisit> {
         val listed = list(dirPath, withIdentities = true).valueOr { return it }
-        if (listed.selfIdentity != null && listed.selfIdentity in ancestorIdentities) return cycleRefusal(dirPath)
-        // 거쳐 온 식별값에 없는 값만 담기므로, 나올 때 이 값들을 빼도 상위 디렉터리의 값은 남는다
-        val identities = setOfNotNull(entryIdentity, listed.selfIdentity)
-        ancestorIdentities.addAll(identities)
-        return IoResult.Success(DirectoryVisit(listed, identities))
+        if (!budget.admit(listed.entries)) {
+            return IoResult.ItemFailed("$TOO_MANY_ENTRIES_MESSAGE: ${extractFtpPath(dirPath)}" + if (enteredUnidentified) UNIDENTIFIABLE_NOTE else "")
+        }
+        return IoResult.Success(DirectoryVisit(listed, identity))
     }
 
     /**
@@ -201,11 +240,10 @@ class FtpCommandExecutor @Inject constructor(
 
     /**
      * 트리 수집이 하위 디렉터리 [path]로 내려가면 안 되는 이유를 실패로 만든다.
-     * 수집이 끝나는지를 목록의 정확성에 맡기지 않는다 — 목록이 상위 디렉터리를 하위로 보여주면 경로만 길어지며 끝없이 내려간다.
-     * 서버가 식별값을 알려주면(MLSD `unique`) 거쳐 온 디렉터리와 같은 디렉터리인지로 순환을 판별한다.
-     * 식별값이 없으면(LIST, `unique`를 보내지 않는 MLSD) 순환과 깊은 트리를 구분할 수 없으므로, 경로가 [PATH_MAX_BYTES]에 이르면 멈춘다.
-     * 이 한도는 식별값과 무관하게 수집이 끝나도록 둔 상한이라 식별값이 있어도 적용한다(서버마다 식별값을 만드는 방식을 검증할 수 없다).
-     * 값은 Linux(Android·대부분의 FTP 서버)가 한 경로로 다룰 수 있는 길이이므로, 실제 트리를 자르는 일은 사실상 없다.
+     * 서버가 식별값을 알려주면(MLSD `unique`, 서버가 이미 목록에 담는 경우) 거쳐 온 디렉터리와 같은 디렉터리인지로 순환을 판별한다 —
+     * 수집이 끝나는 것은 메모리 상한([TreeMemoryBudget])이 보장하고, 이 판별은 순환을 상한보다 일찍, 순환이라는 이유로 알린다.
+     * 경로가 [PATH_MAX_BYTES]에 이르면 식별값과 무관하게 멈춘다. 값은 Linux(Android·대부분의 FTP 서버)가 한 경로로 다룰 수 있는 길이라
+     * 그보다 깊은 항목은 내려받아도 로컬에 만들 수 없고, 실제 트리를 자르는 일은 사실상 없다.
      * @param path 내려갈 하위 디렉터리 경로 (ftp://server/path 형식)
      * @param identity 서버가 알려준 [path]의 식별값. 없으면 null
      * @param ancestorIdentities [path]의 상위 디렉터리들의 식별값
@@ -258,8 +296,7 @@ class FtpCommandExecutor @Inject constructor(
     private suspend fun listWithList(client: ListingStreamFtpClient, ftpPath: String, path: String): IoResult<IdentifiedListing> {
         if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client)
         return receiveListing(FtpCommand.LIST, client, FtpListingFormat.listParser(client), path, open = { client.openListStream() }) { files ->
-            val entries = files.filter { it.name != "." && it.name != ".." }
-            ReceivedListing(entries.map { ReceivedEntry(it, identity = null) }, selfIdentity = null)
+            files.filter { it.name != "." && it.name != ".." }.map { ReceivedEntry(it, identity = null) }
         }
     }
 
@@ -269,7 +306,7 @@ class FtpCommandExecutor @Inject constructor(
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param withIdentities 서버가 알려준 항목 식별값(MLSD `unique`)도 읽으면 true — 트리 수집이 순환 판별에 쓴다
-     * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdListing]), 또는 조회 실패
+     * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdEntries]), 또는 조회 실패
      */
     private suspend fun listWithMlsd(
         client: ListingStreamFtpClient,
@@ -278,7 +315,7 @@ class FtpCommandExecutor @Inject constructor(
         withIdentities: Boolean
     ): IoResult<IdentifiedListing> =
         receiveListing(FtpCommand.MLSD, client, MLSxEntryParser.getInstance(), path, open = { client.openMlsdStream(ftpPath) }) { files ->
-            receivedMlsdListing(files, withIdentities)
+            receivedMlsdEntries(files, withIdentities)
         }
 
     /**
@@ -299,7 +336,7 @@ class FtpCommandExecutor @Inject constructor(
         parser: FTPFileEntryParser,
         path: String,
         open: () -> InputStream?,
-        received: (Array<FTPFile>) -> ReceivedListing
+        received: (Array<FTPFile>) -> List<ReceivedEntry>
     ): IoResult<IdentifiedListing> {
         val engine = FTPListParseEngine(parser)
         val outcome = dataCommands.run(client, open) { stream -> engine.readServerList(keepingOpen(stream), client.controlEncoding) }
@@ -332,32 +369,25 @@ class FtpCommandExecutor @Inject constructor(
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @return 받은 목록과 식별값
      */
-    private fun identifiedListing(received: ReceivedListing, path: String): IdentifiedListing {
-        val converted = received.entries.map { it to toFileEntry(it.file, path) }
+    private fun identifiedListing(received: List<ReceivedEntry>, path: String): IdentifiedListing {
+        val converted = received.map { it to toFileEntry(it.file, path) }
         val identities = converted.mapNotNull { (item, entry) -> item.identity?.let { entry.path to it } }.toMap()
-        return IdentifiedListing(converted.map { it.second }, identities, received.selfIdentity)
+        return IdentifiedListing(converted.map { it.second }, identities)
     }
 
     /**
      * MLSD로 받은 항목의 사실을 한 번씩 읽어, 나열한 디렉터리 자신·상위 항목(type=cdir/pdir)을 걸러낸다.
-     * 걸러내지 않으면 트리 수집이 자기 자신을 하위 디렉터리로 보고 내려간다. 자신 항목의 식별값은 그 디렉터리의 식별값이다.
+     * 걸러내지 않으면 트리 수집이 자기 자신을 하위 디렉터리로 보고 내려간다.
      * @param files MLSD로 받은 항목
      * @param withIdentities 식별값을 붙일지 여부. 식별값은 트리 수집만 쓴다
      * @return 디렉터리 안의 항목과 식별값
      */
-    private fun receivedMlsdListing(files: Array<out FTPFile>, withIdentities: Boolean): ReceivedListing {
-        var selfIdentity: String? = null
-        val entries = files.mapNotNull { file ->
+    private fun receivedMlsdEntries(files: Array<out FTPFile>, withIdentities: Boolean): List<ReceivedEntry> =
+        files.mapNotNull { file ->
             val facts = FtpListingFormat.mlsdFacts(file)
-            val identity = if (withIdentities) FtpListingFormat.mlsdIdentity(facts) else null
-            when (FtpListingFormat.mlsdSelfOrParent(facts)) {
-                MlsdSelfOrParent.SELF -> null.also { if (selfIdentity == null) selfIdentity = identity }
-                MlsdSelfOrParent.PARENT -> null
-                null -> ReceivedEntry(file, identity)
-            }
+            if (FtpListingFormat.isMlsdSelfOrParent(facts)) null
+            else ReceivedEntry(file, if (withIdentities) FtpListingFormat.mlsdIdentity(facts) else null)
         }
-        return ReceivedListing(entries, selfIdentity)
-    }
 
     /**
      * [ancestorPath]가 [path]를 하위 항목으로 품는 원격 디렉터리 경로인지 판별한다.
@@ -452,7 +482,14 @@ class FtpCommandExecutor @Inject constructor(
     companion object {
         /** 트리 수집이 내려갈 수 있는 경로 길이의 한도(바이트, 끝의 NUL 포함). Linux(Android)의 PATH_MAX다. */
         private const val PATH_MAX_BYTES = 4096
-        /** 식별값 없이 경로 한도에서 멈췄을 때 덧붙이는 설명([descentRefusal]). */
+        /**
+         * 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [TreeMemoryBudget]). 받은 항목은 수집이 끝날 때까지 메모리에 남는다.
+         * 흔한 앱 힙(약 256MB, 기기마다 다름)의 일부로, 경로 80자인 항목이면 약 9만 개, 경로가 [PATH_MAX_BYTES]에 이르는 항목이면 약 4천 개다.
+         */
+        private const val TREE_MEMORY_LIMIT_BYTES = 32L * 1024 * 1024
+        /** 트리 수집이 메모리 상한([TREE_MEMORY_LIMIT_BYTES])에 이르렀을 때의 실패 메시지. 뒤에 멈춘 디렉터리 경로가 붙는다([enterDirectory]). */
+        private const val TOO_MANY_ENTRIES_MESSAGE = "폴더 안의 항목이 너무 많아 처리하지 않았습니다"
+        /** 식별값 없이 경로 한도나 메모리 상한에서 멈췄을 때 덧붙이는 설명([descentRefusal], [enterDirectory]). */
         private const val UNIDENTIFIABLE_NOTE = " — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다"
     }
 }

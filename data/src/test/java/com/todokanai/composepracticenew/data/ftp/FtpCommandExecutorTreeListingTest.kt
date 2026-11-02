@@ -12,7 +12,7 @@ import java.nio.file.Files
 /**
  * 작업용 트리 수집([FtpCommandExecutor.collectRemoteTree])이 MLSD 지원 서버에서는 MLSD로 빈 폴더와 조회 실패를 구분하고,
  * 자신·상위 디렉터리 항목(type=cdir/pdir)을 걸러내며, 미지원 서버에서는 LIST를 쓰고 오류 응답을 실패 결과로 보는지,
- * 목록이 상위 폴더를 하위로 보여줘도 수집이 끝나는지(항목·자신 항목의 식별값으로 순환 감지, 경로 한도) 검증하는 단위 테스트.
+ * 목록이 상위 폴더를 하위로 보여줘도 수집이 끝나는지(메모리 상한, 항목의 식별값으로 순환 감지, 경로 한도) 검증하는 단위 테스트.
  */
 class FtpCommandExecutorTreeListingTest {
 
@@ -132,19 +132,7 @@ class FtpCommandExecutorTreeListingTest {
     }
 
     @Test
-    fun `시작 폴더로 돌아오는 순환은 시작 폴더의 자신 항목 식별값으로 바로 감지한다`() {
-        loggedIn()
-        client.features = setOf("MLST")
-        client.mlsdListings = mapOf("/r" to listOf("type=cdir;unique=801U10; /r", "type=dir;unique=801U10; self"))
-
-        val result = runBlocking { commands.collectRemoteTree("ftp://host/r") }
-
-        assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/self 은(는) 상위 폴더와 같은 폴더입니다"), result)
-        assertEquals(listOf("MLSD /r"), client.listRequests)
-    }
-
-    @Test
-    fun `시작 폴더의 자신 항목이 없으면 시작 폴더로 돌아오는 순환을 한 단계 더 내려간 뒤 감지한다`() {
+    fun `시작 폴더로 돌아오는 순환은 시작 폴더의 식별값을 모르므로 한 단계 더 내려간 뒤 감지한다`() {
         loggedIn()
         client.features = setOf("MLST")
         // /r/self는 /r을 가리키는 링크 — 같은 목록이 돌아온다
@@ -217,36 +205,82 @@ class FtpCommandExecutorTreeListingTest {
     }
 
     @Test
-    fun `항목에는 링크 자신의 식별값을 보내도 들어간 폴더의 자신 항목 식별값으로 순환을 감지한다`() {
-        loggedIn()
-        client.features = setOf("MLST")
-        client.mlsdListings = mapOf(
-            "/r" to listOf("type=cdir;unique=801U10; /r", "type=dir;unique=801U99; loop"),
-            // loop는 /r을 가리키는 링크 — 상위 목록의 항목은 링크 자신의 값(801U99), 들어간 목록의 자신 항목은 대상의 값(801U10)
-            "/r/loop" to listOf("type=cdir;unique=801U10; /r/loop", "type=dir;unique=801U99; loop")
-        )
-
-        val result = runBlocking { commands.collectRemoteTree("ftp://host/r") }
-
-        assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
-        assertEquals(listOf("MLSD /r", "MLSD /r/loop"), client.listRequests)
-    }
-
-    @Test
     fun `들어갔다 나온 폴더의 식별값은 형제 폴더를 순환으로 보지 않도록 빠진다`() {
         loggedIn()
         client.features = setOf("MLST")
         client.mlsdListings = mapOf(
             "/r" to listOf("type=dir;unique=A; a", "type=dir;unique=B; b"),
-            "/r/a" to listOf("type=cdir;unique=A2; /r/a"),
-            // b 안의 c는 이미 나온 a의 자신 항목 값과 같다 — 상위가 아니므로 순환이 아니다
-            "/r/b" to listOf("type=dir;unique=A2; c"),
+            "/r/a" to emptyList(),
+            // b 안의 c는 이미 나온 a를 가리키는 링크 — 상위가 아니므로 순환이 아니다
+            "/r/b" to listOf("type=dir;unique=A; c"),
             "/r/b/c" to emptyList()
         )
 
         val tree = (runBlocking { commands.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
 
         assertEquals(listOf("ftp://host/r/a", "ftp://host/r/b", "ftp://host/r/b/c"), tree.map { it.path })
+    }
+
+    @Test
+    fun `LIST 서버에서 상위를 가리키는 링크가 여럿이어도 메모리 상한에서 멈추고 판별할 수 없음을 알린다`() {
+        loggedIn()
+        // 어느 하위 경로를 조회해도 같은 두 폴더를 돌려준다 — 단계마다 방문 수가 배로 늘어난다(#257)
+        client.remoteDirectories = listOf("a", "b")
+        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+
+        val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
+
+        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        assertTrue(message, message.startsWith("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/a"))
+        assertTrue(message, message.endsWith(UNIDENTIFIABLE))
+        // 항목 하나의 추정치는 170바이트 이상이므로, 상한까지 받을 수 있는 항목 수(곧 목록 조회 수)는 상한 / 170을 넘지 않는다
+        assertTrue(client.listRequests.toString(), client.listRequests.count { it == "LIST" } <= SMALL_LIMIT_BYTES / 170)
+    }
+
+    @Test
+    fun `식별값이 모두 다른 큰 트리도 메모리 상한에서 멈추며 판별할 수 없다는 설명은 붙이지 않는다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        // 순환이 아닌 넓은 트리 — 폴더마다 하위 폴더 열 개
+        client.mlsdListingOf = { path -> (0 until 10).map { "type=dir;unique=$path/d$it; d$it" } }
+        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+
+        val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
+
+        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        assertTrue(message, message.startsWith("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/d0"))
+        assertFalse(message, message.endsWith(UNIDENTIFIABLE))
+    }
+
+    @Test
+    fun `받은 목록이 메모리 상한 안이면 상한에 가까워도 끝까지 수집한다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a"))
+        // 항목 하나(경로 "ftp://host/r/a" 14자, 이름 1자)의 추정치: 170 + 2 × 15 = 200바이트
+        val exact = FtpCommandExecutor(session, treeMemoryLimitBytes = 200)
+
+        val tree = (runBlocking { exact.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
+
+        assertEquals(listOf("ftp://host/r/a"), tree.map { it.path })
+        assertEquals(
+            IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r"),
+            runBlocking { FtpCommandExecutor(session, treeMemoryLimitBytes = 199).collectRemoteTree("ftp://host/r") }
+        )
+    }
+
+    @Test
+    fun `메모리 상한에 이른 폴더는 하위 항목을 하나도 지우지 않고 실패를 알린다`() {
+        loggedIn()
+        client.remoteDirectories = listOf("a", "b")
+        client.remoteFiles = listOf("x.txt")
+        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+
+        val result = runBlocking { limited.removeDirectoryRecursive("ftp://host/r") }
+
+        assertTrue(result.toString(), result is IoResult.ItemFailed)
+        assertEquals(emptyList<String>(), client.deleteRequests)
+        assertEquals(emptyList<String>(), client.removeDirectoryRequests)
     }
 
     @Test
@@ -269,7 +303,9 @@ class FtpCommandExecutorTreeListingTest {
     private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null) }
 
     private companion object {
-        /** 식별값 없이 경로 한도에서 멈췄을 때 실패 메시지에 붙는 설명. */
+        /** 식별값 없이 경로 한도나 메모리 상한에서 멈췄을 때 실패 메시지에 붙는 설명. */
         const val UNIDENTIFIABLE = " — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다"
+        /** 메모리 상한 테스트가 쓰는 작은 상한(바이트). 기본 상한(32MiB)까지 조회하면 테스트가 오래 걸린다. */
+        const val SMALL_LIMIT_BYTES = 16L * 1024
     }
 }
