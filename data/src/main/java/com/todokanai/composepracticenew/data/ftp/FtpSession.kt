@@ -10,9 +10,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
+import java.io.Closeable
 import java.io.IOException
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,13 +22,24 @@ import javax.inject.Singleton
  * 단일 FTPClient와 그 잠금·로그인 상태를 캡슐화하는 FTP 세션.
  * 클라이언트와 Mutex는 외부로 노출하지 않으며, 명령 실행은 [withClient] 또는 [withConnectedClient]를 통해서만 가능하다.
  * 잠금 규칙: 로그인 상태 플래그는 stateMutex, FTP 명령 I/O는 ioMutex로 직렬화한다.
- * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 FTPClient를, 테스트에서는 가짜 클라이언트를 넘긴다
+ * 서버가 응답하지 않아도 명령이 잠금을 쥔 채 끝없이 기다리지 않도록, [client]의 모든 소켓 읽기·쓰기 한 번에 [ioTimeoutMillis]의 상한을 건다.
+ * 상한은 [client]가 소켓 팩토리로 만드는 제어 연결과 수동 모드 데이터 연결에 걸린다. 능동 모드 데이터 연결은 상한을 걸 수 없어 열지 않는다([PassiveOnlyServerSocketFactory]).
+ * 상한을 넘긴 I/O는 IOException으로 끝나며, 그 의미(이 항목만의 실패인지 세션 종료인지)는 다른 I/O 실패와 같이 정한다([withConnectedClient]).
+ * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 클라이언트를, 테스트에서는 가짜 클라이언트를 넘긴다.
+ * 목록 조회도 데이터 스트림을 직접 열어야 하므로([DataCommandRunner]) 그 함수를 가진 [ListingStreamFtpClient]다.
+ * 소켓 상한·소켓 팩토리는 세션이 정하므로 먼저 정해 둔 값은 덮어쓴다 — 상한을 바꾸려면 [ioTimeoutMillis]로 넘긴다
+ * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
  */
 @Singleton
-class FtpSession internal constructor(private val client: FTPClient) {
+class FtpSession internal constructor(private val client: ListingStreamFtpClient, ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS) {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor() : this(FTPClient())
+    @Inject constructor() : this(ListingStreamFtpClient())
+
+    init {
+        // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다
+        require(ioTimeoutMillis > 0) { "ioTimeoutMillis must be positive: $ioTimeoutMillis" }
+    }
 
     /** isLoggedIn, _connectionState, _isConnecting 갱신을 직렬화한다. */
     private val stateMutex = Mutex()
@@ -38,7 +50,15 @@ class FtpSession internal constructor(private val client: FTPClient) {
     /** [closeBypassingIoLock]이 요청된 횟수. stateMutex 안에서 늘리고, ioMutex를 쥔 연결 작업이 잠금 없이 읽으므로 원자 값으로 둔다. */
     private val bypassCloseRequests = AtomicInteger()
     /** [client]가 연 제어·데이터 소켓. [closeBypassingIoLock]이 잠금 밖에서 FTPClient를 건드리지 않고 진행 중 I/O를 깨우려고 닫는다. */
-    private val sockets = AbortableSocketFactory().also { client.setSocketFactory(it) }
+    private val sockets = AbortableSocketFactory(writeTimeoutMillis = ioTimeoutMillis.toLong()).also { client.setSocketFactory(it) }
+
+    init {
+        // 쓰기 상한은 [sockets]가 만든 소켓이 건다. 읽기 상한은 FTPClient가 소켓을 열 때 SO_TIMEOUT으로 건다 — 제어 연결은 접속할 때(defaultTimeout), 데이터 연결은 열 때(dataTimeout)
+        client.defaultTimeout = ioTimeoutMillis
+        client.setDataTimeout(Duration.ofMillis(ioTimeoutMillis.toLong()))
+        // 능동 모드 데이터 소켓은 서버 소켓의 accept로 만들어져 [sockets]를 거치지 않는다 — 상한 없이 막히지 않도록 열지 못하게 한다
+        client.setServerSocketFactory(PassiveOnlyServerSocketFactory())
+    }
 
     /**
      * 세션의 현재 디렉터리(FTP 경로). 로그인 직후에는 [homeDirectory]이고, 이 앱이 CWD로 옮길 때마다 갱신한다. 알 수 없으면 null이다.
@@ -76,7 +96,7 @@ class FtpSession internal constructor(private val client: FTPClient) {
      * @param block 잠금 안에서 실행할 FTP 명령
      * @return block의 반환값
      */
-    suspend fun <T> withClient(block: suspend (FTPClient) -> T): T = ioMutex.withLock { block(client) }
+    internal suspend fun <T> withClient(block: suspend (ListingStreamFtpClient) -> T): T = ioMutex.withLock { block(client) }
 
     /**
      * 연결된 상태에서만 [withClient]로 [block]을 실행한다. FTP 명령 실패의 의미를 정하는 경계이며, 규칙은 다음 하나뿐이다.
@@ -89,7 +109,7 @@ class FtpSession internal constructor(private val client: FTPClient) {
      * @param block 잠금 안에서 실행할 FTP 명령
      * @return block의 결과, 또는 연결 끊김
      */
-    suspend fun <T> withConnectedClient(block: suspend (FTPClient) -> IoResult<T>): IoResult<T> = withClient { client ->
+    internal suspend fun <T> withConnectedClient(block: suspend (ListingStreamFtpClient) -> IoResult<T>): IoResult<T> = withClient { client ->
         if (!isReady()) return@withClient IoResult.ConnectionLost(NOT_CONNECTED_MESSAGE)
         try {
             block(client)
@@ -102,6 +122,18 @@ class FtpSession internal constructor(private val client: FTPClient) {
             endUnusableSession()
             throw e
         }
+    }
+
+    /**
+     * [open]으로 데이터 연결을 쓰는 명령의 데이터 스트림을 열어, 정상 끝과 중단을 구분해 닫을 수 있는 [DataConnection]으로 돌려준다.
+     * ioMutex를 쥔 블록 안에서 [withClient]가 넘긴 클라이언트로 호출한다. 명령의 실행 규칙은 [DataCommandRunner]가 정한다.
+     * @param open 데이터 스트림을 여는 명령(`retrieveFileStream`·`storeFileStream`, [ListingStreamFtpClient]의 목록 조회). 서버가 거부하면 null을 돌려준다
+     * @return 열린 데이터 연결, 서버가 거부했으면 null
+     * @throws IOException 명령의 응답을 읽지 못한 경우
+     */
+    internal fun <S : Closeable> openDataConnection(open: () -> S?): DataConnection<S>? {
+        val (stream, opened) = sockets.capturing(open)
+        return stream?.let { DataConnection(it, opened) }
     }
 
     /**
@@ -186,7 +218,7 @@ class FtpSession internal constructor(private val client: FTPClient) {
     /**
      * 진행 중인 FTP 명령을 기다리지 않고 연결을 끊는다. 로그인 상태를 먼저 해제하므로 [withConnectedClient]는 이를 연결 끊김으로 알린다.
      * 진행 중인 명령이 없으면 ioMutex를 얻어 로그아웃한 뒤 연결을 닫는다.
-     * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 닫는다 — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
+     * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 중단으로 닫는다(업로드가 서버에 파일 끝으로 읽히지 않도록) — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
      * 그 명령은 IOException을 받아 자기 잠금 안에서 세션을 정리하고, 이 함수는 ioMutex를 얻은 뒤 남은 연결을 닫는다.
      * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn], [isCloseRequestedSince]), 소켓을 닫기 전에 요청을 기록한다.
      * 호출 전 소켓이 열려 있는지 [isSocketOpen]으로 확인해야 한다.
@@ -213,6 +245,8 @@ class FtpSession internal constructor(private val client: FTPClient) {
     }
 
     companion object {
+        /** 소켓 읽기·쓰기 한 번을 기다리는 기본 상한(ms). FileZilla의 기본 무응답 제한(20초)과 비슷한 수준이다. */
+        private const val IO_TIMEOUT_MILLIS = 15_000
         /** 연결되지 않은 상태에서 명령을 실행하려 할 때 표시할 메시지. */
         private const val NOT_CONNECTED_MESSAGE = "FTP 서버에 연결되어 있지 않습니다"
         /** 서버가 연결을 닫았을 때 표시할 메시지. */

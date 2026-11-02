@@ -112,8 +112,8 @@ class FtpConnector @Inject constructor(
     private fun establish(client: FTPClient, server: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
         client.connectTimeout = CONNECT_TIMEOUT_MS
         client.setControlEncoding(encoding)
+        // 응답 읽기의 상한은 세션이 정해 둔 값으로 접속할 때 걸린다([FtpSession])
         client.connect(server, port)
-        client.soTimeout = SO_TIMEOUT_MS
         return loginAndCheck(client, userId, password)
     }
 
@@ -154,6 +154,5 @@ class FtpConnector @Inject constructor(
 
     companion object {
         private const val CONNECT_TIMEOUT_MS = 10_000
-        private const val SO_TIMEOUT_MS = 15_000
     }
 }

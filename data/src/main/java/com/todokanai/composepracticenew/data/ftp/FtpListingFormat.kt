@@ -4,6 +4,7 @@ import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import org.apache.commons.net.ftp.FTPFile
+import org.apache.commons.net.ftp.FTPFileEntryParser
 import org.apache.commons.net.ftp.parser.DefaultFTPFileEntryParserFactory
 import org.apache.commons.net.ftp.parser.ParserInitializationException
 import java.io.IOException
@@ -107,18 +108,34 @@ internal object FtpListingFormat {
     fun mlsdIdentity(facts: Map<String, String>): String? = facts[FACT_UNIQUE]?.takeIf { it.isNotEmpty() }
 
     /**
-     * commons-net이 LIST 목록에 쓸 해석기를 [systemType]으로 만들 수 있는지 확인한다.
-     * 이 앱은 해석기 팩토리를 바꾸지 않으므로 FTPClient가 쓰는 것과 같은 기본 팩토리로 확인한다.
+     * LIST 목록에 쓸 해석기를 [systemType]으로 만들 수 있는지 확인한다.
+     * 목록 조회가 쓰는 것과 같은 해석기([listParser])로 확인한다.
      * @param systemType SYST가 알려준 시스템 종류(예: "UNIX Type: L8")
      * @return 해석기를 만들 수 있으면 true
      */
     private fun hasParserFor(systemType: String): Boolean =
         try {
-            DefaultFTPFileEntryParserFactory().createFileEntryParser(systemType)
+            parserFor(systemType)
             true
         } catch (e: ParserInitializationException) {
             false
         }
+
+    /**
+     * LIST 목록을 해석할 해석기를 만든다. 연결할 때 [isReadable]이 확인한 것과 같은 해석기다.
+     * commons-net은 [isReadable]이 알아낸 시스템 종류를 연결이 끝날 때까지 기억하므로 SYST를 다시 보내지 않는다.
+     * @param client [isReadable] 확인을 통과한 FTPClient
+     * @return LIST 목록 해석기
+     */
+    fun listParser(client: FTPClient): FTPFileEntryParser = parserFor(client.systemType)
+
+    /**
+     * [systemType]의 LIST 목록 해석기를 만든다. 이 앱은 해석기 팩토리를 바꾸지 않으므로 commons-net의 기본 팩토리를 쓴다.
+     * @param systemType SYST가 알려준 시스템 종류
+     * @return LIST 목록 해석기
+     * @throws ParserInitializationException 해석기가 없는 시스템 종류인 경우
+     */
+    private fun parserFor(systemType: String): FTPFileEntryParser = DefaultFTPFileEntryParserFactory().createFileEntryParser(systemType)
 
     /**
      * 판정 중 난 [cause] 뒤에 제어 연결을 더 쓸 수 없는지 판별한다.

@@ -9,6 +9,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPFile
+import org.apache.commons.net.ftp.FTPFileEntryParser
+import org.apache.commons.net.ftp.FTPListParseEngine
+import org.apache.commons.net.ftp.parser.MLSxEntryParser
+import java.io.FilterInputStream
+import java.io.InputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,6 +59,9 @@ private class DirectoryVisit(val listed: IdentifiedListing, val identities: Set<
 class FtpCommandExecutor @Inject constructor(
     private val session: FtpSession
 ) {
+
+    /** 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행한다. */
+    private val dataCommands = DataCommandRunner(session)
 
     /**
      * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
@@ -237,57 +245,82 @@ class FtpCommandExecutor @Inject constructor(
     }
 
     /**
-     * LIST로 목록을 조회한다. FTPClient.listFiles는 데이터 연결을 열지 못해도 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
-     * 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
+     * LIST로 목록을 조회한다. 목록 해석기는 연결할 때 [FtpListingFormat.isReadable]로 확인했으므로, 이 연결에서는 해석기를 고르지 못해 실패하지 않는다.
      * 목록은 서버가 드러내는 항목뿐이다 — 서버가 숨긴 항목(유닉스 계열의 `.` 항목 등)은 지원 범위 밖이라 `-a` 같은 비표준 옵션을 붙이지 않는다.
      * 디렉터리로 이동한 뒤 인자 없는 `LIST`로 조회한다(RFC 959: 인자가 없으면 현재 디렉터리, curl과 같은 방식) — LIST 인자를 옵션으로도 읽는
-     * 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다. commons-net의 숨김 항목 옵션(`listHiddenFiles`)은 켜지 않으므로 `listFiles()`는 인자 없이 나간다.
+     * 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다.
      * 다른 명령은 모두 절대 경로를 쓰지만, 세션이 조회한 폴더 안에 남으므로 그 폴더나 상위 폴더를 지우거나 옮기는 명령은 먼저 밖으로 나간다([leavingTarget]).
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
-     * @return 디렉터리의 항목 목록(LIST 목록에는 항목을 식별할 값이 없어 식별값은 없다), 또는 서버가 거부한 실패
+     * @return 디렉터리의 항목 목록(LIST 목록에는 항목을 식별할 값이 없어 식별값은 없다), 또는 조회 실패
      */
-    private fun listWithList(client: FTPClient, ftpPath: String, path: String): IoResult<IdentifiedListing> {
+    private suspend fun listWithList(client: ListingStreamFtpClient, ftpPath: String, path: String): IoResult<IdentifiedListing> {
         if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client)
-        val files = client.listFiles()
-        return listingOutcome(FtpCommand.LIST, client, path) {
-            val entries = files?.filter { it.name != "." && it.name != ".." }.orEmpty()
+        return receiveListing(FtpCommand.LIST, client, FtpListingFormat.listParser(client), path, open = { client.openListStream() }) { files ->
+            val entries = files.filter { it.name != "." && it.name != ".." }
             ReceivedListing(entries.map { ReceivedEntry(it, identity = null) }, selfIdentity = null)
         }
     }
 
     /**
-     * MLSD로 목록을 조회한다. mlistDir도 데이터 연결을 열지 못하면 빈 배열을 돌려주므로 응답으로 결과를 판별한다.
+     * MLSD로 목록을 조회한다.
      * @param client 잠금을 확보한 FTPClient
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param withIdentities 서버가 알려준 항목 식별값(MLSD `unique`)도 읽으면 true — 트리 수집이 순환 판별에 쓴다
-     * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdListing]), 또는 서버가 거부한 실패
+     * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdListing]), 또는 조회 실패
      */
-    private fun listWithMlsd(client: FTPClient, ftpPath: String, path: String, withIdentities: Boolean): IoResult<IdentifiedListing> {
-        val files = client.mlistDir(ftpPath)
-        return listingOutcome(FtpCommand.MLSD, client, path) {
-            receivedMlsdListing(files.orEmpty(), withIdentities)
+    private suspend fun listWithMlsd(
+        client: ListingStreamFtpClient,
+        ftpPath: String,
+        path: String,
+        withIdentities: Boolean
+    ): IoResult<IdentifiedListing> =
+        receiveListing(FtpCommand.MLSD, client, MLSxEntryParser.getInstance(), path, open = { client.openMlsdStream(ftpPath) }) { files ->
+            receivedMlsdListing(files, withIdentities)
+        }
+
+    /**
+     * 목록 조회 명령을 전송과 같은 규칙([DataCommandRunner])으로 실행하고, 받은 목록을 [parser]로 해석해 결과로 만든다.
+     * 서버가 데이터 연결을 열기 전에 거부했거나 마지막 응답이 거부([FtpReplyRules.isListingCompleted])면 이 조회의 실패다.
+     * 목록 데이터를 받다 실패하면(읽기 상한 초과 포함) 받은 일부를 목록으로 보지 않고 이 조회의 실패로 돌려준다 — 완료 응답까지 읽었으므로 세션은 유지된다.
+     * @param command 보낼 목록 조회 명령
+     * @param client 잠금을 확보한 FTPClient
+     * @param parser 목록 줄 해석기
+     * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
+     * @param open 명령을 보내 목록 데이터 스트림을 여는 동작. 서버가 거부하면 null을 돌려준다
+     * @param received 끝까지 받은 항목에서 디렉터리 안의 항목과 식별값을 고르는 동작
+     * @return 조회 결과
+     */
+    private suspend fun receiveListing(
+        command: FtpCommand,
+        client: FTPClient,
+        parser: FTPFileEntryParser,
+        path: String,
+        open: () -> InputStream?,
+        received: (Array<FTPFile>) -> ReceivedListing
+    ): IoResult<IdentifiedListing> {
+        val engine = FTPListParseEngine(parser)
+        val outcome = dataCommands.run(client, open) { stream -> engine.readServerList(keepingOpen(stream), client.controlEncoding) }
+        return when (outcome) {
+            DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client)
+            is DataCommandOutcome.DataFailed -> IoResult.ItemFailed("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}")
+            is DataCommandOutcome.Finished ->
+                if (FtpReplyRules.isListingCompleted(client.replyCode)) IoResult.Success(identifiedListing(received(engine.files), path))
+                else FtpReplyRules.refusal(command, client)
         }
     }
 
     /**
-     * 목록 조회의 마지막 응답을 [FtpReplyRules.isListingCompleted]로 해석해 결과로 만든다. 거부 응답은 모두 이 조회의 실패다.
-     * @param command 보낸 목록 조회 명령
-     * @param client 응답을 받은 FTPClient
-     * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
-     * @param received 조회를 마쳤을 때 받은 항목과 식별값
-     * @return 조회 결과
+     * [stream]을 닫아도 닫히지 않는 스트림으로 감싼다. 목록 해석기(`FTPListParseEngine.readServerList`)는 읽기를 마치거나 실패하면 스트림을 닫는데,
+     * 그 닫기는 정상 닫기라 데이터 연결을 어떻게 닫을지(정상·중단) 정하는 [DataCommandRunner]보다 먼저 연결을 닫아 버린다.
+     * @param stream 목록 데이터 스트림
+     * @return 닫기를 무시하는 스트림
      */
-    private fun listingOutcome(
-        command: FtpCommand,
-        client: FTPClient,
-        path: String,
-        received: () -> ReceivedListing
-    ): IoResult<IdentifiedListing> =
-        if (FtpReplyRules.isListingCompleted(client.replyCode)) IoResult.Success(identifiedListing(received(), path))
-        else FtpReplyRules.refusal(command, client)
+    private fun keepingOpen(stream: InputStream): InputStream = object : FilterInputStream(stream) {
+        override fun close() {}
+    }
 
     /**
      * 끝까지 받은 목록의 항목을 domain 항목으로 바꾸고, 서버가 알려준 식별값을 항목 경로에 묶는다.

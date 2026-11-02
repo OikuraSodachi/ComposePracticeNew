@@ -4,13 +4,14 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
-import org.apache.commons.net.ftp.FTPClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.net.Socket
+import java.net.SocketException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -25,9 +26,9 @@ import kotlin.concurrent.thread
 class FtpConnectorCloseRequestTest {
 
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. 명령을 보내기 직전에 테스트가 끼어들 수 있다. */
-    private val client = InterceptingFtpClient().apply { defaultTimeout = ScriptedFtpServer.TIMEOUT_MILLIS }
-    /** 연결 상태를 소유한 세션. */
-    private val session = FtpSession(client)
+    private val client = InterceptingFtpClient()
+    /** 연결 상태를 소유한 세션. 서버 스크립트가 응답하지 않을 때 오래 기다리지 않도록 I/O 상한을 짧게 둔다. */
+    private val session = FtpSession(client, ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
     /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
     private val keepAlive = FtpKeepAlive(session)
     /** 검증 대상. */
@@ -100,17 +101,17 @@ class FtpConnectorCloseRequestTest {
     }
 
     @Test
-    fun `목록을 받는 중 종료를 요청하면 데이터 연결까지 닫아 명령을 연결 끊김으로 끝낸다`() {
-        val dataClosedByClient = AtomicBoolean(false)
+    fun `목록을 받는 중 종료를 요청하면 데이터 연결까지 리셋해 명령을 연결 끊김으로 끝낸다`() {
+        val dataResetByClient = AtomicBoolean(false)
         val closer = AtomicReference<Thread?>()
         connectToListServer { exchange ->
             exchange.data.accept().use { socket ->
                 exchange.send("150 Here comes the directory listing")
                 socket.getOutputStream().write(listingLines("a.txt").toByteArray())
                 closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
-                // 전송을 끝내지 않고 클라이언트가 데이터 연결을 닫을 때까지 기다린다
+                // 전송을 끝내지 않고 클라이언트가 데이터 연결을 닫을 때까지 기다린다. 중단이므로 정상 닫기(-1)가 아니라 리셋이어야 한다
                 socket.soTimeout = ScriptedFtpServer.TIMEOUT_MILLIS
-                dataClosedByClient.set(socket.getInputStream().read() == -1)
+                dataResetByClient.set(isResetOnRead(socket))
             }
         }
 
@@ -118,7 +119,7 @@ class FtpConnectorCloseRequestTest {
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertTrue(listing.toString(), listing is IoResult.ConnectionLost)
-        assertTrue("데이터 연결을 닫아 전송을 기다리지 않는다", dataClosedByClient.get())
+        assertTrue("데이터 연결을 리셋해 전송을 기다리지 않는다", dataResetByClient.get())
         assertFalse("진행 중인 명령이 있으면 다른 스레드에서 QUIT을 보내지 않는다", "QUIT" in servers.last().received)
         assertFalse(client.isConnected)
     }
@@ -204,6 +205,18 @@ class FtpConnectorCloseRequestTest {
         names.joinToString("") { name -> "-rw-r--r--   1 user group        1 Jan 01 00:00 $name\r\n" }
 
     /**
+     * 서버가 받은 데이터 연결을 읽어, 클라이언트가 그 연결을 리셋으로 끝냈는지 판별한다.
+     * @param socket 서버 쪽 데이터 소켓
+     * @return 리셋이면 true, 정상 닫기(파일 끝)거나 데이터가 왔으면 false
+     */
+    private fun isResetOnRead(socket: Socket): Boolean = try {
+        socket.getInputStream().read()
+        false
+    } catch (_: SocketException) {
+        true
+    }
+
+    /**
      * [condition]이 참이 될 때까지 기다린다. 검증 대상이 회귀해 조건이 끝내 참이 되지 않아도 테스트가 멈추지 않도록,
      * 기한([ScriptedFtpServer.TIMEOUT_MILLIS])이 지나면 실패로 끝낸다.
      * @param description 실패 메시지에 담을, 기다린 조건의 설명(예: "소켓이 닫히지")
@@ -218,7 +231,7 @@ class FtpConnectorCloseRequestTest {
     }
 
     /** 명령을 보내기 직전에 테스트가 끼어들 수 있는 실제 FTP 클라이언트. 연결 단계 사이에 종료 요청을 끼워 넣는 데 쓴다. */
-    private class InterceptingFtpClient : FTPClient() {
+    private class InterceptingFtpClient : ListingStreamFtpClient() {
         /** 명령을 보내기 직전에 실행할 동작. 보낼 명령 이름을 받는다. 명령을 보내는 스레드에서 실행된다. */
         @Volatile var beforeCommand: (String) -> Unit = {}
         /** 제어 연결 소켓이 닫혔는지(소켓이 없으면 닫힌 것으로 본다). */
