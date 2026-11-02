@@ -44,6 +44,11 @@ private class DirectoryVisit(val listed: IdentifiedListing, val identity: String
 
 /**
  * 트리 수집 하나가 받은 목록의 메모리를 추정해 더한다. 받은 항목은 수집이 끝날 때까지 메모리에 남으므로, 받은 만큼이 수집이 쓰는 메모리다.
+ *
+ * 세지 않는 메모리가 있다 — 들어가 있는 디렉터리마다 그 목록의 식별값([IdentifiedListing.identities])이 남지만 더하지 않는다.
+ * 주류 서버의 `unique`는 장치 번호·inode의 16진수(ProFTPD `%lXU%lX`, Pure-FTPd `%xg%llx`, 약 33자 이하)라 정상 트리에서는
+ * 실제 메모리가 상한을 조금(경로 위 폴더에 항목이 아주 많으면 약 10MiB) 넘는 정도다. 그러나 RFC 3659의 `unique` 문법
+ * (`token = 1*RCHAR`)에는 길이 상한이 없어, 수 KB 이상의 `unique`를 보내는 서버에서는 깊이마다 쌓여 상한에 이르기 전에 메모리가 바닥날 수 있다.
  * @param limitBytes 수집이 쓸 수 있는 메모리의 추정 상한(바이트)
  */
 private class TreeMemoryBudget(private val limitBytes: Long) {
@@ -65,7 +70,7 @@ private class TreeMemoryBudget(private val limitBytes: Long) {
 
     /**
      * 항목 하나가 차지하는 메모리의 상한 추정치. 고정 부분([ENTRY_OVERHEAD_BYTES])에 경로·이름을 문자당 2바이트(UTF-16)로 더한다 —
-     * ASCII만인 문자열은 실제로 그 절반이므로, 어느 문자로 된 경로든 실제 메모리가 추정치를 넘지 않는다.
+     * ASCII만인 문자열은 실제로 그 절반이므로, 어느 문자로 된 경로든 항목 자체의 실제 메모리가 추정치를 넘지 않는다(식별값은 세지 않는다 — [TreeMemoryBudget]).
      * @param entry 받은 항목
      * @return 추정 메모리(바이트)
      */
