@@ -104,6 +104,11 @@ UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedSt
 
 - **Room** (`data/room/`): `MyDatabase` + `UserDao` / `User` entity. Provided as a singleton via `di/DatabaseModule`.
 - **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `lastRemoteId` (long) preferences. 소비자는 `SortPreferenceRepository` / `LastConnectionRepository` 인터페이스로만 의존한다.
+- **설정 저장소 실패**: DataStore 접근의 실행 위치·재시도·실패 정책은 `PreferencesStore` 한 곳에서 정한다.
+  - 결과로 돌려줄 수 없는 실패는 `PreferenceFailureNotices`(domain `PreferenceFailureRepository`)에 알림으로 넣는다. 공유 `data`의 읽기 실패는 기본값으로 대신하고 백오프로 다시 읽으며, 저장 실패는 이전 값을 남기고, 손상 파일 초기화는 `CorruptionReset`이 교체가 쓰인 뒤 알린다.
+  - 화면 호스트는 화면이 보이는 동안 `PreferenceFailureUseCase.deliver`로 알림을 꺼내 Toast로 알린다. 먼저 꺼낸 한 곳만 알리며, 알리기 전에 회복한 읽기 실패는 목록에서 빠진다.
+  - 결과를 받는 읽기(`readOnce` → `SavedRemoteId.Unreadable`)의 실패는 알림에 넣지 않고 결과로 돌려주며, 받은 화면이 알린다.
+  - 편집은 대기열 하나로 호출 순서대로 반영하고, `readOnce`는 앞서 호출한 편집이 끝난 뒤 읽는다.
 - **`DataConverter`**: Sorts raw `FileEntry` lists and maps them to domain `FileHolderItem` (원시값만 보유). 크기·날짜 표시 문자열 포맷은 app 레이어 UI 모델(`ui/model/FileHolderItem.from`, `StorageHolderItem.from`)이 담당한다.
 
 ### `MyApplication`
@@ -130,7 +135,6 @@ See [ROADMAP.md](ROADMAP.md).
 
 - #258 LIST `-a` 판정이 비표준 서버 수용의 연쇄로 커짐 — CWD 후 LIST, leavingTarget, 홈 기록
 - #260 트리 수집 순환 감지에 정밀 장치가 먼저 쌓이고 일반 상한(#257)은 미해결
-- #261 DataStore 정리 이슈(#42)에 읽기 재시도·묶음 반영 등 동작 변경이 섞임
 
 ## Compose Configuration
 
