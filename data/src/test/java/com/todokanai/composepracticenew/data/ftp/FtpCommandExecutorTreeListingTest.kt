@@ -182,6 +182,19 @@ class FtpCommandExecutorTreeListingTest {
     }
 
     @Test
+    fun `식별값이 있는 폴더에서 경로 한도에 이르러도 경로 위에 식별값 없는 폴더가 있으면 판별할 수 없음을 알린다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        // 식별값 없는 링크 u와 식별값 있는 폴더 yy가 번갈아 나온다 — u가 순환하는지는 식별값으로 판별할 수 없다
+        client.mlsdListingOf = { path -> if (path.endsWith("/u")) listOf("type=dir;unique=$path/yy; yy") else listOf("type=dir; u") }
+
+        val result = runBlocking { commands.collectRemoteTree("ftp://host/r") }
+
+        // "/r" + "/u/yy" × 819 = 4097바이트 — 처음으로 한도에 이르는 경로이며, 마지막 폴더(yy)는 식별값이 있다
+        assertEquals(IoResult.ItemFailed("경로가 너무 깁니다(4096바이트 이상): /r${"/u/yy".repeat(819)}$UNIDENTIFIABLE"), result)
+    }
+
+    @Test
     fun `순환한 폴더는 다운로드하지 않고 로컬 폴더도 만들지 않는다`() {
         loggedIn()
         client.features = setOf("MLST")
@@ -249,6 +262,27 @@ class FtpCommandExecutorTreeListingTest {
 
         val message = (result as IoResult.ItemFailed).message.orEmpty()
         assertTrue(message, message.startsWith("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/d0"))
+        assertFalse(message, message.endsWith(UNIDENTIFIABLE))
+    }
+
+    @Test
+    fun `식별값 없는 폴더를 끝내고 나온 뒤 상한에 이르면 판별할 수 없다는 설명은 붙이지 않는다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        client.mlsdListingOf = { path ->
+            when {
+                // u는 식별값이 없지만 비어 있어 끝난다 — 상한에 이른 경로(d 아래) 위에는 없다
+                path == "/r" -> listOf("type=dir; u", "type=dir;unique=D; d")
+                path == "/r/u" -> emptyList()
+                else -> (0 until 10).map { "type=dir;unique=$path/d$it; d$it" }
+            }
+        }
+        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+
+        val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
+
+        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        assertTrue(message, message.startsWith("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/d"))
         assertFalse(message, message.endsWith(UNIDENTIFIABLE))
     }
 

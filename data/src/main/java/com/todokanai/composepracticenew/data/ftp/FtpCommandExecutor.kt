@@ -254,24 +254,26 @@ class FtpCommandExecutor internal constructor(
         val budget = TreeMemoryBudget(treeMemoryLimitBytes)
         // 거쳐 온 디렉터리의 식별값 — 이미 있는 값이면 내려가지 않으므로 같은 값이 두 번 들어가지 않아, 그 디렉터리를 나올 때 빼도 된다
         val ancestorIdentities = HashSet<String>()
-        // 식별값 없이 들어간 하위 디렉터리가 있었는지 — 있었으면 상한에 이른 것이 순환 때문인지 판별할 수 없다
-        var enteredUnidentified = false
+        // 들어가 있는 하위 디렉터리 중 식별값을 모르는 것의 수(시작 디렉터리 제외) — 순환은 지금 경로 위에서만 일어나므로,
+        // 0보다 크면 지금 경로가 순환하는지 식별값으로 판별할 수 없다. 끝낸 형제 디렉터리는 순환이 아니었으므로 세지 않는다
+        var unidentifiedOnPath = 0
         val pending = ArrayDeque<DirectoryVisit>()
-        pending.addLast(enterDirectory(remoteDirPath, identity = null, budget, enteredUnidentified).valueOr { return it })
+        pending.addLast(enterDirectory(remoteDirPath, identity = null, budget, undecidable = false).valueOr { return it })
         while (pending.isNotEmpty()) {
             val visit = pending.last()
             if (!visit.remaining.hasNext()) {
                 pending.removeLast()
-                visit.identity?.let(ancestorIdentities::remove)
+                // 스택이 비었으면 방금 나온 것은 시작 디렉터리다
+                if (visit.identity != null) ancestorIdentities.remove(visit.identity) else if (pending.isNotEmpty()) unidentifiedOnPath--
                 continue
             }
             val entry = visit.remaining.next()
             result.add(entry)
             if (!entry.isDirectory) continue
             val identity = visit.listed.identities[entry.path]
-            descentRefusal(entry.path, identity, ancestorIdentities)?.let { return it }
-            if (identity == null) enteredUnidentified = true
-            pending.addLast(enterDirectory(entry.path, identity, budget, enteredUnidentified).valueOr { return it })
+            if (identity == null) unidentifiedOnPath++
+            descentRefusal(entry.path, identity, ancestorIdentities, undecidable = unidentifiedOnPath > 0)?.let { return it }
+            pending.addLast(enterDirectory(entry.path, identity, budget, undecidable = unidentifiedOnPath > 0).valueOr { return it })
             identity?.let(ancestorIdentities::add)
         }
         return IoResult.Success(result)
@@ -283,16 +285,16 @@ class FtpCommandExecutor internal constructor(
      * @param dirPath 들어갈 원격 디렉터리 경로 (ftp://server/path 형식)
      * @param identity 상위 목록의 항목이 알려준 이 디렉터리의 식별값. 모르거나 시작 디렉터리면 null
      * @param budget 이 수집의 메모리 상한
-     * @param enteredUnidentified 식별값 없이 들어간 하위 디렉터리가 있었으면 true — 상한에 이른 실패에 판별할 수 없다는 설명을 붙인다
+     * @param undecidable 이 디렉터리까지의 경로가 순환하는지 식별값으로 판별할 수 없으면 true — 상한에 이른 실패에 그 설명을 붙인다
      * @return 들어간 디렉터리. 조회에 실패했거나 받은 목록이 상한을 넘기면 그 실패
      */
     private suspend fun enterDirectory(
         dirPath: String,
         identity: String?,
         budget: TreeMemoryBudget,
-        enteredUnidentified: Boolean
+        undecidable: Boolean
     ): IoResult<DirectoryVisit> {
-        val tooMany = IoResult.ItemFailed("$TOO_MANY_ENTRIES_MESSAGE: ${extractFtpPath(dirPath)}" + if (enteredUnidentified) UNIDENTIFIABLE_NOTE else "")
+        val tooMany = IoResult.ItemFailed("$TOO_MANY_ENTRIES_MESSAGE: ${extractFtpPath(dirPath)}" + if (undecidable) UNIDENTIFIABLE_NOTE else "")
         val listed = list(dirPath, withIdentities = true, ListingLimit(budget.remainingBytes, tooMany)).valueOr { return it }
         if (!budget.admit(listed.entries)) return tooMany
         return IoResult.Success(DirectoryVisit(listed, identity))
@@ -315,12 +317,13 @@ class FtpCommandExecutor internal constructor(
      * @param path 내려갈 하위 디렉터리 경로 (ftp://server/path 형식)
      * @param identity 서버가 알려준 [path]의 식별값. 없으면 null
      * @param ancestorIdentities [path]의 상위 디렉터리들의 식별값
+     * @param undecidable [path]까지의 경로가 순환하는지 식별값으로 판별할 수 없으면 true — 경로 한도 실패에 그 설명을 붙인다
      * @return 내려가면 안 되면 그 이유를 담은 실패, 내려가도 되면 null
      */
-    private fun descentRefusal(path: String, identity: String?, ancestorIdentities: Set<String>): IoResult.ItemFailed? = when {
+    private fun descentRefusal(path: String, identity: String?, ancestorIdentities: Set<String>, undecidable: Boolean): IoResult.ItemFailed? = when {
         identity != null && identity in ancestorIdentities -> cycleRefusal(path)
         exceedsPathMax(path) -> IoResult.ItemFailed(
-            "경로가 너무 깁니다(${PATH_MAX_BYTES}바이트 이상): ${extractFtpPath(path)}" + if (identity == null) UNIDENTIFIABLE_NOTE else ""
+            "경로가 너무 깁니다(${PATH_MAX_BYTES}바이트 이상): ${extractFtpPath(path)}" + if (undecidable) UNIDENTIFIABLE_NOTE else ""
         )
         else -> null
     }
