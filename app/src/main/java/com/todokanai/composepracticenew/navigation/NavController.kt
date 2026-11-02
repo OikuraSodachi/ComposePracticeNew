@@ -11,9 +11,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -68,10 +71,14 @@ fun AppNavHost(
         }
     }
 
-    // Unit 키 — NavHost 생존 동안 1회만 수집. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유)
-    LaunchedEffect(Unit) {
-        mainViewModel.preferenceFailures.collect { failure ->
-            Toast.makeText(context, context.getString(preferenceFailureMessage(failure)), Toast.LENGTH_SHORT).show()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유).
+    // 화면이 보이는 동안만 꺼내, 보이지 않는 Activity가 실패를 가져가지 않고 보이지 않는 동안의 실패는 다시 보일 때 알리도록
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.showPreferenceFailures { failure ->
+                Toast.makeText(context, context.getString(preferenceFailureMessage(failure)), Toast.LENGTH_SHORT).show()
+            }
         }
     }
 

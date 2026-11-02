@@ -35,7 +35,7 @@ class CorruptionResetTest {
     fun `손상된 파일은 빈 설정으로 바뀌고 초기화를 알린다`() = runBlocking {
         // 길이 5인 필드를 선언하고 끝나는 바이트 — 끝까지 읽지 못해 프로토콜 버퍼 해석이 실패한다(CorruptionException)
         val file = folder.newFile("settings.preferences_pb").apply { writeBytes(byteArrayOf(0x0A, 0x05)) }
-        val failures = PreferenceFailureChannel()
+        val failures = PreferenceFailureNotices()
         val corruptionReset = CorruptionReset(failures)
         val dataStore = PreferenceDataStoreFactory.create(
             corruptionHandler = corruptionReset.handler,
@@ -46,7 +46,7 @@ class CorruptionResetTest {
 
         withTimeout(5_000) {
             assertEquals(emptyPreferences(), store.readOnce())
-            assertEquals(PreferenceFailure.RESET, failures.failures.first())
+            assertEquals(PreferenceFailure.RESET, failures.pending.first { it.isNotEmpty() }.single().failure)
         }
     }
 }

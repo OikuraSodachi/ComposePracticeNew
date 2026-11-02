@@ -49,7 +49,7 @@ class MainViewModel @Inject constructor(
     progressUseCase: ProgressUseCase,
     private val exitHandler: AppExitHandler,
     connectionStateUseCase: RemoteConnectionStateUseCase,
-    preferenceFailureUseCase: PreferenceFailureUseCase
+    private val preferenceFailureUseCase: PreferenceFailureUseCase
 ) : ViewModel() {
 
     /**
@@ -92,8 +92,12 @@ class MainViewModel @Inject constructor(
      */
     val connectionLost: Flow<Unit> = _connectionLost.receiveAsFlow()
 
-    /** 설정 저장소에서 실패가 일어날 때마다 발행된다. 어느 화면에 있든 알리기 위해 화면 호스트에서 수집한다. 앱을 열자마자 일어난 실패도 수집을 시작하면 받는다. */
-    val preferenceFailures: Flow<PreferenceFailure> = preferenceFailureUseCase.failures
+    /**
+     * 설정 저장소의 실패를 [show]로 하나씩 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
+     * 화면이 보이기 전에 일어난 실패도 부르면 받고, 그 사이 회복한 읽기 실패는 받지 않는다.
+     * @param show 실패를 사용자에게 보여 주는 함수
+     */
+    suspend fun showPreferenceFailures(show: (PreferenceFailure) -> Unit): Nothing = preferenceFailureUseCase.deliver(show)
 
     init {
         // 지금 상태는 건너뛴다 — ViewModel을 만들 때(앱을 열 때) 이미 끊겨 있던 세션은 지금 끊긴 것이 아니다

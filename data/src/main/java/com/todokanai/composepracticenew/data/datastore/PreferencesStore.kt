@@ -33,14 +33,14 @@ import javax.inject.Singleton
  * [readOnce]의 읽기 실패는 null로 호출부에 돌려준다.
  * @param dataStore 앱 전역에서 단일 인스턴스로 제공되는 Preferences DataStore
  * @param appScope 설정을 읽는 공유 수집과 저장 코루틴을 실행할 애플리케이션 수명 CoroutineScope
- * @param failures 읽기·저장 실패를 화면에 알리기 위해 넣는 대기열
+ * @param failures 읽기·저장 실패를 화면에 알리기 위해 넣는 알림 목록
  * @param corruptionReset 손상 파일 교체를 읽기·편집 성공 뒤에 알리는 곳
  */
 @Singleton
 class PreferencesStore @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     @ApplicationScope private val appScope: CoroutineScope,
-    private val failures: PreferenceFailureChannel,
+    private val failures: PreferenceFailureNotices,
     private val corruptionReset: CorruptionReset
 ) {
     companion object {
@@ -59,7 +59,7 @@ class PreferencesStore @Inject constructor(
     /**
      * 설정 값의 Flow. 앱 수명 동안 DataStore를 한 곳에서 수집해 모든 소비자가 나눠 받으며, 새 소비자는 마지막 값을 바로 받는다.
      * DataStore의 읽기 실패는 소비자마다가 아니라 저장소 하나의 상태(캐시)이므로, 실패 처리도 이 수집 하나에서 한다 — 소비자 수와 관계없이 실패를 실패 구간마다 한 번 알린다.
-     * 읽기 IOException 시 실패 구간의 첫 실패에만 빈 Preferences(= 기본값)를 방출하고 [PreferenceFailure.READ]를 알린 뒤 다시 수집해, 회복하면 실제 값을 계속 방출한다 —
+     * 읽기 IOException 시 실패 구간의 첫 실패에만 빈 Preferences(= 기본값)를 방출하고 [PreferenceFailure.READ]를 알린 뒤 다시 수집해, 회복하면 실제 값을 계속 방출하고 아직 알리지 않은 [PreferenceFailure.READ]를 뺀다 —
      * 다시 수집하지 않으면 실패한 수집이 끝나 이후 저장이 반영되지 않는다. 다시 수집은 지수 백오프 타이머가 끝나거나, 그 전에 [readOnce]·편집이 성공하면 바로 한다.
      * 실패 구간은 마지막 읽기 성공부터 센다. 회복한 뒤 다시 실패하면(저장 실패 뒤의 다시 읽기가 실패하면 DataStore는 열린 수집도 끝낸다) 첫 실패와 같이 처리하고 대기도 처음부터 한다.
      * IOException이 아닌 예외는 구현 오류로 보고 공유 수집을 끝내 [appScope]로 전파한다(kotlinx `shareIn`: 상류 예외는 구독자가 아니라 공유를 실행한 스코프가 처리한다).
@@ -74,6 +74,7 @@ class PreferencesStore @Inject constructor(
                 .onEach {
                     failuresSinceSuccess = 0L
                     seenSuccesses = accessSuccesses.value
+                    failures.readRecovered()
                     corruptionReset.confirmIfReplaced()
                 }
                 .retryWhen { cause, _ ->

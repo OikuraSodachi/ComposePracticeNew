@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.todokanai.composepracticenew.model.PreferenceFailure
+import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
@@ -35,8 +36,8 @@ class PreferencesStoreTest {
     @get:Rule
     val storeScopes = StoreScopeRule()
 
-    /** 검증 대상이 실패를 넣는 대기열. */
-    private val failures = PreferenceFailureChannel()
+    /** 검증 대상이 실패를 넣는 알림 목록. */
+    private val failures = PreferenceFailureNotices()
 
     /** 검증 대상이 손상 파일 교체를 확인해 알리는 곳. 테스트는 핸들러를 직접 불러 교체가 일어난 상황을 만든다. */
     private val corruptionReset = CorruptionReset(failures)
@@ -121,6 +122,43 @@ class PreferencesStoreTest {
         assertEquals(listOf(emptyPreferences(), stored, emptyPreferences(), stored), emitted)
         assertEquals(listOf(PreferenceFailure.READ, PreferenceFailure.READ), reported)
         job.join()
+    }
+
+    @Test
+    fun `알리기 전에 읽기가 회복하면 읽기 실패는 알리지 않는다`() = runTest {
+        // 사건 대기열에 쌓던 이전 구현에서는 화면이 나중에 수집할 때 이미 회복한 읽기 실패를 "기본값으로 보인다"고 알린다
+        storeOf(FakePreferencesDataStore(stored, failingReads = 1))
+        advanceTimeBy(1_000 + 1) // 화면이 수집하지 않는 동안 실패하고 1초 뒤 회복한다
+        runCurrent()
+
+        val reported = collectFailures()
+        runCurrent()
+
+        assertEquals(emptyList<PreferenceFailure>(), reported)
+    }
+
+    @Test
+    fun `읽기 실패가 이어지는 동안 수집을 시작하면 읽기 실패를 알린다`() = runTest {
+        storeOf(FakePreferencesDataStore(stored, failingReads = 3))
+        advanceTimeBy(500) // 첫 실패 뒤 1초 대기 중
+        runCurrent()
+
+        val reported = collectFailures()
+        runCurrent()
+
+        assertEquals(listOf(PreferenceFailure.READ), reported)
+    }
+
+    @Test
+    fun `수집하지 않는 동안 일어난 저장 실패는 수집을 시작하면 알린다`() = runTest {
+        val store = storeOf(FakePreferencesDataStore(stored, failingWrites = 1))
+        store.launchEdit { it[key] = "w" }
+        advanceUntilIdle()
+
+        val reported = collectFailures()
+        runCurrent()
+
+        assertEquals(listOf(PreferenceFailure.SAVE), reported)
     }
 
     @Test
@@ -327,9 +365,9 @@ class PreferencesStoreTest {
     private fun TestScope.storeOf(fake: FakePreferencesDataStore) = PreferencesStore(fake, storeScopes.scopeFor(this), failures, corruptionReset)
 
     /**
-     * 알린 실패를 테스트가 끝날 때까지 모아 두는 목록을 돌려준다.
+     * 화면이 받는 것과 같은 경로([PreferenceFailureUseCase.deliver])로 알린 실패를 테스트가 끝날 때까지 모아 두는 목록을 돌려준다.
      * 수집은 backgroundScope가 아니라 소비자와 같은 스코프에서 한다 — advanceUntilIdle은 background 작업을 끝까지 돌리지 않아 알린 실패를 받지 못한 채 멈출 수 있다.
      */
     private fun TestScope.collectFailures(): List<PreferenceFailure> =
-        mutableListOf<PreferenceFailure>().also { reported -> storeScopes.scopeFor(this).launch { failures.failures.collect { reported += it } } }
+        mutableListOf<PreferenceFailure>().also { reported -> storeScopes.scopeFor(this).launch { PreferenceFailureUseCase(failures).deliver { reported += it } } }
 }

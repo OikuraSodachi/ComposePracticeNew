@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.PreferenceFailure
+import com.todokanai.composepracticenew.model.PreferenceFailureNotice
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
@@ -199,5 +199,6 @@ internal object NoOpExitHandler : AppExitHandler {
 
 /** 실패를 알리지 않는 테스트용 설정 실패 저장소. 이 테스트는 설정 저장소 실패를 쓰지 않는다. */
 internal object NoPreferenceFailures : PreferenceFailureRepository {
-    override val failures: Flow<PreferenceFailure> = emptyFlow()
+    override val pending: StateFlow<List<PreferenceFailureNotice>> = MutableStateFlow(emptyList())
+    override fun claim(id: Long): Boolean = false
 }
