@@ -24,15 +24,22 @@ import javax.inject.Singleton
  * 클라이언트와 Mutex는 외부로 노출하지 않으며, 명령 실행은 [withClient] 또는 [withConnectedClient]를 통해서만 가능하다.
  * 잠금 규칙: 로그인 상태 플래그는 stateMutex, FTP 명령 I/O는 ioMutex로 직렬화한다.
  * 서버가 응답하지 않아도 명령이 잠금을 쥔 채 끝없이 기다리지 않도록, [client]의 모든 소켓 읽기·쓰기 한 번에 [ioTimeoutMillis]의 상한을 건다.
+ * 상한은 [client]가 소켓 팩토리로 만드는 제어 연결과 수동 모드 데이터 연결에 걸린다. 능동 모드 데이터 연결은 상한을 걸 수 없어 열지 않는다([PassiveOnlyServerSocketFactory]).
  * 상한을 넘긴 I/O는 IOException으로 끝나며, 그 의미(이 항목만의 실패인지 세션 종료인지)는 다른 I/O 실패와 같이 정한다([withConnectedClient]).
- * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 FTPClient를, 테스트에서는 가짜 클라이언트를 넘긴다
- * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다
+ * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 FTPClient를, 테스트에서는 가짜 클라이언트를 넘긴다.
+ * 소켓 상한·소켓 팩토리는 세션이 정하므로 먼저 정해 둔 값은 덮어쓴다 — 상한을 바꾸려면 [ioTimeoutMillis]로 넘긴다
+ * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
  */
 @Singleton
 class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS) {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
     @Inject constructor() : this(FTPClient())
+
+    init {
+        // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다
+        require(ioTimeoutMillis > 0) { "ioTimeoutMillis must be positive: $ioTimeoutMillis" }
+    }
 
     /** isLoggedIn, _connectionState, _isConnecting 갱신을 직렬화한다. */
     private val stateMutex = Mutex()
@@ -49,6 +56,8 @@ class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMi
         // 쓰기 상한은 [sockets]가 만든 소켓이 건다. 읽기 상한은 FTPClient가 소켓을 열 때 SO_TIMEOUT으로 건다 — 제어 연결은 접속할 때(defaultTimeout), 데이터 연결은 열 때(dataTimeout)
         client.defaultTimeout = ioTimeoutMillis
         client.setDataTimeout(Duration.ofMillis(ioTimeoutMillis.toLong()))
+        // 능동 모드 데이터 소켓은 서버 소켓의 accept로 만들어져 [sockets]를 거치지 않는다 — 상한 없이 막히지 않도록 열지 못하게 한다
+        client.setServerSocketFactory(PassiveOnlyServerSocketFactory())
     }
 
     /**

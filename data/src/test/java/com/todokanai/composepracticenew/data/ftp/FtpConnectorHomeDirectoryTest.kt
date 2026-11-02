@@ -15,9 +15,9 @@ import org.junit.Test
 class FtpConnectorHomeDirectoryTest {
 
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = FTPClient().apply { defaultTimeout = ScriptedFtpServer.TIMEOUT_MILLIS }
-    /** 연결 상태와 홈을 소유한 세션. */
-    private val session = FtpSession(client)
+    private val client = FTPClient()
+    /** 연결 상태와 홈을 소유한 세션. 서버 스크립트가 응답하지 않을 때 오래 기다리지 않도록 I/O 상한을 짧게 둔다. */
+    private val session = FtpSession(client, ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
     /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
     private val keepAlive = FtpKeepAlive(session)
     /** 검증 대상. */
