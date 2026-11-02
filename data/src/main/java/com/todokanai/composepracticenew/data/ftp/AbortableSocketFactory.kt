@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.concurrent.ConcurrentHashMap
 import javax.net.SocketFactory
@@ -10,23 +11,25 @@ import javax.net.SocketFactory
  * FTPClient는 제어 연결과 수동 모드 데이터 연결을 모두 설정된 소켓 팩토리로 만든다(commons-net `SocketClient._connect`, `FTPClient._openDataConnection_`).
  * 소켓을 닫으면 그 소켓에서 I/O를 기다리던 스레드는 SocketException을 받는다([Socket.close]).
  * FTPClient의 `disconnect()`는 내부 스트림 필드를 null로 바꿔 다른 스레드의 명령이 NullPointerException으로 끝나게 하므로, 다른 스레드에서는 이 팩토리로 소켓만 닫는다.
+ * 만드는 소켓은 쓰기마다 제한 시간이 걸린 [WriteBoundedSocket]이다 — 읽기 제한 시간은 FTPClient가 소켓마다 SO_TIMEOUT으로 건다.
+ * @param writeTimeoutMillis 만드는 소켓의 쓰기 한 번이 끝나기를 기다리는 상한(ms)
  */
-internal class AbortableSocketFactory : SocketFactory() {
+internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : SocketFactory() {
 
     /** 만든 소켓 중 아직 닫지 않은 소켓. 명령 스레드가 더하고 종료 요청 스레드가 닫으므로 동시성 집합으로 둔다. */
     private val sockets: MutableSet<Socket> = ConcurrentHashMap.newKeySet()
 
-    override fun createSocket(): Socket = track(Socket())
+    override fun createSocket(): Socket = track(WriteBoundedSocket(writeTimeoutMillis))
 
-    override fun createSocket(host: String, port: Int): Socket = track(Socket(host, port))
+    override fun createSocket(host: String, port: Int): Socket = connected(InetSocketAddress(host, port))
 
     override fun createSocket(host: String, port: Int, localHost: InetAddress, localPort: Int): Socket =
-        track(Socket(host, port, localHost, localPort))
+        connected(InetSocketAddress(host, port), InetSocketAddress(localHost, localPort))
 
-    override fun createSocket(host: InetAddress, port: Int): Socket = track(Socket(host, port))
+    override fun createSocket(host: InetAddress, port: Int): Socket = connected(InetSocketAddress(host, port))
 
     override fun createSocket(address: InetAddress, port: Int, localAddress: InetAddress, localPort: Int): Socket =
-        track(Socket(address, port, localAddress, localPort))
+        connected(InetSocketAddress(address, port), InetSocketAddress(localAddress, localPort))
 
     /** 지금까지 만든 소켓을 모두 닫는다. 그 소켓에서 I/O를 기다리던 스레드는 SocketException을 받는다. */
     fun closeAll() {
@@ -34,6 +37,26 @@ internal class AbortableSocketFactory : SocketFactory() {
             runCatching { socket.close() }
             true
         }
+    }
+
+    /**
+     * 새 소켓을 만들어 [remote]에 연결한다. 연결하는 생성자(`Socket(host, port)` 등)와 같은 일을 [createSocket]으로 만든 소켓으로 한다.
+     * 연결하지 못하면 소켓을 닫고 예외를 전파한다.
+     * @param remote 연결할 주소
+     * @param local 묶을 로컬 주소. null이면 묶지 않는다
+     * @return 연결된 소켓
+     * @throws java.io.IOException 묶거나 연결하지 못한 경우
+     */
+    private fun connected(remote: InetSocketAddress, local: InetSocketAddress? = null): Socket {
+        val socket = createSocket()
+        try {
+            if (local != null) socket.bind(local)
+            socket.connect(remote)
+        } catch (e: Exception) {
+            runCatching { socket.close() }
+            throw e
+        }
+        return socket
     }
 
     /**

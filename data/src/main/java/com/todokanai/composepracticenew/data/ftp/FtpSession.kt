@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import java.io.IOException
+import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,10 +22,13 @@ import javax.inject.Singleton
  * 단일 FTPClient와 그 잠금·로그인 상태를 캡슐화하는 FTP 세션.
  * 클라이언트와 Mutex는 외부로 노출하지 않으며, 명령 실행은 [withClient] 또는 [withConnectedClient]를 통해서만 가능하다.
  * 잠금 규칙: 로그인 상태 플래그는 stateMutex, FTP 명령 I/O는 ioMutex로 직렬화한다.
+ * 서버가 응답하지 않아도 명령이 잠금을 쥔 채 끝없이 기다리지 않도록, [client]의 모든 소켓 읽기·쓰기 한 번에 [ioTimeoutMillis]의 상한을 건다.
+ * 상한을 넘긴 I/O는 IOException으로 끝나며, 그 의미(이 항목만의 실패인지 세션 종료인지)는 다른 I/O 실패와 같이 정한다([withConnectedClient]).
  * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 FTPClient를, 테스트에서는 가짜 클라이언트를 넘긴다
+ * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다
  */
 @Singleton
-class FtpSession internal constructor(private val client: FTPClient) {
+class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS) {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
     @Inject constructor() : this(FTPClient())
@@ -38,7 +42,13 @@ class FtpSession internal constructor(private val client: FTPClient) {
     /** [closeBypassingIoLock]이 요청된 횟수. stateMutex 안에서 늘리고, ioMutex를 쥔 연결 작업이 잠금 없이 읽으므로 원자 값으로 둔다. */
     private val bypassCloseRequests = AtomicInteger()
     /** [client]가 연 제어·데이터 소켓. [closeBypassingIoLock]이 잠금 밖에서 FTPClient를 건드리지 않고 진행 중 I/O를 깨우려고 닫는다. */
-    private val sockets = AbortableSocketFactory().also { client.setSocketFactory(it) }
+    private val sockets = AbortableSocketFactory(writeTimeoutMillis = ioTimeoutMillis.toLong()).also { client.setSocketFactory(it) }
+
+    init {
+        // 쓰기 상한은 [sockets]가 만든 소켓이 건다. 읽기 상한은 FTPClient가 소켓을 열 때 SO_TIMEOUT으로 건다 — 제어 연결은 접속할 때(defaultTimeout), 데이터 연결은 열 때(dataTimeout)
+        client.defaultTimeout = ioTimeoutMillis
+        client.setDataTimeout(Duration.ofMillis(ioTimeoutMillis.toLong()))
+    }
 
     /**
      * 세션의 현재 디렉터리(FTP 경로). 로그인 직후에는 [homeDirectory]이고, 이 앱이 CWD로 옮길 때마다 갱신한다. 알 수 없으면 null이다.
@@ -213,6 +223,8 @@ class FtpSession internal constructor(private val client: FTPClient) {
     }
 
     companion object {
+        /** 소켓 읽기·쓰기 한 번을 기다리는 기본 상한(ms). FileZilla의 기본 무응답 제한(20초)과 비슷한 수준이다. */
+        private const val IO_TIMEOUT_MILLIS = 15_000
         /** 연결되지 않은 상태에서 명령을 실행하려 할 때 표시할 메시지. */
         private const val NOT_CONNECTED_MESSAGE = "FTP 서버에 연결되어 있지 않습니다"
         /** 서버가 연결을 닫았을 때 표시할 메시지. */
