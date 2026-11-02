@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIM
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.runBlocking
-import org.apache.commons.net.ftp.FTPClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -16,7 +15,7 @@ import org.junit.Test
 class FtpListingRealClientTest {
 
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = FTPClient().apply { defaultTimeout = TIMEOUT_MILLIS }
+    private val client = ListingStreamFtpClient().apply { defaultTimeout = TIMEOUT_MILLIS }
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
     private var server: ScriptedFtpServer? = null
 

@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
-import org.apache.commons.net.ftp.FTPClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -26,7 +25,7 @@ class FtpTransferrerStalledTransferTest {
     /** 받거나 올릴 파일을 둘 로컬 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-stalled-transfer-test").toFile()
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. 데이터 소켓의 송신 버퍼를 작게 해 서버가 읽지 않으면 쓰기가 곧 막히게 한다. */
-    private val client = FTPClient().apply { sendDataSocketBufferSize = SMALL_BUFFER }
+    private val client = ListingStreamFtpClient().apply { sendDataSocketBufferSize = SMALL_BUFFER }
     /** 검증 대상 세션. 데이터 연결의 읽기·쓰기 상한을 짧게 둔다. */
     private val session = FtpSession(client, ioTimeoutMillis = IO_TIMEOUT_MILLIS)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */

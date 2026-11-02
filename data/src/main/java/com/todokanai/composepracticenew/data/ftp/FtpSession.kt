@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
 import java.io.Closeable
 import java.io.IOException
@@ -26,15 +25,16 @@ import javax.inject.Singleton
  * 서버가 응답하지 않아도 명령이 잠금을 쥔 채 끝없이 기다리지 않도록, [client]의 모든 소켓 읽기·쓰기 한 번에 [ioTimeoutMillis]의 상한을 건다.
  * 상한은 [client]가 소켓 팩토리로 만드는 제어 연결과 수동 모드 데이터 연결에 걸린다. 능동 모드 데이터 연결은 상한을 걸 수 없어 열지 않는다([PassiveOnlyServerSocketFactory]).
  * 상한을 넘긴 I/O는 IOException으로 끝나며, 그 의미(이 항목만의 실패인지 세션 종료인지)는 다른 I/O 실패와 같이 정한다([withConnectedClient]).
- * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 FTPClient를, 테스트에서는 가짜 클라이언트를 넘긴다.
+ * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 클라이언트를, 테스트에서는 가짜 클라이언트를 넘긴다.
+ * 목록 조회도 데이터 스트림을 직접 열어야 하므로([DataCommandRunner]) 그 함수를 가진 [ListingStreamFtpClient]다.
  * 소켓 상한·소켓 팩토리는 세션이 정하므로 먼저 정해 둔 값은 덮어쓴다 — 상한을 바꾸려면 [ioTimeoutMillis]로 넘긴다
  * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
  */
 @Singleton
-class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS) {
+class FtpSession internal constructor(private val client: ListingStreamFtpClient, ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS) {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor() : this(FTPClient())
+    @Inject constructor() : this(ListingStreamFtpClient())
 
     init {
         // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다
@@ -96,7 +96,7 @@ class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMi
      * @param block 잠금 안에서 실행할 FTP 명령
      * @return block의 반환값
      */
-    suspend fun <T> withClient(block: suspend (FTPClient) -> T): T = ioMutex.withLock { block(client) }
+    internal suspend fun <T> withClient(block: suspend (ListingStreamFtpClient) -> T): T = ioMutex.withLock { block(client) }
 
     /**
      * 연결된 상태에서만 [withClient]로 [block]을 실행한다. FTP 명령 실패의 의미를 정하는 경계이며, 규칙은 다음 하나뿐이다.
@@ -109,7 +109,7 @@ class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMi
      * @param block 잠금 안에서 실행할 FTP 명령
      * @return block의 결과, 또는 연결 끊김
      */
-    suspend fun <T> withConnectedClient(block: suspend (FTPClient) -> IoResult<T>): IoResult<T> = withClient { client ->
+    internal suspend fun <T> withConnectedClient(block: suspend (ListingStreamFtpClient) -> IoResult<T>): IoResult<T> = withClient { client ->
         if (!isReady()) return@withClient IoResult.ConnectionLost(NOT_CONNECTED_MESSAGE)
         try {
             block(client)
@@ -125,9 +125,9 @@ class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMi
     }
 
     /**
-     * [open]으로 전송 명령의 데이터 스트림을 열어, 정상 끝과 중단을 구분해 닫을 수 있는 [DataConnection]으로 돌려준다.
-     * ioMutex를 쥔 블록 안에서 [withClient]가 넘긴 클라이언트로 호출한다.
-     * @param open 데이터 스트림을 여는 전송 명령(`retrieveFileStream`·`storeFileStream`). 서버가 거부하면 null을 돌려준다
+     * [open]으로 데이터 연결을 쓰는 명령의 데이터 스트림을 열어, 정상 끝과 중단을 구분해 닫을 수 있는 [DataConnection]으로 돌려준다.
+     * ioMutex를 쥔 블록 안에서 [withClient]가 넘긴 클라이언트로 호출한다. 명령의 실행 규칙은 [DataCommandRunner]가 정한다.
+     * @param open 데이터 스트림을 여는 명령(`retrieveFileStream`·`storeFileStream`, [ListingStreamFtpClient]의 목록 조회). 서버가 거부하면 null을 돌려준다
      * @return 열린 데이터 연결, 서버가 거부했으면 null
      * @throws IOException 명령의 응답을 읽지 못한 경우
      */

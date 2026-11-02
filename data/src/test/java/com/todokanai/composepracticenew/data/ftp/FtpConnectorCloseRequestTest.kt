@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
-import org.apache.commons.net.ftp.FTPClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -232,7 +231,7 @@ class FtpConnectorCloseRequestTest {
     }
 
     /** 명령을 보내기 직전에 테스트가 끼어들 수 있는 실제 FTP 클라이언트. 연결 단계 사이에 종료 요청을 끼워 넣는 데 쓴다. */
-    private class InterceptingFtpClient : FTPClient() {
+    private class InterceptingFtpClient : ListingStreamFtpClient() {
         /** 명령을 보내기 직전에 실행할 동작. 보낼 명령 이름을 받는다. 명령을 보내는 스레드에서 실행된다. */
         @Volatile var beforeCommand: (String) -> Unit = {}
         /** 제어 연결 소켓이 닫혔는지(소켓이 없으면 닫힌 것으로 본다). */

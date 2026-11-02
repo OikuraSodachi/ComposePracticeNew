@@ -1,9 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
-import org.apache.commons.net.ftp.FTPFile
-import org.apache.commons.net.ftp.parser.MLSxEntryParser
+import org.apache.commons.net.ftp.FTPReply
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -40,7 +38,7 @@ internal sealed interface ServerBehavior {
  * 네트워크 없이 연결된 것처럼 동작하는 테스트용 FTPClient. 명령마다 서버 동작([serverBehaviors])과 완료 확인·크기 조회·삭제의 결과를 테스트가 정하고, 호출을 기록한다.
  * [serverBehaviors]에 없는 명령은 정상 응답한다. [streamContent]가 null이면 데이터 스트림 요청을 [streamRefusal]로 거부한다.
  */
-internal class FakeFtpClient : FTPClient() {
+internal class FakeFtpClient : ListingStreamFtpClient() {
     /** 명령 이름 → 그 명령에 서버가 보일 동작. 없으면 정상 응답한다. */
     var serverBehaviors: Map<String, ServerBehavior> = emptyMap()
     /** LIST 조회 시 돌려줄 원격 파일 이름. 모두 1바이트 파일로 돌려준다. */
@@ -61,6 +59,10 @@ internal class FakeFtpClient : FTPClient() {
     var streamRefusal: ServerBehavior.Refuse = ServerBehavior.Refuse(550, "550 Permission denied")
     /** 내려받는 데이터 스트림을 읽을 때 던질 예외. null이면 [streamContent]를 끝까지 읽는다. */
     var streamReadFailure: Exception? = null
+    /** 목록 데이터 스트림을 읽을 때 던질 예외. null이면 목록을 끝까지 읽는다. */
+    var listingReadFailure: Exception? = null
+    /** 목록 조회의 완료 응답을 읽을 때 던질 예외. 완료 응답을 읽다 연결 끊김·타임아웃이 난 것을 재현한다. null이면 완료 응답을 읽는다. */
+    var listingCompletionFailure: Exception? = null
     /** isConnected가 호출될 때 실행할 동작. 다른 스레드에서 상태 잠금을 쥔 채 멈추게 해 잠금 경합을 재현한다. */
     @Volatile var onIsConnected: () -> Unit = {}
     /** completePendingCommand의 동작. 예외를 던지게 해 완료 확인 중 연결 끊김·타임아웃을 재현한다. */
@@ -71,8 +73,10 @@ internal class FakeFtpClient : FTPClient() {
     var onChangeWorkingDirectory: (String) -> Boolean = { true }
     /** deleteFile의 경로별 동작. false면 550 응답, 예외를 던지게 해 응답 읽기 실패를 재현한다. */
     var onDeleteFile: (String) -> Boolean = { true }
-    /** completePendingCommand가 호출된 횟수. */
+    /** 목록 조회가 아닌 명령(전송)의 완료 응답을 읽으려고 completePendingCommand가 호출된 횟수. */
     var completePendingCalls = 0
+    /** 목록 조회의 완료 응답을 읽으려고 completePendingCommand가 호출된 횟수. */
+    var listingCompletionCalls = 0
     /** disconnect가 호출된 횟수. */
     var disconnectCalls = 0
     /** 서버에 보낸 명령 이름(예: "DELE"). 목록 조회·스트림·변경 명령만 기록한다. */
@@ -89,6 +93,8 @@ internal class FakeFtpClient : FTPClient() {
     private var lastReplyString = ""
     /** 직전 MLST 응답의 모든 줄. */
     private var lastReplyLines: List<String> = emptyList()
+    /** 목록 데이터 스트림을 연 뒤 [completePendingCommand]가 읽을 완료 응답(코드와 문자열). 목록 조회 중이 아니면 null이다. */
+    private var pendingListingReply: Pair<Int, String>? = null
 
     override fun isConnected(): Boolean {
         onIsConnected()
@@ -102,8 +108,15 @@ internal class FakeFtpClient : FTPClient() {
     }
 
     override fun completePendingCommand(): Boolean {
-        completePendingCalls++
-        return onCompletePending()
+        val listingReply = pendingListingReply ?: run {
+            completePendingCalls++
+            return onCompletePending()
+        }
+        listingCompletionCalls++
+        pendingListingReply = null
+        listingCompletionFailure?.let { throw it }
+        reply(listingReply.first, listingReply.second)
+        return FTPReply.isPositiveCompletion(listingReply.first)
     }
 
     override fun sendCommand(command: FTPCmd, args: String?): Int {
@@ -126,20 +139,20 @@ internal class FakeFtpClient : FTPClient() {
         }
     }
 
-    override fun listFiles(pathname: String?): Array<FTPFile> {
-        listRequests += listOfNotNull("LIST", pathname).joinToString(" ")
-        return transferListing("LIST") {
-            val directories = remoteDirectories.map { name -> FTPFile().apply { this.name = name; type = FTPFile.DIRECTORY_TYPE } }
-            val files = remoteFiles.map { name -> FTPFile().apply { this.name = name; type = FTPFile.FILE_TYPE; size = 1 } }
-            (directories + files).toTypedArray()
+    override fun getSystemType(): String = SYSTEM_TYPE
+
+    override fun openListStream(): InputStream? {
+        listRequests += "LIST"
+        return listingStream("LIST") {
+            remoteDirectories.map { name -> unixListLine(DIRECTORY_MODE, size = 0, name) } + remoteFiles.map { name -> unixListLine(FILE_MODE, size = 1, name) }
         }
     }
 
-    override fun mlistDir(pathname: String?): Array<FTPFile> {
+    override fun openMlsdStream(pathname: String): InputStream? {
         listRequests += "MLSD $pathname"
-        val lines = mlsdListingOf(pathname.orEmpty())
-            ?: return respond("MLSD", refused = { emptyArray() }) { reply(550, "550 No such directory"); emptyArray() }
-        return transferListing("MLSD") { lines.mapNotNull { MLSxEntryParser.parseEntry(it) }.toTypedArray() }
+        val lines = mlsdListingOf(pathname)
+            ?: return respond("MLSD", refused = { null }) { reply(550, "550 No such directory"); null }
+        return listingStream("MLSD") { lines }
     }
 
     override fun retrieveFileStream(remote: String): InputStream? {
@@ -204,24 +217,47 @@ internal class FakeFtpClient : FTPClient() {
     }
 
     /**
-     * 목록 조회 [command]에 정해 둔 서버 동작을 따른다. commons-net처럼 거부되면 빈 배열을 돌려준다.
-     * 정상이면 150으로 전송을 시작해 [entries]를 보내고 226으로 끝내며, 전송 뒤 거부면 150으로 [entries]를 보낸 뒤 거부 응답으로 끝낸다.
+     * 목록 조회 [command]에 정해 둔 서버 동작을 따른다. commons-net처럼 데이터 연결을 열기 전에 거부되면 null을 돌려준다.
+     * 정상이면 150으로 전송을 시작해 [lines]를 보내고 완료 응답을 226으로, 전송 뒤 거부면 150으로 [lines]를 보낸 뒤 완료 응답을 거부 응답으로 남긴다.
+     * 완료 응답은 [completePendingCommand]가 읽는다.
      * @param command 목록 조회 명령 이름
-     * @param entries 데이터 연결로 보낼 항목
-     * @return 클라이언트가 받은 항목
+     * @param lines 데이터 연결로 보낼 목록 줄
+     * @return 목록 데이터 스트림, 거부되면 null
      */
-    private inline fun transferListing(command: String, entries: () -> Array<FTPFile>): Array<FTPFile> {
+    private fun listingStream(command: String, lines: () -> List<String>): InputStream? {
         val behavior = serverBehaviors[command]
         if (behavior is ServerBehavior.RefuseAfterData) {
             sentCommands += command
-            reply(150, "150 Here comes the directory listing")
-            return entries().also { reply(behavior.code, behavior.text) }
+            return startListing(lines(), finalReply = behavior.code to behavior.text)
         }
-        return respond(command, refused = { emptyArray() }) {
-            reply(150, "150 Here comes the directory listing")
-            entries().also { reply(226, "226 Transfer complete") }
+        return respond(command, refused = { null }) { startListing(lines(), finalReply = 226 to "226 Transfer complete") }
+    }
+
+    /**
+     * 150으로 목록 전송을 시작하고, [finalReply]를 [completePendingCommand]가 읽을 완료 응답으로 남긴다.
+     * @param lines 데이터 연결로 보낼 목록 줄
+     * @param finalReply 완료 응답의 코드와 문자열
+     * @return 목록 데이터 스트림. [listingReadFailure]가 있으면 읽을 때 그 예외를 던진다
+     */
+    private fun startListing(lines: List<String>, finalReply: Pair<Int, String>): InputStream {
+        reply(150, "150 Here comes the directory listing")
+        pendingListingReply = finalReply
+        val readFailure = listingReadFailure
+            ?: return ByteArrayInputStream(lines.joinToString("") { "$it\r\n" }.toByteArray(charset(controlEncoding)))
+        return object : InputStream() {
+            override fun read(): Int = throw readFailure
+            override fun read(b: ByteArray, off: Int, len: Int): Int = throw readFailure
         }
     }
+
+    /**
+     * 유닉스 계열 LIST 목록 줄 하나를 만든다. commons-net이 [SYSTEM_TYPE]으로 고르는 해석기가 읽는 형식이다.
+     * @param mode 종류와 권한(예: "drwxr-xr-x")
+     * @param size 크기(바이트)
+     * @param name 항목 이름
+     * @return LIST 목록 줄
+     */
+    private fun unixListLine(mode: String, size: Int, name: String): String = "$mode 1 user group $size Jan  1 00:00 $name"
 
     /** 데이터 스트림 요청을 [streamRefusal] 응답으로 거부한 기록을 남기고 null을 돌려준다. */
     private fun <T> refuseStream(): T? {
@@ -240,5 +276,14 @@ internal class FakeFtpClient : FTPClient() {
         lastReplyCode = code
         lastReplyString = text
         fireReplyReceived(code, text)
+    }
+
+    private companion object {
+        /** SYST로 알릴 시스템 종류. commons-net은 이 값으로 유닉스 계열 LIST 해석기를 고른다. */
+        const val SYSTEM_TYPE = "UNIX Type: L8"
+        /** LIST 목록 줄의 디렉터리 종류·권한. */
+        const val DIRECTORY_MODE = "drwxr-xr-x"
+        /** LIST 목록 줄의 파일 종류·권한. */
+        const val FILE_MODE = "-rw-r--r--"
     }
 }

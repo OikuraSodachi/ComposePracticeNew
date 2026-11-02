@@ -10,7 +10,6 @@ import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.FileEntry
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
@@ -18,7 +17,6 @@ import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPReply
 import org.apache.commons.net.ftp.parser.MLSxEntryParser
 import java.io.File
-import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import javax.inject.Inject
@@ -27,7 +25,7 @@ import javax.inject.Singleton
 /**
  * FTP 파일 다운로드와 업로드를 스트리밍으로 수행하며 진행률을 보고한다.
  * 전송의 한쪽 끝이 로컬 파일이므로 로컬 스트림 개폐는 이 클래스가 담당하고,
- * 스트림 획득 실패 처리·전송 완료 확인은 공통 private 함수로, 디렉터리 진행률은 로컬 작업과 공유하는 [ByteProgressTracker]로 계산한다.
+ * 데이터 연결의 개폐·전송 완료 확인은 목록 조회와 같은 [DataCommandRunner]로, 디렉터리 진행률은 로컬 작업과 공유하는 [ByteProgressTracker]로 계산한다.
  * 실패는 결과로 알리며, 연결이 없거나 전송 중 끊기면 [IoResult.ConnectionLost]를 돌려준다.
  * @param session 전송에 사용할 FTPClient와 잠금을 소유한 FTP 세션
  * @param cmd 디렉터리 다운로드 시 원격 트리를 수집하는 FtpCommandExecutor
@@ -37,6 +35,9 @@ class FtpTransferrer @Inject constructor(
     private val session: FtpSession,
     private val cmd: FtpCommandExecutor
 ) {
+
+    /** 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행한다. */
+    private val dataCommands = DataCommandRunner(session)
 
     /**
      * remotePath의 파일 또는 디렉터리를 localPath에 스트리밍 다운로드한다.
@@ -215,12 +216,12 @@ class FtpTransferrer @Inject constructor(
         onChunk: (Int) -> Unit,
         onAcked: suspend () -> Unit
     ): IoResult<Unit> {
-        // 스트림을 열지 못했으면(PASV·REST 실패, RETR의 1xx 아닌 응답) 응답을 끝까지 읽은 것이다 — 응답 코드와 관계없이 이 항목만 실패다.
-        // 기다릴 응답이 없으므로 completePendingCommand는 부르지 않는다. 부르면 오지 않을 응답을 soTimeout까지 기다리며 세션 잠금을 쥔다
-        val connection = session.openDataConnection { client.retrieveFileStream(ftpPath) } ?: return FtpReplyRules.refusal(FtpCommand.RETR, client)
-        return executeTransfer(client, connection, onCancel = { runCatching { localFile.delete() } }, onAcked = onAcked) {
-            localFile.outputStream().use { output -> pump(connection.stream, output, onChunk) }
-        }
+        val outcome = dataCommands.run(
+            client,
+            open = { client.retrieveFileStream(ftpPath) },
+            onCancel = { runCatching { localFile.delete() } }
+        ) { stream -> localFile.outputStream().use { output -> pump(stream, output, onChunk) } }
+        return transferResult(FtpCommand.RETR, client, outcome, onAcked)
     }
 
     /**
@@ -240,71 +241,37 @@ class FtpTransferrer @Inject constructor(
         onChunk: (Int) -> Unit,
         onAcked: suspend () -> Unit
     ): IoResult<Unit> {
-        // 스트림을 열지 못한 경우의 처리는 [downloadOne]과 같다
         // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
         // ([FtpCommandExecutor.identifiedListing] 참고)
-        val connection = session.openDataConnection { client.storeFileStream(ftpPath) } ?: return FtpReplyRules.refusal(FtpCommand.STOR, client)
-        return executeTransfer(client, connection, onAcked = onAcked) {
-            localFile.inputStream().use { input -> pump(input, connection.stream, onChunk) }
+        val outcome = dataCommands.run(client, open = { client.storeFileStream(ftpPath) }) { stream ->
+            localFile.inputStream().use { input -> pump(input, stream, onChunk) }
         }
+        return transferResult(FtpCommand.STOR, client, outcome, onAcked)
     }
 
     /**
-     * FTP 스트림 전송을 실행하고 채널을 정리한다. 서버가 전송 완료를 확인해야 성공이다.
-     * 데이터 연결은 전송을 끝까지 마쳤을 때만 정상으로 닫고([DataConnection.finish]), 실패·취소·구현 오류로 멈췄으면 중단으로 닫는다([DataConnection.abort]) —
-     * 중단을 정상 닫기로 알리면 서버는 잘린 업로드를 다 받은 파일로 저장한다. 정상으로 닫지 못한 것(남은 데이터를 보내지 못함)도 전송 실패다.
-     * 전송(데이터 스트림·로컬 파일) 중 IOException은 제어 채널과 무관하므로, 완료 응답까지 정상적으로 읽었다면 이 항목만의 실패로 돌려준다.
-     * 완료 응답을 읽다 실패하면 제어 채널을 더 쓸 수 없으므로 그 예외를 전파해 [FtpSession.withConnectedClient]가 세션을 종료하게 한다(전송 예외는 suppressed로 붙인다).
-     * 취소와 구현 오류는 결과로 바꾸지 않고 전파한다. 구현 오류는 [FtpSession.withConnectedClient]가 세션을 종료하므로 데이터 연결만 닫는다.
-     * 취소는 세션을 종료하지 않고 전파되므로, onCancel을 실행하고 완료 응답을 기다려 응답 순서를 맞춘다. 완료 응답을 읽지 못했으면 여기서 세션을 종료한다.
-     * @param client 잠금을 확보한 FTPClient
-     * @param connection 전송에 사용한 데이터 연결 — 끝나면 닫는다
-     * @param onCancel 취소 시 실행할 정리 작업
+     * 전송 명령의 결과([DataCommandRunner.run])를 이 항목의 결과로 만든다. 서버가 전송 완료를 확인해야 성공이다.
+     * 전송(데이터 스트림·로컬 파일) 중 실패는 제어 채널과 무관하고 완료 응답까지 읽었으므로 이 항목만의 실패다.
+     * @param command 보낸 전송 명령
+     * @param client 응답을 받은 FTPClient
+     * @param outcome 전송 명령의 결과
      * @param onAcked 서버가 전송 완료를 확인한 뒤 호출되는 콜백
-     * @param block 실제 전송 작업
      * @return 전송 결과
      */
-    private suspend fun executeTransfer(
+    private suspend fun transferResult(
+        command: FtpCommand,
         client: FTPClient,
-        connection: DataConnection<*>,
-        onCancel: () -> Unit = {},
-        onAcked: suspend () -> Unit,
-        block: suspend () -> Unit
-    ): IoResult<Unit> {
-        val transferFailure = try {
-            block()
-            connection.finish()
-            null
-        } catch (e: IOException) {
-            connection.abort()
-            e
-        } catch (e: CancellationException) {
-            onCancel()
-            connection.abort()
-            try {
-                client.completePendingCommand()
-            } catch (_: IOException) {
-                session.endUnusableSession()
-            }
-            throw e
-        } catch (e: Exception) {
-            connection.abort()
-            throw e
-        }
-        val acknowledged = try {
-            client.completePendingCommand()
-        } catch (controlFailure: IOException) {
-            transferFailure?.let(controlFailure::addSuppressed)
-            throw controlFailure
-        }
-        return when {
-            transferFailure != null -> IoResult.ItemFailed(transferFailure.message ?: "전송 실패")
-            !acknowledged -> IoResult.ItemFailed("전송 미완료: ${client.replyString.trim()}")
-            else -> {
+        outcome: DataCommandOutcome,
+        onAcked: suspend () -> Unit
+    ): IoResult<Unit> = when (outcome) {
+        DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client)
+        is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(outcome.cause.message ?: "전송 실패")
+        is DataCommandOutcome.Finished ->
+            if (!outcome.acknowledged) IoResult.ItemFailed("전송 미완료: ${client.replyString.trim()}")
+            else {
                 onAcked()
                 IoResult.Done
             }
-        }
     }
 
     /**
