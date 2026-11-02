@@ -30,6 +30,12 @@ class StoreScopeRule : TestRule {
         CoroutineScope(SupervisorJob() + StandardTestDispatcher(test.testScheduler) + CoroutineExceptionHandler { _, e -> uncaught += e })
             .also { scopes += it }
 
+    /**
+     * 지금까지 기록된 잡히지 않은 예외를 돌려주고 비운다. 예외가 스코프로 전파되는 것이 기대 동작인 테스트가 확인한 뒤, 테스트 종료 시 실패로 보지 않게 한다.
+     * @return 기록된 예외 목록
+     */
+    fun takeUncaught(): List<Throwable> = uncaught.toList().also { uncaught.clear() }
+
     override fun apply(base: Statement, description: Description): Statement = object : Statement() {
         override fun evaluate() {
             try {

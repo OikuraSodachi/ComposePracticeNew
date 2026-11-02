@@ -2,11 +2,10 @@ package com.todokanai.composepracticenew.di
 
 import android.content.Context
 import androidx.datastore.core.DataStore
-import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.preferencesDataStoreFile
+import com.todokanai.composepracticenew.data.datastore.CorruptionReset
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -24,10 +23,12 @@ object DataStoreModule {
 
     @Singleton
     @Provides
-    fun providePreferencesDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+    fun providePreferencesDataStore(
+        @ApplicationContext context: Context,
+        corruptionReset: CorruptionReset
+    ): DataStore<Preferences> =
         PreferenceDataStoreFactory.create(
-            // 파일 손상 시 빈 Preferences로 교체해 읽기·쓰기를 복구한다 (기본 핸들러는 예외를 재전파만 해 영구 실패).
-            corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+            corruptionHandler = corruptionReset.handler,
             produceFile = { context.preferencesDataStoreFile(DATASTORE_NAME) }
         )
 }

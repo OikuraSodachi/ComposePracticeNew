@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.navigation
 
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -10,9 +11,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,6 +31,7 @@ import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
+import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
@@ -63,6 +68,17 @@ fun AppNavHost(
     LaunchedEffect(Unit) {
         mainViewModel.connectionLost.collect {
             Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유).
+    // 화면이 보이는 동안만 꺼내, 보이지 않는 Activity가 실패를 가져가지 않고 보이지 않는 동안의 실패는 다시 보일 때 알리도록
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.showPreferenceFailures { failure ->
+                Toast.makeText(context, context.getString(preferenceFailureMessage(failure)), Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -274,4 +290,16 @@ private fun ToastEffect(vararg messageFlows: Flow<String>) {
             launch { flow.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() } }
         }
     }
+}
+
+/**
+ * 설정 저장소의 실패 [failure]를 사용자에게 알릴 문구로 바꾼다.
+ * @param failure 일어난 실패
+ * @return 알릴 문구의 문자열 리소스 id
+ */
+@StringRes
+private fun preferenceFailureMessage(failure: PreferenceFailure): Int = when (failure) {
+    PreferenceFailure.READ -> R.string.toast_preference_read_failed
+    PreferenceFailure.SAVE -> R.string.toast_preference_save_failed
+    PreferenceFailure.RESET -> R.string.toast_preference_reset
 }

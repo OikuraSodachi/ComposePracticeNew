@@ -1,13 +1,16 @@
 package com.todokanai.composepracticenew.repository
 
-/** 마지막으로 접속한 원격 스토리지 id의 영속성 계약. */
+import com.todokanai.composepracticenew.model.SavedRemoteId
+
+/** 마지막으로 접속한 원격 스토리지 id의 영속성 계약. 저장 실패는 [PreferenceFailureRepository.pending]로 알리고, 읽기 실패는 결과([SavedRemoteId.Unreadable])로 돌려준다. */
 interface LastConnectionRepository {
     /**
-     * 마지막 접속 서버 id를 반환한다. 없으면 null.
+     * 마지막 접속 서버 id를 읽는다. 저장된 id가 없는 것과 설정을 읽지 못한 것을 구별해 돌려준다.
+     * 앞서 호출한 [setLastRemoteId]·[clearLastRemoteIdIf]가 반영된 값을 읽는다(저장에 실패한 것은 반영되지 않는다).
      *
      * 의도치 않게 서버 연결이 끊어졌을 때 재연결 용도로만 사용할 것.
      */
-    suspend fun lastRemoteId(): Long?
+    suspend fun lastRemoteId(): SavedRemoteId
 
     /** 마지막 접속 서버 id를 저장한다. null이면 초기화한다. 저장은 호출 순서대로 반영된다. */
     fun setLastRemoteId(id: Long?)

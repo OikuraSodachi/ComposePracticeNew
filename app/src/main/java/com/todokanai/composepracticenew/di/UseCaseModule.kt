@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
+import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -24,6 +25,7 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
+import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
@@ -79,6 +81,10 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideSortModeUseCase(repo: SortPreferenceRepository) =
         SortModeUseCase(repo)
+
+    @Provides @Singleton
+    fun providePreferenceFailureUseCase(repo: PreferenceFailureRepository) =
+        PreferenceFailureUseCase(repo)
 
     @Provides @Singleton
     fun provideProgressUseCase(repo: ProgressRepository) =

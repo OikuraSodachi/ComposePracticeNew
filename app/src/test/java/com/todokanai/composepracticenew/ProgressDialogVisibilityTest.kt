@@ -1,12 +1,15 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.PreferenceFailureNotice
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
+import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
@@ -153,7 +156,8 @@ class ProgressDialogVisibilityTest {
         getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
         progressUseCase = ProgressUseCase(progressRepo),
         exitHandler = NoOpExitHandler,
-        connectionStateUseCase = RemoteConnectionStateUseCase(FakeConnectionRepository())
+        connectionStateUseCase = RemoteConnectionStateUseCase(FakeConnectionRepository()),
+        preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures)
     )
 
     /** 띄울 작업의 ID가 [expected]가 될 때까지 기다린다. 끝내 되지 않으면 runTest 시간 제한으로 실패한다. */
@@ -191,4 +195,10 @@ internal object EmptyStorageRepository : StorageVolumeRepository {
 internal object NoOpExitHandler : AppExitHandler {
     override val exitEvent: Flow<Unit> = emptyFlow()
     override fun execute() {}
+}
+
+/** 실패를 알리지 않는 테스트용 설정 실패 저장소. 이 테스트는 설정 저장소 실패를 쓰지 않는다. */
+internal object NoPreferenceFailures : PreferenceFailureRepository {
+    override val pending: StateFlow<List<PreferenceFailureNotice>> = MutableStateFlow(emptyList())
+    override fun claim(id: Long): Boolean = false
 }
