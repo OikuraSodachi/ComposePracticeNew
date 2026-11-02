@@ -256,17 +256,61 @@ class FtpCommandExecutorTreeListingTest {
     fun `받은 목록이 메모리 상한 안이면 상한에 가까워도 끝까지 수집한다`() {
         loggedIn()
         client.features = setOf("MLST")
-        client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a"))
-        // 항목 하나(경로 "ftp://host/r/a" 14자, 이름 1자)의 추정치: 170 + 2 × 15 = 200바이트
-        val exact = FtpCommandExecutor(session, treeMemoryLimitBytes = 200)
+        client.mlsdListings = mapOf("/$DEEP_NAME" to listOf("type=file;size=1; a"))
+        // 항목 하나(경로 513자, 이름 1자)의 추정치: 170 + 2 × 514 = 1198바이트 (받는 동안: 250 + 4 × 21바이트 = 334바이트)
+        val exact = FtpCommandExecutor(session, treeMemoryLimitBytes = 1198)
 
-        val tree = (runBlocking { exact.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
+        val tree = (runBlocking { exact.collectRemoteTree(DEEP_PATH) } as IoResult.Success).value
 
-        assertEquals(listOf("ftp://host/r/a"), tree.map { it.path })
+        assertEquals(listOf("$DEEP_PATH/a"), tree.map { it.path })
         assertEquals(
-            IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r"),
-            runBlocking { FtpCommandExecutor(session, treeMemoryLimitBytes = 199).collectRemoteTree("ftp://host/r") }
+            IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME"),
+            runBlocking { FtpCommandExecutor(session, treeMemoryLimitBytes = 1197).collectRemoteTree(DEEP_PATH) }
         )
+    }
+
+    @Test
+    fun `목록 하나가 받는 동안 메모리 상한을 넘으면 끝까지 받지 않고 그 폴더를 실패로 알리며 세션은 유지한다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        // 한 폴더의 항목이 아주 많다 — 받는 동안의 추정치는 줄마다 250 + 4 × 24바이트
+        client.mlsdListings = mapOf("/r" to (0 until 1000).map { "type=file;size=1; f$it" })
+        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+
+        val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
+
+        assertEquals(IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r"), result)
+        assertTrue("데이터 연결만 실패했으므로 세션은 유지돼야 함", runBlocking { session.isReady() })
+    }
+
+    @Test
+    fun `받는 동안의 메모리 상한은 받기 시작할 때 남은 상한이다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        client.mlsdListings = mapOf(
+            // 하위 폴더 b의 목록은 혼자서는 상한 안이지만, 앞서 받은 a의 목록과 합치면 넘는다
+            "/r" to listOf("type=dir;unique=A; a", "type=dir;unique=B; b"),
+            "/r/a" to (0 until 20).map { "type=file;size=1; f$it" },
+            "/r/b" to (0 until 20).map { "type=file;size=1; f$it" }
+        )
+        // a의 목록 20개를 받은 뒤의 추정치는 약 4.6KiB, b를 받는 동안의 추정치는 약 7KiB
+        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = 10L * 1024)
+
+        val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
+
+        assertEquals(IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/b"), result)
+    }
+
+    @Test
+    fun `화면 목록에는 트리 수집의 메모리 상한을 두지 않는다`() {
+        loggedIn()
+        client.features = setOf("MLST")
+        client.mlsdListings = mapOf("/r" to (0 until 1000).map { "type=file;size=1; f$it" })
+        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+
+        val listing = runBlocking { limited.listFiles("ftp://host/r") }
+
+        assertEquals(1000, (listing as IoResult.Success).value.size)
     }
 
     @Test
@@ -307,5 +351,9 @@ class FtpCommandExecutorTreeListingTest {
         const val UNIDENTIFIABLE = " — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다"
         /** 메모리 상한 테스트가 쓰는 작은 상한(바이트). 기본 상한(32MiB)까지 조회하면 테스트가 오래 걸린다. */
         const val SMALL_LIMIT_BYTES = 16L * 1024
+        /** 경로가 긴 폴더의 이름(500자). 항목 경로가 길어 받은 뒤의 메모리 추정치가 받는 동안의 추정치보다 크다. */
+        val DEEP_NAME = "p".repeat(500)
+        /** [DEEP_NAME] 폴더의 경로. */
+        val DEEP_PATH = "ftp://host/$DEEP_NAME"
     }
 }
