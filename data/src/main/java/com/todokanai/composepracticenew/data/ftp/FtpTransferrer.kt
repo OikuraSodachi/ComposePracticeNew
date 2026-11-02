@@ -17,7 +17,6 @@ import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPReply
 import org.apache.commons.net.ftp.parser.MLSxEntryParser
-import java.io.Closeable
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
@@ -218,9 +217,9 @@ class FtpTransferrer @Inject constructor(
     ): IoResult<Unit> {
         // 스트림을 열지 못했으면(PASV·REST 실패, RETR의 1xx 아닌 응답) 응답을 끝까지 읽은 것이다 — 응답 코드와 관계없이 이 항목만 실패다.
         // 기다릴 응답이 없으므로 completePendingCommand는 부르지 않는다. 부르면 오지 않을 응답을 soTimeout까지 기다리며 세션 잠금을 쥔다
-        val input = client.retrieveFileStream(ftpPath) ?: return FtpReplyRules.refusal(FtpCommand.RETR, client)
-        return executeTransfer(client, input, onCancel = { runCatching { localFile.delete() } }, onAcked = onAcked) {
-            localFile.outputStream().use { output -> pump(input, output, onChunk) }
+        val connection = session.openDataConnection { client.retrieveFileStream(ftpPath) } ?: return FtpReplyRules.refusal(FtpCommand.RETR, client)
+        return executeTransfer(client, connection, onCancel = { runCatching { localFile.delete() } }, onAcked = onAcked) {
+            localFile.outputStream().use { output -> pump(connection.stream, output, onChunk) }
         }
     }
 
@@ -244,20 +243,22 @@ class FtpTransferrer @Inject constructor(
         // 스트림을 열지 못한 경우의 처리는 [downloadOne]과 같다
         // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
         // ([FtpCommandExecutor.identifiedListing] 참고)
-        val output = client.storeFileStream(ftpPath) ?: return FtpReplyRules.refusal(FtpCommand.STOR, client)
-        return executeTransfer(client, output, onAcked = onAcked) {
-            localFile.inputStream().use { input -> pump(input, output, onChunk) }
+        val connection = session.openDataConnection { client.storeFileStream(ftpPath) } ?: return FtpReplyRules.refusal(FtpCommand.STOR, client)
+        return executeTransfer(client, connection, onAcked = onAcked) {
+            localFile.inputStream().use { input -> pump(input, connection.stream, onChunk) }
         }
     }
 
     /**
      * FTP 스트림 전송을 실행하고 채널을 정리한다. 서버가 전송 완료를 확인해야 성공이다.
+     * 데이터 연결은 전송을 끝까지 마쳤을 때만 정상으로 닫고([DataConnection.finish]), 실패·취소·구현 오류로 멈췄으면 중단으로 닫는다([DataConnection.abort]) —
+     * 중단을 정상 닫기로 알리면 서버는 잘린 업로드를 다 받은 파일로 저장한다. 정상으로 닫지 못한 것(남은 데이터를 보내지 못함)도 전송 실패다.
      * 전송(데이터 스트림·로컬 파일) 중 IOException은 제어 채널과 무관하므로, 완료 응답까지 정상적으로 읽었다면 이 항목만의 실패로 돌려준다.
      * 완료 응답을 읽다 실패하면 제어 채널을 더 쓸 수 없으므로 그 예외를 전파해 [FtpSession.withConnectedClient]가 세션을 종료하게 한다(전송 예외는 suppressed로 붙인다).
-     * 취소와 구현 오류는 결과로 바꾸지 않고 전파한다. 구현 오류는 [FtpSession.withConnectedClient]가 세션을 종료하므로 스트림만 닫는다.
+     * 취소와 구현 오류는 결과로 바꾸지 않고 전파한다. 구현 오류는 [FtpSession.withConnectedClient]가 세션을 종료하므로 데이터 연결만 닫는다.
      * 취소는 세션을 종료하지 않고 전파되므로, onCancel을 실행하고 완료 응답을 기다려 응답 순서를 맞춘다. 완료 응답을 읽지 못했으면 여기서 세션을 종료한다.
      * @param client 잠금을 확보한 FTPClient
-     * @param stream 전송에 사용한 데이터 스트림 — 끝나면 닫는다
+     * @param connection 전송에 사용한 데이터 연결 — 끝나면 닫는다
      * @param onCancel 취소 시 실행할 정리 작업
      * @param onAcked 서버가 전송 완료를 확인한 뒤 호출되는 콜백
      * @param block 실제 전송 작업
@@ -265,30 +266,33 @@ class FtpTransferrer @Inject constructor(
      */
     private suspend fun executeTransfer(
         client: FTPClient,
-        stream: Closeable,
+        connection: DataConnection<*>,
         onCancel: () -> Unit = {},
         onAcked: suspend () -> Unit,
         block: suspend () -> Unit
     ): IoResult<Unit> {
         val transferFailure = try {
             block()
+            connection.finish()
             null
         } catch (e: IOException) {
+            connection.abort()
             e
         } catch (e: CancellationException) {
             onCancel()
+            connection.abort()
             try {
-                closeAndAwaitCompletion(client, stream)
+                client.completePendingCommand()
             } catch (_: IOException) {
                 session.endUnusableSession()
             }
             throw e
         } catch (e: Exception) {
-            runCatching { stream.close() }
+            connection.abort()
             throw e
         }
         val acknowledged = try {
-            closeAndAwaitCompletion(client, stream)
+            client.completePendingCommand()
         } catch (controlFailure: IOException) {
             transferFailure?.let(controlFailure::addSuppressed)
             throw controlFailure
@@ -301,18 +305,6 @@ class FtpTransferrer @Inject constructor(
                 IoResult.Done
             }
         }
-    }
-
-    /**
-     * 데이터 스트림을 닫고 서버의 전송 완료 응답을 확인한다.
-     * 응답을 읽다 실패하면(연결 끊김·타임아웃 등) 그 IOException을 던진다.
-     * @param client 잠금을 확보한 FTPClient
-     * @param stream 닫을 데이터 스트림
-     * @return 서버가 전송 완료를 확인했으면 true
-     */
-    private fun closeAndAwaitCompletion(client: FTPClient, stream: Closeable): Boolean {
-        runCatching { stream.close() }
-        return client.completePendingCommand()
     }
 
     /**

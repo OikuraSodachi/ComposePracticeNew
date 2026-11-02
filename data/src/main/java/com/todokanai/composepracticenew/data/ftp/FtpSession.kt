@@ -12,6 +12,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPConnectionClosedException
+import java.io.Closeable
 import java.io.IOException
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
@@ -115,6 +116,18 @@ class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMi
     }
 
     /**
+     * [open]으로 전송 명령의 데이터 스트림을 열어, 정상 끝과 중단을 구분해 닫을 수 있는 [DataConnection]으로 돌려준다.
+     * ioMutex를 쥔 블록 안에서 [withClient]가 넘긴 클라이언트로 호출한다.
+     * @param open 데이터 스트림을 여는 전송 명령(`retrieveFileStream`·`storeFileStream`). 서버가 거부하면 null을 돌려준다
+     * @return 열린 데이터 연결, 서버가 거부했으면 null
+     * @throws IOException 명령의 응답을 읽지 못한 경우
+     */
+    internal fun <S : Closeable> openDataConnection(open: () -> S?): DataConnection<S>? {
+        val (stream, opened) = sockets.capturing(open)
+        return stream?.let { DataConnection(it, opened) }
+    }
+
+    /**
      * 응답 순서를 알 수 없게 된 세션을 끊김 상태로 바꾸고, 그 제어 채널을 다시 쓰지 않도록 소켓을 닫는다.
      * 예외로 전파할 수 없는 경로(취소 정리 중 응답을 읽지 못한 경우 등)에서도 호출한다. ioMutex를 쥔 상태에서 호출한다.
      * 취소된 코루틴에서도 끝까지 실행한다 — 상태 잠금을 기다리다 취소로 멈추면 쓸 수 없는 세션이 로그인 상태로 남는다.
@@ -196,7 +209,7 @@ class FtpSession internal constructor(private val client: FTPClient, ioTimeoutMi
     /**
      * 진행 중인 FTP 명령을 기다리지 않고 연결을 끊는다. 로그인 상태를 먼저 해제하므로 [withConnectedClient]는 이를 연결 끊김으로 알린다.
      * 진행 중인 명령이 없으면 ioMutex를 얻어 로그아웃한 뒤 연결을 닫는다.
-     * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 닫는다 — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
+     * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 중단으로 닫는다(업로드가 서버에 파일 끝으로 읽히지 않도록) — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
      * 그 명령은 IOException을 받아 자기 잠금 안에서 세션을 정리하고, 이 함수는 ioMutex를 얻은 뒤 남은 연결을 닫는다.
      * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn], [isCloseRequestedSince]), 소켓을 닫기 전에 요청을 기록한다.
      * 호출 전 소켓이 열려 있는지 [isSocketOpen]으로 확인해야 한다.

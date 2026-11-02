@@ -9,10 +9,14 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketException
 import java.net.SocketTimeoutException
 import kotlin.concurrent.thread
 
-/** [WriteBoundedSocket]이 받는 쪽이 읽기를 멈춘 쓰기만 제한 시간에 끝내고, 데이터가 나가는 쓰기는 끊지 않는지 검증하는 단위 테스트. */
+/**
+ * [WriteBoundedSocket]이 받는 쪽이 읽기를 멈춘 쓰기만 제한 시간에 끝내고, 데이터가 나가는 쓰기는 끊지 않는지 검증하는 단위 테스트.
+ * 제한 시간에 닫을 때 받는 쪽이 파일 끝이 아니라 리셋을 받는지도 검증한다.
+ */
 class WriteBoundedSocketTest {
 
     /** 테스트의 연결을 받는 로컬 서버 소켓. 받는 쪽 버퍼를 작게 해 읽지 않으면 쓰기가 곧 막히게 한다. */
@@ -41,6 +45,18 @@ class WriteBoundedSocketTest {
         assertTrue(socket.isClosed)
     }
 
+    // 제한이 동작하지 않으면 쓰기가 끝나지 않으므로 테스트 시간을 제한한다
+    @Test(timeout = TEST_TIMEOUT_MILLIS)
+    fun `제한 시간에 닫으면 받는 쪽은 파일 끝이 아니라 연결 리셋을 받는다`() {
+        val peer = connect()
+
+        peer.use {
+            assertThrows(SocketTimeoutException::class.java) { writeRepeatedly(STALL_BYTES) }
+            // 정상 닫기였다면 받는 쪽은 남은 데이터를 다 읽은 뒤 파일 끝(-1)을 받는다
+            assertThrows(SocketException::class.java) { readToEnd(it) }
+        }
+    }
+
     @Test
     fun `받는 쪽이 계속 읽으면 제한 시간보다 오래 걸리는 전송도 끊지 않는다`() {
         val peer = connect()
@@ -67,6 +83,13 @@ class WriteBoundedSocketTest {
     private fun writeRepeatedly(total: Int) {
         val chunk = ByteArray(CHUNK_BYTES)
         repeat(total / CHUNK_BYTES) { socket.getOutputStream().write(chunk) }
+    }
+
+    /** [peer]를 파일 끝까지 읽는다. */
+    private fun readToEnd(peer: Socket) {
+        val buffer = ByteArray(CHUNK_BYTES)
+        val input = peer.getInputStream()
+        while (input.read(buffer) != -1) Unit
     }
 
     private companion object {

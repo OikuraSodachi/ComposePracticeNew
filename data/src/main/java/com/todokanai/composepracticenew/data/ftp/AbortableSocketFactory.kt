@@ -17,7 +17,9 @@ import javax.net.SocketFactory
 internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : SocketFactory() {
 
     /** 만든 소켓 중 아직 닫지 않은 소켓. 명령 스레드가 더하고 종료 요청 스레드가 닫으므로 동시성 집합으로 둔다. */
-    private val sockets: MutableSet<Socket> = ConcurrentHashMap.newKeySet()
+    private val sockets: MutableSet<WriteBoundedSocket> = ConcurrentHashMap.newKeySet()
+    /** [capturing] 중인 스레드에서 만든 소켓을 모으는 목록. 스레드마다 따로 두어 다른 스레드가 만든 소켓은 섞이지 않는다. */
+    private val captured = ThreadLocal<MutableList<WriteBoundedSocket>>()
 
     override fun createSocket(): Socket = track(WriteBoundedSocket(writeTimeoutMillis))
 
@@ -31,11 +33,30 @@ internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : So
     override fun createSocket(address: InetAddress, port: Int, localAddress: InetAddress, localPort: Int): Socket =
         connected(InetSocketAddress(address, port), InetSocketAddress(localAddress, localPort))
 
-    /** 지금까지 만든 소켓을 모두 닫는다. 그 소켓에서 I/O를 기다리던 스레드는 SocketException을 받는다. */
+    /**
+     * 지금까지 만든 소켓을 모두 중단으로 닫는다([WriteBoundedSocket.abort]). 그 소켓에서 I/O를 기다리던 스레드는 SocketException을 받는다.
+     * 진행 중인 명령을 끊는 닫기이므로, 업로드 중인 데이터 연결이 서버에 파일 끝으로 읽히지 않게 한다.
+     */
     fun closeAll() {
         sockets.removeIf { socket ->
-            runCatching { socket.close() }
+            socket.abort()
             true
+        }
+    }
+
+    /**
+     * [open]을 실행하는 동안 이 스레드에서 만든 소켓을 모아 [open]의 결과와 함께 돌려준다.
+     * 전송 명령이 데이터 스트림을 열며 만든 데이터 소켓을 집어내는 데 쓴다 — FTPClient는 데이터 소켓을 내주지 않는다.
+     * @param open 소켓을 만들 수 있는 동작. 스레드를 바꾸지 않고 끝까지 실행된다
+     * @return [open]의 결과와, 그동안 만든 소켓
+     */
+    fun <T> capturing(open: () -> T): Pair<T, List<WriteBoundedSocket>> {
+        val opened = mutableListOf<WriteBoundedSocket>()
+        captured.set(opened)
+        try {
+            return open() to opened
+        } finally {
+            captured.remove()
         }
     }
 
@@ -60,13 +81,14 @@ internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : So
     }
 
     /**
-     * [socket]을 닫을 대상으로 기억한다. 이미 닫힌 소켓은 함께 잊어 목록 조회·전송마다 데이터 소켓이 쌓이지 않게 한다.
+     * [socket]을 닫을 대상으로 기억하고, [capturing] 중이면 그 목록에도 넣는다. 이미 닫힌 소켓은 함께 잊어 목록 조회·전송마다 데이터 소켓이 쌓이지 않게 한다.
      * @param socket 새로 만든 소켓
      * @return [socket]
      */
-    private fun track(socket: Socket): Socket {
+    private fun track(socket: WriteBoundedSocket): Socket {
         sockets.removeIf { it.isClosed }
         sockets += socket
+        captured.get()?.add(socket)
         return socket
     }
 }

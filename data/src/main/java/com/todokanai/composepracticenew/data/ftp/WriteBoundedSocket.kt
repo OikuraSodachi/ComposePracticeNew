@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit
 /**
  * 쓰기 한 번이 [writeTimeoutMillis] 안에 끝나지 않으면 스스로 닫히는 소켓.
  * java.net.Socket에는 쓰기 제한 시간이 없어(SO_TIMEOUT은 읽기에만 적용된다) 받는 쪽이 읽기를 멈추면 write가 끝나지 않는다.
- * 제한 시간이 지나 닫히면 막혀 있던 write는 [SocketTimeoutException]으로 끝나고, 소켓은 닫힌 채로 남는다.
+ * 제한 시간이 지나면 소켓을 중단으로 닫아([abort]) 막혀 있던 write는 [SocketTimeoutException]으로 끝나고, 소켓은 닫힌 채로 남는다.
  * 제한은 쓰기 한 번(버퍼 하나)을 기다리는 시간이며, 데이터가 계속 나가는 긴 전송은 끊지 않는다.
  * @param writeTimeoutMillis 쓰기 한 번이 끝나기를 기다리는 상한(ms)
  */
@@ -50,10 +50,20 @@ internal class WriteBoundedSocket(private val writeTimeoutMillis: Long) : Socket
         }
     }
 
-    /** 제한 시간을 넘긴 쓰기를 끝내려고 소켓을 닫는다. 감시 스레드에서 실행된다. */
+    /**
+     * 진행 중인 전송을 중단하려고 소켓을 닫는다. 보내지 못한 데이터를 버리고 연결을 리셋(RST)한다.
+     * 일반 [close]는 남은 데이터를 다 보낸 뒤 연결을 닫으므로, 데이터 연결에서는 받는 쪽에 파일 끝으로 읽힌다(RFC 959 §3.4.1) —
+     * 리셋은 받는 쪽이 중단을 파일 끝과 구분하게 한다.
+     */
+    fun abort() {
+        runCatching { setSoLinger(true, 0) }
+        runCatching { close() }
+    }
+
+    /** 제한 시간을 넘긴 쓰기를 끝내려고 소켓을 중단으로 닫는다. 감시 스레드에서 실행된다. */
     private fun closeForTimeout() {
         writeTimedOut = true
-        runCatching { close() }
+        abort()
     }
 
     companion object {

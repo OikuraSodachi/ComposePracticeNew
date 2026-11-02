@@ -11,6 +11,8 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import java.net.Socket
+import java.net.SocketException
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
@@ -100,17 +102,17 @@ class FtpConnectorCloseRequestTest {
     }
 
     @Test
-    fun `목록을 받는 중 종료를 요청하면 데이터 연결까지 닫아 명령을 연결 끊김으로 끝낸다`() {
-        val dataClosedByClient = AtomicBoolean(false)
+    fun `목록을 받는 중 종료를 요청하면 데이터 연결까지 리셋해 명령을 연결 끊김으로 끝낸다`() {
+        val dataResetByClient = AtomicBoolean(false)
         val closer = AtomicReference<Thread?>()
         connectToListServer { exchange ->
             exchange.data.accept().use { socket ->
                 exchange.send("150 Here comes the directory listing")
                 socket.getOutputStream().write(listingLines("a.txt").toByteArray())
                 closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
-                // 전송을 끝내지 않고 클라이언트가 데이터 연결을 닫을 때까지 기다린다
+                // 전송을 끝내지 않고 클라이언트가 데이터 연결을 닫을 때까지 기다린다. 중단이므로 정상 닫기(-1)가 아니라 리셋이어야 한다
                 socket.soTimeout = ScriptedFtpServer.TIMEOUT_MILLIS
-                dataClosedByClient.set(socket.getInputStream().read() == -1)
+                dataResetByClient.set(isResetOnRead(socket))
             }
         }
 
@@ -118,7 +120,7 @@ class FtpConnectorCloseRequestTest {
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertTrue(listing.toString(), listing is IoResult.ConnectionLost)
-        assertTrue("데이터 연결을 닫아 전송을 기다리지 않는다", dataClosedByClient.get())
+        assertTrue("데이터 연결을 리셋해 전송을 기다리지 않는다", dataResetByClient.get())
         assertFalse("진행 중인 명령이 있으면 다른 스레드에서 QUIT을 보내지 않는다", "QUIT" in servers.last().received)
         assertFalse(client.isConnected)
     }
@@ -202,6 +204,18 @@ class FtpConnectorCloseRequestTest {
      */
     private fun listingLines(vararg names: String): String =
         names.joinToString("") { name -> "-rw-r--r--   1 user group        1 Jan 01 00:00 $name\r\n" }
+
+    /**
+     * 서버가 받은 데이터 연결을 읽어, 클라이언트가 그 연결을 리셋으로 끝냈는지 판별한다.
+     * @param socket 서버 쪽 데이터 소켓
+     * @return 리셋이면 true, 정상 닫기(파일 끝)거나 데이터가 왔으면 false
+     */
+    private fun isResetOnRead(socket: Socket): Boolean = try {
+        socket.getInputStream().read()
+        false
+    } catch (_: SocketException) {
+        true
+    }
 
     /**
      * [condition]이 참이 될 때까지 기다린다. 검증 대상이 회귀해 조건이 끝내 참이 되지 않아도 테스트가 멈추지 않도록,
