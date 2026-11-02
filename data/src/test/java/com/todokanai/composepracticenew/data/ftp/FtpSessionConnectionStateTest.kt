@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.io.IOException
 
@@ -75,6 +76,18 @@ class FtpSessionConnectionStateTest {
         session.markLoggedIn(session.closeRequestMark(), home = null)
 
         assertEquals(RemoteConnectionState.CONNECTED, session.connectionState.value)
+    }
+
+    @Test
+    fun `연결 작업이 표지를 읽은 뒤 종료가 요청됐으면 로그인 상태로 전환하지 않는다`() = runBlocking {
+        session.beginConnecting()
+        val closeMark = session.closeRequestMark()
+        // 연결 작업이 서버 응답을 받은 뒤, 로그인 상태로 전환하기 전에 앱이 종료를 요청한다
+        session.closeBypassingIoLock()
+
+        assertFalse(session.markLoggedIn(closeMark, home = null))
+        assertEquals(RemoteConnectionState.DISCONNECTED, session.connectionState.value)
+        assertFalse(session.isReady())
     }
 
     @Test

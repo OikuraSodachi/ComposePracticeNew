@@ -65,37 +65,19 @@ class FtpConnectorCloseRequestTest {
     }
 
     @Test
-    fun `옵션 요청 중 앱이 연결 종료를 요청해 연결이 끊기면 다시 연결하지 않고 실패로 알린다`() {
-        val mark = session.closeRequestMark()
-        val closer = AtomicReference<Thread?>()
-        val result = connectToMlsdServer { exchange ->
-            closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
-            awaitUntil("종료 요청이 표시되지") { session.isCloseRequestedSince(mark) }
-            exchange.send("421 Service not available, closing control connection")
-            exchange.hangUp()
-        }
-        closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
-
-        assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
-        assertEquals("종료 요청을 다시 연결로 뒤집지 않는다", 1, servers.last().received.count { it == "USER" })
-        assertFalse(runBlocking { session.isReady() })
-    }
-
-    @Test
-    fun `옵션 요청 직전 종료 요청으로 닫힌 연결에 명령을 보내지 못해 요청이 끝나도 연결 성공으로 알리지 않는다`() {
+    fun `로그인 직후 종료 요청으로 연결이 닫히면 연결 성공으로 알리지 않는다`() {
         val closer = AtomicReference<Thread?>()
         client.beforeCommand = { command ->
-            // OPTS를 보내기 직전에 종료를 요청해, 보내지 못한 실패가 응답을 기다리지 않는 실패로 끝나게 한다
-            if (command == "OPTS") {
+            // 홈을 확인하는 PWD를 보내기 직전에 종료를 요청해, 로그인까지 마친 연결 작업과 종료 요청이 겹치게 한다
+            if (command == "PWD") {
                 closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
                 awaitUntil("제어 연결 소켓이 닫히지") { client.isControlSocketClosed }
             }
         }
-        val result = connectToMlsdServer { it.send("200 MLST OPTS") }
+        val result = connectToListServer { exchange -> sendListing(exchange, "a.txt") }
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
-        assertEquals("종료 요청을 다시 연결로 뒤집지 않는다", 1, servers.last().received.count { it == "USER" })
         assertFalse(runBlocking { session.isReady() })
         assertFalse(client.isConnected)
     }
@@ -150,24 +132,6 @@ class FtpConnectorCloseRequestTest {
                 listArguments += exchange.argument
                 onList(exchange)
             },
-        )
-        val server = ScriptedFtpServer(script).also { servers += it }
-        return runBlocking { connector.connect(server.host, server.port, "user", "password", "UTF-8") }
-    }
-
-    /**
-     * `unique`를 지원하지만 목록에 담지 않는 MLSD 서버를 띄워 [FtpConnector]로 접속한다. 연결할 때 `OPTS MLST`를 보내게 된다.
-     * @param onOpts OPTS를 받았을 때의 응답 동작
-     * @return 연결 결과
-     */
-    private fun connectToMlsdServer(onOpts: (ScriptedFtpServer.Exchange) -> Unit): ConnectResult {
-        val script = mapOf<String, (ScriptedFtpServer.Exchange) -> Unit>(
-            "FEAT" to {
-                it.send("211-Features:")
-                it.send(" MLST type*;size*;unique;")
-                it.send("211 End")
-            },
-            "OPTS" to onOpts,
         )
         val server = ScriptedFtpServer(script).also { servers += it }
         return runBlocking { connector.connect(server.host, server.port, "user", "password", "UTF-8") }

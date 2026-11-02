@@ -61,6 +61,11 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
     var streamReadFailure: Exception? = null
     /** 목록 데이터 스트림을 읽을 때 던질 예외. null이면 목록을 끝까지 읽는다. */
     var listingReadFailure: Exception? = null
+    /** 목록 데이터의 줄 끝. 기본은 CRLF이며, 줄을 CR로만 끝내는 서버를 재현하려면 바꾼다. */
+    var listingLineEnd: String = "\r\n"
+    /** 마지막으로 연 목록 데이터 스트림. 읽기가 멈춘 뒤 남은 양([InputStream.available])으로 목록을 끝까지 받았는지 확인한다. */
+    var lastListingStream: InputStream? = null
+        private set
     /** 목록 조회의 완료 응답을 읽을 때 던질 예외. 완료 응답을 읽다 연결 끊김·타임아웃이 난 것을 재현한다. null이면 완료 응답을 읽는다. */
     var listingCompletionFailure: Exception? = null
     /** isConnected가 호출될 때 실행할 동작. 다른 스레드에서 상태 잠금을 쥔 채 멈추게 해 잠금 경합을 재현한다. */
@@ -243,11 +248,15 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
         reply(150, "150 Here comes the directory listing")
         pendingListingReply = finalReply
         val readFailure = listingReadFailure
-            ?: return ByteArrayInputStream(lines.joinToString("") { "$it\r\n" }.toByteArray(charset(controlEncoding)))
-        return object : InputStream() {
-            override fun read(): Int = throw readFailure
-            override fun read(b: ByteArray, off: Int, len: Int): Int = throw readFailure
+        val stream = if (readFailure == null) {
+            ByteArrayInputStream(lines.joinToString("") { "$it$listingLineEnd" }.toByteArray(charset(controlEncoding)))
+        } else {
+            object : InputStream() {
+                override fun read(): Int = throw readFailure
+                override fun read(b: ByteArray, off: Int, len: Int): Int = throw readFailure
+            }
         }
+        return stream.also { lastListingStream = it }
     }
 
     /**
