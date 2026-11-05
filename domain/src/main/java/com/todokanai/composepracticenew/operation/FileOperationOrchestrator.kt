@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CancellationException
@@ -20,12 +21,14 @@ private const val UNKNOWN_FAILURE_MESSAGE = "알 수 없는 오류"
  * @param notifier 파일 작업 시스템 알림을 전송하는 인터페이스
  * @param progressRepo 작업 진행 상태를 저장하는 ProgressRepository
  * @param notices 작업의 완료·실패 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
+ * @param protection 진행 표시가 있는 작업이 시작 전에 받는 프로세스 보호
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
     private val notifier: FileOperationNotifier,
     private val progressRepo: ProgressRepository,
     private val notices: OperationNoticeReporter,
+    private val protection: OperationProtection,
     private val appScope: CoroutineScope
 ) {
     /** ID 발급과 진행 상태 등록을 한 단위로 묶는 잠금. 동시에 시작한 작업들이 progressMap에 ID 순서대로 나타나게 한다. */
@@ -48,9 +51,10 @@ class FileOperationOrchestrator(
 
     /**
      * 파일 작업을 실행하고 진행 상태 보고·알림·완료 처리를 통합한다.
-     * 진행 표시가 있는 작업은 시작하자마자 progressMap에 등록되어 첫 진행률 보고 전 준비 단계부터 프로세스 보호 대상이 된다.
+     * 진행 표시가 있는 작업은 시작하자마자 progressMap에 등록되고, [block]을 실행하기 전에 프로세스 보호를 받는다([OperationProtection.acquire]).
+     * 보호가 거부되면 [block]을 실행하지 않고(파일을 건드리지 않고) 실패로 끝낸다.
      * 보호는 시스템의 실행 시간 한도까지이며, 한도 이후의 보호는 지원 범위 밖이다.
-     * 순간 작업(operationType null)은 progressMap에 등록되지 않아 보호 대상에서 제외된다.
+     * 순간 작업(operationType null)은 보호를 요청하지 않는다.
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param operationType 작업 종류. null이면 진행 알림 없음
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
@@ -66,6 +70,7 @@ class FileOperationOrchestrator(
         val handle = startHandle(operationType)
         val callback = OperationCallback(completionMessage, onRefresh)
         launchOperation(handle, callback) {
+            if (operationType != null) protection.acquire().valueOr { return@launchOperation it }
             block { state ->
                 val stateWithType = state.copy(operationType = operationType)
                 handle.set(stateWithType)

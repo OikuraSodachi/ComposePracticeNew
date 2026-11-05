@@ -25,7 +25,7 @@ class LocalCanUnzipTest {
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
-    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, scope), notices, ZipOnlyRepository, FileNameUseCase())
+    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, GrantedProtection, scope), notices, ZipOnlyRepository, FileNameUseCase())
 
     @After
     fun tearDown() = scope.cancel()

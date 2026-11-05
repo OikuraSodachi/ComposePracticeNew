@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
  * 시작은 밖에서 받고 멈춤은 스스로 하는 ForegroundService의 공통 수명 규칙.
  * 멈춤은 언제나 이 서비스가 startForeground 뒤에 한다 — 밖에서 멈추면 startForeground 전에 멈춰 startForegroundService 계약 위반으로 앱이 종료될 수 있다.
  * 시스템이 정한 실행 시간 한도(Android 15의 dataSync 6시간)에 이르면 바로 멈춘다 — 몇 초 안에 멈추지 않으면 앱이 종료된다.
+ * 시스템이 startForeground를 거부해도 바로 멈춘다 — 거부를 잡지 않으면 메인 스레드에서 나 앱이 종료된다.
  */
 abstract class SelfStoppingForegroundService : Service() {
 
@@ -27,17 +28,38 @@ abstract class SelfStoppingForegroundService : Service() {
      * START_NOT_STICKY 반환 — 프로세스 종료 시 시스템이 서비스를 재시작하지 않는다.
      * 포그라운드 알림을 시작한 뒤, 멈춤 관찰을 이 시작 요청 기준으로 다시 시작한다.
      * 관찰은 시작 요청의 id로 멈추므로, 그 뒤에 온 시작 요청이 있으면 멈추지 않고 그 요청의 관찰이 이어받는다.
+     * 시스템이 startForeground를 거부하면(백그라운드 시작 제한, 실행 시간 한도 소진) 관찰 없이 이 요청의 id로 바로 멈추고, 그 뒤의 처리는 [onStartRefused]에 맡긴다.
+     * 거부된 startForeground도 startForegroundService 계약을 채우므로 이때 멈춰도 계약 위반이 아니다.
      */
     final override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        enterForeground(intent)
-        // startForeground 뒤에 관찰한다 — 그 전에 멈추면 startForegroundService 계약 위반으로 앱이 종료된다
         stopWatch?.cancel()
+        if (!enterForegroundUnlessRefused(intent)) {
+            stopWatch = null
+            stopSelf(startId)
+            onStartRefused(intent)
+            return START_NOT_STICKY
+        }
+        // startForeground 뒤에 관찰한다 — 그 전에 멈추면 startForegroundService 계약 위반으로 앱이 종료된다
         stopWatch = serviceScope.launch {
             awaitStop()
             stopSelf(startId)
         }
         return START_NOT_STICKY
     }
+
+    /**
+     * [enterForeground]를 호출한다. 시스템이 startForeground를 거부하면 false를 돌려준다(거부가 아닌 예외는 그대로 던진다).
+     * @param intent 시작 요청의 Intent
+     * @return 포그라운드가 됐으면 true, 시스템이 거부했으면 false
+     */
+    private fun enterForegroundUnlessRefused(intent: Intent?): Boolean =
+        try {
+            enterForeground(intent)
+            true
+        } catch (e: IllegalStateException) {
+            if (!e.isForegroundStartRefusal()) throw e
+            false
+        }
 
     /**
      * 시스템이 정한 실행 시간 한도에 이르렀다. 이 서비스는 더 이상 포그라운드가 아니므로 바로 멈추고, 그 뒤의 처리는 [onTimeLimitReached]에 맡긴다.
@@ -52,7 +74,7 @@ abstract class SelfStoppingForegroundService : Service() {
     }
 
     /**
-     * 시작 요청에 맞는 알림으로 startForeground를 호출한다.
+     * 시작 요청에 맞는 알림으로 startForeground를 호출한다. 정상으로 돌아오면 이 요청으로 포그라운드가 된 것이다.
      * @param intent 시작 요청의 Intent. 시스템이 다시 전달한 경우 null일 수 있다
      */
     protected abstract fun enterForeground(intent: Intent?)
@@ -65,6 +87,12 @@ abstract class SelfStoppingForegroundService : Service() {
 
     /** 실행 시간 한도로 멈춘 뒤의 처리. 기본은 아무것도 하지 않는다. */
     protected open fun onTimeLimitReached() {}
+
+    /**
+     * 시스템이 startForeground를 거부해 멈춘 뒤의 처리.
+     * @param intent 거부된 시작 요청의 Intent
+     */
+    protected abstract fun onStartRefused(intent: Intent?)
 
     override fun onBind(intent: Intent): IBinder? = null
 

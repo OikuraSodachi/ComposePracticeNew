@@ -29,7 +29,7 @@ class FileOperationStartTest {
     /** 진행 상태와 작업이 처음 등록된 순서를 기록하는 진행 저장소. */
     private val progressRepo = RecordingProgressRepository()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, RecordingOperationNotices(), scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, RecordingOperationNotices(), GrantedProtection, scope)
     /** 열릴 때까지 작업을 멈춰 두는 신호. */
     private val gate = CompletableDeferred<Unit>()
 

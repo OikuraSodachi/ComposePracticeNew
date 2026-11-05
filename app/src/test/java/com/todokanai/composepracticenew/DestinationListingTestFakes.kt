@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -99,6 +100,11 @@ internal object NoOpNotifier : FileOperationNotifier {
     override fun cancelNotification(instanceId: Int) {}
 }
 
+/** 언제나 바로 보호를 주는 테스트용 작업 보호. */
+internal object GrantedProtection : OperationProtection {
+    override suspend fun acquire(): IoResult<Unit> = IoResult.Done
+}
+
 /** 고정 문구를 돌려주는 테스트용 메시지 제공자. */
 internal object FixedMessages : OperationMessages {
     override val notiComplete = "완료"
@@ -108,6 +114,7 @@ internal object FixedMessages : OperationMessages {
     override val notiUploadComplete = "업로드 완료"
     override val destinationUnverified = "목록 미확인"
     override val defaultNewFolderName = "새 폴더"
+    override val protectionRefused = "보호 거부"
 }
 
 /** 연결 상태를 테스트가 직접 바꾸는 테스트용 원격 연결 저장소. 연결·해제는 상태만 바꾼다. */

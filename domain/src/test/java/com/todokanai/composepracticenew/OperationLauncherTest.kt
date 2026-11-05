@@ -34,7 +34,7 @@ class OperationLauncherTest {
     /** 받은 알림 요청을 기록하는 알림기. */
     private val notifier = RecordingNotifier()
     /** 검증 대상. */
-    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, scope)
+    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, scope)
 
     @After
     fun tearDown() = scope.cancel()
