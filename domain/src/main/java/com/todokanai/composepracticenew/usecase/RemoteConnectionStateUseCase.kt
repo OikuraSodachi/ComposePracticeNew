@@ -24,8 +24,8 @@ class RemoteConnectionStateUseCase(private val repo: RemoteConnectionRepository)
     suspend fun disconnect() = repo.disconnect()
 
     /**
-     * 앱이 연결을 더 유지할 수 없어 원격 서버 연결을 끊김으로 종료한다. 연결돼 있었으면 [RemoteConnectionState.Lost]가 된다.
-     * @return Unit
+     * 앱이 연결을 더 유지할 수 없어 연결된 원격 세션을 끊김([RemoteConnectionState.Lost])으로 종료한다. 연결된 세션이 없으면 아무 동작도 하지 않는다.
+     * @return 연결된 세션을 끝냈으면 true
      */
     suspend fun drop() = repo.drop()
 }

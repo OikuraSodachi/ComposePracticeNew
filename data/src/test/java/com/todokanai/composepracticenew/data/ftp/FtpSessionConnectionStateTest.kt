@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.RemoteConnectionState
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
 
@@ -36,18 +37,40 @@ class FtpSessionConnectionStateTest {
 
     @Test
     fun `앱이 연결을 더 유지할 수 없어 끝낸 세션은 끊김으로 남는다`() = runBlocking {
-        session.closeBypassingIoLock(FtpSession.CloseKind.DROPPED)
+        assertTrue(session.dropConnected())
+
+        assertEquals(RemoteConnectionState.Lost, session.connectionState.value)
+        assertFalse(session.isReady())
+    }
+
+    @Test
+    fun `이미 종료한 세션은 끊김으로 끝내지 않는다`() = runBlocking {
+        session.closeBypassingIoLock()
+
+        assertFalse(session.dropConnected())
+
+        assertEquals(RemoteConnectionState.Disconnected, session.connectionState.value)
+    }
+
+    @Test
+    fun `이미 끊긴 세션의 끊김을 종료로 덮어쓰지 않는다`() = runBlocking {
+        session.withConnectedClient<Unit> { throw IOException("read timed out") }
+
+        assertFalse(session.dropConnected())
 
         assertEquals(RemoteConnectionState.Lost, session.connectionState.value)
     }
 
     @Test
-    fun `이미 종료한 세션을 끊김으로 끝내도 끊김이 아니다`() = runBlocking {
-        session.closeBypassingIoLock()
+    fun `연결 작업 중인 세션은 끊김으로 끝내지 않아 그 연결 작업이 연결에 성공한다`() = runBlocking {
+        // 보호하던 연결이 아닌 새 연결 작업이다 — 종료 요청으로 기록되면 그 연결이 사실과 다른 실패로 끝난다
+        session.beginConnecting()
+        val closeMark = session.closeRequestMark()
 
-        session.closeBypassingIoLock(FtpSession.CloseKind.DROPPED)
+        assertFalse(session.dropConnected())
 
-        assertEquals(RemoteConnectionState.Disconnected, session.connectionState.value)
+        assertTrue(session.markLoggedIn(closeMark, home = null, serverName = "other"))
+        assertEquals(RemoteConnectionState.Connected("other"), session.connectionState.value)
     }
 
     @Test

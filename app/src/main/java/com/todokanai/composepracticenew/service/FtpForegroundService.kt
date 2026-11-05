@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.service
 
 import android.Manifest
 import android.app.Notification
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
@@ -42,10 +43,11 @@ class FtpForegroundService : SelfStoppingForegroundService() {
 
     override suspend fun awaitStop() = policy.awaitStop()
 
-    /** 보호 없이 연결을 남기지 않도록 연결을 끊김으로 종료하고, 앱 밖에 있는 사용자에게 알림으로 알린다. */
+    /** 보호 없이 연결을 남기지 않도록 연결을 끊김으로 종료하고, 실제로 끝낸 연결이 있을 때만 앱 밖에 있는 사용자에게 알림으로 알린다. */
     override fun onTimeLimitReached() {
-        appScope.launch { policy.endProtection() }
-        notifyTimeLimitReached()
+        // 알림은 서비스가 멈춘 뒤에 내므로 서비스가 아닌 앱 Context로 낸다
+        val context = applicationContext
+        appScope.launch { if (policy.endProtection()) notifyTimeLimitReached(context) }
     }
 
     private fun buildForegroundNotification(serverLabel: String): Notification =
@@ -56,16 +58,19 @@ class FtpForegroundService : SelfStoppingForegroundService() {
             .setOngoing(true)
             .build()
 
-    /** 실행 시간 한도로 연결을 종료했다고 알린다. 알림 권한이 없으면 알리지 않는다. */
-    private fun notifyTimeLimitReached() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle(getString(R.string.app_name))
-            .setContentText(getString(R.string.ftp_time_limit_notice))
+    /**
+     * 실행 시간 한도로 연결을 종료했다고 알린다. 알림 권한이 없으면 알리지 않는다.
+     * @param context 알림을 낼 앱 Context
+     */
+    private fun notifyTimeLimitReached(context: Context) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle(context.getString(R.string.app_name))
+            .setContentText(context.getString(R.string.ftp_time_limit_notice))
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setAutoCancel(true)
             .build()
-        NotificationManagerCompat.from(this).notify(TIME_LIMIT_NOTIFICATION_ID, notification)
+        NotificationManagerCompat.from(context).notify(TIME_LIMIT_NOTIFICATION_ID, notification)
     }
 
     companion object {

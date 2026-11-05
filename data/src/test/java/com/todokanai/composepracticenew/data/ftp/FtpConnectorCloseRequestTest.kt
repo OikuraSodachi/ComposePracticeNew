@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -139,6 +140,39 @@ class FtpConnectorCloseRequestTest {
         assertEquals("QUIT", servers.last().received.last())
         assertFalse(runBlocking { session.isReady() })
         assertFalse(client.isConnected)
+    }
+
+    @Test
+    fun `앱이 연결을 더 유지할 수 없어 끝내면 연결을 닫고 끊김으로 남긴다`() {
+        connectToListServer { exchange -> sendListing(exchange, "a.txt") }
+
+        assertTrue(runBlocking { connector.drop() })
+
+        assertEquals(RemoteConnectionState.Lost, session.connectionState.value)
+        assertEquals("QUIT", servers.last().received.last())
+        assertFalse(client.isConnected)
+    }
+
+    @Test
+    fun `연결 작업 중에는 끊김으로 끝내지 않아 그 연결 작업이 연결에 성공한다`() {
+        val dropped = AtomicReference<Boolean?>()
+        client.beforeConnect = {
+            // 소켓을 열기 전, 연결 작업이 잠금을 쥔 채로 실행 시간 한도의 종료가 들어오게 한다 — 보호하던 연결이 아닌 새 연결이다
+            dropped.set(runBlocking { connector.drop() })
+        }
+
+        val result = connectToListServer { exchange -> sendListing(exchange, "a.txt") }
+
+        assertEquals(false, dropped.get())
+        assertEquals(ConnectResult.Connected, result)
+        assertEquals(RemoteConnectionState.Connected("server"), session.connectionState.value)
+    }
+
+    @Test
+    fun `연결된 세션이 없으면 끊김으로 끝내지 않는다`() {
+        assertFalse(runBlocking { connector.drop() })
+
+        assertEquals(RemoteConnectionState.Disconnected, session.connectionState.value)
     }
 
     /**

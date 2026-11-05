@@ -226,15 +226,41 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * 그 명령은 IOException을 받아 자기 잠금 안에서 세션을 정리하고, 이 함수는 ioMutex를 얻은 뒤 남은 연결을 닫는다.
      * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn]), 소켓을 닫기 전에 요청을 기록한다.
      * 호출 전 소켓이 열려 있거나([isSocketOpen]) 연결 작업 중인지([isConnecting]) 확인해야 한다.
-     * @param kind 이 종료를 연결 상태에 어떻게 남길지
      */
-    internal suspend fun closeBypassingIoLock(kind: CloseKind = CloseKind.REQUESTED) {
-        stateMutex.withLock {
-            bypassCloseRequests.incrementAndGet()
-            isLoggedIn = false
-            _connectionState.value = stateAfterClose(kind)
-            _isConnecting.value = true
+    internal suspend fun closeBypassingIoLock() {
+        stateMutex.withLock { markClosing(RemoteConnectionState.Disconnected) }
+        closeClient()
+    }
+
+    /**
+     * 연결된 세션만 [closeBypassingIoLock]과 같이 닫되, 사용자가 요청한 종료가 아니므로 끊김([RemoteConnectionState.Lost])으로 남긴다.
+     * 연결돼 있는지를 종료 기록과 같은 잠금 안에서 확인한다 — 연결 작업 중인 세션(보호하던 연결이 아닌 새 연결)을 끝내거나, 이미 끊긴 세션의 끊김을 종료로 덮어쓰지 않도록.
+     * @return 연결된 세션을 끝냈으면 true, 연결된 세션이 없어 아무것도 하지 않았으면 false
+     */
+    internal suspend fun dropConnected(): Boolean {
+        val connected = stateMutex.withLock {
+            val isConnected = _connectionState.value is RemoteConnectionState.Connected
+            if (isConnected) markClosing(RemoteConnectionState.Lost)
+            isConnected
         }
+        if (connected) closeClient()
+        return connected
+    }
+
+    /**
+     * 잠금 밖 종료를 기록하고 연결 상태를 [state]로 둔다. stateMutex를 쥔 상태에서 호출한다.
+     * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn]), 소켓을 닫기 전에 요청을 기록한다.
+     * @param state 종료 뒤의 연결 상태
+     */
+    private fun markClosing(state: RemoteConnectionState) {
+        bypassCloseRequests.incrementAndGet()
+        isLoggedIn = false
+        _connectionState.value = state
+        _isConnecting.value = true
+    }
+
+    /** [markClosing]으로 기록한 종료를 진행 중 I/O를 기다리지 않고 실행한다 — 명령이 없으면 로그아웃 후 닫고, 있으면 소켓만 중단으로 닫는다. */
+    private suspend fun closeClient() {
         if (ioMutex.tryLock()) {
             try {
                 runCatching { client.logout() }
@@ -247,25 +273,6 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
             ioMutex.withLock { runCatching { client.disconnect() } }
         }
         stateMutex.withLock { _isConnecting.value = false }
-    }
-
-    /**
-     * [kind] 종료 뒤의 연결 상태를 정한다. stateMutex를 쥔 상태에서 호출한다.
-     * @param kind 종료의 종류
-     * @return 앱이 요청한 종료면 [RemoteConnectionState.Disconnected], 끊김으로 끝냈고 연결돼 있었으면 [RemoteConnectionState.Lost]
-     */
-    private fun stateAfterClose(kind: CloseKind): RemoteConnectionState = when (kind) {
-        CloseKind.REQUESTED -> RemoteConnectionState.Disconnected
-        CloseKind.DROPPED ->
-            if (_connectionState.value is RemoteConnectionState.Connected) RemoteConnectionState.Lost else RemoteConnectionState.Disconnected
-    }
-
-    /** [closeBypassingIoLock]으로 끝낸 세션을 연결 상태에 어떻게 남길지. */
-    internal enum class CloseKind {
-        /** 앱이 요청한 종료·서버 전환. 끊김이 아니다. */
-        REQUESTED,
-        /** 앱이 연결을 더 유지할 수 없어 끝냈다(사용자의 요청이 아님). 연결돼 있었으면 끊김으로 남는다. */
-        DROPPED
     }
 
     companion object {

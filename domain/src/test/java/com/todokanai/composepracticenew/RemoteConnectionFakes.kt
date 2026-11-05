@@ -30,7 +30,7 @@ internal class FakeRemoteConnection(private val result: ConnectResult = ConnectR
 
     override suspend fun disconnect() = Unit
 
-    override suspend fun drop() = Unit
+    override suspend fun drop() = false
 
     override fun rootPathOf(item: RemoteStorageItem): String = rootPathFor(item)
 

@@ -25,10 +25,12 @@ interface RemoteConnectionRepository {
     suspend fun disconnect()
 
     /**
-     * 앱이 연결을 더 유지할 수 없어(시스템의 백그라운드 실행 한도 등) 서버와의 연결을 종료한다.
-     * 사용자가 요청한 종료가 아니므로 연결돼 있었으면 [RemoteConnectionState.Lost]로 남는다 — 끊긴 세션에 기대는 상태를 버리도록.
+     * 앱이 연결을 더 유지할 수 없어(시스템의 백그라운드 실행 한도 등) 연결된 세션을 종료한다.
+     * 사용자가 요청한 종료가 아니므로 [RemoteConnectionState.Lost]로 남는다 — 끊긴 세션에 기대는 상태를 버리도록.
+     * 연결된 세션이 없으면(연결 작업 중·이미 끊김·종료됨) 아무 동작도 하지 않는다.
+     * @return 연결된 세션을 끝냈으면 true
      */
-    suspend fun drop()
+    suspend fun drop(): Boolean
 
     /**
      * [item] 서버의 루트 디렉터리를 가리키는 경로(스킴 포함)를 반환한다.

@@ -119,7 +119,12 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
         return ConnectResult.Connected
     }
     override suspend fun disconnect() { connectionState.value = RemoteConnectionState.Disconnected }
-    override suspend fun drop() { connectionState.value = RemoteConnectionState.Lost }
+    override suspend fun drop(): Boolean {
+        // 실제 구현과 같이 연결된 세션만 끊김으로 끝낸다
+        if (connectionState.value !is RemoteConnectionState.Connected) return false
+        connectionState.value = RemoteConnectionState.Lost
+        return true
+    }
     override fun rootPathOf(item: RemoteStorageItem) = "ftp://${item.address}"
 }
 

@@ -35,9 +35,8 @@ class ConnectionServicePolicy @Inject constructor(
     /**
      * 연결 유지 서비스의 보호가 시스템의 실행 시간 한도로 끝났을 때, 연결을 끊김([RemoteConnectionState.Lost])으로 종료한다.
      * 사용자가 요청한 종료가 아니므로 화면은 끊긴 세션과 같이 다룬다(원격 화면을 나가고 전송 대기 상태를 버린다).
-     * @return Unit
+     * 연결된 세션이 없으면(연결 작업 중·이미 끊김·종료됨) 아무것도 끝내지 않는다.
+     * @return 연결된 세션을 끝냈으면 true
      */
-    suspend fun endProtection() {
-        connectionStateUseCase.drop()
-    }
+    suspend fun endProtection(): Boolean = connectionStateUseCase.drop()
 }

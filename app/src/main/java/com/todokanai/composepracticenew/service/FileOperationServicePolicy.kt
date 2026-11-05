@@ -16,7 +16,10 @@ class FileOperationServicePolicy @Inject constructor(
     private val progressUseCase: ProgressUseCase
 ) {
 
-    /** 진행 중인 작업이 없다가 생길 때마다 방출한다 — 서비스를 시작해야 할 때. */
+    /**
+     * 진행 중인 작업이 없다가 생길 때마다 방출한다 — 서비스를 시작해야 할 때.
+     * 실행 시간 한도로 서비스가 멈춘 뒤 작업이 남아 있는 동안 생긴 작업에는 방출하지 않는다 — 한도 이후의 보호는 지원 범위 밖이다.
+     */
     val startRequests: Flow<Unit> = progressUseCase.progressMap
         .map { it.isNotEmpty() }
         .distinctUntilChanged()

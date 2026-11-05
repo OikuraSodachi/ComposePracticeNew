@@ -11,7 +11,7 @@ import javax.inject.Inject
 
 /**
  * 로컬 IO 작업(복사·이동·삭제·압축 등)이 진행 중인 동안 프로세스를 보호하는 ForegroundService. 작업 자체는 ApplicationScope 코루틴에서 실행되며 이 서비스는 시스템 종료 방지 전담이다.
- * 진행 중인 작업이 없어지면 스스로 멈춘다. 시스템의 실행 시간 한도로 멈추면 작업은 보호 없이 계속된다.
+ * 진행 중인 작업이 없어지면 스스로 멈춘다. 시스템의 실행 시간 한도로 멈추면 작업은 보호 없이 계속되며, 그 뒤 작업의 완료는 보장하지 않는다(지원 범위 밖).
  */
 @AndroidEntryPoint
 class FileOperationForegroundService : SelfStoppingForegroundService() {

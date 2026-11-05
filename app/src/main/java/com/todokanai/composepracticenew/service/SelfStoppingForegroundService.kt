@@ -41,11 +41,13 @@ abstract class SelfStoppingForegroundService : Service() {
 
     /**
      * 시스템이 정한 실행 시간 한도에 이르렀다. 이 서비스는 더 이상 포그라운드가 아니므로 바로 멈추고, 그 뒤의 처리는 [onTimeLimitReached]에 맡긴다.
-     * @param startId 가장 최근 시작 요청의 id
+     * 멈춤은 [startId]로 한다 — 아직 전달되지 않은 시작 요청이 있으면 멈추지 않고 그 요청이 startForeground를 부른 뒤 수명을 이어받는다.
+     * 무조건 멈추면(`stopSelf()`) 그 요청이 startForeground를 부르기 전에 멈춰 startForegroundService 계약 위반으로 앱이 종료된다.
+     * @param startId 가장 최근에 전달된 시작 요청의 id
      * @param fgsType 한도에 이른 포그라운드 서비스 유형
      */
     final override fun onTimeout(startId: Int, fgsType: Int) {
-        stopSelf()
+        stopSelf(startId)
         onTimeLimitReached()
     }
 
