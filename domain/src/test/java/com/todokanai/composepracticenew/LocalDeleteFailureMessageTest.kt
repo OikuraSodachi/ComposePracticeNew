@@ -31,7 +31,7 @@ class LocalDeleteFailureMessageTest {
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     private val fileActionRepo = FailingDeleteRepository()
-    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, scope), notices, fileActionRepo, FileNameUseCase())
+    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope), notices, fileActionRepo, FileNameUseCase())
 
     @After
     fun tearDown() = scope.cancel()

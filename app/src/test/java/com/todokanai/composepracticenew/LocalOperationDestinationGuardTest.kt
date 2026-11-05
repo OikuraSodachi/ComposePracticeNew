@@ -58,7 +58,7 @@ class LocalOperationDestinationGuardTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, operationScope)
         viewModel = FileListViewModel(
             fileNavigatorUseCase = FileNavigatorUseCase(nav),
             openFileUseCase = OpenFileUseCase(nav) {},

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.di
 
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
+import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.FileSearchRepository
@@ -126,8 +127,9 @@ object UseCaseModule {
         notifier: FileOperationNotifier,
         progressRepo: ProgressRepository,
         notices: OperationNoticeReporter,
+        protection: OperationProtection,
         @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressRepo, notices, appScope)
+    ) = FileOperationOrchestrator(notifier, progressRepo, notices, protection, appScope)
 
     @Provides @Singleton
     fun provideLocalFileOperationUseCase(

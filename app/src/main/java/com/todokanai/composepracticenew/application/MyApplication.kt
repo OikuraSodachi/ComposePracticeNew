@@ -11,8 +11,6 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.service.ConnectionServicePolicy
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
-import com.todokanai.composepracticenew.service.FileOperationServiceController
-import com.todokanai.composepracticenew.service.FileOperationServicePolicy
 import com.todokanai.composepracticenew.service.FtpForegroundService
 import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
 import dagger.hilt.android.HiltAndroidApp
@@ -23,9 +21,6 @@ import javax.inject.Inject
 @HiltAndroidApp
 class MyApplication : Application(), ImageLoaderFactory {
 
-    @Inject lateinit var fileOperationServiceController: FileOperationServiceController
-    /** 파일 작업 보호 서비스를 언제 시작할지 진행 상태에서 정하는 규칙. */
-    @Inject lateinit var fileOperationServicePolicy: FileOperationServicePolicy
     /** 연결 유지 서비스를 언제 시작할지 원격 연결 상태에서 정하는 규칙. */
     @Inject lateinit var connectionServicePolicy: ConnectionServicePolicy
     /** 연결 유지 서비스를 시작하는 컨트롤러. */
@@ -35,7 +30,6 @@ class MyApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
-        observeFileOperations()
         observeRemoteConnection()
     }
 
@@ -44,15 +38,6 @@ class MyApplication : Application(), ImageLoaderFactory {
         ImageLoader.Builder(this)
             .components { addThumbnailComponents() }
             .build()
-
-    // 진행 중인 작업이 없다가 생길 때마다 서비스 시작(규칙은 FileOperationServicePolicy) — appScope로 앱 생명주기 동안 유지.
-    // 멈춤은 서비스가 작업이 없어진 것을 보고 스스로 한다(startForeground 전에 여기서 멈추면 앱이 종료된다)
-    private fun observeFileOperations() {
-        appScope.launch {
-            fileOperationServicePolicy.startRequests
-                .collect { fileOperationServiceController.start() }
-        }
-    }
 
     // 연결되거나 연결한 서버가 바뀔 때마다 연결 유지 서비스를 시작(알림의 서버 이름 갱신) — 어느 경로로 연결하든 서비스가 연결 상태를 따른다.
     // 멈춤은 서비스가 연결되지 않은 상태를 보고 스스로 한다(startForeground 전에 여기서 멈추면 앱이 종료된다)

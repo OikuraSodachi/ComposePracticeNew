@@ -34,7 +34,7 @@ class RemoteFileOperationFailureTest {
     private val notices = RecordingOperationNotices()
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope)
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase())
 
     @After
