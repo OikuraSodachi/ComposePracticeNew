@@ -6,6 +6,8 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.model.SavedRemoteId
+import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.fileexplorer.FileEntry
@@ -23,7 +25,7 @@ class RemoteConnectionPortCheckTest {
     /** 연결 요청을 기록하는 가짜 저장소. */
     private val nav = RecordingNavigator()
     /** 검증 대상. */
-    private val useCase = RemoteConnectionUseCase(nav)
+    private val useCase = RemoteConnectionUseCase(nav, NoOpLastConnectionRepository)
 
     @Test
     fun `포트가 범위를 벗어나면 연결을 시도하지 않고 연결 실패로 알린다`() {
@@ -67,5 +69,12 @@ class RemoteConnectionPortCheckTest {
         override suspend fun navigate(path: String) = NavigateResult.Navigated
         override fun refresh() = Unit
         override fun getParentPath(path: String): String? = null
+    }
+
+    /** 포트 검사가 마지막 연결 기록과 무관함을 전제로 한, 아무 동작도 하지 않는 테스트용 저장소. */
+    private object NoOpLastConnectionRepository : LastConnectionRepository {
+        override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
+        override fun setLastRemoteId(id: Long?) {}
+        override fun clearLastRemoteIdIf(id: Long) {}
     }
 }

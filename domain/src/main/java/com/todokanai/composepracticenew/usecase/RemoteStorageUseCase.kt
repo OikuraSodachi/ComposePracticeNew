@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.Flow
 /**
  * 원격 스토리지 접속 정보의 조회·추가·수정·삭제를 담당하는 UseCase.
  * @param repo 원격 스토리지 접속 정보를 읽고 쓰는 RemoteStorageRepository 구현체
- * @param lastConnectionRepo 마지막 접속 서버 id를 저장하는 LastConnectionRepository 구현체
+ * @param lastConnectionRepo 삭제한 서버를 가리키는 마지막 접속 서버 기록을 지우는 LastConnectionRepository 구현체
  */
 class RemoteStorageUseCase(
     private val repo: RemoteStorageRepository,
@@ -56,26 +56,16 @@ class RemoteStorageUseCase(
     suspend fun update(item: RemoteStorageItem) = repo.insert(item)
 
     /**
-     * 원격 스토리지 접속 정보를 삭제한다.
+     * 원격 스토리지 접속 정보를 삭제하고, 그 서버가 마지막 연결 서버였으면 기록도 지운다.
+     * 지운 id는 새 항목에 다시 쓰일 수 있으므로, 남겨 두면 재연결이 다른 서버로 이어진다.
+     * 확인과 초기화는 저장소의 한 번의 저장 안에서 처리되어, 앞서 기록된 마지막 연결 서버를 기준으로 판단한다.
      * @param item 삭제할 RemoteStorageItem
      * @return Unit
      */
-    suspend fun delete(item: RemoteStorageItem) = repo.delete(item)
-
-    /**
-     * 마지막으로 연결한 서버의 id를 DataStore에 저장한다.
-     * @param id 저장할 서버 id, null이면 마지막 연결 정보를 초기화한다
-     * @return Unit
-     */
-    fun saveLastConnectedId(id: Long?) = lastConnectionRepo.setLastRemoteId(id)
-
-    /**
-     * 삭제된 항목이 마지막 연결 서버인 경우 DataStore의 lastRemoteId를 초기화한다.
-     * 확인과 초기화는 저장소의 한 번의 저장 안에서 처리되어, 직전 [saveLastConnectedId]가 반영된 값을 기준으로 판단한다.
-     * @param id 삭제된 항목의 서버 id
-     * @return Unit
-     */
-    fun clearLastConnectedIfMatches(id: Long) = lastConnectionRepo.clearLastRemoteIdIf(id)
+    suspend fun delete(item: RemoteStorageItem) {
+        repo.delete(item)
+        lastConnectionRepo.clearLastRemoteIdIf(item.id)
+    }
 
     /** [port]가 [RemoteStorageItem.PORT_RANGE] 안의 정수인지 판별한다. */
     private fun isValidPort(port: String): Boolean = port.toIntOrNull()?.let { it in RemoteStorageItem.PORT_RANGE } ?: false
