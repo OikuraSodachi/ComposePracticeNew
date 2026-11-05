@@ -4,11 +4,17 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
+
+/** 실패 메시지가 없을 때 표시할 메시지. */
+private const val UNKNOWN_FAILURE_MESSAGE = "알 수 없는 오류"
 
 /**
  * 파일 작업의 공통 인프라(인스턴스 ID, 진행 핸들, 콜백, 실행 스코프)를 제공하는 오케스트레이터.
- * 작업 인스턴스 ID는 이 클래스만 발급한다.
+ * 작업 인스턴스 ID는 이 클래스만 발급한다. 진행 핸들·완료 콜백·실행 엔진을 이 클래스 안에 private으로 두어,
+ * 작업을 띄우는 길은 [launch] 하나뿐이고 발급하지 않은 ID로 작업을 띄울 수 없다(같은 모듈 안에서도).
  * @param notifier 파일 작업 시스템 알림을 전송하는 인터페이스
  * @param progressRepo 작업 진행 상태 및 완료·오류 이벤트를 저장·방출하는 ProgressRepository
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
@@ -37,19 +43,6 @@ class FileOperationOrchestrator(
     }
 
     /**
-     * 작업 완료·실패 처리를 담당하는 OperationCallback을 생성한다.
-     * @param completionMessage 완료 시 표시할 메시지
-     * @param operationType 완료 알림에 사용할 작업 종류. null이면 순간 작업
-     * @param onRefresh 완료·실패 후 디렉터리 목록을 갱신하는 콜백
-     * @return OperationCallback
-     */
-    fun callback(
-        completionMessage: String,
-        operationType: FileOperationType? = null,
-        onRefresh: suspend () -> Unit
-    ) = OperationCallback(notifier, progressRepo, completionMessage, operationType, onRefresh)
-
-    /**
      * 파일 작업을 실행하고 진행 상태 보고·알림·완료 처리를 통합한다.
      * 진행 표시가 있는 작업은 시작하자마자 progressMap에 등록되어 첫 진행률 보고 전 준비 단계부터 ForegroundService 보호를 받는다.
      * 순간 작업(operationType null)은 progressMap에 등록되지 않아 보호 대상에서 제외된다.
@@ -66,7 +59,8 @@ class FileOperationOrchestrator(
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) {
         val handle = startHandle(operationType)
-        appScope.launchOperation(handle, callback(completionMessage, operationType, onRefresh)) {
+        val callback = OperationCallback(completionMessage, onRefresh)
+        launchOperation(handle, callback) {
             block { state ->
                 val stateWithType = state.copy(operationType = operationType)
                 handle.set(stateWithType)
@@ -81,4 +75,74 @@ class FileOperationOrchestrator(
      * @return Unit
      */
     fun emitError(message: String) = progressRepo.emitError(message)
+
+    /**
+     * 파일 작업을 [appScope]에서 실행하며 완료·실패·진행 상태를 통합 관리하는 실행 엔진.
+     * 작업의 실패는 결과([IoResult.Failure])로 받는다. 예외는 구현 오류이지만, 작업 하나 때문에 앱 수명 스코프가 무너지지 않도록
+     * 이곳에서만 실패로 바꿔 그 작업만 끝낸다.
+     * @param progressHandle 작업 인스턴스의 진행 상태 핸들
+     * @param callback 완료·실패 시 알림·이벤트·갱신을 처리하는 콜백
+     * @param work 실제 IO 작업 코드
+     */
+    private fun launchOperation(
+        progressHandle: ProgressHandle,
+        callback: OperationCallback,
+        work: suspend () -> IoResult<Unit>
+    ) {
+        appScope.launch {
+            try {
+                when (val result = work()) {
+                    is IoResult.Success -> callback.onSuccess(progressHandle.instanceId)
+                    is IoResult.Failure -> callback.onFailure(result.message ?: UNKNOWN_FAILURE_MESSAGE, progressHandle.instanceId)
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                callback.onFailure(e.message ?: UNKNOWN_FAILURE_MESSAGE, progressHandle.instanceId)
+            } finally {
+                progressHandle.clear()
+            }
+        }
+    }
+
+    /**
+     * 단일 작업 인스턴스의 진행 상태를 관리하는 핸들. [startHandle]만 만든다.
+     * @param instanceId 작업 인스턴스 식별자
+     * @param progressRepo 진행 상태를 저장·제거하는 ProgressRepository
+     */
+    private class ProgressHandle(
+        val instanceId: Int,
+        private val progressRepo: ProgressRepository
+    ) {
+        /** [state]를 이 인스턴스의 진행 상태로 업데이트한다. */
+        fun set(state: ProgressState) = progressRepo.setProgressState(instanceId, state)
+
+        /** 이 인스턴스의 진행 상태를 제거한다. */
+        fun clear() = progressRepo.removeProgress(instanceId)
+    }
+
+    /**
+     * 작업 완료·실패 시 알림·이벤트 방출·갱신을 일괄 처리하는 콜백.
+     * 순간 작업(진행 알림 없음)도 완료하면 완료 알림을 띄운다.
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param onRefresh 작업 완료·실패 후 디렉터리 목록을 갱신하는 콜백
+     */
+    private inner class OperationCallback(
+        private val completionMessage: String,
+        private val onRefresh: suspend () -> Unit
+    ) {
+        /** 성공 시 완료 알림 전송·이벤트 방출·갱신을 수행한다. */
+        suspend fun onSuccess(instanceId: Int) {
+            notifier.completedNotification(completionMessage, instanceId)
+            progressRepo.emitCompletion(completionMessage)
+            onRefresh()
+        }
+
+        /** 실패 시 알림 취소·오류 이벤트 방출·갱신을 수행한다. */
+        suspend fun onFailure(message: String, instanceId: Int) {
+            notifier.cancelNotification(instanceId)
+            progressRepo.emitError(message)
+            onRefresh()
+        }
+    }
 }

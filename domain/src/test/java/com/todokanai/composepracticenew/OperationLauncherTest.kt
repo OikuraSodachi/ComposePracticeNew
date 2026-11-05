@@ -4,9 +4,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
-import com.todokanai.composepracticenew.operation.OperationCallback
-import com.todokanai.composepracticenew.operation.ProgressHandle
-import com.todokanai.composepracticenew.operation.launchOperation
+import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,8 +20,9 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [launchOperation]이 작업 결과를 완료·실패 처리로 나누고, 구현 오류 하나로 작업 스코프가 무너지지 않게 그 작업만 실패로 끝내는지 검증하는 단위 테스트.
- * 작업이 일시 중단하지 않으므로 Unconfined 스코프에서 호출 즉시 끝난다.
+ * [FileOperationOrchestrator.launch]가 작업 결과를 완료·실패 처리로 나누고, 구현 오류 하나로 작업 스코프가 무너지지 않게 그 작업만 실패로 끝내며,
+ * 진행·완료·취소 알림을 모두 그 작업에 발급한 인스턴스 ID로 보내는지 검증하는 단위 테스트.
+ * 작업이 일시 중단하지 않으므로 Unconfined 스코프에서 호출 즉시 끝난다. 첫 작업의 ID는 1이고 시작 순서대로 1씩 커진다.
  */
 class OperationLauncherTest {
 
@@ -31,6 +30,10 @@ class OperationLauncherTest {
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 완료·오류 메시지와 진행 상태 제거를 기록하는 진행 저장소. */
     private val progressRepo = RecordingProgressRepository()
+    /** 받은 알림 요청을 기록하는 알림기. */
+    private val notifier = RecordingNotifier()
+    /** 검증 대상. */
+    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, scope)
 
     @After
     fun tearDown() = scope.cancel()
@@ -41,7 +44,7 @@ class OperationLauncherTest {
 
         assertEquals(listOf("done"), progressRepo.completions)
         assertTrue(progressRepo.errors.isEmpty())
-        assertEquals(listOf(INSTANCE_ID), progressRepo.removed)
+        assertEquals(listOf(1), progressRepo.removed)
     }
 
     @Test
@@ -50,7 +53,7 @@ class OperationLauncherTest {
 
         assertEquals(listOf("끊김"), progressRepo.errors)
         assertTrue(progressRepo.completions.isEmpty())
-        assertEquals(listOf(INSTANCE_ID), progressRepo.removed)
+        assertEquals(listOf(1), progressRepo.removed)
     }
 
     @Test
@@ -69,12 +72,32 @@ class OperationLauncherTest {
         assertEquals(listOf("done"), progressRepo.completions)
     }
 
-    /** [work]를 작업 하나로 실행한다. */
-    private fun launch(work: suspend () -> IoResult<Unit>) = scope.launchOperation(
-        ProgressHandle(INSTANCE_ID, progressRepo),
-        OperationCallback(NoOpNotifier, progressRepo, completionMessage = "done") {},
-        work
-    )
+    @Test
+    fun `진행 알림과 완료 알림은 그 작업에 발급한 ID를 가리킨다`() {
+        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.Done }
+        launch(FileOperationType.MOVE) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.Done }
+
+        // 완료 알림이 같은 ID여야 진행 알림 자리를 대신한다 — 다르면 끝난 작업의 진행 알림이 남는다
+        assertEquals(listOf("progress 1", "completed 1", "progress 2", "completed 2"), notifier.calls)
+    }
+
+    @Test
+    fun `실패하면 그 작업에 발급한 ID의 알림을 지운다`() {
+        launch { IoResult.Done }
+        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.ItemFailed("실패") }
+
+        assertEquals(listOf("completed 1", "progress 2", "cancel 2"), notifier.calls)
+    }
+
+    /**
+     * [block]을 작업 하나로 실행한다.
+     * @param operationType 작업 종류. null이면 순간 작업
+     * @param block 진행 보고 콜백을 받아 결과를 돌려주는 작업
+     */
+    private fun launch(
+        operationType: FileOperationType? = null,
+        block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
+    ) = orchestrator.launch(completionMessage = "done", operationType = operationType, onRefresh = {}, block = block)
 
     /** 방출된 완료·오류 메시지와 지운 진행 상태를 기록하는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
@@ -90,15 +113,11 @@ class OperationLauncherTest {
         override fun emitCompletion(message: String) { completions += message }
     }
 
-    /** 알림을 표시하지 않는 테스트용 알림기. */
-    private object NoOpNotifier : FileOperationNotifier {
-        override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(title: String, message: String, operationType: FileOperationType?, notifId: Int) {}
-        override fun cancelNotification(notifId: Int) {}
-    }
-
-    private companion object {
-        /** 테스트 작업의 인스턴스 ID. */
-        const val INSTANCE_ID = 7
+    /** 받은 진행·완료·취소 알림 요청을 "종류 인스턴스ID"로 받은 순서대로 기록하는 테스트용 알림기. */
+    private class RecordingNotifier : FileOperationNotifier {
+        val calls = mutableListOf<String>()
+        override fun progressNoti(state: ProgressState, instanceId: Int) { calls += "progress $instanceId" }
+        override fun completedNotification(message: String, instanceId: Int) { calls += "completed $instanceId" }
+        override fun cancelNotification(instanceId: Int) { calls += "cancel $instanceId" }
     }
 }

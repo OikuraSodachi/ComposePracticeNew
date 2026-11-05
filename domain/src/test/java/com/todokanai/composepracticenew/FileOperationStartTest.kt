@@ -96,7 +96,7 @@ class FileOperationStartTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(title: String, message: String, operationType: FileOperationType?, notifId: Int) {}
-        override fun cancelNotification(notifId: Int) {}
+        override fun completedNotification(message: String, instanceId: Int) {}
+        override fun cancelNotification(instanceId: Int) {}
     }
 }
