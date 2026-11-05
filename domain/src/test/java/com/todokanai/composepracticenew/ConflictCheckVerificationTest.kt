@@ -14,16 +14,13 @@ import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -169,7 +166,6 @@ class ConflictCheckVerificationTest {
     /** 현재 요청과 목록 상태를 테스트가 정하는 테스트용 탐색 저장소. */
     private class FakeNavigator : FileNavigatorRepository {
         override val currentPath = MutableStateFlow<String?>(null)
-        override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
         override suspend fun navigate(path: String) = NavigateResult.Navigated

@@ -13,11 +13,9 @@ import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase.Companion.MAX_RESULTS
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -106,7 +104,6 @@ class FileSearchUseCaseTest {
     /** 검색 테스트에서 쓰지 않는 탐색 저장소. */
     private class NoOpNavigator : FileNavigatorRepository {
         override val currentPath = MutableStateFlow<String?>(null)
-        override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
         override suspend fun navigate(path: String): NavigateResult = NavigateResult.Navigated

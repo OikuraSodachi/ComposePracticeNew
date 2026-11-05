@@ -10,11 +10,8 @@ import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
-import com.todokanai.fileexplorer.FileEntry
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -63,7 +60,6 @@ class RemoteConnectionPortCheckTest {
 
         override suspend fun navigateToRemoteRoot(item: RemoteStorageItem) = Unit
         override val currentPath: StateFlow<String?> = MutableStateFlow(null)
-        override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest: StateFlow<ListingRequest?> = MutableStateFlow(null)
         override val directoryListing: StateFlow<DirectoryListing> = MutableStateFlow(DirectoryListing.NoPath)
         override suspend fun navigate(path: String) = NavigateResult.Navigated

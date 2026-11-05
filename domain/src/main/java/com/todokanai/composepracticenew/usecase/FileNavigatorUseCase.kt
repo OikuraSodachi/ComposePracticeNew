@@ -2,10 +2,11 @@ package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.NavigateResult
+import com.todokanai.composepracticenew.model.PathSegment
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 /**
  * 파일 탐색기의 네비게이션 상태를 읽고 조작하는 UseCase.
  * @param nav 파일 탐색기 네비게이션 상태를 관리하는 FileNavigatorRepository 구현체
@@ -13,7 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
     /** 현재 경로의 목록 조회 상태(조회 중·완료·실패). */
     val listing: StateFlow<DirectoryListing> = nav.directoryListing
-    val dirTree: Flow<List<FileEntry>> = nav.dirTree
+    /** 루트부터 현재 디렉터리까지의 경로 단계. 현재 경로가 바뀔 때마다 다시 계산하며, 경로가 없으면 빈 목록이다. */
+    val dirTree: Flow<List<PathSegment>> = nav.currentPath.map { path -> path?.let(::ancestorsOf).orEmpty() }
     val currentPath: StateFlow<String?> = nav.currentPath
 
     /**
@@ -51,4 +53,22 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
         val parent = nav.getParentPath(path)
         if (parent == null) toRoot() else nav.navigate(parent)
     }
+
+    /**
+     * [path]에서 [FileNavigatorRepository.getParentPath]를 따라 루트까지 올라간 경로 단계를 루트부터 순서대로 반환한다.
+     * @param path 현재 디렉터리 경로
+     * @return 루트부터 [path]까지의 경로 단계
+     */
+    private fun ancestorsOf(path: String): List<PathSegment> =
+        generateSequence(path) { nav.getParentPath(it) }
+            .map { PathSegment(name = segmentNameOf(it), path = it) }
+            .toList()
+            .asReversed()
+
+    /**
+     * [path]의 표시 이름을 반환한다.
+     * @param path 디렉터리 경로
+     * @return 마지막 '/' 뒤 부분. 비어 있으면(경로가 '/'로 끝나면) 경로 전체
+     */
+    private fun segmentNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
 }
