@@ -129,6 +129,16 @@ class FtpConnector @Inject constructor(
         session.closeBypassingIoLock()
     }
 
+    /**
+     * 앱이 연결을 더 유지할 수 없어 연결된 세션을 [disconnect]와 같이 해제한다. 사용자가 요청한 종료가 아니므로 끊김으로 남는다.
+     * 연결된 세션이 없으면(연결 작업 중·이미 끊김·종료됨) 아무 동작도 하지 않는다 — 보호하던 연결이 아닌 새 연결 작업을 끝내지 않도록.
+     * @return 연결된 세션을 끝냈으면 true
+     */
+    suspend fun drop(): Boolean = withContext(Dispatchers.IO) {
+        // 연결 여부는 세션이 종료 기록과 같은 잠금 안에서 판단한다. Keep-Alive는 로그인 해제된 세션에 NOOP을 보내지 않으므로 세션을 끝낸 뒤에 멈춘다
+        session.dropConnected().also { dropped -> if (dropped) keepAlive.stop() }
+    }
+
     companion object {
         private const val CONNECT_TIMEOUT_MS = 10_000
     }
