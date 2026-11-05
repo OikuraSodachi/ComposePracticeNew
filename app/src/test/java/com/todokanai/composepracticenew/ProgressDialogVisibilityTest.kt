@@ -1,14 +1,18 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.PreferenceFailureNotice
+import com.todokanai.composepracticenew.model.OperationNotice
+import com.todokanai.composepracticenew.model.PendingNotice
+import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
+import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
@@ -16,9 +20,7 @@ import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
@@ -155,6 +157,7 @@ class ProgressDialogVisibilityTest {
     private fun createViewModel() = MainViewModel(
         getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
         progressUseCase = ProgressUseCase(progressRepo),
+        operationNoticeUseCase = OperationNoticeUseCase(NoOperationNotices),
         exitHandler = NoOpExitHandler,
         connectionStateUseCase = RemoteConnectionStateUseCase(FakeConnectionRepository()),
         preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures)
@@ -173,16 +176,12 @@ class ProgressDialogVisibilityTest {
 /** 진행 상태를 테스트가 직접 넣고 빼는 테스트용 진행 저장소. */
 private class MutableProgressRepository : ProgressRepository {
     override val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
-    override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-    override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
     override fun setProgressState(instanceId: Int, state: ProgressState) {
         progressMap.value = progressMap.value + (instanceId to state)
     }
     override fun removeProgress(instanceId: Int) {
         progressMap.value = progressMap.value - instanceId
     }
-    override fun emitError(message: String) {}
-    override fun emitCompletion(message: String) {}
 }
 
 /** 스토리지가 없는 테스트용 스토리지 저장소. 이 테스트는 스토리지 목록을 쓰지 않는다. */
@@ -199,6 +198,16 @@ internal object NoOpExitHandler : AppExitHandler {
 
 /** 실패를 알리지 않는 테스트용 설정 실패 저장소. 이 테스트는 설정 저장소 실패를 쓰지 않는다. */
 internal object NoPreferenceFailures : PreferenceFailureRepository {
-    override val pending: StateFlow<List<PreferenceFailureNotice>> = MutableStateFlow(emptyList())
+    override val pending: StateFlow<List<PendingNotice<PreferenceFailure>>> = MutableStateFlow(emptyList())
     override fun claim(id: Long): Boolean = false
+    override fun complete(id: Long) {}
+    override fun release(id: Long) {}
+}
+
+/** 메시지를 알리지 않는 테스트용 작업 메시지 알림함. 이 테스트는 작업 메시지를 쓰지 않는다. */
+internal object NoOperationNotices : OperationNoticeRepository {
+    override val pending: StateFlow<List<PendingNotice<OperationNotice>>> = MutableStateFlow(emptyList())
+    override fun claim(id: Long): Boolean = false
+    override fun complete(id: Long) {}
+    override fun release(id: Long) {}
 }

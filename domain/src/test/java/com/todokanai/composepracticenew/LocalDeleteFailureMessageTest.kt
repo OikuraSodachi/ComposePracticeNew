@@ -13,9 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -29,8 +27,11 @@ class LocalDeleteFailureMessageTest {
 
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     private val progressRepo = RecordingProgressRepository()
+
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
     private val fileActionRepo = FailingDeleteRepository()
-    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, scope), fileActionRepo, FileNameUseCase())
+    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, scope), notices, fileActionRepo, FileNameUseCase())
 
     @After
     fun tearDown() = scope.cancel()
@@ -42,7 +43,7 @@ class LocalDeleteFailureMessageTest {
 
         local.delete(setOf("/d/a.txt"), "done") {}
 
-        assertEquals(listOf("삭제 실패: a.txt"), progressRepo.errors)
+        assertEquals(listOf("삭제 실패: a.txt"), notices.failures)
     }
 
     @Test
@@ -51,19 +52,14 @@ class LocalDeleteFailureMessageTest {
 
         local.delete(linkedSetOf("/d/dir", "/d/ok.txt"), "done") {}
 
-        assertEquals(listOf("삭제 실패: dir/sub/x.txt"), progressRepo.errors)
+        assertEquals(listOf("삭제 실패: dir/sub/x.txt"), notices.failures)
     }
 
-    /** 방출된 오류 메시지를 기록하는 테스트용 진행 저장소. */
+    /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
-        val errors = mutableListOf<String>()
         override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-        override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
-        override fun emitError(message: String) { errors += message }
-        override fun emitCompletion(message: String) {}
     }
 
     /** 지정한 경로의 삭제가 부분 실패를 돌려주는 테스트용 로컬 파일 작업 저장소. 삭제 외 작업은 쓰지 않는다. */

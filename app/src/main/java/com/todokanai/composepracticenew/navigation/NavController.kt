@@ -3,12 +3,18 @@ package com.todokanai.composepracticenew.navigation
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -22,8 +28,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
@@ -31,6 +35,7 @@ import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
+import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
@@ -71,13 +76,26 @@ fun AppNavHost(
         }
     }
 
+    // 키 없음 — AppNavHost가 살아 있는 동안 하나만 둔다. 설정 실패와 작업 메시지가 한 Snackbar 대기열을 함께 써 한 번에 하나만 보이도록
+    val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유).
-    // 화면이 보이는 동안만 꺼내, 보이지 않는 Activity가 실패를 가져가지 않고 보이지 않는 동안의 실패는 다시 보일 때 알리도록
+    // 화면이 보이는 동안만 꺼내, 보이지 않는 Activity가 실패를 가져가지 않고 보이지 않는 동안의 실패는 다시 보일 때 알리도록.
+    // Toast가 아니라 Snackbar로 알린다 — showSnackbar는 사라질 때까지 돌아오지 않아, 다 보여 준 알림만 지우고 시스템 Toast 한도로 버려지는 알림이 없도록
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             mainViewModel.showPreferenceFailures { failure ->
-                Toast.makeText(context, context.getString(preferenceFailureMessage(failure)), Toast.LENGTH_SHORT).show()
+                snackbarHostState.showSnackbar(context.getString(preferenceFailureMessage(failure)), duration = SnackbarDuration.Long)
+            }
+        }
+    }
+
+    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 파일 작업의 실패·거부·완료를 어느 화면에 있든(저장소 화면 포함) 알린다.
+    // 화면이 보이는 동안만 꺼내, 보이지 않는 동안 끝난 작업의 메시지는 버리지 않고 다시 보일 때 알리도록. Snackbar로 알리는 이유는 위와 같다
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.showOperationNotices { notice ->
+                snackbarHostState.showSnackbar(notice.message, duration = snackbarDurationOf(notice.kind))
             }
         }
     }
@@ -120,6 +138,8 @@ fun AppNavHost(
         }
     }
 
+    NoticeSnackbarHost(snackbarHostState)
+
     // 화면 이동과 무관하게 하나만 둔다 — 닫음 상태는 Activity 스코프 mainViewModel이 소유
     ProgressSection(
         shownProgress = mainViewModel.shownProgress,
@@ -160,8 +180,6 @@ private fun FileListDestination(
     // 선택 요약도 State 객체만 보관 — 값은 다이얼로그 호스트에서만 읽어, 계산 결과가 올 때 이 destination 전체가 리컴포지션되지 않도록
     val selectionSummary = infoViewModel.summary.collectAsStateWithLifecycle()
     val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
-
-    ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
 
     BackHandler {
         viewModel.onBackPressed { navController.popBackStack() }
@@ -229,8 +247,6 @@ private fun RemoteFileListDestination(
     val remoteSelectMode by remember(remoteSelection) { derivedStateOf { remoteSelection.value.remoteMode() } }
     val uploadConflict by coordinator.uploadConflict.collectAsStateWithLifecycle()
 
-    ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
-
     BackHandler {
         remoteViewModel.onBackPressed { navController.popBackStack() }
     }
@@ -280,16 +296,25 @@ private fun RemoteFileListDestination(
     }
 }
 
-/** 각 Flow에서 문자열을 수집해 Toast로 표시한다. */
+/**
+ * 화면 하단에 앱 알림 Snackbar를 띄우는 자리. 화면 위에 겹쳐 두며, 터치는 아래 화면으로 그대로 간다.
+ * @param hostState 알림을 하나씩 띄우는 Snackbar 상태
+ */
 @Composable
-private fun ToastEffect(vararg messageFlows: Flow<String>) {
-    val context = LocalContext.current
-    // Unit 키 — destination 생존 동안 수집을 1회만 시작해 메시지 중복 수집을 방지
-    LaunchedEffect(Unit) {
-        messageFlows.forEach { flow ->
-            launch { flow.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() } }
-        }
+private fun NoticeSnackbarHost(hostState: SnackbarHostState) {
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+        SnackbarHost(hostState = hostState)
     }
+}
+
+/**
+ * 파일 작업 메시지를 보여 줄 시간을 정한다. 실패는 원인과 대상을 읽을 수 있게 길게, 완료는 확인만 하면 되므로 짧게 보인다.
+ * @param kind 메시지의 종류
+ * @return Snackbar를 보여 줄 시간
+ */
+private fun snackbarDurationOf(kind: OperationNoticeKind): SnackbarDuration = when (kind) {
+    OperationNoticeKind.FAILURE -> SnackbarDuration.Long
+    OperationNoticeKind.COMPLETION -> SnackbarDuration.Short
 }
 
 /**

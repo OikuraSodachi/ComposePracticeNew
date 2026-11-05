@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.OperationNotice
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
@@ -10,6 +11,7 @@ import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
@@ -18,7 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -36,9 +37,10 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Activity 스코프의 앱 전역 관심사(스토리지 목록 초기화·진행률 다이얼로그 표시·작업 완료/실패 이벤트·설정 저장소 실패 알림·앱 종료)를 담당하는 ViewModel.
+ * Activity 스코프의 앱 전역 관심사(스토리지 목록 초기화·진행률 다이얼로그 표시·작업 실패·거부·완료 메시지·설정 저장소 실패 알림·앱 종료)를 담당하는 ViewModel.
  * @param getStorageListUseCase 물리 스토리지 목록을 로드·갱신하는 UseCase
- * @param progressUseCase 진행 중인 작업 상태와 파일 작업 완료·실패 이벤트를 제공하는 UseCase
+ * @param progressUseCase 진행 중인 작업 상태를 제공하는 UseCase
+ * @param operationNoticeUseCase 파일 작업의 실패·거부·완료 메시지를 알려주는 UseCase
  * @param exitHandler 연결 서비스를 중단하고 앱 종료 이벤트를 발행하는 핸들러
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  * @param preferenceFailureUseCase 설정 저장소의 읽기·저장 실패와 손상 초기화를 알려주는 UseCase
@@ -47,6 +49,7 @@ import javax.inject.Inject
 class MainViewModel @Inject constructor(
     private val getStorageListUseCase: GetStorageListUseCase,
     progressUseCase: ProgressUseCase,
+    private val operationNoticeUseCase: OperationNoticeUseCase,
     private val exitHandler: AppExitHandler,
     connectionStateUseCase: RemoteConnectionStateUseCase,
     private val preferenceFailureUseCase: PreferenceFailureUseCase
@@ -76,11 +79,6 @@ class MainViewModel @Inject constructor(
     /** 원격 전송 알림 클릭으로 원격 파일 목록 화면으로 이동해야 할 때 발행된다. */
     val remoteProgressNavigation: Flow<Unit> = _remoteProgressNavigation.receiveAsFlow()
 
-    /** 파일 작업 실패 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
-    val operationError: SharedFlow<String> = progressUseCase.operationErrors
-    /** 파일 작업 완료 메시지 이벤트. UI에서 Toast 표시에 사용한다. */
-    val operationCompletion: SharedFlow<String> = progressUseCase.operationCompletions
-
     /** 앱을 종료하라는 이벤트. 화면 호스트에서 수집해 Activity를 종료한다. */
     val exitEvent: Flow<Unit> = exitHandler.exitEvent
 
@@ -93,11 +91,18 @@ class MainViewModel @Inject constructor(
     val connectionLost: Flow<Unit> = _connectionLost.receiveAsFlow()
 
     /**
-     * 설정 저장소의 실패를 [show]로 하나씩 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 화면이 보이기 전에 일어난 실패도 부르면 받고, 그 사이 회복한 읽기 실패는 받지 않는다.
-     * @param show 실패를 사용자에게 보여 주는 함수
+     * 설정 저장소의 실패를 [show]로 하나씩, 앞 실패를 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
+     * 화면이 보이기 전에 일어난 실패와 보여 주는 도중 화면이 사라진 실패도 부르면 받고, 그 사이 회복한 읽기 실패는 받지 않는다.
+     * @param show 실패를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
      */
-    suspend fun showPreferenceFailures(show: (PreferenceFailure) -> Unit): Nothing = preferenceFailureUseCase.deliver(show)
+    suspend fun showPreferenceFailures(show: suspend (PreferenceFailure) -> Unit): Nothing = preferenceFailureUseCase.deliver(show)
+
+    /**
+     * 파일 작업의 실패·거부·완료 메시지를 [show]로 하나씩, 앞 메시지를 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
+     * 보이는 화면이 없을 때 생긴 메시지(저장소 화면에 있거나 Activity가 없을 때 끝난 작업)와 보여 주는 도중 화면이 사라진 메시지도 부르면 받는다.
+     * @param show 메시지를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
+     */
+    suspend fun showOperationNotices(show: suspend (OperationNotice) -> Unit): Nothing = operationNoticeUseCase.deliver(show)
 
     init {
         // 지금 상태는 건너뛴다 — ViewModel을 만들 때(앱을 열 때) 이미 끊겨 있던 세션은 지금 끊긴 것이 아니다

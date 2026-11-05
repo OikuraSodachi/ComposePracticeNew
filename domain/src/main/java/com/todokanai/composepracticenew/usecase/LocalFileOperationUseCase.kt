@@ -3,19 +3,23 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.FileActionRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
 /**
  * 로컬 파일 작업(복사·이동·삭제·압축·압축해제·이름변경·새폴더)을 조율하는 UseCase.
  * 새 폴더·이름 변경·압축처럼 사용자가 정한 이름을 쓰는 작업은 실행 전에 [fileNameUseCase] 규칙을 강제한다.
  * @param orchestrator 인스턴스 ID·진행 핸들·콜백·실행 스코프를 제공하는 공통 오케스트레이터
+ * @param notices 실행 전 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param fileActionRepo 로컬 파일 변경 작업을 실행하는 FileActionRepository
  * @param fileNameUseCase 파일 이름 규칙을 검증하는 UseCase
  */
 class LocalFileOperationUseCase(
     private val orchestrator: FileOperationOrchestrator,
+    private val notices: OperationNoticeReporter,
     private val fileActionRepo: FileActionRepository,
     private val fileNameUseCase: FileNameUseCase
 ) {
@@ -50,7 +54,7 @@ class LocalFileOperationUseCase(
      */
     fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
-            orchestrator.emitError("복사 실패: 출발지와 목적지가 동일합니다.")
+            notices.report(OperationNoticeKind.FAILURE, "복사 실패: 출발지와 목적지가 동일합니다.")
             return
         }
         orchestrator.launch(completionMessage, FileOperationType.COPY, onRefresh) { onProgress ->
@@ -83,7 +87,7 @@ class LocalFileOperationUseCase(
      */
     fun move(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (isSamePath(files, destPath)) {
-            orchestrator.emitError("이동 실패: 출발지와 목적지가 동일합니다.")
+            notices.report(OperationNoticeKind.FAILURE, "이동 실패: 출발지와 목적지가 동일합니다.")
             return
         }
         orchestrator.launch(completionMessage, FileOperationType.MOVE, onRefresh) { onProgress ->
@@ -164,7 +168,7 @@ class LocalFileOperationUseCase(
     }
 
     /**
-     * 검증 결과에 위반이 있으면 오류를 방출하고 작업을 중단해야 함을 알린다. 오류는 copy·move의 동일 경로 거부와 같은 경로로 표시된다.
+     * 검증 결과에 위반이 있으면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다. 메시지는 copy·move의 동일 경로 거부와 같은 경로로 표시된다.
      * @param errors [FileNameUseCase.validate]가 반환한 위반 규칙 집합
      * @param displayName 오류 메시지에 표시할 이름
      * @param failurePrefix 오류 메시지 머리말(예: "이름 변경 실패")
@@ -172,7 +176,7 @@ class LocalFileOperationUseCase(
      */
     private fun rejectsInvalidName(errors: Set<FileNameError>, displayName: String, failurePrefix: String): Boolean {
         if (errors.isEmpty()) return false
-        orchestrator.emitError("$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
+        notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
         return true
     }
 

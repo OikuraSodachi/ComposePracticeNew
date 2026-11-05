@@ -41,6 +41,9 @@ class TransferDestinationGuardTest {
     private val localNav = FakeNavigator()
     private val remoteNav = FakeNavigator()
     private val progressRepo = RecordingProgressRepository()
+
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
     private val transferRepo = RecordingTransferRepository()
     private lateinit var viewModel: FileTransferCoordinatorViewModel
     private lateinit var localRequest: ListingRequest
@@ -52,9 +55,10 @@ class TransferDestinationGuardTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, operationScope)
         val remoteOps = RemoteFileOperationUseCase(
             orchestrator,
+            notices,
             transferRepo,
             NoOpMutationRepository,
             FileNameUseCase()
@@ -63,7 +67,7 @@ class TransferDestinationGuardTest {
             FileNavigatorUseCase(localNav),
             FileNavigatorUseCase(remoteNav),
             remoteOps,
-            ConflictCheckUseCase(orchestrator) { FixedMessages.destinationUnverified },
+            ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
             FixedMessages,
             RemoteConnectionStateUseCase(FakeConnectionRepository())
         )
@@ -85,7 +89,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmUpload()
 
         assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
+        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
         assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
     }
 
@@ -97,7 +101,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmUpload()
 
         assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
+        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
 
     @Test
@@ -108,7 +112,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmUpload()
 
         assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
+        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
 
     @Test
@@ -130,7 +134,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmUpload()
 
         assertEquals(listOf("upload /local/a.txt"), transferRepo.calls)
-        assertTrue(progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.isEmpty())
     }
 
     @Test
@@ -141,7 +145,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmDownload()
 
         assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
+        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
         assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(download)), viewModel.localSelection.value)
     }
 

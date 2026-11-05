@@ -8,6 +8,8 @@ import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
+import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -24,6 +26,7 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
+import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
@@ -90,6 +93,10 @@ object UseCaseModule {
         ProgressUseCase(repo)
 
     @Provides @Singleton
+    fun provideOperationNoticeUseCase(repo: OperationNoticeRepository) =
+        OperationNoticeUseCase(repo)
+
+    @Provides @Singleton
     fun provideRemoteConnectionStateUseCase(repo: RemoteConnectionRepository) =
         RemoteConnectionStateUseCase(repo)
 
@@ -108,8 +115,8 @@ object UseCaseModule {
     ) = RemoteConnectionResilienceUseCase(lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
 
     @Provides @Singleton
-    fun provideConflictCheckUseCase(orchestrator: FileOperationOrchestrator, messages: OperationMessages) =
-        ConflictCheckUseCase(orchestrator) { messages.destinationUnverified }
+    fun provideConflictCheckUseCase(notices: OperationNoticeReporter, messages: OperationMessages) =
+        ConflictCheckUseCase(notices) { messages.destinationUnverified }
 
     @Provides @Singleton
     fun provideFileNameUseCase() = FileNameUseCase()
@@ -118,21 +125,24 @@ object UseCaseModule {
     fun provideFileOperationOrchestrator(
         notifier: FileOperationNotifier,
         progressRepo: ProgressRepository,
+        notices: OperationNoticeReporter,
         @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressRepo, appScope)
+    ) = FileOperationOrchestrator(notifier, progressRepo, notices, appScope)
 
     @Provides @Singleton
     fun provideLocalFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
+        notices: OperationNoticeReporter,
         fileActionRepo: FileActionRepository,
         fileNameUseCase: FileNameUseCase
-    ) = LocalFileOperationUseCase(orchestrator, fileActionRepo, fileNameUseCase)
+    ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, fileNameUseCase)
 
     @Provides @Singleton
     fun provideRemoteFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
+        notices: OperationNoticeReporter,
         transferRepo: RemoteFileTransferRepository,
         mutationRepo: RemoteFileMutationRepository,
         fileNameUseCase: FileNameUseCase
-    ) = RemoteFileOperationUseCase(orchestrator, transferRepo, mutationRepo, fileNameUseCase)
+    ) = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, fileNameUseCase)
 }

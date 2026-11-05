@@ -6,22 +6,11 @@ import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
-import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.operation.FileOperationNotifier
-import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.StateFlow
-import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -33,25 +22,22 @@ import org.junit.Test
  */
 class ConflictCheckVerificationTest {
 
-    private val scope = CoroutineScope(Job())
-    private val progressRepo = RecordingProgressRepository()
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
     private val nav = FakeNavigator()
     private val navigator = FileNavigatorUseCase(nav)
-    private val useCase = ConflictCheckUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, scope)) { UNVERIFIED }
+    private val useCase = ConflictCheckUseCase(notices) { UNVERIFIED }
 
     private val current = ListingRequest("/a", generation = 2L)
     private val previous = ListingRequest("/a", generation = 1L)
     private val incoming = listOf(item("/src/x.txt"))
-
-    @After
-    fun tearDown() = scope.cancel()
 
     @Test
     fun `현재 요청의 조회를 마친 목록이면 같은 이름의 항목을 충돌로 판정하고 그 목록의 경로를 목적지로 돌려준다`() {
         show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt"))))
 
         assertEquals(DestinationConflicts("/a", incoming), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
-        assertTrue(progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.isEmpty())
     }
 
     @Test
@@ -108,7 +94,7 @@ class ConflictCheckVerificationTest {
         show(DirectoryListing.Loading(current))
 
         assertNull(useCase.previewRenameConflict("/a/x.txt", false, "y.txt", navigator, ignoreCase = false))
-        assertTrue(progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.isEmpty())
     }
 
     @Test
@@ -117,7 +103,7 @@ class ConflictCheckVerificationTest {
 
         assertEquals("New folder (2)", useCase.suggestNewEntryName("New folder", "", navigator, ignoreCase = true))
         assertEquals("New folder (1)", useCase.suggestNewEntryName("New folder", "", navigator, ignoreCase = false))
-        assertTrue(progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.isEmpty())
     }
 
     @Test
@@ -132,7 +118,7 @@ class ConflictCheckVerificationTest {
         show(DirectoryListing.Loading(current, stale = DirectoryListing.Loaded(previous, listOf(item("/a/New folder")))))
 
         assertEquals("New folder", useCase.suggestNewEntryName("New folder", "", navigator, ignoreCase = true))
-        assertTrue(progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.isEmpty())
     }
 
     @Test
@@ -151,7 +137,7 @@ class ConflictCheckVerificationTest {
     /** 판정하지 않고(null) 거부를 한 번 알렸는지 확인한다. */
     private fun assertUnverified(result: Any?) {
         assertNull(result)
-        assertEquals(listOf(UNVERIFIED), progressRepo.errors)
+        assertEquals(listOf(UNVERIFIED), notices.failures)
     }
 
     /** [path]의 파일 항목을 만든다. */
@@ -171,24 +157,5 @@ class ConflictCheckVerificationTest {
         override suspend fun navigate(path: String) = NavigateResult.Navigated
         override fun refresh() {}
         override fun getParentPath(path: String): String? = null
-    }
-
-    /** 방출된 오류 메시지를 기록하는 테스트용 진행 저장소. */
-    private class RecordingProgressRepository : ProgressRepository {
-        val errors = mutableListOf<String>()
-        override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-        override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
-        override fun setProgressState(instanceId: Int, state: ProgressState) {}
-        override fun removeProgress(instanceId: Int) {}
-        override fun emitError(message: String) { errors += message }
-        override fun emitCompletion(message: String) {}
-    }
-
-    /** 알림을 표시하지 않는 테스트용 알림기. */
-    private object NoOpNotifier : FileOperationNotifier {
-        override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(message: String, instanceId: Int) {}
-        override fun cancelNotification(instanceId: Int) {}
     }
 }

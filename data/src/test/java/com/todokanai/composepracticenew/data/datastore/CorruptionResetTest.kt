@@ -46,7 +46,7 @@ class CorruptionResetTest {
 
         withTimeout(5_000) {
             assertEquals(emptyPreferences(), store.readOnce())
-            assertEquals(PreferenceFailure.RESET, failures.pending.first { it.isNotEmpty() }.single().failure)
+            assertEquals(PreferenceFailure.RESET, failures.pending.first { it.isNotEmpty() }.single().content)
         }
     }
 }

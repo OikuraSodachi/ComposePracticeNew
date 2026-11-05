@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
+import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
@@ -12,15 +13,14 @@ import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** 현재 경로·조회 요청과 목록 조회 상태를 테스트가 정하는 테스트용 탐색 저장소. */
@@ -45,16 +45,11 @@ internal class FakeNavigator : FileNavigatorRepository {
     override fun getParentPath(path: String): String? = null
 }
 
-/** 방출된 오류 메시지를 기록하는 테스트용 진행 저장소. */
+/** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
 internal class RecordingProgressRepository : ProgressRepository {
-    val errors = mutableListOf<String>()
     override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-    override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-    override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
     override fun setProgressState(instanceId: Int, state: ProgressState) {}
     override fun removeProgress(instanceId: Int) {}
-    override fun emitError(message: String) { errors += message }
-    override fun emitCompletion(message: String) {}
 }
 
 /** 요청된 다운로드·업로드를 기록하는 테스트용 원격 전송 저장소. */
@@ -125,4 +120,20 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
     }
     override suspend fun disconnect() { connectionState.value = RemoteConnectionState.DISCONNECTED }
     override fun rootPathOf(item: RemoteStorageItem) = "ftp://${item.address}"
+}
+
+/** 넣은 실패·완료 메시지를 종류별로 기록하는 테스트용 메시지 저장소. */
+internal class RecordingOperationNotices : OperationNoticeReporter {
+    /** 넣은 실패(거부 포함) 메시지(넣은 순서). */
+    val failures = mutableListOf<String>()
+
+    /** 넣은 완료 메시지(넣은 순서). */
+    val completions = mutableListOf<String>()
+
+    override fun report(kind: OperationNoticeKind, message: String) {
+        when (kind) {
+            OperationNoticeKind.FAILURE -> failures += message
+            OperationNoticeKind.COMPLETION -> completions += message
+        }
+    }
 }

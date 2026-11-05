@@ -20,6 +20,9 @@ import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.LocalPathAwareFileSystem
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
+import com.todokanai.composepracticenew.repository.OperationNoticeRepository
+import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.PathAwareFileSystem
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -75,6 +78,12 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindProgressRepository(impl: ProgressTracker): ProgressRepository
+
+    @Binds
+    abstract fun bindOperationNoticeRepository(impl: OperationNotices): OperationNoticeRepository
+
+    @Binds
+    abstract fun bindOperationNoticeReporter(impl: OperationNotices): OperationNoticeReporter
 
     /** 원격 스토리지 구현을 바꾸려면 아래 세 바인딩의 구현체만 교체한다. */
     @Binds

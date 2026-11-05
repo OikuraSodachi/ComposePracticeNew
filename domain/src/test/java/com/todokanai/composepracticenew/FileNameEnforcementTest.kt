@@ -14,9 +14,7 @@ import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,11 +29,14 @@ class FileNameEnforcementTest {
 
     private val scope = CoroutineScope(Job())
     private val progressRepo = RecordingProgressRepository()
+
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, scope)
-    private val local = LocalFileOperationUseCase(orchestrator, fileActionRepo, FileNameUseCase())
-    private val remote = RemoteFileOperationUseCase(orchestrator, NoOpTransferRepository, mutationRepo, FileNameUseCase())
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, scope)
+    private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase())
+    private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, mutationRepo, FileNameUseCase())
 
     @After
     fun tearDown() = scope.cancel()
@@ -46,10 +47,10 @@ class FileNameEnforcementTest {
         local.makeDirectory("/dir", "..", "done") {}
         local.zip(setOf("/dir/a.txt"), "/dir", " archive", "done") {}
 
-        assertEquals(3, progressRepo.errors.size)
-        assertTrue(progressRepo.errors[0].startsWith("이름 변경 실패"))
-        assertTrue(progressRepo.errors[1].startsWith("폴더 생성 실패"))
-        assertTrue(progressRepo.errors[2].startsWith("압축 실패"))
+        assertEquals(3, notices.failures.size)
+        assertTrue(notices.failures[0].startsWith("이름 변경 실패"))
+        assertTrue(notices.failures[1].startsWith("폴더 생성 실패"))
+        assertTrue(notices.failures[2].startsWith("압축 실패"))
         assertTrue("저장소가 호출되면 안 됨: ${fileActionRepo.calls}", fileActionRepo.calls.isEmpty())
     }
 
@@ -58,9 +59,9 @@ class FileNameEnforcementTest {
         remote.renameRemote("/r/a.txt", "a\\b", "done", "fail") {}
         remote.makeDirectoryRemote("/r", "", "done", "fail") {}
 
-        assertEquals(2, progressRepo.errors.size)
-        assertTrue(progressRepo.errors[0].startsWith("이름 변경 실패"))
-        assertTrue(progressRepo.errors[1].startsWith("디렉터리 생성 실패"))
+        assertEquals(2, notices.failures.size)
+        assertTrue(notices.failures[0].startsWith("이름 변경 실패"))
+        assertTrue(notices.failures[1].startsWith("디렉터리 생성 실패"))
         assertTrue("저장소가 호출되면 안 됨: ${mutationRepo.calls}", mutationRepo.calls.isEmpty())
     }
 
@@ -70,7 +71,7 @@ class FileNameEnforcementTest {
         local.makeDirectory("/dir", "new folder", "done") {}
         remote.renameRemote("/r/a.txt", "b.txt", "done", "fail") {}
 
-        assertTrue(progressRepo.errors.toString(), progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.toString(), notices.failures.isEmpty())
     }
 
     @Test
@@ -79,16 +80,11 @@ class FileNameEnforcementTest {
         assertTrue(local.validateZipName("a".repeat(252)).isNotEmpty())
     }
 
-    /** 방출된 오류 메시지를 기록하는 테스트용 진행 저장소. */
+    /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
-        val errors = mutableListOf<String>()
         override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-        override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
-        override fun emitError(message: String) { errors += message }
-        override fun emitCompletion(message: String) {}
     }
 
     /** 호출된 작업 이름을 기록하는 테스트용 로컬 파일 작업 저장소. */
