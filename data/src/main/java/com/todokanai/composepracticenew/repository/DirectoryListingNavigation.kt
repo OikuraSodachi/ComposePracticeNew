@@ -18,7 +18,9 @@ import java.util.concurrent.atomic.AtomicLong
  * 현재 경로와 목록 조회 요청을 보유하고, 경로 이동·새로고침마다 요청을 새로 만들어 그 요청으로 directoryListing을 구성하는 탐색 상태.
  * 같은 경로로 다시 이동해도(재연결 등) 새 요청이 되므로 목록을 다시 조회한다.
  * 탐색 저장소 구현체가 이 클래스를 보유해 상태를 넘기고, 경로 검증·부모 경로 규칙만 직접 구현한다.
- * 조회 방법은 생성자로만 받으므로, 생성 중에 구현체의 초기화되지 않은 필드를 읽을 수 없다.
+ * 조회 방법은 생성자 인자로 받으므로 생성할 때 항상 준비돼 있다. 공유는 생성 중에 시작될 수 있으므로(started에 따라),
+ * 보유자는 생성 중인 자신에 묶인 함수(`::listFiles` 같은 자기 멤버 참조)가 아니라 이미 생성된 의존 객체의 함수를 넘긴다 —
+ * 그래야 생성 중에 바로 조회해도 보유자의 초기화되지 않은 필드를 읽지 않는다.
  * @param converter 파일 목록을 정렬·도메인 모델로 변환하는 DataConverter
  * @param sortPreference 정렬 기준 Flow를 제공하는 SortPreferenceRepository
  * @param appScope 파일 탐색 Flow를 공유할 애플리케이션 수명 CoroutineScope

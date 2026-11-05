@@ -24,7 +24,8 @@ import org.junit.Test
 /**
  * [DirectoryListingNavigation]이 같은 경로로 다시 이동해도(재연결 등) 새 조회 요청을 만들어 목록을 다시 조회하고(#215),
  * 공유가 멈추면 남아 있는 목록이 현재 요청의 목록으로 쓰이지 않도록 요청을 바꾸며,
- * 생성 중에 바로 조회해도 조회 방법이 준비돼 있는지(#245) 검증하는 단위 테스트.
+ * 초기 경로로 생성하면 생성 중에 바로 공유를 시작해도 초기 요청을 조회하는지(초기화 순서) 검증하는 단위 테스트.
+ * 보유자가 생성 중인 자신의 필드를 조회 방법으로 넘기지 않는 것(#245)은 보유자 쪽 구조(의존 객체의 함수를 넘김)가 지킨다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DirectoryListingNavigationTest {
@@ -93,7 +94,7 @@ class DirectoryListingNavigationTest {
     }
 
     @Test
-    fun `생성 중에 바로 공유를 시작해도 초기 경로를 받은 조회 방법으로 조회한다`() {
+    fun `초기 경로로 생성하면 생성 중에 바로 공유를 시작해도 초기 요청을 조회한다`() {
         val listed = mutableListOf<String>()
         val scope = CoroutineScope(Dispatchers.Unconfined)
         sharingScopes += scope
