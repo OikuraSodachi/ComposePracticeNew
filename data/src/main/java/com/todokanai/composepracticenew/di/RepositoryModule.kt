@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.datastore.PreferenceFailureNotices
 import com.todokanai.composepracticenew.datasource.ArchiveExtractor
-import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSource
 import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSourceImpl
 import com.todokanai.composepracticenew.datasource.RarArchiveExtractor
@@ -22,7 +21,6 @@ import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
-import com.todokanai.composepracticenew.repository.LocalFileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.LocalPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.PathAwareFileSystem
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
@@ -30,7 +28,6 @@ import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
-import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepositoryImpl
@@ -45,6 +42,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.multibindings.IntoSet
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.SharingStarted
 import javax.inject.Singleton
 
 /** Binds domain repository interfaces to their data-layer implementations. */
@@ -108,28 +106,27 @@ abstract class RepositoryModule {
     @Binds @IntoSet
     abstract fun bindRarArchiveExtractor(impl: RarArchiveExtractor): ArchiveExtractor
 
-    @Binds @Singleton @RemoteNavigator
-    abstract fun bindRemoteNavigatorAsFileNavigator(impl: RemoteFileNavigatorRepository): FileNavigatorRepository
-
     companion object {
+        /** 로컬 화면은 로컬 경로만 다룬다. */
         @Provides @Singleton
         fun provideLocalFileNavigatorRepository(
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            localFiles: LocalFileDataSource
-        ): FileNavigatorRepository = LocalFileExplorerRepositoryImpl(
-            converter, sortPreference, appScope, localFiles,
+            localFileSystem: LocalPathAwareFileSystem
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(
+            converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000),
+            fileSystems = setOf(localFileSystem),
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
-        @Provides @Singleton
+        /** 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */
+        @Provides @Singleton @RemoteNavigator
         fun provideRemoteFileNavigatorRepository(
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>,
-            connection: RemoteConnectionRepository
-        ): RemoteFileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, fileSystems, connection)
+            fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems)
     }
 }
