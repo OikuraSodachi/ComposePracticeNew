@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.datastore
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -11,7 +12,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** [PreferenceFailureNotices]가 알림을 한 번만 꺼내게 하고, 회복한 읽기 실패를 빼는지를 [PreferenceFailureUseCase.deliver]와 함께 검증하는 단위 테스트. */
+/** [PreferenceFailureNotices]가 알림을 한 번만 꺼내게 하고, 회복한 읽기 실패를 빼며 다시 알리지 않는지를 [PreferenceFailureUseCase.deliver]와 함께 검증하는 단위 테스트. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class PreferenceFailureNoticesTest {
 
@@ -51,6 +52,21 @@ class PreferenceFailureNoticesTest {
 
         notices.readRecovered()
 
-        assertEquals(listOf(PreferenceFailure.SAVE), notices.pending.value.map { it.failure })
+        assertEquals(listOf(PreferenceFailure.SAVE), notices.pending.value.map { it.content })
+    }
+
+    @Test
+    fun `보여 주는 도중 읽기가 회복한 읽기 실패는 취소돼도 돌려놓지 않는다`() = runTest {
+        // 보여 주다 만 알림은 돌려놓지만, 그 사이 사실이 아니게 된 알림까지 다시 알리면 안 된다
+        notices.report(PreferenceFailure.READ)
+        notices.report(PreferenceFailure.SAVE)
+        val receiving = backgroundScope.launch { PreferenceFailureUseCase(notices).deliver { Channel<Unit>().receive() } }
+        runCurrent()
+
+        notices.readRecovered()
+        receiving.cancel()
+        runCurrent()
+
+        assertEquals(listOf(PreferenceFailure.SAVE), notices.pending.value.map { it.content })
     }
 }

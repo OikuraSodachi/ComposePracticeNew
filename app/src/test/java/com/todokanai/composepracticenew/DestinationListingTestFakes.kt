@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
-import com.todokanai.composepracticenew.model.OperationNotice
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
@@ -14,7 +13,7 @@ import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import com.todokanai.composepracticenew.repository.OperationNoticeRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -124,14 +123,12 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
 }
 
 /** 넣은 실패·완료 메시지를 종류별로 기록하는 테스트용 메시지 저장소. */
-internal class RecordingOperationNotices : OperationNoticeRepository {
+internal class RecordingOperationNotices : OperationNoticeReporter {
     /** 넣은 실패(거부 포함) 메시지(넣은 순서). */
     val failures = mutableListOf<String>()
 
     /** 넣은 완료 메시지(넣은 순서). */
     val completions = mutableListOf<String>()
-
-    override val pending: StateFlow<List<OperationNotice>> = MutableStateFlow(emptyList())
 
     override fun report(kind: OperationNoticeKind, message: String) {
         when (kind) {
@@ -139,6 +136,4 @@ internal class RecordingOperationNotices : OperationNoticeRepository {
             OperationNoticeKind.COMPLETION -> completions += message
         }
     }
-
-    override fun claim(id: Long): Boolean = false
 }

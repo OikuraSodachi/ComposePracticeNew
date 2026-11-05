@@ -5,17 +5,17 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.repository.OperationNoticeRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
 /**
  * 목적지 폴더의 확인된 목록으로 이름 충돌을 판정하는 UseCase. 목록을 확인하지 못했으면(조회 중·실패·이전 요청의 목록) 판정하지 않고 거부를 알린다.
  * 확인된 목록을 얻는 일과 거부 알림을 이 클래스에서만 하므로, 호출부가 미확인 목록으로 판정하거나 거부 처리를 빠뜨릴 수 없다.
  * 판정 결과에 판정한 목록의 경로를 담아, 호출부가 판정한 폴더와 다른 폴더에 실행하지 않게 한다.
- * @param notices 거부 메시지를 화면이 알릴 때까지 보관하는 OperationNoticeRepository
+ * @param notices 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param unverifiedMessage 목적지 목록을 확인하지 못해 작업을 실행하지 않았다는 오류 메시지를 반환하는 함수
  */
 class ConflictCheckUseCase(
-    private val notices: OperationNoticeRepository,
+    private val notices: OperationNoticeReporter,
     private val unverifiedMessage: () -> String,
 ) {
 

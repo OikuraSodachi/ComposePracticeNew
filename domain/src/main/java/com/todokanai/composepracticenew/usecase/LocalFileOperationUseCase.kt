@@ -7,19 +7,19 @@ import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.FileActionRepository
-import com.todokanai.composepracticenew.repository.OperationNoticeRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
 /**
  * 로컬 파일 작업(복사·이동·삭제·압축·압축해제·이름변경·새폴더)을 조율하는 UseCase.
  * 새 폴더·이름 변경·압축처럼 사용자가 정한 이름을 쓰는 작업은 실행 전에 [fileNameUseCase] 규칙을 강제한다.
  * @param orchestrator 인스턴스 ID·진행 핸들·콜백·실행 스코프를 제공하는 공통 오케스트레이터
- * @param notices 실행 전 거부 메시지를 화면이 알릴 때까지 보관하는 OperationNoticeRepository
+ * @param notices 실행 전 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param fileActionRepo 로컬 파일 변경 작업을 실행하는 FileActionRepository
  * @param fileNameUseCase 파일 이름 규칙을 검증하는 UseCase
  */
 class LocalFileOperationUseCase(
     private val orchestrator: FileOperationOrchestrator,
-    private val notices: OperationNoticeRepository,
+    private val notices: OperationNoticeReporter,
     private val fileActionRepo: FileActionRepository,
     private val fileNameUseCase: FileNameUseCase
 ) {

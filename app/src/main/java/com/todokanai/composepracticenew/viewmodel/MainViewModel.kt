@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.OperationNotice
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
@@ -78,7 +79,6 @@ class MainViewModel @Inject constructor(
     /** 원격 전송 알림 클릭으로 원격 파일 목록 화면으로 이동해야 할 때 발행된다. */
     val remoteProgressNavigation: Flow<Unit> = _remoteProgressNavigation.receiveAsFlow()
 
-
     /** 앱을 종료하라는 이벤트. 화면 호스트에서 수집해 Activity를 종료한다. */
     val exitEvent: Flow<Unit> = exitHandler.exitEvent
 
@@ -91,18 +91,18 @@ class MainViewModel @Inject constructor(
     val connectionLost: Flow<Unit> = _connectionLost.receiveAsFlow()
 
     /**
-     * 설정 저장소의 실패를 [show]로 하나씩 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 화면이 보이기 전에 일어난 실패도 부르면 받고, 그 사이 회복한 읽기 실패는 받지 않는다.
-     * @param show 실패를 사용자에게 보여 주는 함수
+     * 설정 저장소의 실패를 [show]로 하나씩, 앞 실패를 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
+     * 화면이 보이기 전에 일어난 실패와 보여 주는 도중 화면이 사라진 실패도 부르면 받고, 그 사이 회복한 읽기 실패는 받지 않는다.
+     * @param show 실패를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
      */
-    suspend fun showPreferenceFailures(show: (PreferenceFailure) -> Unit): Nothing = preferenceFailureUseCase.deliver(show)
+    suspend fun showPreferenceFailures(show: suspend (PreferenceFailure) -> Unit): Nothing = preferenceFailureUseCase.deliver(show)
 
     /**
-     * 파일 작업의 실패·거부·완료 메시지를 [show]로 하나씩 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 보이는 화면이 없을 때 생긴 메시지(저장소 화면에 있거나 Activity가 없을 때 끝난 작업)도 부르면 받는다.
-     * @param show 메시지 문구를 사용자에게 보여 주는 함수
+     * 파일 작업의 실패·거부·완료 메시지를 [show]로 하나씩, 앞 메시지를 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
+     * 보이는 화면이 없을 때 생긴 메시지(저장소 화면에 있거나 Activity가 없을 때 끝난 작업)와 보여 주는 도중 화면이 사라진 메시지도 부르면 받는다.
+     * @param show 메시지를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
      */
-    suspend fun showOperationNotices(show: (String) -> Unit): Nothing = operationNoticeUseCase.deliver(show)
+    suspend fun showOperationNotices(show: suspend (OperationNotice) -> Unit): Nothing = operationNoticeUseCase.deliver(show)
 
     init {
         // 지금 상태는 건너뛴다 — ViewModel을 만들 때(앱을 열 때) 이미 끊겨 있던 세션은 지금 끊긴 것이 아니다

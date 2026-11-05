@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
@@ -114,7 +115,7 @@ object UseCaseModule {
     ) = RemoteConnectionResilienceUseCase(lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
 
     @Provides @Singleton
-    fun provideConflictCheckUseCase(notices: OperationNoticeRepository, messages: OperationMessages) =
+    fun provideConflictCheckUseCase(notices: OperationNoticeReporter, messages: OperationMessages) =
         ConflictCheckUseCase(notices) { messages.destinationUnverified }
 
     @Provides @Singleton
@@ -124,14 +125,14 @@ object UseCaseModule {
     fun provideFileOperationOrchestrator(
         notifier: FileOperationNotifier,
         progressRepo: ProgressRepository,
-        notices: OperationNoticeRepository,
+        notices: OperationNoticeReporter,
         @ApplicationScope appScope: CoroutineScope
     ) = FileOperationOrchestrator(notifier, progressRepo, notices, appScope)
 
     @Provides @Singleton
     fun provideLocalFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
-        notices: OperationNoticeRepository,
+        notices: OperationNoticeReporter,
         fileActionRepo: FileActionRepository,
         fileNameUseCase: FileNameUseCase
     ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, fileNameUseCase)
@@ -139,7 +140,7 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideRemoteFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
-        notices: OperationNoticeRepository,
+        notices: OperationNoticeReporter,
         transferRepo: RemoteFileTransferRepository,
         mutationRepo: RemoteFileMutationRepository,
         fileNameUseCase: FileNameUseCase

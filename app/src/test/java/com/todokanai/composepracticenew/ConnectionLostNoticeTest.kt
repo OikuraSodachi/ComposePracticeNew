@@ -71,7 +71,7 @@ class ConnectionLostNoticeTest {
     private fun createViewModel() = MainViewModel(
         getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
         progressUseCase = ProgressUseCase(RecordingProgressRepository()),
-        operationNoticeUseCase = OperationNoticeUseCase(RecordingOperationNotices()),
+        operationNoticeUseCase = OperationNoticeUseCase(NoOperationNotices),
         exitHandler = NoOpExitHandler,
         connectionStateUseCase = RemoteConnectionStateUseCase(connection),
         preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures)

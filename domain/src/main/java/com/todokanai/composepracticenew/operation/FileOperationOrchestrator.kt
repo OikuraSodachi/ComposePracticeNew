@@ -4,7 +4,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.repository.OperationNoticeRepository
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -19,13 +19,13 @@ private const val UNKNOWN_FAILURE_MESSAGE = "알 수 없는 오류"
  * 작업을 띄우는 길은 [launch] 하나뿐이고 발급하지 않은 ID로 작업을 띄울 수 없다(같은 모듈 안에서도).
  * @param notifier 파일 작업 시스템 알림을 전송하는 인터페이스
  * @param progressRepo 작업 진행 상태를 저장하는 ProgressRepository
- * @param notices 작업의 완료·실패 메시지를 화면이 알릴 때까지 보관하는 OperationNoticeRepository
+ * @param notices 작업의 완료·실패 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
     private val notifier: FileOperationNotifier,
     private val progressRepo: ProgressRepository,
-    private val notices: OperationNoticeRepository,
+    private val notices: OperationNoticeReporter,
     private val appScope: CoroutineScope
 ) {
     /** ID 발급과 진행 상태 등록을 한 단위로 묶는 잠금. 동시에 시작한 작업들이 progressMap에 ID 순서대로 나타나게 한다. */
