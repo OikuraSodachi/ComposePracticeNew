@@ -14,9 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,10 +29,13 @@ class RemoteFileOperationFailureTest {
 
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     private val progressRepo = RecordingProgressRepository()
+
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, scope)
-    private val remote = RemoteFileOperationUseCase(orchestrator, transferRepo, mutationRepo, FileNameUseCase())
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, scope)
+    private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase())
 
     @After
     fun tearDown() = scope.cancel()
@@ -45,8 +46,8 @@ class RemoteFileOperationFailureTest {
 
         remote.download("ftp://h/r/a.txt", "/local", isDirectory = false, completionMessage = "done") {}
 
-        assertEquals(listOf("retrieveFileStream 실패: 550 No such file"), progressRepo.errors)
-        assertTrue(progressRepo.completions.isEmpty())
+        assertEquals(listOf("retrieveFileStream 실패: 550 No such file"), notices.failures)
+        assertTrue(notices.completions.isEmpty())
     }
 
     @Test
@@ -55,16 +56,16 @@ class RemoteFileOperationFailureTest {
 
         remote.upload("/local/a.txt", "ftp://h/r", completionMessage = "done") {}
 
-        assertEquals(listOf("FTP 서버와의 연결이 끊겼습니다"), progressRepo.errors)
-        assertTrue(progressRepo.completions.isEmpty())
+        assertEquals(listOf("FTP 서버와의 연결이 끊겼습니다"), notices.failures)
+        assertTrue(notices.completions.isEmpty())
     }
 
     @Test
     fun `전송이 성공하면 완료를 알린다`() {
         remote.download("ftp://h/r/a.txt", "/local", isDirectory = false, completionMessage = "done") {}
 
-        assertEquals(listOf("done"), progressRepo.completions)
-        assertTrue(progressRepo.errors.isEmpty())
+        assertEquals(listOf("done"), notices.completions)
+        assertTrue(notices.failures.isEmpty())
     }
 
     @Test
@@ -77,9 +78,9 @@ class RemoteFileOperationFailureTest {
         ) {}
 
         assertEquals(listOf("delete a.txt", "delete b.txt", "rmdir dir"), mutationRepo.calls)
-        assertEquals(1, progressRepo.errors.size)
-        assertTrue(progressRepo.errors.single(), progressRepo.errors.single().startsWith("삭제 실패: b.txt"))
-        assertTrue(progressRepo.completions.isEmpty())
+        assertEquals(1, notices.failures.size)
+        assertTrue(notices.failures.single(), notices.failures.single().startsWith("삭제 실패: b.txt"))
+        assertTrue(notices.completions.isEmpty())
     }
 
     @Test
@@ -92,7 +93,7 @@ class RemoteFileOperationFailureTest {
         ) {}
 
         assertEquals(listOf("delete a.txt"), mutationRepo.calls)
-        assertEquals(listOf("끊김"), progressRepo.errors)
+        assertEquals(listOf("끊김"), notices.failures)
     }
 
     @Test
@@ -102,7 +103,7 @@ class RemoteFileOperationFailureTest {
 
         remote.deleteRemote(targets = linkedMapOf("ftp://h/r/dir" to true), completionMessage = "done") {}
 
-        assertEquals(listOf("삭제 실패: dir/sub/x.txt (DELE 실패: 550)"), progressRepo.errors)
+        assertEquals(listOf("삭제 실패: dir/sub/x.txt (DELE 실패: 550)"), notices.failures)
     }
 
     @Test
@@ -116,20 +117,14 @@ class RemoteFileOperationFailureTest {
             completionMessage = "done"
         ) {}
 
-        assertEquals(listOf("삭제 실패: 2개 항목 (a.txt, dir/sub/x.txt)"), progressRepo.errors)
+        assertEquals(listOf("삭제 실패: 2개 항목 (a.txt, dir/sub/x.txt)"), notices.failures)
     }
 
-    /** 방출된 완료·오류 메시지를 기록하는 테스트용 진행 저장소. */
+    /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
-        val errors = mutableListOf<String>()
-        val completions = mutableListOf<String>()
         override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-        override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
-        override fun emitError(message: String) { errors += message }
-        override fun emitCompletion(message: String) { completions += message }
     }
 
     /** [failure]가 있으면 전송 시 그 실패를 돌려주는 테스트용 원격 전송 저장소. */

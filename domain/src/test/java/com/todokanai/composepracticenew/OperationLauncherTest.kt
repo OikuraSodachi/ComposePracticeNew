@@ -10,9 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -30,10 +28,13 @@ class OperationLauncherTest {
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 완료·오류 메시지와 진행 상태 제거를 기록하는 진행 저장소. */
     private val progressRepo = RecordingProgressRepository()
+
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
     /** 받은 알림 요청을 기록하는 알림기. */
     private val notifier = RecordingNotifier()
     /** 검증 대상. */
-    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, scope)
+    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, scope)
 
     @After
     fun tearDown() = scope.cancel()
@@ -42,8 +43,8 @@ class OperationLauncherTest {
     fun `성공하면 완료를 알리고 진행 상태를 지운다`() {
         launch { IoResult.Done }
 
-        assertEquals(listOf("done"), progressRepo.completions)
-        assertTrue(progressRepo.errors.isEmpty())
+        assertEquals(listOf("done"), notices.completions)
+        assertTrue(notices.failures.isEmpty())
         assertEquals(listOf(1), progressRepo.removed)
     }
 
@@ -51,8 +52,8 @@ class OperationLauncherTest {
     fun `실패 결과는 그 메시지로 실패를 알리고 진행 상태를 지운다`() {
         launch { IoResult.ConnectionLost("끊김") }
 
-        assertEquals(listOf("끊김"), progressRepo.errors)
-        assertTrue(progressRepo.completions.isEmpty())
+        assertEquals(listOf("끊김"), notices.failures)
+        assertTrue(notices.completions.isEmpty())
         assertEquals(listOf(1), progressRepo.removed)
     }
 
@@ -60,7 +61,7 @@ class OperationLauncherTest {
     fun `메시지가 없는 실패는 알 수 없는 오류로 알린다`() {
         launch { IoResult.ItemFailed(null) }
 
-        assertEquals(listOf("알 수 없는 오류"), progressRepo.errors)
+        assertEquals(listOf("알 수 없는 오류"), notices.failures)
     }
 
     @Test
@@ -68,8 +69,8 @@ class OperationLauncherTest {
         launch { throw IllegalStateException("구현 오류") }
         launch { IoResult.Done }
 
-        assertEquals(listOf("구현 오류"), progressRepo.errors)
-        assertEquals(listOf("done"), progressRepo.completions)
+        assertEquals(listOf("구현 오류"), notices.failures)
+        assertEquals(listOf("done"), notices.completions)
     }
 
     @Test
@@ -99,18 +100,12 @@ class OperationLauncherTest {
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) = orchestrator.launch(completionMessage = "done", operationType = operationType, onRefresh = {}, block = block)
 
-    /** 방출된 완료·오류 메시지와 지운 진행 상태를 기록하는 테스트용 진행 저장소. */
+    /** 지운 진행 상태를 기록하는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
-        val errors = mutableListOf<String>()
-        val completions = mutableListOf<String>()
         val removed = mutableListOf<Int>()
         override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-        override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) { removed += instanceId }
-        override fun emitError(message: String) { errors += message }
-        override fun emitCompletion(message: String) { completions += message }
     }
 
     /** 받은 진행·완료·취소 알림 요청을 "종류 인스턴스ID"로 받은 순서대로 기록하는 테스트용 알림기. */

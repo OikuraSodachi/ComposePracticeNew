@@ -7,12 +7,12 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
-import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FileOperationServiceController
 import com.todokanai.composepracticenew.service.FtpForegroundService
 import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
+import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -23,7 +23,7 @@ import javax.inject.Inject
 @HiltAndroidApp
 class MyApplication : Application(), ImageLoaderFactory {
 
-    @Inject lateinit var progressRepo: ProgressRepository
+    @Inject lateinit var progressUseCase: ProgressUseCase
     @Inject lateinit var fileOperationServiceController: FileOperationServiceController
     @Inject @ApplicationScope lateinit var appScope: CoroutineScope
 
@@ -42,7 +42,7 @@ class MyApplication : Application(), ImageLoaderFactory {
     // progressMap이 비어있지 않을 때 서비스 시작, 비워지면 종료 — appScope로 앱 생명주기 동안 유지
     private fun observeFileOperations() {
         appScope.launch {
-            progressRepo.progressMap
+            progressUseCase.progressMap
                 .map { it.isNotEmpty() }
                 .distinctUntilChanged()
                 .collect { hasActive ->

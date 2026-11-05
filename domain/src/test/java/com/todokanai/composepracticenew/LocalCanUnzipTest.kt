@@ -12,9 +12,7 @@ import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -24,7 +22,10 @@ import org.junit.Test
 class LocalCanUnzipTest {
 
     private val scope = CoroutineScope(Job())
-    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, scope), ZipOnlyRepository, FileNameUseCase())
+
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
+    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, scope), notices, ZipOnlyRepository, FileNameUseCase())
 
     @After
     fun tearDown() = scope.cancel()
@@ -63,12 +64,8 @@ class LocalCanUnzipTest {
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
     private object NoOpProgressRepository : ProgressRepository {
         override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-        override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
-        override fun emitError(message: String) {}
-        override fun emitCompletion(message: String) {}
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */

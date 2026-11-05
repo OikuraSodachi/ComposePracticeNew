@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
@@ -70,6 +71,7 @@ class ConnectionLostNoticeTest {
     private fun createViewModel() = MainViewModel(
         getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
         progressUseCase = ProgressUseCase(RecordingProgressRepository()),
+        operationNoticeUseCase = OperationNoticeUseCase(RecordingOperationNotices()),
         exitHandler = NoOpExitHandler,
         connectionStateUseCase = RemoteConnectionStateUseCase(connection),
         preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures)

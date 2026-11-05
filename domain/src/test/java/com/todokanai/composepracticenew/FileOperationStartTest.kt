@@ -11,9 +11,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -31,7 +29,7 @@ class FileOperationStartTest {
     /** 진행 상태와 작업이 처음 등록된 순서를 기록하는 진행 저장소. */
     private val progressRepo = RecordingProgressRepository()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, RecordingOperationNotices(), scope)
     /** 열릴 때까지 작업을 멈춰 두는 신호. */
     private val gate = CompletableDeferred<Unit>()
 
@@ -80,8 +78,6 @@ class FileOperationStartTest {
     private class RecordingProgressRepository : ProgressRepository {
         val registrationOrder = mutableListOf<Int>()
         override val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
-        override val operationErrors: SharedFlow<String> = MutableSharedFlow()
-        override val operationCompletions: SharedFlow<String> = MutableSharedFlow()
         override fun setProgressState(instanceId: Int, state: ProgressState) {
             if (instanceId !in progressMap.value) registrationOrder += instanceId
             progressMap.value = progressMap.value + (instanceId to state)
@@ -89,8 +85,6 @@ class FileOperationStartTest {
         override fun removeProgress(instanceId: Int) {
             progressMap.value = progressMap.value - instanceId
         }
-        override fun emitError(message: String) {}
-        override fun emitCompletion(message: String) {}
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */

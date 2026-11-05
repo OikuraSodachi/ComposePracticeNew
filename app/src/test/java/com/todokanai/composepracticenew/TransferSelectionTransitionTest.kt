@@ -44,12 +44,13 @@ class TransferSelectionTransitionTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), operationScope)
+        val notices = RecordingOperationNotices()
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), notices, operationScope)
         viewModel = FileTransferCoordinatorViewModel(
             FileNavigatorUseCase(FakeNavigator()),
             FileNavigatorUseCase(FakeNavigator()),
-            RemoteFileOperationUseCase(orchestrator, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase()),
-            ConflictCheckUseCase(orchestrator) { FixedMessages.destinationUnverified },
+            RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase()),
+            ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
             FixedMessages,
             RemoteConnectionStateUseCase(connection)
         )

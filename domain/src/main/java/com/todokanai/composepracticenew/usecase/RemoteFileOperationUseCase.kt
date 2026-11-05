@@ -3,9 +3,11 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.withFailureMessage
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
+import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 
@@ -13,12 +15,14 @@ import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
  * 원격 파일 작업(다운로드·업로드·이름변경·삭제·새폴더)을 조율하는 단일 진입점 UseCase.
  * 이름 변경·새 폴더처럼 사용자가 정한 이름을 쓰는 작업은 실행 전에 [fileNameUseCase] 규칙을 강제한다.
  * @param orchestrator 인스턴스 ID·진행 핸들·콜백·실행 스코프를 제공하는 공통 오케스트레이터
+ * @param notices 실행 전 거부 메시지를 화면이 알릴 때까지 보관하는 OperationNoticeRepository
  * @param transferRepo 원격↔로컬 파일 전송을 실행하는 RemoteFileTransferRepository
  * @param mutationRepo 원격 파일 이름변경·삭제·생성을 실행하는 RemoteFileMutationRepository
  * @param fileNameUseCase 파일 이름 규칙을 검증하는 UseCase
  */
 class RemoteFileOperationUseCase(
     private val orchestrator: FileOperationOrchestrator,
+    private val notices: OperationNoticeRepository,
     private val transferRepo: RemoteFileTransferRepository,
     private val mutationRepo: RemoteFileMutationRepository,
     private val fileNameUseCase: FileNameUseCase
@@ -126,7 +130,7 @@ class RemoteFileOperationUseCase(
         block().withFailureMessage(message)
 
     /**
-     * 검증 결과에 위반이 있으면 오류를 방출하고 작업을 중단해야 함을 알린다.
+     * 검증 결과에 위반이 있으면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다.
      * @param errors [FileNameUseCase.validate]가 반환한 위반 규칙 집합
      * @param displayName 오류 메시지에 표시할 이름
      * @param failurePrefix 오류 메시지 머리말(예: "이름 변경 실패")
@@ -134,7 +138,7 @@ class RemoteFileOperationUseCase(
      */
     private fun rejectsInvalidName(errors: Set<FileNameError>, displayName: String, failurePrefix: String): Boolean {
         if (errors.isEmpty()) return false
-        orchestrator.emitError("$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
+        notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
         return true
     }
 }

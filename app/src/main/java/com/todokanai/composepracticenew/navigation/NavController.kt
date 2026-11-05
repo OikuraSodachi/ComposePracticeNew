@@ -22,8 +22,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
@@ -78,6 +76,16 @@ fun AppNavHost(
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             mainViewModel.showPreferenceFailures { failure ->
                 Toast.makeText(context, context.getString(preferenceFailureMessage(failure)), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 파일 작업의 실패·거부·완료를 어느 화면에 있든(저장소 화면 포함) 알린다.
+    // 화면이 보이는 동안만 꺼내, 보이지 않는 동안 끝난 작업의 메시지는 버리지 않고 다시 보일 때 알리도록
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.showOperationNotices { message ->
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -161,8 +169,6 @@ private fun FileListDestination(
     val selectionSummary = infoViewModel.summary.collectAsStateWithLifecycle()
     val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
 
-    ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
-
     BackHandler {
         viewModel.onBackPressed { navController.popBackStack() }
     }
@@ -229,8 +235,6 @@ private fun RemoteFileListDestination(
     val remoteSelectMode by remember(remoteSelection) { derivedStateOf { remoteSelection.value.remoteMode() } }
     val uploadConflict by coordinator.uploadConflict.collectAsStateWithLifecycle()
 
-    ToastEffect(mainViewModel.operationError, mainViewModel.operationCompletion)
-
     BackHandler {
         remoteViewModel.onBackPressed { navController.popBackStack() }
     }
@@ -280,17 +284,6 @@ private fun RemoteFileListDestination(
     }
 }
 
-/** 각 Flow에서 문자열을 수집해 Toast로 표시한다. */
-@Composable
-private fun ToastEffect(vararg messageFlows: Flow<String>) {
-    val context = LocalContext.current
-    // Unit 키 — destination 생존 동안 수집을 1회만 시작해 메시지 중복 수집을 방지
-    LaunchedEffect(Unit) {
-        messageFlows.forEach { flow ->
-            launch { flow.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() } }
-        }
-    }
-}
 
 /**
  * 설정 저장소의 실패 [failure]를 사용자에게 알릴 문구로 바꾼다.

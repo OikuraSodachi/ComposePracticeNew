@@ -2,7 +2,9 @@ package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -16,12 +18,14 @@ private const val UNKNOWN_FAILURE_MESSAGE = "알 수 없는 오류"
  * 작업 인스턴스 ID는 이 클래스만 발급한다. 진행 핸들·완료 콜백·실행 엔진을 이 클래스 안에 private으로 두어,
  * 작업을 띄우는 길은 [launch] 하나뿐이고 발급하지 않은 ID로 작업을 띄울 수 없다(같은 모듈 안에서도).
  * @param notifier 파일 작업 시스템 알림을 전송하는 인터페이스
- * @param progressRepo 작업 진행 상태 및 완료·오류 이벤트를 저장·방출하는 ProgressRepository
+ * @param progressRepo 작업 진행 상태를 저장하는 ProgressRepository
+ * @param notices 작업의 완료·실패 메시지를 화면이 알릴 때까지 보관하는 OperationNoticeRepository
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
     private val notifier: FileOperationNotifier,
     private val progressRepo: ProgressRepository,
+    private val notices: OperationNoticeRepository,
     private val appScope: CoroutineScope
 ) {
     /** ID 발급과 진행 상태 등록을 한 단위로 묶는 잠금. 동시에 시작한 작업들이 progressMap에 ID 순서대로 나타나게 한다. */
@@ -70,13 +74,6 @@ class FileOperationOrchestrator(
     }
 
     /**
-     * 오류 메시지를 progressRepo로 방출한다.
-     * @param message 표시할 오류 메시지
-     * @return Unit
-     */
-    fun emitError(message: String) = progressRepo.emitError(message)
-
-    /**
      * 파일 작업을 [appScope]에서 실행하며 완료·실패·진행 상태를 통합 관리하는 실행 엔진.
      * 작업의 실패는 결과([IoResult.Failure])로 받는다. 예외는 구현 오류이지만, 작업 하나 때문에 앱 수명 스코프가 무너지지 않도록
      * 이곳에서만 실패로 바꿔 그 작업만 끝낸다.
@@ -122,7 +119,7 @@ class FileOperationOrchestrator(
     }
 
     /**
-     * 작업 완료·실패 시 알림·이벤트 방출·갱신을 일괄 처리하는 콜백.
+     * 작업 완료·실패 시 알림·메시지 보관·갱신을 일괄 처리하는 콜백.
      * 순간 작업(진행 알림 없음)도 완료하면 완료 알림을 띄운다.
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료·실패 후 디렉터리 목록을 갱신하는 콜백
@@ -131,17 +128,17 @@ class FileOperationOrchestrator(
         private val completionMessage: String,
         private val onRefresh: suspend () -> Unit
     ) {
-        /** 성공 시 완료 알림 전송·이벤트 방출·갱신을 수행한다. */
+        /** 성공 시 완료 알림 전송·완료 메시지 보관·갱신을 수행한다. */
         suspend fun onSuccess(instanceId: Int) {
             notifier.completedNotification(completionMessage, instanceId)
-            progressRepo.emitCompletion(completionMessage)
+            notices.report(OperationNoticeKind.COMPLETION, completionMessage)
             onRefresh()
         }
 
-        /** 실패 시 알림 취소·오류 이벤트 방출·갱신을 수행한다. */
+        /** 실패 시 알림 취소·실패 메시지 보관·갱신을 수행한다. 진행 알림은 지우므로, 실패는 보관한 메시지로만 알린다. */
         suspend fun onFailure(message: String, instanceId: Int) {
             notifier.cancelNotification(instanceId)
-            progressRepo.emitError(message)
+            notices.report(OperationNoticeKind.FAILURE, message)
             onRefresh()
         }
     }

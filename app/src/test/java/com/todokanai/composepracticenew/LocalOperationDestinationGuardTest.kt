@@ -42,6 +42,9 @@ class LocalOperationDestinationGuardTest {
     private val operationScope = CoroutineScope(Job() + Dispatchers.Unconfined)
     private val nav = FakeNavigator()
     private val progressRepo = RecordingProgressRepository()
+
+    /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
+    private val notices = RecordingOperationNotices()
     private val fileActionRepo = RecordingFileActionRepository()
     private lateinit var viewModel: FileListViewModel
     private lateinit var request: ListingRequest
@@ -55,13 +58,13 @@ class LocalOperationDestinationGuardTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, operationScope)
         viewModel = FileListViewModel(
             fileNavigatorUseCase = FileNavigatorUseCase(nav),
             openFileUseCase = OpenFileUseCase(nav) {},
             sortModeUseCase = SortModeUseCase(InMemorySortPreference()),
-            localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, fileActionRepo, FileNameUseCase()),
-            conflictCheckUseCase = ConflictCheckUseCase(orchestrator) { FixedMessages.destinationUnverified },
+            localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase()),
+            conflictCheckUseCase = ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
             messages = FixedMessages
         )
         request = nav.moveTo("/dest")
@@ -81,7 +84,7 @@ class LocalOperationDestinationGuardTest {
 
         assertFalse("실행하지 않았으므로 호출부가 선택 모드를 초기화하지 않아야 함", executed)
         assertTrue(fileActionRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
+        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
 
     @Test
@@ -99,7 +102,7 @@ class LocalOperationDestinationGuardTest {
 
         assertFalse(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Copy))
         assertTrue(fileActionRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
+        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
 
     @Test
@@ -108,7 +111,7 @@ class LocalOperationDestinationGuardTest {
 
         assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Copy))
         assertEquals(listOf("copy"), fileActionRepo.calls)
-        assertTrue(progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.isEmpty())
     }
 
     @Test
@@ -119,7 +122,7 @@ class LocalOperationDestinationGuardTest {
 
         assertTrue(fileActionRepo.calls.isEmpty())
         assertNull(viewModel.pendingRename.value)
-        assertEquals(listOf(FixedMessages.destinationUnverified), progressRepo.errors)
+        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
 
     @Test
@@ -139,7 +142,7 @@ class LocalOperationDestinationGuardTest {
         val errors = viewModel.validateRename(renameTarget, "b.txt")
 
         assertFalse(FileNameError.EXISTS_AS_OTHER_TYPE in errors)
-        assertTrue(progressRepo.errors.isEmpty())
+        assertTrue(notices.failures.isEmpty())
     }
 
     /** [path]의 domain 파일 항목을 만든다. */
