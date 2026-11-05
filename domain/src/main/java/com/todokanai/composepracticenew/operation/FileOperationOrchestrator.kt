@@ -39,15 +39,11 @@ class FileOperationOrchestrator(
     /**
      * 작업 완료·실패 처리를 담당하는 OperationCallback을 생성한다.
      * @param completionMessage 완료 시 표시할 메시지
-     * @param operationType 완료 알림에 사용할 작업 종류. null이면 순간 작업
      * @param onRefresh 완료·실패 후 디렉터리 목록을 갱신하는 콜백
      * @return OperationCallback
      */
-    fun callback(
-        completionMessage: String,
-        operationType: FileOperationType? = null,
-        onRefresh: suspend () -> Unit
-    ) = OperationCallback(notifier, progressRepo, completionMessage, operationType, onRefresh)
+    private fun callback(completionMessage: String, onRefresh: suspend () -> Unit) =
+        OperationCallback(notifier, progressRepo, completionMessage, onRefresh)
 
     /**
      * 파일 작업을 실행하고 진행 상태 보고·알림·완료 처리를 통합한다.
@@ -66,7 +62,7 @@ class FileOperationOrchestrator(
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) {
         val handle = startHandle(operationType)
-        appScope.launchOperation(handle, callback(completionMessage, operationType, onRefresh)) {
+        appScope.launchOperation(handle, callback(completionMessage, onRefresh)) {
             block { state ->
                 val stateWithType = state.copy(operationType = operationType)
                 handle.set(stateWithType)

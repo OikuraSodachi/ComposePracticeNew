@@ -4,11 +4,11 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ProgressRepository
 
 /**
- * 단일 작업 인스턴스의 진행 상태를 관리하는 핸들.
+ * 단일 작업 인스턴스의 진행 상태를 관리하는 핸들. ID를 발급하는 [FileOperationOrchestrator]만 만든다.
  * @param instanceId 작업 인스턴스 식별자
  * @param progressRepo 진행 상태를 저장·제거하는 ProgressRepository
  */
-class ProgressHandle(
+internal class ProgressHandle(
     val instanceId: Int,
     private val progressRepo: ProgressRepository
 ) {

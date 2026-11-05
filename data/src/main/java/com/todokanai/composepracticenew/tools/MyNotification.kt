@@ -46,7 +46,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     /** 처리한 항목 수 / 전체 항목 수로 진행 알림을 표시한다. 항목 수 정보가 없으면 표시하지 않는다. */
-    private fun showCountProgress(type: FileOperationType, state: ProgressState, notifId: Int) {
+    private fun showCountProgress(type: FileOperationType, state: ProgressState, instanceId: Int) {
         val idx = state.currentIndex ?: return
         val total = state.listSize ?: return
         val builder = NotificationCompat.Builder(context, channelId)
@@ -56,12 +56,12 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setOngoing(true)
             .setProgress(100, 100 * idx / total, false)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(buildClickIntent(type.id, notifId))
-        notifyIfPermitted(notifId, builder)
+            .setContentIntent(buildClickIntent(type.id, instanceId))
+        notifyIfPermitted(instanceId, builder)
     }
 
     /** 퍼센트 진행률로 진행 알림을 표시한다. 전체 크기를 몰라 진행률이 없으면 불확정 막대로 진행 중임만 표시한다. */
-    private fun showPercentProgress(type: FileOperationType?, state: ProgressState, notifId: Int) {
+    private fun showPercentProgress(type: FileOperationType?, state: ProgressState, instanceId: Int) {
         val progress = state.progress
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
@@ -70,8 +70,8 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setContentText(progress?.let { "$it %" })
             .setProgress(100, progress ?: 0, progress == null)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(buildClickIntent(type?.id ?: 0, notifId))
-        notifyIfPermitted(notifId, builder)
+            .setContentIntent(buildClickIntent(type?.id ?: 0, instanceId))
+        notifyIfPermitted(instanceId, builder)
     }
 
     /** 작업 종류별 진행 알림 제목을 반환한다. */
@@ -102,10 +102,13 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         )
     }
 
-    /** 알림 권한이 있을 때만 [builder]의 알림을 [notifId]로 발송한다. */
-    private fun notifyIfPermitted(notifId: Int, builder: NotificationCompat.Builder) {
+    /**
+     * 알림 권한이 있을 때만 [builder]의 알림을 작업 [instanceId]의 알림으로 발송한다.
+     * 알림 정체성은 (tag, id) 쌍이므로 [OPERATION_TAG]를 붙여, 같은 정수를 쓰는 포그라운드 서비스 알림(태그 없음)을 덮어쓰지 않게 한다.
+     */
+    private fun notifyIfPermitted(instanceId: Int, builder: NotificationCompat.Builder) {
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
-        NotificationManagerCompat.from(context).notify(notifId, builder.build())
+        NotificationManagerCompat.from(context).notify(OPERATION_TAG, instanceId, builder.build())
     }
 
     /**
@@ -123,19 +126,23 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setOngoing(true)
             .build()
 
-    override fun completedNotification(title: String, message: String, operationType: FileOperationType?, notifId: Int) {
+    override fun completedNotification(message: String, instanceId: Int) {
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
-            .setContentTitle(title)
             .setOngoing(false)
             .setContentText(message)
             .setProgress(0, 0, false)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-        notifyIfPermitted(notifId, builder)
+        notifyIfPermitted(instanceId, builder)
     }
 
-    /** 지정한 ID의 알림을 취소한다. */
-    override fun cancelNotification(notifId: Int) {
-        notificationManager.cancel(notifId)
+    /** 작업 [instanceId]의 알림을 취소한다. */
+    override fun cancelNotification(instanceId: Int) {
+        notificationManager.cancel(OPERATION_TAG, instanceId)
+    }
+
+    private companion object {
+        /** 파일 작업 알림의 태그. 작업 인스턴스 ID를 알림 id로 그대로 쓰는 알림들을 태그 없는 다른 알림과 구별한다. */
+        const val OPERATION_TAG = "file_operation"
     }
 }
