@@ -48,7 +48,8 @@ class FileOperationOrchestrator(
 
     /**
      * 파일 작업을 실행하고 진행 상태 보고·알림·완료 처리를 통합한다.
-     * 진행 표시가 있는 작업은 시작하자마자 progressMap에 등록되어 첫 진행률 보고 전 준비 단계부터 ForegroundService 보호를 받는다.
+     * 진행 표시가 있는 작업은 시작하자마자 progressMap에 등록되어 첫 진행률 보고 전 준비 단계부터 프로세스 보호 대상이 된다.
+     * 보호는 시스템의 실행 시간 한도까지이며, 한도 이후의 보호는 지원 범위 밖이다.
      * 순간 작업(operationType null)은 progressMap에 등록되지 않아 보호 대상에서 제외된다.
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param operationType 작업 종류. null이면 진행 알림 없음
