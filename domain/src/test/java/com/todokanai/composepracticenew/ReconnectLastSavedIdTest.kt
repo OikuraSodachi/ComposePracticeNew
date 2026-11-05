@@ -1,20 +1,13 @@
 package com.todokanai.composepracticenew
 
-import com.todokanai.composepracticenew.model.ConnectResult
-import com.todokanai.composepracticenew.model.DirectoryListing
-import com.todokanai.composepracticenew.model.ListingRequest
-import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
-import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -48,7 +41,7 @@ class ReconnectLastSavedIdTest {
      */
     private fun reconnectWith(saved: SavedRemoteId): ReconnectResult = runBlocking {
         val lastConnection = FixedLastConnection(saved)
-        RemoteConnectionResilienceUseCase(lastConnection, SingleServerStorage(nas), RemoteConnectionUseCase(ConnectingNavigator, lastConnection))
+        RemoteConnectionResilienceUseCase(lastConnection, SingleServerStorage(nas), RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(), lastConnection))
             .reconnectLast()
     }
 
@@ -71,17 +64,5 @@ class ReconnectLastSavedIdTest {
         override suspend fun insert(item: RemoteStorageItem) {}
         override suspend fun delete(item: RemoteStorageItem) {}
         override suspend fun getById(id: Long): RemoteStorageItem? = item.takeIf { it.id == id }
-    }
-
-    /** 언제나 연결에 성공하는 가짜 저장소. 탐색 기능은 쓰지 않는다. */
-    private object ConnectingNavigator : RemoteFileNavigatorRepository {
-        override suspend fun connectRemote(item: RemoteStorageItem): ConnectResult = ConnectResult.Connected
-        override suspend fun navigateToRemoteRoot(item: RemoteStorageItem) = Unit
-        override val currentPath: StateFlow<String?> = MutableStateFlow(null)
-        override val listingRequest: StateFlow<ListingRequest?> = MutableStateFlow(null)
-        override val directoryListing: StateFlow<DirectoryListing> = MutableStateFlow(DirectoryListing.NoPath)
-        override suspend fun navigate(path: String) = NavigateResult.Navigated
-        override fun refresh() = Unit
-        override fun getParentPath(path: String): String? = null
     }
 }

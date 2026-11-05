@@ -27,7 +27,7 @@ interface RemoteConnectionRepository {
     /**
      * [item] 서버의 루트 디렉터리를 가리키는 경로(스킴 포함)를 반환한다.
      * @param item 원격 스토리지 접속 정보
-     * @return 탐색 가능한 루트 경로 문자열
+     * @return 탐색 가능한 루트 경로 문자열. 원격 탐색 저장소가 다루는 경로 형식이어야 한다(어긋나면 배선 오류)
      */
     fun rootPathOf(item: RemoteStorageItem): String
 }

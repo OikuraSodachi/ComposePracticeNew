@@ -2,22 +2,18 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
-import com.todokanai.composepracticenew.model.DirectoryListing
-import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
-import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /** 마지막 연결 서버 기록이 연결 성공([RemoteConnectionUseCase.connectAndNavigate])과 접속 정보 삭제([RemoteStorageUseCase.delete])에 묶여 남는지 검증하는 단위 테스트. */
@@ -32,7 +28,7 @@ class LastConnectionRecordingTest {
 
     @Test
     fun `연결에 성공하면 그 서버를 마지막 연결 서버로 기록한다`() {
-        runBlocking { RemoteConnectionUseCase(FixedNavigator(ConnectResult.Connected), lastConnection).connectAndNavigate(nas) }
+        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(), lastConnection).connectAndNavigate(nas) }
 
         assertEquals(listOf("set 5"), calls)
     }
@@ -41,8 +37,16 @@ class LastConnectionRecordingTest {
     fun `연결에 실패하면 기록하지 않는다`() {
         val failed = ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
 
-        runBlocking { RemoteConnectionUseCase(FixedNavigator(failed), lastConnection).connectAndNavigate(nas) }
+        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(failed), FakeNavigator(), lastConnection).connectAndNavigate(nas) }
 
+        assertEquals(emptyList<String>(), calls)
+    }
+
+    @Test
+    fun `루트 경로로 이동하지 못하면 기록하지 않고 구현 오류로 실패한다`() {
+        val useCase = RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(NavigateResult.Rejected), lastConnection)
+
+        assertThrows(IllegalStateException::class.java) { runBlocking { useCase.connectAndNavigate(nas) } }
         assertEquals(emptyList<String>(), calls)
     }
 
@@ -62,21 +66,6 @@ class LastConnectionRecordingTest {
         override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
         override fun setLastRemoteId(id: Long?) { calls += "set $id" }
         override fun clearLastRemoteIdIf(id: Long) { calls += "clearIf $id" }
-    }
-
-    /**
-     * 연결 요청에 언제나 [result]로 답하는 가짜 저장소. 탐색 기능은 쓰지 않는다.
-     * @param result 연결 요청에 돌려줄 결과
-     */
-    private class FixedNavigator(private val result: ConnectResult) : RemoteFileNavigatorRepository {
-        override suspend fun connectRemote(item: RemoteStorageItem): ConnectResult = result
-        override suspend fun navigateToRemoteRoot(item: RemoteStorageItem) = Unit
-        override val currentPath: StateFlow<String?> = MutableStateFlow(null)
-        override val listingRequest: StateFlow<ListingRequest?> = MutableStateFlow(null)
-        override val directoryListing: StateFlow<DirectoryListing> = MutableStateFlow(DirectoryListing.NoPath)
-        override suspend fun navigate(path: String) = NavigateResult.Navigated
-        override fun refresh() = Unit
-        override fun getParentPath(path: String): String? = null
     }
 
     /**

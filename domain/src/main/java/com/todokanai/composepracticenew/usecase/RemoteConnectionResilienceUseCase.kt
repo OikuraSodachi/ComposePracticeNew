@@ -22,6 +22,7 @@ class RemoteConnectionResilienceUseCase(
      * 연결은 [RemoteConnectionUseCase.connectAndNavigate]를 거치므로 재연결에 성공해도 같은 id를 마지막 연결 서버로 다시 기록한다(값이 같으면 저장소에 쓰지 않는다).
      * @return 재연결 결과. 저장된 서버 id가 없거나 그 서버 정보가 지워졌으면 [ReconnectResult.NoSavedServer],
      *   설정을 읽지 못했으면 [ReconnectResult.SettingsUnreadable]
+     * @throws IllegalStateException [RemoteConnectionUseCase.connectAndNavigate]가 루트 경로 이동을 거부당했을 때(배선 오류)
      */
     suspend fun reconnectLast(): ReconnectResult {
         val id = when (val saved = lastConnectionRepo.lastRemoteId()) {
