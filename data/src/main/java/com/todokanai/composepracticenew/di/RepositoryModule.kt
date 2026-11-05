@@ -5,8 +5,6 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.datastore.PreferenceFailureNotices
 import com.todokanai.composepracticenew.datasource.ArchiveExtractor
-import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSource
-import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSourceImpl
 import com.todokanai.composepracticenew.datasource.RarArchiveExtractor
 import com.todokanai.composepracticenew.datasource.ZipArchiveExtractor
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -63,9 +61,6 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindStorageRepository(impl: StorageVolumeRepositoryImpl): StorageVolumeRepository
-
-    @Binds
-    abstract fun bindLocalFileOperationDataSource(impl: LocalFileOperationDataSourceImpl): LocalFileOperationDataSource
 
     @Binds
     abstract fun bindFileActionRepository(impl: FileActionRepositoryImpl): FileActionRepository

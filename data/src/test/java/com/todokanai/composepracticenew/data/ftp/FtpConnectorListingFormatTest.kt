@@ -3,6 +3,10 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -20,8 +24,10 @@ class FtpConnectorListingFormatTest {
     private val client = ListingStreamFtpClient()
     /** 연결 상태를 소유한 세션. 서버 스크립트가 응답하지 않을 때 오래 기다리지 않도록 I/O 상한을 짧게 둔다. */
     private val session = FtpSession(client, ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
+    /** Keep-Alive 루프를 돌리는 스코프. 테스트가 끝나면 취소한다. */
+    private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
-    private val keepAlive = FtpKeepAlive(session)
+    private val keepAlive = FtpKeepAlive(session, keepAliveScope)
     /** 검증 대상. */
     private val connector = FtpConnector(session, keepAlive)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
@@ -30,6 +36,7 @@ class FtpConnectorListingFormatTest {
     @After
     fun tearDown() {
         runBlocking { keepAlive.stop() }
+        keepAliveScope.cancel()
         runCatching { client.disconnect() }
         server?.close()
     }

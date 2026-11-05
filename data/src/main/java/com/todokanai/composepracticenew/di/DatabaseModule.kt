@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.di
 
 import android.content.Context
+import androidx.room.Room
 import com.todokanai.composepracticenew.data.room.MyDatabase
 import com.todokanai.composepracticenew.data.room.RemoteStorageInfoDao
 import com.todokanai.composepracticenew.data.room.UserDao
@@ -18,7 +19,9 @@ class DatabaseModule {
     @Singleton
     @Provides
     fun provideMyDatabase(@ApplicationContext context: Context): MyDatabase {
-        return MyDatabase.getInstance(context)
+        return Room.databaseBuilder(context, MyDatabase::class.java, "room_db")
+            .fallbackToDestructiveMigration()
+            .build()
     }
 
     @Provides
