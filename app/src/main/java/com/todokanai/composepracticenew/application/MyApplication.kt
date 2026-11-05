@@ -7,15 +7,14 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
-import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.myobjects.OperationConstants
 import com.todokanai.composepracticenew.service.ConnectionServiceController
+import com.todokanai.composepracticenew.service.ConnectionServicePolicy
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FileOperationServiceController
 import com.todokanai.composepracticenew.service.FtpForegroundService
 import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
-import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -28,7 +27,9 @@ class MyApplication : Application(), ImageLoaderFactory {
 
     @Inject lateinit var progressUseCase: ProgressUseCase
     @Inject lateinit var fileOperationServiceController: FileOperationServiceController
-    @Inject lateinit var connectionStateUseCase: RemoteConnectionStateUseCase
+    /** 연결 유지 서비스를 언제 시작할지 원격 연결 상태에서 정하는 규칙. */
+    @Inject lateinit var connectionServicePolicy: ConnectionServicePolicy
+    /** 연결 유지 서비스를 시작하는 컨트롤러. */
     @Inject lateinit var connectionServiceController: ConnectionServiceController
     @Inject @ApplicationScope lateinit var appScope: CoroutineScope
 
@@ -58,16 +59,12 @@ class MyApplication : Application(), ImageLoaderFactory {
         }
     }
 
-    // 연결돼 있는 동안만 연결 유지 서비스를 실행 — 어느 경로로 연결하든, 전환에 실패해 연결이 없어지든 서비스가 연결 상태와 어긋나지 않는다
+    // 연결되거나 연결한 서버가 바뀔 때마다 연결 유지 서비스를 시작(알림의 서버 이름 갱신) — 어느 경로로 연결하든 서비스가 연결 상태를 따른다.
+    // 멈춤은 서비스가 연결되지 않은 상태를 보고 스스로 한다(startForeground 전에 여기서 멈추면 앱이 종료된다)
     private fun observeRemoteConnection() {
         appScope.launch {
-            connectionStateUseCase.connectionState
-                .map { (it as? RemoteConnectionState.Connected)?.serverName }
-                .distinctUntilChanged()
-                .collect { serverName ->
-                    if (serverName != null) connectionServiceController.start(serverName)
-                    else connectionServiceController.stop()
-                }
+            connectionServicePolicy.startRequests
+                .collect { serverName -> connectionServiceController.start(serverName) }
         }
     }
 

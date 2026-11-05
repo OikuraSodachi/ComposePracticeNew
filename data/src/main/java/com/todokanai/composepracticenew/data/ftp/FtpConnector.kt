@@ -35,8 +35,7 @@ class FtpConnector @Inject constructor(
      * @return 연결 결과
      */
     suspend fun connect(serverName: String, address: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
-        session.beginConnecting()
-        val closeMark = session.closeRequestMark()
+        val closeMark = session.beginConnecting()
         return session.withClient { client ->
             withContext(Dispatchers.IO) {
                 try {
@@ -121,10 +120,11 @@ class FtpConnector @Inject constructor(
 
     /**
      * 현재 연결을 로그아웃 후 해제한다. ioMutex를 우회해 소켓을 즉시 닫으므로 진행 중인 명령이 중단된다.
-     * 이미 미연결 상태이면 아무 동작도 하지 않는다.
+     * 연결 작업 중이면 소켓이 아직 열리지 않았어도 종료를 요청한다 — 그 연결 작업은 어느 단계에서 끝나든 연결 성공이 되지 않는다(앱 종료 뒤에 연결이 남지 않도록).
+     * 연결돼 있지도 연결 작업 중도 아니면 아무 동작도 하지 않는다.
      */
     suspend fun disconnect() = withContext(Dispatchers.IO) {
-        if (!session.isSocketOpen()) return@withContext
+        if (!session.isSocketOpen() && !session.isConnecting.value) return@withContext
         keepAlive.stop()
         session.closeBypassingIoLock()
     }

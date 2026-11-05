@@ -90,6 +90,23 @@ class FtpConnectorCloseRequestTest {
     }
 
     @Test
+    fun `서버에 접속하기 전에 종료를 요청해도 연결 성공으로 알리지 않는다`() {
+        val closer = AtomicReference<Thread?>()
+        client.beforeConnect = {
+            // 소켓을 열기 전, 연결 작업이 잠금을 쥔 채로 앱 종료가 연결 종료를 요청하게 한다 — 닫을 소켓이 아직 없어도 요청은 남아야 한다
+            val mark = session.closeRequestMark()
+            closer.set(thread { runBlocking { connector.disconnect() } })
+            awaitUntil("종료 요청이 기록되지") { session.closeRequestMark() != mark }
+        }
+        val result = connectToListServer { exchange -> sendListing(exchange, "a.txt") }
+        closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
+
+        assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
+        assertFalse(runBlocking { session.isReady() })
+        assertFalse(client.isConnected)
+    }
+
+    @Test
     fun `목록을 받는 중 종료를 요청하면 데이터 연결까지 리셋해 명령을 연결 끊김으로 끝낸다`() {
         val dataResetByClient = AtomicBoolean(false)
         val closer = AtomicReference<Thread?>()
@@ -205,12 +222,19 @@ class FtpConnectorCloseRequestTest {
     private class InterceptingFtpClient : ListingStreamFtpClient() {
         /** 명령을 보내기 직전에 실행할 동작. 보낼 명령 이름을 받는다. 명령을 보내는 스레드에서 실행된다. */
         @Volatile var beforeCommand: (String) -> Unit = {}
+        /** 서버에 접속(소켓 열기)하기 직전에 실행할 동작. 연결 작업의 스레드에서 실행된다. */
+        @Volatile var beforeConnect: () -> Unit = {}
         /** 제어 연결 소켓이 닫혔는지(소켓이 없으면 닫힌 것으로 본다). */
         val isControlSocketClosed: Boolean get() = _socket_?.isClosed ?: true
 
         override fun sendCommand(command: String, args: String?): Int {
             beforeCommand(command)
             return super.sendCommand(command, args)
+        }
+
+        override fun connect(hostname: String, port: Int) {
+            beforeConnect()
+            super.connect(hostname, port)
         }
     }
 }

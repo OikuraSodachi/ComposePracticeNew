@@ -171,10 +171,13 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
     /**
      * 새 연결 작업을 시작한다. 연결 상태는 이전 세션이 연결돼 있었든 끊겼든 [RemoteConnectionState.Disconnected]로 둔다 —
      * 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도([markConnectionDropped]) 그건 새 연결의 끊김이 아니므로 [RemoteConnectionState.Lost]가 되지 않는다.
+     * 종료 요청 표지를 연결 작업 표시와 같은 잠금 안에서 읽는다 — 연결 작업으로 보인 뒤에 온 종료 요청([closeBypassingIoLock])은 모두 [markLoggedIn]이 알아챈다.
+     * @return 연결 작업이 [markLoggedIn]에 넘길 종료 요청 표지
      */
-    internal suspend fun beginConnecting() = stateMutex.withLock {
+    internal suspend fun beginConnecting(): Int = stateMutex.withLock {
         _isConnecting.value = true
         _connectionState.value = RemoteConnectionState.Disconnected
+        bypassCloseRequests.get()
     }
 
     /** 연결 작업이 끝났음을 기록한다. */
@@ -222,7 +225,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 중단으로 닫는다(업로드가 서버에 파일 끝으로 읽히지 않도록) — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
      * 그 명령은 IOException을 받아 자기 잠금 안에서 세션을 정리하고, 이 함수는 ioMutex를 얻은 뒤 남은 연결을 닫는다.
      * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn]), 소켓을 닫기 전에 요청을 기록한다.
-     * 호출 전 소켓이 열려 있는지 [isSocketOpen]으로 확인해야 한다.
+     * 호출 전 소켓이 열려 있거나([isSocketOpen]) 연결 작업 중인지([isConnecting]) 확인해야 한다.
      */
     internal suspend fun closeBypassingIoLock() {
         stateMutex.withLock {
