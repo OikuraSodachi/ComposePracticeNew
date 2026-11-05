@@ -2,12 +2,13 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
-import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
-import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.defaultParentPath
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 로컬 파일 시스템만 탐색하는 FileNavigatorRepository 구현체. 원격 스토리지 의존성이 없다.
@@ -23,15 +24,25 @@ class LocalFileExplorerRepositoryImpl(
     appScope: CoroutineScope,
     private val localFiles: LocalFileDataSource,
     initialPath: String? = null
-) : BaseFileExplorerRepository(converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000), initialPath) {
+) : FileNavigatorRepository {
 
-    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = localFiles.listFiles(path)
+    /** 현재 경로와 목록 조회 상태. 목록은 로컬 디렉터리에서 읽는다. */
+    private val navigation = DirectoryListingNavigation(
+        converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000), initialPath,
+        listFiles = localFiles::listFiles
+    )
+
+    override val currentPath: StateFlow<String?> = navigation.currentPath
+    override val listingRequest: StateFlow<ListingRequest?> = navigation.listingRequest
+    override val directoryListing: StateFlow<DirectoryListing> = navigation.directoryListing
+
+    override fun refresh() = navigation.refresh()
 
     override fun getParentPath(path: String): String? = defaultParentPath(path)
 
     override suspend fun navigate(path: String): NavigateResult {
         if (!localFiles.canRead(path)) return NavigateResult.Rejected
-        navigateTo(path)
+        navigation.navigateTo(path)
         return NavigateResult.Navigated
     }
 }
