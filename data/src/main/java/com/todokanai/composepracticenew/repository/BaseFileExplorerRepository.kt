@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.fileexplorer.FileEntry
-import com.todokanai.fileexplorer.StorageRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -31,12 +30,16 @@ abstract class BaseFileExplorerRepository(
     appScope: CoroutineScope,
     started: SharingStarted,
     initialPath: String? = null
-) : StorageRepository(), FileNavigatorRepository {
+) : FileNavigatorRepository {
 
     private companion object {
         /** 예상하지 못한 목록 조회 오류를 기록할 로그 태그. */
         const val TAG = "FileExplorerRepo"
     }
+
+    /** 현재 경로의 변경 가능한 원본. [navigateTo]로만 바꾼다. */
+    private val _currentPath = MutableStateFlow<String?>(null)
+    override val currentPath: StateFlow<String?> = _currentPath.asStateFlow()
 
     /** 요청마다 증가시켜 같은 경로의 요청도 서로 구분되게 하는 세대 번호. */
     private val generation = AtomicLong(0L)
@@ -62,9 +65,13 @@ abstract class BaseFileExplorerRepository(
      */
     protected abstract suspend fun listFiles(path: String): IoResult<List<FileEntry>>
 
-    /** 경로를 바꾸고, 같은 경로라도 새 목록 조회 요청을 만든다. */
-    override fun navigateTo(path: String?) {
-        super.navigateTo(path)
+    /**
+     * 검증 없이 경로를 [path]로 바꾸고, 같은 경로라도 새 목록 조회 요청을 만든다. null이면 경로와 요청을 비운다.
+     * 하위 클래스가 검증을 마친 이동 진입점([navigate] 등)에서만 부르도록 protected로 둔다.
+     * @param path 이동할 디렉터리 경로. null이면 경로 없음
+     */
+    protected fun navigateTo(path: String?) {
+        _currentPath.value = path
         _listingRequest.value = path?.let { newRequest(it) }
     }
 

@@ -18,18 +18,14 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
-import com.todokanai.fileexplorer.FileEntry
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
 
 /** 현재 경로·조회 요청과 목록 조회 상태를 테스트가 정하는 테스트용 탐색 저장소. */
 internal class FakeNavigator : FileNavigatorRepository {
     override val currentPath = MutableStateFlow<String?>(null)
-    override val dirTree: Flow<List<FileEntry>> = emptyFlow()
     override val listingRequest = MutableStateFlow<ListingRequest?>(null)
     override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
     private var generation = 0L

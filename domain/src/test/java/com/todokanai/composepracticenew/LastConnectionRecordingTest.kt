@@ -12,7 +12,6 @@ import com.todokanai.composepracticenew.repository.RemoteFileNavigatorRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -73,7 +72,6 @@ class LastConnectionRecordingTest {
         override suspend fun connectRemote(item: RemoteStorageItem): ConnectResult = result
         override suspend fun navigateToRemoteRoot(item: RemoteStorageItem) = Unit
         override val currentPath: StateFlow<String?> = MutableStateFlow(null)
-        override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest: StateFlow<ListingRequest?> = MutableStateFlow(null)
         override val directoryListing: StateFlow<DirectoryListing> = MutableStateFlow(DirectoryListing.NoPath)
         override suspend fun navigate(path: String) = NavigateResult.Navigated

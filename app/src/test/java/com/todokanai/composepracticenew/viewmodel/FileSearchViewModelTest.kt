@@ -15,13 +15,11 @@ import com.todokanai.composepracticenew.ui.model.SearchUiState
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
@@ -298,7 +296,6 @@ class FileSearchViewModelTest {
         val rejected = mutableSetOf<String>()
 
         override val currentPath = MutableStateFlow<String?>(null)
-        override val dirTree: Flow<List<FileEntry>> = emptyFlow()
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
 

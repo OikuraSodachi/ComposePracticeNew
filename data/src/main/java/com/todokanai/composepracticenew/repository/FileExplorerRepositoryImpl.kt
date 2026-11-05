@@ -44,8 +44,6 @@ class FileExplorerRepositoryImpl(
         fileSystems.firstOrNull { it.handles(path) }
             ?: null.also { Log.w(TAG, "No file system handles path: $path") }
 
-    override fun getParent(path: String): String? = resolveFileSystem(path)?.getParent(path)
-
     override suspend fun listFiles(path: String): IoResult<List<FileEntry>> {
         Log.d(TAG, "fileList 갱신 — path=$path")
         val fileSystem = resolveFileSystem(path) ?: return IoResult.ItemFailed(UNSUPPORTED_PATH_MESSAGE)
@@ -54,7 +52,7 @@ class FileExplorerRepositoryImpl(
         }
     }
 
-    override fun getParentPath(path: String): String? = getParent(path)
+    override fun getParentPath(path: String): String? = resolveFileSystem(path)?.getParent(path)
 
     override suspend fun navigate(path: String): NavigateResult {
         val resolved = resolveFileSystem(path)?.resolveNavigationPath(path) ?: return NavigateResult.Rejected
