@@ -1,11 +1,10 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -16,13 +15,13 @@ import javax.inject.Singleton
  * 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다.
  * 세션과 수명을 맞추기 위해 @Singleton — 어디서 주입하든 같은 NOOP 루프를 시작·중단한다.
  * @param session NOOP 전송과 연결 끊김 처리를 위임할 FTP 세션
+ * @param scope NOOP 루프를 실행할 앱 수명 코루틴 스코프. 루프는 화면이 아니라 세션에 묶이므로 앱 스코프에서 돈다
  */
 @Singleton
 class FtpKeepAlive @Inject constructor(
-    private val session: FtpSession
+    private val session: FtpSession,
+    @ApplicationScope private val scope: CoroutineScope
 ) {
-    /** NOOP 루프를 실행하는 세션 독립 코루틴 스코프. */
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /** 실행 중인 NOOP 루프 Job. 중단 상태이면 null. */
     private var job: Job? = null
 

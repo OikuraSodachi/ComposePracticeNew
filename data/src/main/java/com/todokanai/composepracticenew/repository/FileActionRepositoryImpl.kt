@@ -1,24 +1,34 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.datasource.LocalFileOperationDataSource
+import com.todokanai.composepracticenew.datasource.LocalArchiveExtraction
+import com.todokanai.composepracticenew.datasource.LocalEntryMutator
+import com.todokanai.composepracticenew.datasource.LocalTreeTransfer
+import com.todokanai.composepracticenew.datasource.LocalZipCompressor
 import com.todokanai.composepracticenew.model.ProgressState
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * FileActionRepository를 LocalFileOperationDataSource에 위임하는 얇은 어댑터.
- * @param dataSource 실제 로컬 I/O를 수행하는 LocalFileOperationDataSource 구현체
+ * 로컬 파일 시스템에서 FileActionRepository 작업을 작업 단위 구현에 나눠 맡기는 저장소.
+ * 스토리지 백엔드는 FileActionRepository 바인딩으로 바꾼다.
+ * @param treeTransfer 복사·이동을 수행하는 LocalTreeTransfer
+ * @param zipCompressor ZIP 압축을 수행하는 LocalZipCompressor
+ * @param archiveExtraction 형식별 압축 해제를 조율하는 LocalArchiveExtraction
+ * @param entryMutator 이름변경·삭제·폴더 생성을 수행하는 LocalEntryMutator
  */
 @Singleton
 class FileActionRepositoryImpl @Inject constructor(
-    private val dataSource: LocalFileOperationDataSource
+    private val treeTransfer: LocalTreeTransfer,
+    private val zipCompressor: LocalZipCompressor,
+    private val archiveExtraction: LocalArchiveExtraction,
+    private val entryMutator: LocalEntryMutator
 ) : FileActionRepository {
-    override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = dataSource.zipAction(targetFiles, zipFile, onProgress)
-    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = dataSource.copyAction(targetFiles, targetPath, onProgress)
-    override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = dataSource.renameFile(targetFile, newName, overwrite)
-    override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = dataSource.deleteFile(targetFile, onProgress)
-    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = dataSource.moveFile(targetFiles, targetPath, onProgress)
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = dataSource.unzipAction(zipFiles, destPath, unzipHere, onProgress)
-    override fun canExtract(path: String) = dataSource.canExtract(path)
-    override suspend fun makeDirectory(parentPath: String, name: String) = dataSource.makeDirectory(parentPath, name)
+    override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = zipCompressor.zip(targetFiles, zipFile, onProgress)
+    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = treeTransfer.copy(targetFiles, targetPath, onProgress)
+    override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = entryMutator.rename(targetFile, newName, overwrite)
+    override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFile, onProgress)
+    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = treeTransfer.move(targetFiles, targetPath, onProgress)
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = archiveExtraction.unzip(zipFiles, destPath, unzipHere, onProgress)
+    override fun canExtract(path: String) = archiveExtraction.canExtract(path)
+    override suspend fun makeDirectory(parentPath: String, name: String) = entryMutator.makeDirectory(parentPath, name)
 }
