@@ -123,10 +123,21 @@ class FtpConnector @Inject constructor(
      * 연결 작업 중이면 소켓이 아직 열리지 않았어도 종료를 요청한다 — 그 연결 작업은 어느 단계에서 끝나든 연결 성공이 되지 않는다(앱 종료 뒤에 연결이 남지 않도록).
      * 연결돼 있지도 연결 작업 중도 아니면 아무 동작도 하지 않는다.
      */
-    suspend fun disconnect() = withContext(Dispatchers.IO) {
+    suspend fun disconnect() = close(FtpSession.CloseKind.REQUESTED)
+
+    /**
+     * 앱이 연결을 더 유지할 수 없어 현재 연결을 [disconnect]와 같이 해제한다. 사용자가 요청한 종료가 아니므로 연결돼 있었으면 끊김으로 남는다.
+     */
+    suspend fun drop() = close(FtpSession.CloseKind.DROPPED)
+
+    /**
+     * 연결돼 있거나 연결 작업 중이면 Keep-Alive를 멈추고 진행 중 I/O를 기다리지 않고 연결을 닫는다.
+     * @param kind 이 종료를 연결 상태에 어떻게 남길지
+     */
+    private suspend fun close(kind: FtpSession.CloseKind) = withContext(Dispatchers.IO) {
         if (!session.isSocketOpen() && !session.isConnecting.value) return@withContext
         keepAlive.stop()
-        session.closeBypassingIoLock()
+        session.closeBypassingIoLock(kind)
     }
 
     companion object {

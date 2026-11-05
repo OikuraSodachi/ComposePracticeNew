@@ -25,6 +25,12 @@ interface RemoteConnectionRepository {
     suspend fun disconnect()
 
     /**
+     * 앱이 연결을 더 유지할 수 없어(시스템의 백그라운드 실행 한도 등) 서버와의 연결을 종료한다.
+     * 사용자가 요청한 종료가 아니므로 연결돼 있었으면 [RemoteConnectionState.Lost]로 남는다 — 끊긴 세션에 기대는 상태를 버리도록.
+     */
+    suspend fun drop()
+
+    /**
      * [item] 서버의 루트 디렉터리를 가리키는 경로(스킴 포함)를 반환한다.
      * @param item 원격 스토리지 접속 정보
      * @return 탐색 가능한 루트 경로 문자열. 원격 탐색 저장소가 다루는 경로 형식이어야 한다(어긋나면 배선 오류)

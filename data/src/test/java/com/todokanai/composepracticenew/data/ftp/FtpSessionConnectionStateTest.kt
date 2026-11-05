@@ -35,6 +35,22 @@ class FtpSessionConnectionStateTest {
     }
 
     @Test
+    fun `앱이 연결을 더 유지할 수 없어 끝낸 세션은 끊김으로 남는다`() = runBlocking {
+        session.closeBypassingIoLock(FtpSession.CloseKind.DROPPED)
+
+        assertEquals(RemoteConnectionState.Lost, session.connectionState.value)
+    }
+
+    @Test
+    fun `이미 종료한 세션을 끊김으로 끝내도 끊김이 아니다`() = runBlocking {
+        session.closeBypassingIoLock()
+
+        session.closeBypassingIoLock(FtpSession.CloseKind.DROPPED)
+
+        assertEquals(RemoteConnectionState.Disconnected, session.connectionState.value)
+    }
+
+    @Test
     fun `앱이 종료한 뒤 진행 중이던 명령이 실패해도 끊김으로 바뀌지 않는다`() = runBlocking {
         session.closeBypassingIoLock()
 

@@ -37,6 +37,8 @@ class FtpRepositoryImpl @Inject constructor(
 
     override suspend fun disconnect() { connector.disconnect() }
 
+    override suspend fun drop() { connector.drop() }
+
     override fun rootPathOf(item: RemoteStorageItem): String =
         FTP_SCHEME + item.address.removePrefix(FTP_SCHEME)
 

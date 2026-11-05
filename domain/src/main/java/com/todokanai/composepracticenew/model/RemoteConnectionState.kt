@@ -15,6 +15,6 @@ sealed interface RemoteConnectionState {
      */
     data class Connected(val serverName: String) : RemoteConnectionState
 
-    /** 연결된 세션이 앱의 요청 없이 끊겼다(서버 종료·응답 없음 등). 다음 연결 시도나 종료 요청까지 유지된다. */
+    /** 연결된 세션이 사용자의 요청 없이 끝났다(서버 종료·응답 없음·시스템의 백그라운드 실행 한도 등). 다음 연결 시도나 종료 요청까지 유지된다. */
     data object Lost : RemoteConnectionState
 }

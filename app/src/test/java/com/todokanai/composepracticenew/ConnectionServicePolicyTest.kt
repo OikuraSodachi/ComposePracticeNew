@@ -86,6 +86,13 @@ class ConnectionServicePolicyTest {
         assertTrue(stop.isCompleted)
     }
 
+    @Test
+    fun `보호가 끝나면 연결을 끊김으로 종료한다`() = runTest(UnconfinedTestDispatcher()) {
+        policy.endProtection()
+
+        assertEquals(RemoteConnectionState.Lost, connection.connectionState.value)
+    }
+
     /** 시작 요청을 테스트가 끝날 때까지 모아 담는 목록을 돌려준다. */
     private fun TestScope.collectStartRequests(): List<String> {
         val requests = mutableListOf<String>()

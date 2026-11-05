@@ -12,21 +12,20 @@ import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.service.ConnectionServicePolicy
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FileOperationServiceController
+import com.todokanai.composepracticenew.service.FileOperationServicePolicy
 import com.todokanai.composepracticenew.service.FtpForegroundService
 import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
-import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltAndroidApp
 class MyApplication : Application(), ImageLoaderFactory {
 
-    @Inject lateinit var progressUseCase: ProgressUseCase
     @Inject lateinit var fileOperationServiceController: FileOperationServiceController
+    /** 파일 작업 보호 서비스를 언제 시작할지 진행 상태에서 정하는 규칙. */
+    @Inject lateinit var fileOperationServicePolicy: FileOperationServicePolicy
     /** 연결 유지 서비스를 언제 시작할지 원격 연결 상태에서 정하는 규칙. */
     @Inject lateinit var connectionServicePolicy: ConnectionServicePolicy
     /** 연결 유지 서비스를 시작하는 컨트롤러. */
@@ -46,16 +45,12 @@ class MyApplication : Application(), ImageLoaderFactory {
             .components { addThumbnailComponents() }
             .build()
 
-    // progressMap이 비어있지 않을 때 서비스 시작, 비워지면 종료 — appScope로 앱 생명주기 동안 유지
+    // 진행 중인 작업이 생길 때마다 서비스 시작 — appScope로 앱 생명주기 동안 유지.
+    // 멈춤은 서비스가 작업이 없어진 것을 보고 스스로 한다(startForeground 전에 여기서 멈추면 앱이 종료된다)
     private fun observeFileOperations() {
         appScope.launch {
-            progressUseCase.progressMap
-                .map { it.isNotEmpty() }
-                .distinctUntilChanged()
-                .collect { hasActive ->
-                    if (hasActive) fileOperationServiceController.start()
-                    else fileOperationServiceController.stop()
-                }
+            fileOperationServicePolicy.startRequests
+                .collect { fileOperationServiceController.start() }
         }
     }
 
