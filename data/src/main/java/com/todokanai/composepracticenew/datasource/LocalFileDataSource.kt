@@ -11,7 +11,7 @@ import javax.inject.Singleton
 
 /**
  * java.io.File API로 로컬 디렉터리의 자식 목록을 읽어 FileEntry 리스트로 반환하는 데이터 소스.
- * java.io에 묶인 세부 구현이라 인터페이스를 두지 않는다 — 목록 조회 방식(SAF 등)을 바꾸는 지점은 PathAwareFileSystem 바인딩이다.
+ * java.io에 묶인 세부 구현이라 인터페이스를 두지 않는다 — 로컬 접근 방식(SAF 등)을 바꾸는 지점은 이를 쓰는 저장소 바인딩이다(목록: PathAwareFileSystem, 검색: FileSearchRepository).
  */
 @Singleton
 class LocalFileDataSource @Inject constructor() {
