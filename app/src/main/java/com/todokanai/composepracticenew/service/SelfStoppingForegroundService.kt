@@ -35,6 +35,9 @@ abstract class SelfStoppingForegroundService : Service() {
         stopWatch?.cancel()
         if (!enterForegroundUnlessRefused(intent)) {
             stopWatch = null
+            // 이론상: 이미 포그라운드인 서비스에서 뒤 요청의 startForeground가 거부되면, 이 startId가 가장 최근 것이라
+            // 앞 요청으로 보호를 받아 진행 중인 작업이 있어도 서비스가 멈춰 그 작업은 알림 없이 보호를 잃는다.
+            // 재호출이 실제로 거부되는지는 플랫폼 동작에 달려 있어 확인하지 못했으며, 대응하지 않기로 했다(PR #298 리뷰, won't fix)
             stopSelf(startId)
             onStartRefused(intent)
             return START_NOT_STICKY

@@ -85,7 +85,9 @@ class OperationProtectionGateTest {
 
     /** [result]가 정해질 때까지 기다렸다가 그 결과를 돌려주는 테스트용 작업 보호. 요청 수를 센다. */
     private class GatedProtection : OperationProtection {
+        /** 테스트가 정하는 보호 결과. 정해질 때까지 acquire가 기다린다. */
         val result = CompletableDeferred<IoResult<Unit>>()
+        /** acquire가 불린 횟수. */
         var requests = 0
         override suspend fun acquire(): IoResult<Unit> {
             requests++

@@ -17,8 +17,12 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class FileOperationProtectionTest {
 
-    /** 보낸 시작 요청의 id를 기록하고, [accepts]에 따라 요청을 받아들이거나 거부하는 테스트용 컨트롤러. */
+    /**
+     * 보낸 시작 요청의 id를 기록하고, [accepts]에 따라 요청을 받아들이거나 거부하는 테스트용 컨트롤러.
+     * @param accepts 시작 요청을 받아들일지(false면 시스템 거부처럼 false를 돌려준다)
+     */
     private class RecordingController(var accepts: Boolean = true) : FileOperationServiceController {
+        /** 받은 시작 요청 id(보낸 순서). */
         val requests = mutableListOf<Int>()
         override fun start(requestId: Int): Boolean {
             requests += requestId
@@ -26,6 +30,7 @@ class FileOperationProtectionTest {
         }
     }
 
+    /** 시작 요청을 기록하는 테스트용 컨트롤러. */
     private val controller = RecordingController()
 
     /** 검증 대상 작업 보호. */
