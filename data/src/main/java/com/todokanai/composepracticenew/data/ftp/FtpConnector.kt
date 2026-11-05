@@ -26,6 +26,7 @@ class FtpConnector @Inject constructor(
      * 로그인한 뒤 목록을 해석할 수 없는 서버([FtpListingFormat.isReadable])면 어느 폴더도 볼 수 없으므로 연결을 종료하고 실패로 알린다.
      * 연결하는 동안 앱이 종료를 요청했으면([FtpSession.closeBypassingIoLock]) 어느 단계에서 끝났든 실패로 알린다.
      * 실패하면 소켓을 닫아 연결을 남기지 않는다.
+     * @param serverName 연결할 서버의 표시 이름. 연결되면 연결 상태([FtpSession.connectionState])에 담긴다
      * @param address 서버 호스트명 또는 IP (ftp:// 접두사 포함 가능)
      * @param port FTP 포트 (기본 21)
      * @param userId FTP 로그인 아이디
@@ -33,9 +34,8 @@ class FtpConnector @Inject constructor(
      * @param encoding 컨트롤 채널 문자 인코딩 (예: UTF-8, EUC-KR)
      * @return 연결 결과
      */
-    suspend fun connect(address: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
-        session.beginConnecting()
-        val closeMark = session.closeRequestMark()
+    suspend fun connect(serverName: String, address: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
+        val closeMark = session.beginConnecting()
         return session.withClient { client ->
             withContext(Dispatchers.IO) {
                 try {
@@ -46,7 +46,7 @@ class FtpConnector @Inject constructor(
                         session.markLoggedOut()
                     }
                     val established = establish(client, server, port, userId, password, encoding)
-                    val result = if (established == ConnectResult.Connected) markLoggedIn(client, closeMark) else established
+                    val result = if (established == ConnectResult.Connected) markLoggedIn(client, closeMark, serverName) else established
                     if (result == ConnectResult.Connected) keepAlive.start() else closeQuietly(client)
                     result
                 } catch (e: IOException) {
@@ -65,12 +65,13 @@ class FtpConnector @Inject constructor(
      * 종료 요청이 연결 작업과 겹쳤으면 그 연결은 쓸 수 있어 보여도 종료 요청을 따른다.
      * @param client 쓸 수 있는 연결을 연 FTPClient
      * @param closeMark 연결 작업을 시작할 때 읽은 종료 요청 표지([FtpSession.closeRequestMark])
+     * @param serverName 연결한 서버의 표시 이름
      * @return 전환했으면 [ConnectResult.Connected], 그 사이 종료가 요청됐으면 실패
      * @throws java.io.IOException PWD 응답을 읽지 못한 경우
      */
-    private suspend fun markLoggedIn(client: FTPClient, closeMark: Int): ConnectResult {
+    private suspend fun markLoggedIn(client: FTPClient, closeMark: Int, serverName: String): ConnectResult {
         val home = client.printWorkingDirectory()
-        return if (session.markLoggedIn(closeMark, home)) ConnectResult.Connected else ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
+        return if (session.markLoggedIn(closeMark, home, serverName)) ConnectResult.Connected else ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
     }
 
     /**
@@ -119,10 +120,11 @@ class FtpConnector @Inject constructor(
 
     /**
      * 현재 연결을 로그아웃 후 해제한다. ioMutex를 우회해 소켓을 즉시 닫으므로 진행 중인 명령이 중단된다.
-     * 이미 미연결 상태이면 아무 동작도 하지 않는다.
+     * 연결 작업 중이면 소켓이 아직 열리지 않았어도 종료를 요청한다 — 그 연결 작업은 어느 단계에서 끝나든 연결 성공이 되지 않는다(앱 종료 뒤에 연결이 남지 않도록).
+     * 연결돼 있지도 연결 작업 중도 아니면 아무 동작도 하지 않는다.
      */
     suspend fun disconnect() = withContext(Dispatchers.IO) {
-        if (!session.isSocketOpen()) return@withContext
+        if (!session.isSocketOpen() && !session.isConnecting.value) return@withContext
         keepAlive.stop()
         session.closeBypassingIoLock()
     }

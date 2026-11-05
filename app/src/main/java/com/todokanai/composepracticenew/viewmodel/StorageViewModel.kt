@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
-import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -29,7 +28,6 @@ import javax.inject.Inject
  * @param storageVolumeUseCase 로컬 스토리지 볼륨 목록을 제공하는 UseCase
  * @param remoteStorageUseCase 원격 접속 정보를 관리하는 UseCase
  * @param remoteConnectionUseCase 원격 연결과 루트 이동을 수행하는 UseCase
- * @param connectionServiceController 연결 유지 ForegroundService를 제어하는 컨트롤러
  * @param connectionStateUseCase 원격 연결 진행 상태를 제공하는 UseCase
  * @param localNavigator 선택한 로컬 스토리지 루트로 이동하는 UseCase
  */
@@ -38,7 +36,6 @@ class StorageViewModel @Inject constructor(
     storageVolumeUseCase: StorageVolumeUseCase,
     private val remoteStorageUseCase: RemoteStorageUseCase,
     private val remoteConnectionUseCase: RemoteConnectionUseCase,
-    private val connectionServiceController: ConnectionServiceController,
     connectionStateUseCase: RemoteConnectionStateUseCase,
     private val localNavigator: FileNavigatorUseCase
 ) : ViewModel() {
@@ -126,7 +123,7 @@ class StorageViewModel @Inject constructor(
     }
 
     /**
-     * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 ForegroundService를 시작하고 connectionSucceeded를 emit한다.
+     * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 connectionSucceeded를 emit한다.
      * 실패하면 이유에 맞게 [connectionFailed]를 emit하거나 [unreadableServer]를 true로 만든다.
      * 이미 연결 작업이 진행 중이면 무시한다. 작업이 끝날 때까지 [isConnecting]이 true로 유지된다.
      */
@@ -137,10 +134,7 @@ class StorageViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 when (val result = remoteConnectionUseCase.connectAndNavigate(item.toDomain())) {
-                    ConnectResult.Connected -> {
-                        connectionServiceController.start(item.name)
-                        _connectionSucceeded.tryEmit(Unit)
-                    }
+                    ConnectResult.Connected -> _connectionSucceeded.tryEmit(Unit)
                     is ConnectResult.Failed -> connectFailureNotice.report(result.reason)
                 }
             } finally {

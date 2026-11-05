@@ -33,7 +33,7 @@ class FtpRepositoryImpl @Inject constructor(
     override val connectionState: StateFlow<RemoteConnectionState> = session.connectionState
 
     override suspend fun connect(item: RemoteStorageItem): ConnectResult =
-        connector.connect(item.address, item.port, item.userId, item.password, item.encoding)
+        connector.connect(item.name, item.address, item.port, item.userId, item.password, item.encoding)
 
     override suspend fun disconnect() { connector.disconnect() }
 

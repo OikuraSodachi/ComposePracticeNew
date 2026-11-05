@@ -44,14 +44,14 @@ class ConnectionLostNoticeTest {
     fun `연결된 세션이 끊기면 알린다`() = runTest {
         val viewModel = createViewModel()
 
-        connection.connectionState.value = RemoteConnectionState.LOST
+        connection.connectionState.value = RemoteConnectionState.Lost
 
         assertNotNull(withTimeoutOrNull(1_000) { viewModel.connectionLost.first() })
     }
 
     @Test
     fun `앱을 열 때 이미 끊겨 있던 세션은 알리지 않는다`() = runTest {
-        connection.connectionState.value = RemoteConnectionState.LOST
+        connection.connectionState.value = RemoteConnectionState.Lost
 
         val viewModel = createViewModel()
 
@@ -62,7 +62,7 @@ class ConnectionLostNoticeTest {
     fun `앱이 연결을 종료하면 알리지 않는다`() = runTest {
         val viewModel = createViewModel()
 
-        connection.connectionState.value = RemoteConnectionState.DISCONNECTED
+        connection.connectionState.value = RemoteConnectionState.Disconnected
 
         assertNull(withTimeoutOrNull(1_000) { viewModel.connectionLost.first() })
     }

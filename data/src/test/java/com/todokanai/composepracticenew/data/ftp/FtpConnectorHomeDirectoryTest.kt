@@ -63,6 +63,6 @@ class FtpConnectorHomeDirectoryTest {
      */
     private fun connectTo(script: Map<String, (ScriptedFtpServer.Exchange) -> Unit>): ConnectResult {
         val scripted = ScriptedFtpServer(script).also { server = it }
-        return runBlocking { connector.connect(scripted.host, scripted.port, "user", "password", "UTF-8") }
+        return runBlocking { connector.connect("server", scripted.host, scripted.port, "user", "password", "UTF-8") }
     }
 }

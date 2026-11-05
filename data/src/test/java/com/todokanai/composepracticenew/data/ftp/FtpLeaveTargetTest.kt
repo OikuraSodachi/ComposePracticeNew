@@ -119,5 +119,5 @@ class FtpLeaveTargetTest {
      * 세션을 로그인 완료 상태로 만든다. 로그인 직후 세션은 홈에 있다.
      * @param home 서버가 알려준 로그인 홈. null이면 서버가 알려주지 않은 경우다
      */
-    private fun loggedIn(home: String? = null) = runBlocking { session.markLoggedIn(session.closeRequestMark(), home) }
+    private fun loggedIn(home: String? = null) = runBlocking { session.markLoggedIn(session.closeRequestMark(), home, serverName = "server") }
 }
