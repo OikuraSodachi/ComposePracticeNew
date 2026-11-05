@@ -122,10 +122,7 @@ class StorageViewModel @Inject constructor(
     /** 원격 스토리지 접속 정보를 삭제한다. 연결 작업이 진행 중이면 무시한다 — 삭제한 서버로 연결이 이어지거나 그 id가 마지막 연결 서버로 저장되지 않게 한다. */
     fun deleteRemoteStorage(item: RemoteStorageItem) {
         if (connectInProgress.value) return
-        viewModelScope.launch {
-            remoteStorageUseCase.delete(item.toDomain())
-            remoteStorageUseCase.clearLastConnectedIfMatches(item.id)
-        }
+        viewModelScope.launch { remoteStorageUseCase.delete(item.toDomain()) }
     }
 
     /**
@@ -141,7 +138,6 @@ class StorageViewModel @Inject constructor(
             try {
                 when (val result = remoteConnectionUseCase.connectAndNavigate(item.toDomain())) {
                     ConnectResult.Connected -> {
-                        remoteStorageUseCase.saveLastConnectedId(item.id)
                         connectionServiceController.start(item.name)
                         _connectionSucceeded.tryEmit(Unit)
                     }
