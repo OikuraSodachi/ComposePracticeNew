@@ -26,14 +26,16 @@ class LastConnectionRecordingTest {
 
     /** 검증에 쓰는 접속 정보. */
     private val nas = RemoteStorageItem(id = 5L, name = "nas", address = "192.168.0.1", port = 21, userId = "", password = "")
-    /** 기록·정리 요청을 받은 순서대로 쌓는 가짜 저장소. */
-    private val lastConnection = RecordingLastConnection()
+    /** 가짜 저장소들이 받은 요청. 저장소를 가리지 않고 받은 순서대로 쌓아, 저장소 사이의 호출 순서를 검증한다. */
+    private val calls = mutableListOf<String>()
+    /** 기록·정리 요청을 [calls]에 쌓는 가짜 저장소. */
+    private val lastConnection = RecordingLastConnection(calls)
 
     @Test
     fun `연결에 성공하면 그 서버를 마지막 연결 서버로 기록한다`() {
         runBlocking { RemoteConnectionUseCase(FixedNavigator(ConnectResult.Connected), lastConnection).connectAndNavigate(nas) }
 
-        assertEquals(listOf("set 5"), lastConnection.calls)
+        assertEquals(listOf("set 5"), calls)
     }
 
     @Test
@@ -42,21 +44,22 @@ class LastConnectionRecordingTest {
 
         runBlocking { RemoteConnectionUseCase(FixedNavigator(failed), lastConnection).connectAndNavigate(nas) }
 
-        assertEquals(emptyList<String>(), lastConnection.calls)
+        assertEquals(emptyList<String>(), calls)
     }
 
     @Test
-    fun `접속 정보를 지우면 그 서버를 가리키는 기록도 지운다`() {
-        runBlocking { RemoteStorageUseCase(NoOpRemoteStorageRepository, lastConnection).delete(nas) }
+    fun `접속 정보를 지운 뒤에 그 서버를 가리키는 기록을 지운다`() {
+        runBlocking { RemoteStorageUseCase(RecordingRemoteStorage(calls), lastConnection).delete(nas) }
 
-        assertEquals(listOf("clearIf 5"), lastConnection.calls)
+        // 순서까지 본다 — 기록을 먼저 지우면 삭제가 실패했을 때 남은 서버로 재연결하지 못한다
+        assertEquals(listOf("delete 5", "clearIf 5"), calls)
     }
 
-    /** 마지막 연결 서버의 기록·정리 요청을 받은 순서대로 기록하는 가짜 저장소. 읽기는 쓰지 않는다. */
-    private class RecordingLastConnection : LastConnectionRepository {
-        /** 받은 요청. 받은 순서대로 쌓는다. */
-        val calls = mutableListOf<String>()
-
+    /**
+     * 마지막 연결 서버의 기록·정리 요청을 [calls]에 쌓는 가짜 저장소. 읽기는 쓰지 않는다.
+     * @param calls 받은 요청을 쌓을 목록
+     */
+    private class RecordingLastConnection(private val calls: MutableList<String>) : LastConnectionRepository {
         override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
         override fun setLastRemoteId(id: Long?) { calls += "set $id" }
         override fun clearLastRemoteIdIf(id: Long) { calls += "clearIf $id" }
@@ -78,11 +81,14 @@ class LastConnectionRecordingTest {
         override fun getParentPath(path: String): String? = null
     }
 
-    /** 삭제 요청을 받기만 하는, 아무 동작도 하지 않는 테스트용 접속 정보 저장소. */
-    private object NoOpRemoteStorageRepository : RemoteStorageRepository {
+    /**
+     * 삭제 요청을 [calls]에 쌓는 가짜 접속 정보 저장소. 조회·추가는 쓰지 않는다.
+     * @param calls 받은 요청을 쌓을 목록
+     */
+    private class RecordingRemoteStorage(private val calls: MutableList<String>) : RemoteStorageRepository {
         override fun getAll(): Flow<List<RemoteStorageItem>> = emptyFlow()
         override suspend fun insert(item: RemoteStorageItem) {}
-        override suspend fun delete(item: RemoteStorageItem) {}
+        override suspend fun delete(item: RemoteStorageItem) { calls += "delete ${item.id}" }
         override suspend fun getById(id: Long): RemoteStorageItem? = null
     }
 }
