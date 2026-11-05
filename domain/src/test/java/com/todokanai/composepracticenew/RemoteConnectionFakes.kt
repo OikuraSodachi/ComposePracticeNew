@@ -21,7 +21,7 @@ internal class FakeRemoteConnection(private val result: ConnectResult = ConnectR
     val connected = mutableListOf<RemoteStorageItem>()
 
     override val isConnecting: StateFlow<Boolean> = MutableStateFlow(false)
-    override val connectionState: StateFlow<RemoteConnectionState> = MutableStateFlow(RemoteConnectionState.DISCONNECTED)
+    override val connectionState: StateFlow<RemoteConnectionState> = MutableStateFlow<RemoteConnectionState>(RemoteConnectionState.Disconnected)
 
     override suspend fun connect(item: RemoteStorageItem): ConnectResult {
         connected += item

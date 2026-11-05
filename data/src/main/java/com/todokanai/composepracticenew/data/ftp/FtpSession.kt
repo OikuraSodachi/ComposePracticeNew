@@ -74,10 +74,10 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
     internal var homeDirectory: String? = null
         private set
 
-    private val _connectionState = MutableStateFlow(RemoteConnectionState.DISCONNECTED)
+    private val _connectionState = MutableStateFlow<RemoteConnectionState>(RemoteConnectionState.Disconnected)
     /**
      * FTP 서버와의 연결 상태. 예기치 않은 끊김([markConnectionDropped])과 앱이 요청한 종료([markLoggedOut]·[closeBypassingIoLock])를 구분해,
-     * 끊김은 다음 연결 시도([beginConnecting])나 종료 요청까지 [RemoteConnectionState.LOST]로 남긴다.
+     * 끊김은 다음 연결 시도([beginConnecting])나 종료 요청까지 [RemoteConnectionState.Lost]로 남긴다.
      */
     val connectionState: StateFlow<RemoteConnectionState> = _connectionState.asStateFlow()
 
@@ -159,22 +159,22 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
 
     /**
      * FTP 연결이 서버 측에서 끊긴 경우 로그인 상태를 초기화한다. 진행 중인 작업은 다음 명령에서 [withConnectedClient]가 끊김으로 알린다.
-     * 연결된 세션에서만 끊김([RemoteConnectionState.LOST])으로 기록한다 — 앱이 먼저 종료한 세션의 진행 중 명령이 소켓이 닫혀 실패한 것은 끊김이 아니다.
+     * 연결된 세션에서만 끊김([RemoteConnectionState.Lost])으로 기록한다 — 앱이 먼저 종료한 세션의 진행 중 명령이 소켓이 닫혀 실패한 것은 끊김이 아니다.
      */
     suspend fun markConnectionDropped() {
         stateMutex.withLock {
             isLoggedIn = false
-            if (_connectionState.value == RemoteConnectionState.CONNECTED) _connectionState.value = RemoteConnectionState.LOST
+            if (_connectionState.value is RemoteConnectionState.Connected) _connectionState.value = RemoteConnectionState.Lost
         }
     }
 
     /**
-     * 새 연결 작업을 시작한다. 연결 상태는 이전 세션이 연결돼 있었든 끊겼든 [RemoteConnectionState.DISCONNECTED]로 둔다 —
-     * 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도([markConnectionDropped]) 그건 새 연결의 끊김이 아니므로 [RemoteConnectionState.LOST]가 되지 않는다.
+     * 새 연결 작업을 시작한다. 연결 상태는 이전 세션이 연결돼 있었든 끊겼든 [RemoteConnectionState.Disconnected]로 둔다 —
+     * 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도([markConnectionDropped]) 그건 새 연결의 끊김이 아니므로 [RemoteConnectionState.Lost]가 되지 않는다.
      */
     internal suspend fun beginConnecting() = stateMutex.withLock {
         _isConnecting.value = true
-        _connectionState.value = RemoteConnectionState.DISCONNECTED
+        _connectionState.value = RemoteConnectionState.Disconnected
     }
 
     /** 연결 작업이 끝났음을 기록한다. */
@@ -185,14 +185,15 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * [closeMark]를 읽은 뒤 종료가 요청됐으면 전환하지 않는다 — 종료 요청과 같은 잠금 안에서 판단하므로, 연결 작업과 겹친 종료 요청이 연결 상태로 뒤집히지 않는다.
      * @param closeMark 연결 작업을 시작할 때 읽은 종료 요청 표지([closeRequestMark])
      * @param home 로그인 직후의 현재 디렉터리(FTP 경로). 서버가 알려주지 않았으면 null
+     * @param serverName 연결한 서버의 표시 이름. 연결 상태([RemoteConnectionState.Connected])에 함께 담는다
      * @return 로그인 상태로 전환했으면 true, 그 사이 종료가 요청돼 전환하지 않았으면 false
      */
-    internal suspend fun markLoggedIn(closeMark: Int, home: String?): Boolean = stateMutex.withLock {
+    internal suspend fun markLoggedIn(closeMark: Int, home: String?, serverName: String): Boolean = stateMutex.withLock {
         if (isCloseRequestedSince(closeMark)) return@withLock false
         homeDirectory = home
         workingDirectory = home
         isLoggedIn = true
-        _connectionState.value = RemoteConnectionState.CONNECTED
+        _connectionState.value = RemoteConnectionState.Connected(serverName)
         true
     }
 
@@ -212,7 +213,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
     /** 로그인 해제 상태로 전환한다. */
     internal suspend fun markLoggedOut() = stateMutex.withLock {
         isLoggedIn = false
-        _connectionState.value = RemoteConnectionState.DISCONNECTED
+        _connectionState.value = RemoteConnectionState.Disconnected
     }
 
     /**
@@ -227,7 +228,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
         stateMutex.withLock {
             bypassCloseRequests.incrementAndGet()
             isLoggedIn = false
-            _connectionState.value = RemoteConnectionState.DISCONNECTED
+            _connectionState.value = RemoteConnectionState.Disconnected
             _isConnecting.value = true
         }
         if (ioMutex.tryLock()) {

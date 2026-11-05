@@ -113,7 +113,7 @@ class FtpConnectorListingFormatTest {
      */
     private fun connectTo(script: Map<String, (ScriptedFtpServer.Exchange) -> Unit>): ConnectResult {
         val scripted = ScriptedFtpServer(script).also { server = it }
-        return runBlocking { connector.connect(scripted.host, scripted.port, "user", "password", "UTF-8") }
+        return runBlocking { connector.connect("server", scripted.host, scripted.port, "user", "password", "UTF-8") }
     }
 
     /** 세션이 로그인 상태가 아니고, 클라이언트 소켓이 닫혔고, 서버에 QUIT을 보냈는지 확인한다. */

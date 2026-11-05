@@ -41,7 +41,7 @@ import javax.inject.Inject
  * @param getStorageListUseCase 물리 스토리지 목록을 로드·갱신하는 UseCase
  * @param progressUseCase 진행 중인 작업 상태를 제공하는 UseCase
  * @param operationNoticeUseCase 파일 작업의 실패·거부·완료 메시지를 알려주는 UseCase
- * @param exitHandler 연결 서비스를 중단하고 앱 종료 이벤트를 발행하는 핸들러
+ * @param exitHandler 원격 연결을 종료하고 앱 종료 이벤트를 발행하는 핸들러
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  * @param preferenceFailureUseCase 설정 저장소의 읽기·저장 실패와 손상 초기화를 알려주는 UseCase
  */
@@ -108,7 +108,7 @@ class MainViewModel @Inject constructor(
         // 지금 상태는 건너뛴다 — ViewModel을 만들 때(앱을 열 때) 이미 끊겨 있던 세션은 지금 끊긴 것이 아니다
         connectionStateUseCase.connectionState
             .drop(1)
-            .filter { it == RemoteConnectionState.LOST }
+            .filter { it == RemoteConnectionState.Lost }
             .onEach { _connectionLost.trySend(Unit) }
             .launchIn(viewModelScope)
 

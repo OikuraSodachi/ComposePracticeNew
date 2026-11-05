@@ -65,7 +65,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     init {
         // 끊김을 상태로 본다 — 어느 화면에 있든, 끊긴 뒤에 이 ViewModel이 만들어졌든 끊긴 세션에 기대는 상태를 남기지 않는다
         connectionStateUseCase.connectionState
-            .filter { it == RemoteConnectionState.LOST }
+            .filter { it == RemoteConnectionState.Lost }
             .onEach { discardRemoteSessionState() }
             .launchIn(viewModelScope)
     }

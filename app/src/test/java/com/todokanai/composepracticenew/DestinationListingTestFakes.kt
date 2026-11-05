@@ -113,12 +113,12 @@ internal object FixedMessages : OperationMessages {
 /** 연결 상태를 테스트가 직접 바꾸는 테스트용 원격 연결 저장소. 연결·해제는 상태만 바꾼다. */
 internal class FakeConnectionRepository : RemoteConnectionRepository {
     override val isConnecting = MutableStateFlow(false)
-    override val connectionState = MutableStateFlow(RemoteConnectionState.CONNECTED)
+    override val connectionState = MutableStateFlow<RemoteConnectionState>(RemoteConnectionState.Connected("server"))
     override suspend fun connect(item: RemoteStorageItem): ConnectResult {
-        connectionState.value = RemoteConnectionState.CONNECTED
+        connectionState.value = RemoteConnectionState.Connected(item.name)
         return ConnectResult.Connected
     }
-    override suspend fun disconnect() { connectionState.value = RemoteConnectionState.DISCONNECTED }
+    override suspend fun disconnect() { connectionState.value = RemoteConnectionState.Disconnected }
     override fun rootPathOf(item: RemoteStorageItem) = "ftp://${item.address}"
 }
 

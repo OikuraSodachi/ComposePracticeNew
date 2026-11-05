@@ -9,7 +9,6 @@ import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.model.SortMode
-import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -38,10 +37,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * 원격 파일 목록 화면의 UI 상태, 네비게이션, 연결 유지, 원격 파일 조작(이름변경·삭제·새폴더)을 관리하는 ViewModel.
- * 다운로드·업로드 실행은 FileTransferCoordinatorViewModel이 담당한다.
+ * 원격 파일 목록 화면의 UI 상태, 네비게이션, 자동 재연결, 원격 파일 조작(이름변경·삭제·새폴더)을 관리하는 ViewModel.
+ * 다운로드·업로드 실행은 FileTransferCoordinatorViewModel이, 연결 유지 서비스는 연결 상태를 관찰하는 MyApplication이 담당한다.
  * @param fileNavigatorUseCase 원격 디렉터리 탐색 상태를 제공하는 UseCase
- * @param connectionServiceController 연결 유지 ForegroundService를 제어하는 컨트롤러
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param remoteFileOperationUseCase 원격 파일 조작을 실행하는 UseCase
  * @param connectionResilienceUseCase 마지막 서버 자동 재연결 UseCase
@@ -52,7 +50,6 @@ import javax.inject.Inject
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
-    private val connectionServiceController: ConnectionServiceController,
     private val sortModeUseCase: SortModeUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
@@ -91,10 +88,7 @@ class RemoteFileListViewModel @Inject constructor(
         if (path == null) {
             viewModelScope.launch {
                 when (val result = connectionResilienceUseCase.reconnectLast()) {
-                    is ReconnectResult.Connected -> {
-                        Log.d(TAG, "reconnectLast — 재연결 성공: ${result.item.name}")
-                        connectionServiceController.start(result.item.name)
-                    }
+                    is ReconnectResult.Connected -> Log.d(TAG, "reconnectLast — 재연결 성공: ${result.item.name}")
                     ReconnectResult.NoSavedServer -> {
                         Log.w(TAG, "reconnectLast — 재연결할 서버 없음")
                         reconnectFailureNotice.notifyConnectionFailed()
@@ -114,7 +108,7 @@ class RemoteFileListViewModel @Inject constructor(
     }
 
     /** [state]가 연결된 세션이 끊긴 상태인지 판별한다. */
-    private fun isLost(state: RemoteConnectionState): Boolean = state == RemoteConnectionState.LOST
+    private fun isLost(state: RemoteConnectionState): Boolean = state == RemoteConnectionState.Lost
 
     /**
      * 원격 파일 목록 화면에 필요한 UI 상태를 담는 클래스.

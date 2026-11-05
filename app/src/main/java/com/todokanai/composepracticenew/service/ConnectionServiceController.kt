@@ -6,7 +6,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** 원격 연결을 유지하는 ForegroundService의 시작·종료 계약. ViewModel은 이 인터페이스로만 의존한다. */
+/** 원격 연결을 유지하는 ForegroundService의 시작·종료 계약. 연결 상태를 관찰하는 MyApplication만 이 인터페이스로 서비스를 제어한다. */
 interface ConnectionServiceController {
     /**
      * 연결 유지 서비스를 시작한다. 이미 실행 중이면 알림 레이블만 갱신된다.
@@ -14,7 +14,7 @@ interface ConnectionServiceController {
      */
     fun start(serverLabel: String)
 
-    /** 연결 유지 서비스를 중단한다. 실제 연결 해제는 서비스 종료 시 수행된다. */
+    /** 연결 유지 서비스를 중단한다. 연결은 끊지 않는다 — 연결이 없어진 뒤에 부른다. */
     fun stop()
 }
 

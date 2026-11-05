@@ -416,7 +416,7 @@ class FtpCommandExecutorTreeListingTest {
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null) }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
 
     private companion object {
         /** 식별값 없이 경로 한도나 메모리 상한에서 멈췄을 때 실패 메시지에 붙는 설명. */

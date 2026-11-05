@@ -112,7 +112,7 @@ class TransferSelectionTransitionTest {
     fun `로컬 화면에 있는 동안 원격 세션이 끊기면 다운로드 대기 목록이 사라진다`() {
         viewModel.enterDownloadMode(listOf(remoteX))
 
-        connection.connectionState.value = RemoteConnectionState.LOST
+        connection.connectionState.value = RemoteConnectionState.Lost
 
         assertEquals(SelectionState.Default, viewModel.localSelection.value)
     }
@@ -122,7 +122,7 @@ class TransferSelectionTransitionTest {
         viewModel.startLocalMultiSelect(localA)
         viewModel.enterUploadMode()
 
-        connection.connectionState.value = RemoteConnectionState.LOST
+        connection.connectionState.value = RemoteConnectionState.Lost
 
         assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
     }
@@ -132,7 +132,7 @@ class TransferSelectionTransitionTest {
         viewModel.startLocalMultiSelect(localA)
         viewModel.enterLocalOperation(SelectMode.LocalOperation.Move)
 
-        connection.connectionState.value = RemoteConnectionState.LOST
+        connection.connectionState.value = RemoteConnectionState.Lost
 
         assertEquals(SelectionState.Operation(SelectMode.LocalOperation.Move, listOf(localA)), viewModel.localSelection.value)
     }
@@ -141,7 +141,7 @@ class TransferSelectionTransitionTest {
     fun `앱이 연결을 종료한 것은 끊김이 아니므로 다운로드 대기 목록이 남는다`() {
         viewModel.enterDownloadMode(listOf(remoteX))
 
-        connection.connectionState.value = RemoteConnectionState.DISCONNECTED
+        connection.connectionState.value = RemoteConnectionState.Disconnected
 
         assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(remoteX)), viewModel.localSelection.value)
     }

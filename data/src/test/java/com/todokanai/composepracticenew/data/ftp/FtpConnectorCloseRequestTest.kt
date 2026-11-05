@@ -141,7 +141,7 @@ class FtpConnectorCloseRequestTest {
             },
         )
         val server = ScriptedFtpServer(script).also { servers += it }
-        return runBlocking { connector.connect(server.host, server.port, "user", "password", "UTF-8") }
+        return runBlocking { connector.connect("server", server.host, server.port, "user", "password", "UTF-8") }
     }
 
     /**

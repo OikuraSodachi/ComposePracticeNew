@@ -90,7 +90,7 @@ class FtpListingStalledDataTest {
         client.connect(scripted.host, scripted.port)
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null) }
+        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
     }
 
     private companion object {
