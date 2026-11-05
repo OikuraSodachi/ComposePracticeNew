@@ -6,8 +6,11 @@ import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.PathSegment
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -48,6 +51,28 @@ class DirTreeTest {
         nav.currentPath.value = "ftp://host/dir"
 
         assertEquals(listOf(PathSegment("host", "ftp://host"), PathSegment("dir", "ftp://host/dir")), currentDirTree())
+    }
+
+    @Test
+    fun `현재 경로가 바뀔 때마다 다시 계산하고 경로가 없어지면 빈 목록을 낸다`() = runBlocking {
+        val emitted = mutableListOf<List<PathSegment>>()
+        // Unconfined 수집기는 경로를 바꾸는 즉시 그 값을 받는다 — 연속으로 바꾼 값이 합쳐지지 않게
+        val collector = launch(Dispatchers.Unconfined) { useCase.dirTree.toList(emitted) }
+
+        nav.currentPath.value = "/a"
+        nav.currentPath.value = "/a/b"
+        nav.currentPath.value = null
+        collector.cancel()
+
+        assertEquals(
+            listOf(
+                emptyList(),
+                listOf(PathSegment("a", "/a")),
+                listOf(PathSegment("a", "/a"), PathSegment("b", "/a/b")),
+                emptyList(),
+            ),
+            emitted
+        )
     }
 
     @Test

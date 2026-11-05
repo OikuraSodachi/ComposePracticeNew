@@ -1,0 +1,41 @@
+package com.todokanai.composepracticenew.repository
+
+import com.todokanai.composepracticenew.data.ftp.FakeFtpClient
+import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
+import com.todokanai.composepracticenew.data.ftp.FtpSession
+import com.todokanai.composepracticenew.datasource.LocalFileDataSource
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+/**
+ * 경로 종류별 부모 경로 규칙([PathAwareFileSystem.getParent])이 한 단계씩 위로 올라가 루트에서 null로 끝나는지 검증하는 단위 테스트(#227).
+ * 경로 표시줄은 이 규칙을 따라 루트까지 올라가므로, 이 규칙이 표시줄의 단계와 종료를 정한다.
+ */
+class ParentPathTest {
+
+    @Test
+    fun `FTP 경로는 서버 루트까지 올라가고 그 위는 없다`() {
+        val ftp = FtpPathAwareFileSystem(FtpCommandExecutor(FtpSession(FakeFtpClient())))
+
+        assertEquals(listOf("ftp://host/a/b", "ftp://host/a", "ftp://host"), ancestorChain(ftp, "ftp://host/a/b"))
+    }
+
+    @Test
+    fun `로컬 경로는 최상위 디렉터리까지 올라가고 그 위는 없다`() {
+        val local = LocalPathAwareFileSystem(LocalFileDataSource())
+
+        assertEquals(
+            listOf("/storage/emulated/0", "/storage/emulated", "/storage"),
+            ancestorChain(local, "/storage/emulated/0")
+        )
+    }
+
+    /**
+     * [path]에서 [fileSystem]의 부모 규칙을 따라 null이 나올 때까지 올라간 경로들을 반환한다.
+     * @param fileSystem 부모 규칙을 가진 파일 시스템
+     * @param path 시작 경로
+     * @return [path]부터 루트까지의 경로
+     */
+    private fun ancestorChain(fileSystem: PathAwareFileSystem, path: String): List<String> =
+        generateSequence(path) { fileSystem.getParent(it) }.toList()
+}

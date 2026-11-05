@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** Contract for reading and updating the active directory navigation state. */
 interface FileNavigatorRepository {
+    /** 현재 탐색 중인 디렉터리 경로. 경로가 없으면(저장소 선택 화면) null이다. */
     val currentPath: StateFlow<String?>
     /** 현재 목록 조회 요청. 이동·새로고침·재연결마다 새 요청이 되며, 경로가 없으면 null이다. */
     val listingRequest: StateFlow<ListingRequest?>
