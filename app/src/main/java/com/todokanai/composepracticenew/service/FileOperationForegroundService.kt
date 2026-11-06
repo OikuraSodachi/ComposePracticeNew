@@ -3,9 +3,9 @@ package com.todokanai.composepracticenew.service
 import android.app.Notification
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.tools.MyNotification
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -17,9 +17,6 @@ import javax.inject.Inject
  */
 @AndroidEntryPoint
 class FileOperationForegroundService : SelfStoppingForegroundService() {
-
-    /** 포그라운드 알림을 만드는 알림 도우미. */
-    @Inject lateinit var myNotification: MyNotification
 
     /** 서비스가 멈출 때를 정하는 진행 상태 규칙. */
     @Inject lateinit var policy: FileOperationServicePolicy
@@ -46,11 +43,12 @@ class FileOperationForegroundService : SelfStoppingForegroundService() {
     private fun requestId(intent: Intent?): Int = intent?.getIntExtra(EXTRA_REQUEST_ID, NO_REQUEST_ID) ?: NO_REQUEST_ID
 
     private fun buildForegroundNotification(): Notification =
-        myNotification.buildForegroundNotification(
-            channelId = CHANNEL_ID,
-            title = getString(R.string.app_name),
-            body = getString(R.string.file_operation_notification_text)
-        )
+        NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.file_operation_notification_text))
+            .setSmallIcon(android.R.drawable.stat_sys_upload)
+            .setOngoing(true)
+            .build()
 
     companion object {
         const val NOTIFICATION_ID = 1002

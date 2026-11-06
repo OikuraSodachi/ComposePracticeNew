@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.tools
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -128,21 +127,6 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         notificationManager.activeNotifications
             .filter { it.tag == PROGRESS_TAG || it.tag == COMPLETED_TAG }
             .map { it.id }
-
-    /**
-     * ForegroundService용 지속 알림을 생성한다.
-     * @param channelId 알림 채널 id
-     * @param title 알림 제목
-     * @param body 알림 본문
-     * @return 생성된 Notification
-     */
-    fun buildForegroundNotification(channelId: String, title: String, body: String): Notification =
-        NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(icon)
-            .setContentTitle(title)
-            .setContentText(body)
-            .setOngoing(true)
-            .build()
 
     /**
      * 진행 알림을 취소하고 완료 알림을 새 알림으로 띄운다. 누르면 앱을 열고 알림을 지운다 — 모든 알림이 탭에 반응하도록 한다.
