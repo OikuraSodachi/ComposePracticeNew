@@ -85,6 +85,22 @@ class SelectionStateHolderTest {
     }
 
     @Test
+    fun `같은 경로의 항목은 다시 더하거나 범위에 겹쳐도 하나만 남는다`() {
+        // 목록을 다시 조회하면 같은 경로라도 수정 시각이 다른 새 항목이 된다
+        val refreshedA = a.copy(lastModifiedMillis = 1L)
+        holder.startMultiSelect(a)
+
+        holder.add(refreshedA)
+        assertEquals(SelectionState.MultiSelect(listOf(a)), holder.state.value)
+
+        holder.replaceSelection(listOf(a, b, refreshedA))
+        assertEquals(SelectionState.MultiSelect(listOf(a, b)), holder.state.value)
+
+        holder.remove(refreshedA)
+        assertEquals(SelectionState.MultiSelect(listOf(b)), holder.state.value)
+    }
+
+    @Test
     fun `전송 대기를 버리면 기본 모드가 된다`() {
         holder.receive(SelectMode.Download, listOf(b))
 

@@ -23,7 +23,7 @@ fun DirectoryHolder(
             .fillMaxHeight()
     ) {
         Text(
-            text = "/${pathName.name}",
+            text = pathName.name,
             modifier = Modifier
                 .padding(horizontal = 4.dp)
                 .align(Alignment.CenterVertically),

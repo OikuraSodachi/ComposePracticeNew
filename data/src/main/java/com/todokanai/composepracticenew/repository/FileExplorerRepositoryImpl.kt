@@ -43,8 +43,6 @@ class FileExplorerRepositoryImpl(
 
     override fun refresh() = navigation.refresh()
 
-    override fun getParentPath(path: String): String? = router.resolve(path)?.getParent(path)
-
     override suspend fun navigate(path: String): NavigateResult {
         val resolved = router.resolve(path)?.resolveNavigationPath(path) ?: return NavigateResult.Rejected
         navigation.navigateTo(resolved)

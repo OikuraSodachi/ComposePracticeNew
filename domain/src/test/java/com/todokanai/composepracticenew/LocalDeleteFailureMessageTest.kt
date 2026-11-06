@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -8,6 +9,7 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,7 +33,7 @@ class LocalDeleteFailureMessageTest {
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     private val fileActionRepo = FailingDeleteRepository()
-    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope), notices, fileActionRepo, FileNameUseCase())
+    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope), notices, fileActionRepo, FileNameUseCase(), LocalPathRules())
 
     @After
     fun tearDown() = scope.cancel()
@@ -41,7 +43,7 @@ class LocalDeleteFailureMessageTest {
         // 저장소는 대상 자신의 실패를 빈 경로로 알린다
         fileActionRepo.failures["/d/a.txt"] = IoResult.PartiallyFailed("삭제하지 못함", listOf(FailedItem("", null)))
 
-        local.delete(setOf("/d/a.txt"), "done") {}
+        local.delete(listOf(item("/d/a.txt")), "done") {}
 
         assertEquals(listOf("삭제 실패: a.txt"), notices.failures)
     }
@@ -50,10 +52,14 @@ class LocalDeleteFailureMessageTest {
     fun `폴더 안 항목을 지우지 못하면 대상 이름 아래 경로로 알린다`() {
         fileActionRepo.failures["/d/dir"] = IoResult.PartiallyFailed("삭제하지 못함", listOf(FailedItem("sub/x.txt", null)))
 
-        local.delete(linkedSetOf("/d/dir", "/d/ok.txt"), "done") {}
+        local.delete(listOf(item("/d/dir"), item("/d/ok.txt")), "done") {}
 
         assertEquals(listOf("삭제 실패: dir/sub/x.txt"), notices.failures)
     }
+
+    /** [path]의 마지막 경로 조각을 이름으로 갖는 테스트 항목을 만든다. */
+    private fun item(path: String) =
+        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), sizeBytes = null, lastModifiedMillis = 0L)
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
@@ -67,7 +73,7 @@ class LocalDeleteFailureMessageTest {
         /** 경로 → 그 경로 삭제가 돌려줄 부분 실패. */
         val failures = mutableMapOf<String, IoResult.PartiallyFailed>()
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = failures[targetFile] ?: IoResult.Done
-        override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done

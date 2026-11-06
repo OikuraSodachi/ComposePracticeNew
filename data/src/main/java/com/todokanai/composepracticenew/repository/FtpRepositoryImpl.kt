@@ -5,11 +5,14 @@ import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
 import com.todokanai.composepracticenew.data.ftp.FtpSession
 import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
+import com.todokanai.composepracticenew.data.ftp.childFtpUri
+import com.todokanai.composepracticenew.data.ftp.siblingFtpUri
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.StateFlow
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -42,17 +45,17 @@ class FtpRepositoryImpl @Inject constructor(
     override fun rootPathOf(item: RemoteStorageItem): String =
         FTP_SCHEME + item.address.removePrefix(FTP_SCHEME)
 
-    override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) =
-        transferrer.download(remotePath, localPath, isDirectory, onProgress)
+    override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) =
+        transferrer.download(remotePath, File(localDirPath, name).path, isDirectory, onProgress)
 
-    override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit) =
-        transferrer.upload(localPath, remotePath, onProgress)
+    override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit) =
+        transferrer.upload(localPath, childFtpUri(remoteDirPath, name), onProgress)
 
-    override suspend fun rename(fromPath: String, toPath: String) = commandExecutor.rename(fromPath, toPath)
+    override suspend fun rename(path: String, newName: String) = commandExecutor.rename(path, siblingFtpUri(path, newName))
 
     override suspend fun deleteFile(path: String) = commandExecutor.deleteFile(path)
 
-    override suspend fun makeDirectory(path: String) = commandExecutor.makeDirectory(path)
+    override suspend fun makeDirectory(parentPath: String, name: String) = commandExecutor.makeDirectory(childFtpUri(parentPath, name))
 
     override suspend fun removeDirectoryRecursive(path: String) = commandExecutor.removeDirectoryRecursive(path)
 }

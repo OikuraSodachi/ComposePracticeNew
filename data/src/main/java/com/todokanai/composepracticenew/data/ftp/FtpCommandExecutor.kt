@@ -463,7 +463,7 @@ class FtpCommandExecutor internal constructor(
     ): IoResult<IdentifiedListing> {
         val engine = FTPListParseEngine(parser)
         val outcome = dataCommands.run(client, open) { stream ->
-            val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes, childPathPrefix(path).length) } ?: stream
+            val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes, childFtpUriPrefix(path).length) } ?: stream
             engine.readServerList(keepingOpen(bounded), client.controlEncoding)
         }
         return when (outcome) {
@@ -523,14 +523,7 @@ class FtpCommandExecutor internal constructor(
      * @param path 하위 후보 항목 경로
      * @return [path]가 [ancestorPath] 아래에 있으면 true
      */
-    private fun isRemoteAncestorOf(ancestorPath: String, path: String): Boolean = path.startsWith(childPathPrefix(ancestorPath))
-
-    /**
-     * 원격 디렉터리 아래 항목의 경로 앞부분. 항목 경로는 이 앞부분에 항목 이름을 붙인 것이다.
-     * @param path ftp://server/path 형식의 디렉터리 경로
-     * @return 끝에 `/` 하나를 붙인 디렉터리 경로
-     */
-    private fun childPathPrefix(path: String): String = path.trimEnd('/') + "/"
+    private fun isRemoteAncestorOf(ancestorPath: String, path: String): Boolean = path.startsWith(childFtpUriPrefix(ancestorPath))
 
     /**
      * FTP 목록 항목 하나를 domain 항목으로 바꾼다.
@@ -540,7 +533,7 @@ class FtpCommandExecutor internal constructor(
      */
     private fun toFileEntry(file: FTPFile, path: String): FileEntry = FileEntry(
         name = file.name,
-        path = childPathPrefix(path) + file.name,
+        path = childFtpUri(path, file.name),
         isDirectory = file.isDirectory,
         // 디렉터리는 자기 크기가 없고, FTPFile.size는 목록에 크기가 없으면 -1이다
         size = file.size.takeUnless { file.isDirectory || it < 0 },

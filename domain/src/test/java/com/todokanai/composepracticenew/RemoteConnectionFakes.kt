@@ -62,5 +62,4 @@ internal class FakeNavigator(private val result: NavigateResult = NavigateResult
     }
 
     override fun refresh() = Unit
-    override fun getParentPath(path: String): String? = null
 }

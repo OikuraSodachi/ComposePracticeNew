@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
@@ -25,7 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** 현재 경로·조회 요청과 목록 조회 상태를 테스트가 정하는 테스트용 탐색 저장소. */
-internal class FakeNavigator : FileNavigatorRepository {
+internal class FakeNavigator : FileNavigatorRepository, StoragePathRules {
     override val currentPath = MutableStateFlow<String?>(null)
     override val listingRequest = MutableStateFlow<ListingRequest?>(null)
     override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
@@ -44,6 +45,7 @@ internal class FakeNavigator : FileNavigatorRepository {
     override suspend fun navigate(path: String) = NavigateResult.Navigated
     override fun refresh() {}
     override fun getParentPath(path: String): String? = null
+    override fun displayNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
 }
 
 /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
@@ -56,11 +58,11 @@ internal class RecordingProgressRepository : ProgressRepository {
 /** 요청된 다운로드·업로드를 기록하는 테스트용 원격 전송 저장소. */
 internal class RecordingTransferRepository : RemoteFileTransferRepository {
     val calls = mutableListOf<String>()
-    override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         calls += "download $remotePath"
         return IoResult.Done
     }
-    override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         calls += "upload $localPath"
         return IoResult.Done
     }
@@ -68,16 +70,16 @@ internal class RecordingTransferRepository : RemoteFileTransferRepository {
 
 /** 원격 변경을 수행하지 않는 테스트용 원격 변경 저장소. 이 테스트의 대상 작업은 원격 변경을 쓰지 않는다. */
 internal object NoOpMutationRepository : RemoteFileMutationRepository {
-    override suspend fun rename(fromPath: String, toPath: String) = IoResult.Done
+    override suspend fun rename(path: String, newName: String) = IoResult.Done
     override suspend fun deleteFile(path: String) = IoResult.Done
-    override suspend fun makeDirectory(path: String) = IoResult.Done
+    override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     override suspend fun removeDirectoryRecursive(path: String) = IoResult.Done
 }
 
 /** 호출된 로컬 작업을 기록하는 테스트용 로컬 파일 작업 저장소. */
 internal class RecordingFileActionRepository : FileActionRepository {
     val calls = mutableListOf<String>()
-    override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
+    override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }

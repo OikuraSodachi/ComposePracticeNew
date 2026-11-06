@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.datasource.LocalEntryMutator
 import com.todokanai.composepracticenew.datasource.LocalTreeTransfer
 import com.todokanai.composepracticenew.datasource.LocalZipCompressor
 import com.todokanai.composepracticenew.model.ProgressState
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,7 +24,8 @@ class FileActionRepositoryImpl @Inject constructor(
     private val archiveExtraction: LocalArchiveExtraction,
     private val entryMutator: LocalEntryMutator
 ) : FileActionRepository {
-    override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = zipCompressor.zip(targetFiles, zipFile, onProgress)
+    override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) =
+        zipCompressor.zip(targetFiles, File(parentPath, zipName).path, onProgress)
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = treeTransfer.copy(targetFiles, targetPath, onProgress)
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = entryMutator.rename(targetFile, newName, overwrite)
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFile, onProgress)

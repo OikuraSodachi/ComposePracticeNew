@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
+import com.todokanai.composepracticenew.repository.StoragePathRules
 
 /**
  * 로컬 파일 작업(복사·이동·삭제·압축·압축해제·이름변경·새폴더)을 조율하는 UseCase.
@@ -16,12 +17,14 @@ import com.todokanai.composepracticenew.repository.OperationNoticeReporter
  * @param notices 실행 전 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param fileActionRepo 로컬 파일 변경 작업을 실행하는 FileActionRepository
  * @param fileNameUseCase 파일 이름 규칙을 검증하는 UseCase
+ * @param paths 출발지와 목적지의 위치 관계를 판별할 로컬 저장소의 경로 규칙(StoragePathRules 구현체)
  */
 class LocalFileOperationUseCase(
     private val orchestrator: FileOperationOrchestrator,
     private val notices: OperationNoticeReporter,
     private val fileActionRepo: FileActionRepository,
-    private val fileNameUseCase: FileNameUseCase
+    private val fileNameUseCase: FileNameUseCase,
+    private val paths: StoragePathRules
 ) {
     /**
      * 새 폴더·이름 변경에 쓸 이름을 검증한다.
@@ -37,12 +40,24 @@ class LocalFileOperationUseCase(
      */
     fun validateZipName(name: String): Set<FileNameError> = fileNameUseCase.validate(name, ZIP_EXTENSION)
 
+    /**
+     * 목적지가 원본 중 하나의 부모(제자리 복사·이동)이거나 그 안쪽인지 판별한다.
+     * @param files 복사·이동할 원본 경로 집합
+     * @param destPath 목적지 디렉터리 경로
+     * @return [destPath]가 [files] 중 하나의 부모이거나 그 안쪽이면 true
+     */
     private fun isSamePath(files: Set<String>, destPath: String): Boolean =
-        files.any { srcPath ->
-            val srcName = srcPath.substringAfterLast('/')
-            "$destPath/$srcName" == srcPath ||
-            destPath.startsWith("$srcPath/")
-        }
+        files.any { srcPath -> paths.getParentPath(srcPath) == destPath || isInside(destPath, srcPath) }
+
+    /**
+     * [path]가 [ancestor]의 안쪽(자기 자신은 제외)인지 [StoragePathRules.getParentPath]를 따라 올라가며 판별한다.
+     * 부모는 항상 위의 경로이므로 루트(null)에서 멈춘다.
+     * @param path 판별할 경로
+     * @param ancestor 바깥 경로
+     * @return [path]의 상위 경로 중 [ancestor]가 있으면 true
+     */
+    private fun isInside(path: String, ancestor: String): Boolean =
+        generateSequence(paths.getParentPath(path)) { paths.getParentPath(it) }.any { it == ancestor }
 
     /**
      * [files]를 [destPath]에 복사한다.
@@ -64,15 +79,15 @@ class LocalFileOperationUseCase(
 
     /**
      * [files]를 삭제한다. 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다.
-     * @param files 삭제할 파일의 절대 경로 집합
+     * @param files 삭제할 파일·디렉터리 항목
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun delete(files: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
-            forEachCollectingFailures(files, "삭제 실패", nameOf = { it.substringAfterLast('/') }) { path ->
-                fileActionRepo.deleteFile(path, onProgress)
+            forEachCollectingFailures(files, "삭제 실패", nameOf = { it.name }) { item ->
+                fileActionRepo.deleteFile(item.path, onProgress)
             }
         }
     }
@@ -107,9 +122,8 @@ class LocalFileOperationUseCase(
      */
     fun zip(files: Set<String>, parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsInvalidName(validateZipName(name), "$name$ZIP_EXTENSION", "압축 실패")) return
-        val zipFilePath = "$parentPath/$name$ZIP_EXTENSION"
         orchestrator.launch(completionMessage, FileOperationType.ZIP, onRefresh) { onProgress ->
-            fileActionRepo.zipAction(files, zipFilePath, onProgress)
+            fileActionRepo.zipAction(files, parentPath, "$name$ZIP_EXTENSION", onProgress)
         }
     }
 

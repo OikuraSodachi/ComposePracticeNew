@@ -17,6 +17,7 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
@@ -58,20 +59,20 @@ object UseCaseModule {
         FileInfoUseCase(repo)
 
     @Provides @Singleton
-    fun provideFileSearchUseCase(repo: FileSearchRepository, storage: StorageVolumeRepository, nav: FileNavigatorRepository) =
-        FileSearchUseCase(repo, storage, nav)
+    fun provideFileSearchUseCase(repo: FileSearchRepository, storage: StorageVolumeRepository, nav: FileNavigatorRepository, paths: StoragePathRules) =
+        FileSearchUseCase(repo, storage, nav, paths)
 
     @Provides @Singleton
     fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
         GetStorageListUseCase(storageRepo)
 
     @Provides @Singleton
-    fun provideFileNavigatorUseCase(nav: FileNavigatorRepository) =
-        FileNavigatorUseCase(nav)
+    fun provideFileNavigatorUseCase(nav: FileNavigatorRepository, paths: StoragePathRules) =
+        FileNavigatorUseCase(nav, paths)
 
     @Provides @Singleton @RemoteNavigator
-    fun provideRemoteFileNavigatorUseCase(@RemoteNavigator nav: FileNavigatorRepository) =
-        FileNavigatorUseCase(nav)
+    fun provideRemoteFileNavigatorUseCase(@RemoteNavigator nav: FileNavigatorRepository, @RemoteNavigator paths: StoragePathRules) =
+        FileNavigatorUseCase(nav, paths)
 
     @Provides @Singleton
     fun provideRemoteStorageUseCase(repo: RemoteStorageRepository, lastConnectionRepo: LastConnectionRepository) =
@@ -136,8 +137,9 @@ object UseCaseModule {
         orchestrator: FileOperationOrchestrator,
         notices: OperationNoticeReporter,
         fileActionRepo: FileActionRepository,
-        fileNameUseCase: FileNameUseCase
-    ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, fileNameUseCase)
+        fileNameUseCase: FileNameUseCase,
+        paths: StoragePathRules
+    ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, fileNameUseCase, paths)
 
     @Provides @Singleton
     fun provideRemoteFileOperationUseCase(

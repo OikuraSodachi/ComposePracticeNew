@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.PathSegment
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +25,7 @@ class DirTreeTest {
     /** 현재 경로를 테스트가 정하는 탐색 저장소. */
     private val nav = FakeNavigator()
     /** 검증 대상. */
-    private val useCase = FileNavigatorUseCase(nav)
+    private val useCase = FileNavigatorUseCase(nav, nav)
 
     @Test
     fun `현재 경로가 없으면 빈 목록이다`() {
@@ -76,18 +77,19 @@ class DirTreeTest {
     }
 
     @Test
-    fun `이름 구간이 비어 있으면 경로 전체를 이름으로 쓴다`() {
-        nav.parents = emptyMap()
-        nav.currentPath.value = "C:/"
+    fun `이름은 저장소가 정한다`() {
+        nav.parents = mapOf("doc:2" to "doc:1")
+        nav.names = mapOf("doc:1" to "사진", "doc:2" to "여행")
+        nav.currentPath.value = "doc:2"
 
-        assertEquals(listOf(PathSegment("C:/", "C:/")), currentDirTree())
+        assertEquals(listOf(PathSegment("사진", "doc:1"), PathSegment("여행", "doc:2")), currentDirTree())
     }
 
     /** 지금 [FileNavigatorUseCase.dirTree]가 내는 경로 단계. */
     private fun currentDirTree(): List<PathSegment> = runBlocking { useCase.dirTree.first() }
 
     /** 현재 경로와 부모 경로 규칙을 테스트가 정하는 테스트용 탐색 저장소. */
-    private class FakeNavigator : FileNavigatorRepository {
+    private class FakeNavigator : FileNavigatorRepository, StoragePathRules {
         /** 경로별 부모. null이면 '/' 기준으로 마지막 구간을 떼어 부모를 정한다. */
         var parents: Map<String, String>? = null
         override val currentPath = MutableStateFlow<String?>(null)
@@ -97,5 +99,8 @@ class DirTreeTest {
         override fun refresh() {}
         override fun getParentPath(path: String): String? =
             parents?.get(path) ?: path.substringBeforeLast('/').takeIf { parents == null && it.isNotEmpty() && it != path }
+        /** 경로별 표시 이름. 표에 없으면 '/' 기준으로 마지막 구간을 이름으로 쓴다. */
+        var names: Map<String, String> = emptyMap()
+        override fun displayNameOf(path: String): String = names[path] ?: path.substringAfterLast('/').ifEmpty { path }
     }
 }

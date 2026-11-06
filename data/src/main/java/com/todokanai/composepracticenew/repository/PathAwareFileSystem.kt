@@ -31,6 +31,13 @@ interface PathAwareFileSystem {
     fun getParent(path: String): String?
 
     /**
+     * path의 표시 이름을 반환한다.
+     * @param path 이름을 구할 경로
+     * @return 경로 표시줄에 보여 줄 이름
+     */
+    fun displayName(path: String): String
+
+    /**
      * path로 이동할 때 실제로 navigateTo에 전달할 정규화 경로를 반환한다.
      * 이동 불가능한 경우 null을 반환한다.
      * 원격 파일 시스템은 접근 권한을 이유로 null을 반환하지 않고 권한 문제를 [listFiles] 결과로 알린다 —

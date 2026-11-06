@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +26,7 @@ class ConflictCheckVerificationTest {
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     private val nav = FakeNavigator()
-    private val navigator = FileNavigatorUseCase(nav)
+    private val navigator = FileNavigatorUseCase(nav, nav)
     private val useCase = ConflictCheckUseCase(notices) { UNVERIFIED }
 
     private val current = ListingRequest("/a", generation = 2L)
@@ -150,12 +151,13 @@ class ConflictCheckVerificationTest {
     }
 
     /** 현재 요청과 목록 상태를 테스트가 정하는 테스트용 탐색 저장소. */
-    private class FakeNavigator : FileNavigatorRepository {
+    private class FakeNavigator : FileNavigatorRepository, StoragePathRules {
         override val currentPath = MutableStateFlow<String?>(null)
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
         override suspend fun navigate(path: String) = NavigateResult.Navigated
         override fun refresh() {}
         override fun getParentPath(path: String): String? = null
+        override fun displayNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
     }
 }

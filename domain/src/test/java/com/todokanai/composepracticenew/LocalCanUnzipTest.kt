@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -25,7 +26,7 @@ class LocalCanUnzipTest {
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
-    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, GrantedProtection, scope), notices, ZipOnlyRepository, FileNameUseCase())
+    private val local = LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, GrantedProtection, scope), notices, ZipOnlyRepository, FileNameUseCase(), LocalPathRules())
 
     @After
     fun tearDown() = scope.cancel()
@@ -52,7 +53,7 @@ class LocalCanUnzipTest {
     /** `.zip`으로 끝나는 경로만 압축 해제할 수 있다고 답하는 테스트용 저장소. 다른 작업은 쓰지 않는다. */
     private object ZipOnlyRepository : FileActionRepository {
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
