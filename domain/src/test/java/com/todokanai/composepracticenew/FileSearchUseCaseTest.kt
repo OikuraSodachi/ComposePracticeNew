@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.model.SearchBatch
 import com.todokanai.composepracticenew.model.SearchQuery
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
@@ -93,7 +94,7 @@ class FileSearchUseCaseTest {
             override val storageList = MutableStateFlow(listOf(StorageVolumeInfo("/storage/0", 0, 0)))
             override fun load() {}
         }
-        return FileSearchUseCase(repo, storage, NoOpNavigator())
+        return NoOpNavigator().let { FileSearchUseCase(repo, storage, it, it) }
     }
 
     /** 이름이 [prefix]로 시작하는 파일 [count]개. */
@@ -102,7 +103,7 @@ class FileSearchUseCaseTest {
     }
 
     /** 검색 테스트에서 쓰지 않는 탐색 저장소. */
-    private class NoOpNavigator : FileNavigatorRepository {
+    private class NoOpNavigator : FileNavigatorRepository, StoragePathRules {
         override val currentPath = MutableStateFlow<String?>(null)
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)

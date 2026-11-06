@@ -51,7 +51,7 @@ class RemoteFileOperationUseCase(
 
     /**
      * 로컬 항목 [item]을 [remoteDestPath]에 같은 이름으로 업로드한다.
-     * @param item 업로드할 로컬 파일 항목
+     * @param item 업로드할 로컬 파일 또는 디렉터리 항목
      * @param remoteDestPath 업로드 대상 원격 디렉터리 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백

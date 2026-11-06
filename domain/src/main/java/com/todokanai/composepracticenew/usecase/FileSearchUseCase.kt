@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.SearchBatch
 import com.todokanai.composepracticenew.model.SearchQuery
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.FileSearchRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -16,12 +17,14 @@ import kotlinx.coroutines.flow.transformWhile
  * 모든 저장소 볼륨에서 이름으로 항목을 찾고, 찾은 항목이 들어 있는 폴더로 이동한다.
  * @param repo 루트 아래를 훑어 이름이 맞는 항목을 찾는 FileSearchRepository 구현체
  * @param storage 검색할 저장소 볼륨 목록을 제공하는 StorageVolumeRepository 구현체
- * @param nav 찾은 항목의 상위 폴더를 구하고 그리로 이동하는 FileNavigatorRepository 구현체
+ * @param nav 찾은 폴더로 이동하는 FileNavigatorRepository 구현체
+ * @param paths 찾은 항목의 상위 폴더를 구하는 StoragePathRules 구현체
  */
 class FileSearchUseCase(
     private val repo: FileSearchRepository,
     private val storage: StorageVolumeRepository,
-    private val nav: FileNavigatorRepository
+    private val nav: FileNavigatorRepository,
+    private val paths: StoragePathRules
 ) {
 
     companion object {
@@ -50,7 +53,7 @@ class FileSearchUseCase(
      * @param item 검색으로 찾은 항목
      * @return 상위 폴더의 경로. 상위가 없으면 null
      */
-    fun locationOf(item: FileHolderItem): String? = nav.getParentPath(item.path)
+    fun locationOf(item: FileHolderItem): String? = paths.getParentPath(item.path)
 
     /**
      * 검색으로 찾은 폴더 [folder]로 이동한다. 찾은 뒤 지워졌거나 처음부터 읽지 못한 폴더면 이동하지 않는다.

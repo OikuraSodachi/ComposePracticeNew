@@ -36,7 +36,7 @@ class FileNameEnforcementTest {
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
     private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope)
-    private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), FileNavigatorUseCase(LocalPathNavigator()))
+    private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), LocalPathRules())
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, mutationRepo, FileNameUseCase())
 
     @After

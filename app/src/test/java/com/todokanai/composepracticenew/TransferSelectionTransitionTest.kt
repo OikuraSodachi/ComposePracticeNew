@@ -47,8 +47,8 @@ class TransferSelectionTransitionTest {
         val notices = RecordingOperationNotices()
         val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), notices, GrantedProtection, operationScope)
         viewModel = FileTransferCoordinatorViewModel(
-            FileNavigatorUseCase(FakeNavigator()),
-            FileNavigatorUseCase(FakeNavigator()),
+            FakeNavigator().let { FileNavigatorUseCase(it, it) },
+            FakeNavigator().let { FileNavigatorUseCase(it, it) },
             RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase()),
             ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
             FixedMessages,

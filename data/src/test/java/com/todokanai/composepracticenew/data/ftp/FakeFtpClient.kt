@@ -92,6 +92,12 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
     val deleteRequests = mutableListOf<String>()
     /** removeDirectory로 요청된 원격 경로. */
     val removeDirectoryRequests = mutableListOf<String>()
+    /** storeFileStream으로 요청된 원격 경로. */
+    val storeRequests = mutableListOf<String>()
+    /** makeDirectory로 요청된 원격 경로. */
+    val makeDirectoryRequests = mutableListOf<String>()
+    /** rename으로 요청된 (원래 경로, 새 경로). */
+    val renameRequests = mutableListOf<Pair<String, String>>()
     /** 직전 명령의 응답 코드. */
     private var lastReplyCode = 0
     /** 직전 명령의 응답 문자열. */
@@ -175,6 +181,7 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
 
     override fun storeFileStream(remote: String?): OutputStream? =
         respond("STOR", refused = { null }) {
+            storeRequests += remote.orEmpty()
             if (streamContent == null) return@respond refuseStream()
             reply(150, "150 Opening data connection")
             ByteArrayOutputStream()
@@ -194,11 +201,15 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
         return respond("RMD", refused = { false }) { completed(250, "250 Removed") }
     }
 
-    override fun makeDirectory(pathname: String?): Boolean =
-        respond("MKD", refused = { false }) { completed(257, "257 Created") }
+    override fun makeDirectory(pathname: String?): Boolean {
+        makeDirectoryRequests += pathname.orEmpty()
+        return respond("MKD", refused = { false }) { completed(257, "257 Created") }
+    }
 
-    override fun rename(from: String?, to: String?): Boolean =
-        respond("RENAME", refused = { false }) { completed(250, "250 Renamed") }
+    override fun rename(from: String?, to: String?): Boolean {
+        renameRequests += from.orEmpty() to to.orEmpty()
+        return respond("RENAME", refused = { false }) { completed(250, "250 Renamed") }
+    }
 
     /**
      * [command]에 정해 둔 서버 동작을 따른다. 거부면 응답을 남기고 [refused]를, 예외면 그 예외를 던지고, 없으면 [normal]을 실행한다.

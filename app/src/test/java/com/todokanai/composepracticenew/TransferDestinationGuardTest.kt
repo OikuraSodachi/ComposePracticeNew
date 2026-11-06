@@ -64,8 +64,8 @@ class TransferDestinationGuardTest {
             FileNameUseCase()
         )
         viewModel = FileTransferCoordinatorViewModel(
-            FileNavigatorUseCase(localNav),
-            FileNavigatorUseCase(remoteNav),
+            FileNavigatorUseCase(localNav, localNav),
+            FileNavigatorUseCase(remoteNav, remoteNav),
             remoteOps,
             ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
             FixedMessages,

@@ -3,17 +3,23 @@ package com.todokanai.composepracticenew.compose.frag
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -152,6 +158,7 @@ private fun OptionTopBar(
 
 /**
  * 현재 경로의 디렉터리를 가로로 나열하고, 항목을 누르면 그 디렉터리로 이동하게 하는 경로 표시줄.
+ * 항목 사이의 구분은 경로 구분자가 아니라 화면 장식(화살표)으로 보여 준다 — 구분자는 저장소마다 다르기 때문이다.
  * @param dirTree 표시할 디렉터리 목록(루트부터 현재 디렉터리까지)
  * @param onDirClick 항목 클릭 콜백
  */
@@ -165,14 +172,28 @@ private fun PathBreadcrumb(
             .fillMaxWidth()
             .height(30.dp)
     ) {
-        items(dirTree, key = { it.path }) { item ->
-            DirectoryHolder(
-                modifier = Modifier
-                    .clickable { onDirClick(item) },
-                pathName = item
-            )
+        itemsIndexed(dirTree, key = { _, item -> item.path }) { index, item ->
+            Row(modifier = Modifier.fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+                // 첫 항목(루트) 앞에는 구분 표시를 두지 않는다
+                if (index > 0) PathSeparator()
+                DirectoryHolder(
+                    modifier = Modifier
+                        .clickable { onDirClick(item) },
+                    pathName = item
+                )
+            }
         }
     }
+}
+
+/** 경로 표시줄의 항목 사이에 두는 장식용 구분 표시(누를 수 없다). */
+@Composable
+private fun PathSeparator() {
+    Icon(
+        imageVector = Icons.Filled.KeyboardArrowRight,
+        contentDescription = null,
+        modifier = Modifier.size(16.dp)
+    )
 }
 
 /**

@@ -60,10 +60,10 @@ class LocalOperationDestinationGuardTest {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, operationScope)
         viewModel = FileListViewModel(
-            fileNavigatorUseCase = FileNavigatorUseCase(nav),
+            fileNavigatorUseCase = FileNavigatorUseCase(nav, nav),
             openFileUseCase = OpenFileUseCase(nav) {},
             sortModeUseCase = SortModeUseCase(InMemorySortPreference()),
-            localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), FileNavigatorUseCase(nav)),
+            localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), nav),
             conflictCheckUseCase = ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
             messages = FixedMessages
         )

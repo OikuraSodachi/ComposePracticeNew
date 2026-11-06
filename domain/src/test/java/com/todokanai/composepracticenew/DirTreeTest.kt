@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.PathSegment
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +25,7 @@ class DirTreeTest {
     /** 현재 경로를 테스트가 정하는 탐색 저장소. */
     private val nav = FakeNavigator()
     /** 검증 대상. */
-    private val useCase = FileNavigatorUseCase(nav)
+    private val useCase = FileNavigatorUseCase(nav, nav)
 
     @Test
     fun `현재 경로가 없으면 빈 목록이다`() {
@@ -88,7 +89,7 @@ class DirTreeTest {
     private fun currentDirTree(): List<PathSegment> = runBlocking { useCase.dirTree.first() }
 
     /** 현재 경로와 부모 경로 규칙을 테스트가 정하는 테스트용 탐색 저장소. */
-    private class FakeNavigator : FileNavigatorRepository {
+    private class FakeNavigator : FileNavigatorRepository, StoragePathRules {
         /** 경로별 부모. null이면 '/' 기준으로 마지막 구간을 떼어 부모를 정한다. */
         var parents: Map<String, String>? = null
         override val currentPath = MutableStateFlow<String?>(null)

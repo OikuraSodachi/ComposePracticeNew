@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.SearchBatch
 import com.todokanai.composepracticenew.model.SearchQuery
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.ui.model.SearchStatus
@@ -67,7 +68,7 @@ class FileSearchViewModelTest {
             override val storageList = volumes
             override fun load() {}
         }
-        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav), OpenFileUseCase(nav) { openedFiles += it })
+        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav, nav), OpenFileUseCase(nav) { openedFiles += it })
         viewModel.open()
     }
 
@@ -289,7 +290,7 @@ class FileSearchViewModelTest {
     }
 
     /** 이동한 경로를 기록하고, 상위 폴더를 마지막 '/' 앞까지로 구하는 탐색 저장소. [rejected]에 든 경로로는 이동을 거부한다. */
-    private class RecordingNavigator : FileNavigatorRepository {
+    private class RecordingNavigator : FileNavigatorRepository, StoragePathRules {
         /** [navigate]로 이동한 경로. 이동한 순서다. 거부한 경로는 넣지 않는다. */
         val navigated = mutableListOf<String>()
         /** 읽을 수 없는 폴더처럼 이동을 거부할 경로. */

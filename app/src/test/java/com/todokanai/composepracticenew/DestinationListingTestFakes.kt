@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
@@ -25,7 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** 현재 경로·조회 요청과 목록 조회 상태를 테스트가 정하는 테스트용 탐색 저장소. */
-internal class FakeNavigator : FileNavigatorRepository {
+internal class FakeNavigator : FileNavigatorRepository, StoragePathRules {
     override val currentPath = MutableStateFlow<String?>(null)
     override val listingRequest = MutableStateFlow<ListingRequest?>(null)
     override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)

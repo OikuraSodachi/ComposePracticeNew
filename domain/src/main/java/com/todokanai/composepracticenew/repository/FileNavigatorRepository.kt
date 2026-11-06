@@ -20,11 +20,4 @@ interface FileNavigatorRepository {
     suspend fun navigate(path: String): NavigateResult
     /** 현재 경로의 목록을 새 요청으로 다시 조회한다. */
     fun refresh()
-    /**
-     * 주어진 경로의 부모 경로를 반환한다. 루트이면 null을 반환한다.
-     * 부모는 [path]보다 위의 경로여야 한다 — 경로 표시줄이 이 함수를 따라 루트(null)까지 올라가기 때문이다.
-     */
-    fun getParentPath(path: String): String?
-    /** 주어진 디렉터리 경로의 표시 이름을 반환한다. 경로에서 이름을 꺼내는 규칙은 저장소마다 다르므로 구현체가 정한다. */
-    fun displayNameOf(path: String): String
 }

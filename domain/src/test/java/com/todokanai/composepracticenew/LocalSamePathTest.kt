@@ -1,17 +1,13 @@
 package com.todokanai.composepracticenew
 
-import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ListingRequest
-import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
-import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
-import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -34,11 +30,13 @@ class LocalSamePathTest {
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
 
-    /** 'root ⊃ src ⊃ inner' 관계를 '/' 없는 경로로 정한 부모 규칙. */
-    private val nav = TableNavigator(mapOf("inner" to "src", "src" to "root", "other" to "root"))
+    /** 'root ⊃ src ⊃ inner ⊃ deep', 'root ⊃ other ⊃ otherInner' 관계를 '/' 없는 경로로 정한 부모 규칙. */
+    private val paths = TablePathRules(
+        mapOf("deep" to "inner", "inner" to "src", "src" to "root", "otherInner" to "other", "other" to "root")
+    )
     private val local = LocalFileOperationUseCase(
         FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, GrantedProtection, scope),
-        notices, NoOpFileActionRepository, FileNameUseCase(), FileNavigatorUseCase(nav)
+        notices, NoOpFileActionRepository, FileNameUseCase(), paths
     )
 
     @After
@@ -59,19 +57,28 @@ class LocalSamePathTest {
     }
 
     @Test
+    fun `목적지가 원본보다 여러 단계 안쪽이어도 이동을 거부한다`() {
+        local.move(setOf("src"), "deep", "done") {}
+
+        assertEquals(listOf("이동 실패: 출발지와 목적지가 동일합니다."), notices.failures)
+    }
+
+    @Test
     fun `목적지가 원본과 관계없는 곳이면 거부하지 않는다`() {
         local.copy(setOf("src"), "other", "done") {}
 
         assertEquals(emptyList<String>(), notices.failures)
     }
 
-    /** 경로별 부모를 표로 정한 테스트용 탐색 저장소. 표에 없는 경로는 루트다. */
-    private class TableNavigator(private val parents: Map<String, String>) : FileNavigatorRepository {
-        override val currentPath = MutableStateFlow<String?>(null)
-        override val listingRequest = MutableStateFlow<ListingRequest?>(null)
-        override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
-        override suspend fun navigate(path: String) = NavigateResult.Navigated
-        override fun refresh() {}
+    @Test
+    fun `목적지가 원본의 형제 안쪽이면 거부하지 않는다`() {
+        local.move(setOf("src"), "otherInner", "done") {}
+
+        assertEquals(emptyList<String>(), notices.failures)
+    }
+
+    /** 경로별 부모를 표로 정한 테스트용 경로 규칙. 표에 없는 경로는 루트다. */
+    private class TablePathRules(private val parents: Map<String, String>) : StoragePathRules {
         override fun getParentPath(path: String): String? = parents[path]
         override fun displayNameOf(path: String): String = path
     }
