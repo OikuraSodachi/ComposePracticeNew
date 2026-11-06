@@ -63,4 +63,17 @@ internal class FakeNavigator(private val result: NavigateResult = NavigateResult
 
     override fun refresh() = Unit
     override fun getParentPath(path: String): String? = null
+    override fun displayNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
+}
+
+/** 로컬 경로 규칙('/' 기준 부모·마지막 구간 이름)을 따르는 가짜 탐색 저장소. 로컬 파일 작업 UseCase의 탐색 의존에 쓴다. 목록 기능은 쓰지 않는다. */
+internal class LocalPathNavigator : FileNavigatorRepository {
+    override val currentPath: StateFlow<String?> = MutableStateFlow(null)
+    override val listingRequest: StateFlow<ListingRequest?> = MutableStateFlow(null)
+    override val directoryListing: StateFlow<DirectoryListing> = MutableStateFlow(DirectoryListing.NoPath)
+
+    override suspend fun navigate(path: String): NavigateResult = NavigateResult.Navigated
+    override fun refresh() = Unit
+    override fun getParentPath(path: String): String? = path.substringBeforeLast('/').takeIf { it.isNotEmpty() && it != path }
+    override fun displayNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
 }

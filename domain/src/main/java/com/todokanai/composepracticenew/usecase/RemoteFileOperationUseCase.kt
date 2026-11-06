@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
@@ -35,39 +36,30 @@ class RemoteFileOperationUseCase(
     fun validateEntryName(name: String): Set<FileNameError> = fileNameUseCase.validate(name)
 
     /**
-     * [remotePath]를 [localDestPath]에 다운로드한다.
-     * @param remotePath 다운로드할 원격 파일 또는 디렉터리의 경로
+     * 원격 항목 [item]을 [localDestPath]에 같은 이름으로 다운로드한다.
+     * @param item 다운로드할 원격 파일 또는 디렉터리 항목
      * @param localDestPath 로컬 저장 대상 디렉터리의 절대 경로
-     * @param isDirectory 원격 경로가 디렉터리이면 true
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun download(
-        remotePath: String,
-        localDestPath: String,
-        isDirectory: Boolean,
-        completionMessage: String,
-        onRefresh: suspend () -> Unit
-    ) {
-        val localFilePath = "$localDestPath/${remotePath.substringAfterLast("/")}"
+    fun download(item: FileHolderItem, localDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.DOWNLOAD, onRefresh) { onProgress ->
-            transferRepo.download(remotePath, localFilePath, isDirectory, onProgress)
+            transferRepo.download(item.path, localDestPath, item.name, item.isDirectory, onProgress)
         }
     }
 
     /**
-     * [localPath]를 [remoteDestPath]에 업로드한다.
-     * @param localPath 업로드할 로컬 파일의 절대 경로
+     * 로컬 항목 [item]을 [remoteDestPath]에 같은 이름으로 업로드한다.
+     * @param item 업로드할 로컬 파일 항목
      * @param remoteDestPath 업로드 대상 원격 디렉터리 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun upload(localPath: String, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val remoteFilePath = "$remoteDestPath/${localPath.substringAfterLast("/")}"
+    fun upload(item: FileHolderItem, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.UPLOAD, onRefresh) { onProgress ->
-            transferRepo.upload(localPath, remoteFilePath, onProgress)
+            transferRepo.upload(item.path, remoteDestPath, item.name, onProgress)
         }
     }
 
@@ -83,23 +75,22 @@ class RemoteFileOperationUseCase(
     fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsInvalidName(validateEntryName(newName), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            val toPath = "${path.substringBeforeLast("/")}/$newName"
-            failingWith(errorMessage) { mutationRepo.rename(path, toPath) }
+            failingWith(errorMessage) { mutationRepo.rename(path, newName) }
         }
     }
 
     /**
      * [targets]의 원격 파일·디렉터리를 하나의 작업으로 삭제한다.
      * 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다. 연결이 끊기면 즉시 중단한다.
-     * @param targets 삭제할 원격 경로 → 디렉터리 여부
+     * @param targets 삭제할 원격 파일·디렉터리 항목
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun deleteRemote(targets: Map<String, Boolean>, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun deleteRemote(targets: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            forEachCollectingFailures(targets.entries, "삭제 실패", nameOf = { it.key.substringAfterLast("/") }) { (path, isDirectory) ->
-                if (isDirectory) mutationRepo.removeDirectoryRecursive(path) else mutationRepo.deleteFile(path)
+            forEachCollectingFailures(targets, "삭제 실패", nameOf = { it.name }) { item ->
+                if (item.isDirectory) mutationRepo.removeDirectoryRecursive(item.path) else mutationRepo.deleteFile(item.path)
             }
         }
     }
@@ -116,7 +107,7 @@ class RemoteFileOperationUseCase(
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsInvalidName(validateEntryName(dirName), dirName, "디렉터리 생성 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
-            failingWith(errorMessage) { mutationRepo.makeDirectory("$parentPath/$dirName") }
+            failingWith(errorMessage) { mutationRepo.makeDirectory(parentPath, dirName) }
         }
     }
 

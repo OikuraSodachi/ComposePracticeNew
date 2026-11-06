@@ -16,12 +16,14 @@ import com.todokanai.composepracticenew.repository.OperationNoticeReporter
  * @param notices 실행 전 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param fileActionRepo 로컬 파일 변경 작업을 실행하는 FileActionRepository
  * @param fileNameUseCase 파일 이름 규칙을 검증하는 UseCase
+ * @param navigator 출발지와 목적지의 위치 관계를 로컬 저장소의 경로 규칙으로 판별하는 로컬 FileNavigatorUseCase
  */
 class LocalFileOperationUseCase(
     private val orchestrator: FileOperationOrchestrator,
     private val notices: OperationNoticeReporter,
     private val fileActionRepo: FileActionRepository,
-    private val fileNameUseCase: FileNameUseCase
+    private val fileNameUseCase: FileNameUseCase,
+    private val navigator: FileNavigatorUseCase
 ) {
     /**
      * 새 폴더·이름 변경에 쓸 이름을 검증한다.
@@ -37,12 +39,9 @@ class LocalFileOperationUseCase(
      */
     fun validateZipName(name: String): Set<FileNameError> = fileNameUseCase.validate(name, ZIP_EXTENSION)
 
+    /** [destPath]가 [files] 중 하나의 부모(제자리 복사·이동)이거나 그 안쪽이면 true. */
     private fun isSamePath(files: Set<String>, destPath: String): Boolean =
-        files.any { srcPath ->
-            val srcName = srcPath.substringAfterLast('/')
-            "$destPath/$srcName" == srcPath ||
-            destPath.startsWith("$srcPath/")
-        }
+        files.any { srcPath -> navigator.parentOf(srcPath) == destPath || navigator.isInside(destPath, srcPath) }
 
     /**
      * [files]를 [destPath]에 복사한다.
@@ -64,15 +63,15 @@ class LocalFileOperationUseCase(
 
     /**
      * [files]를 삭제한다. 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다.
-     * @param files 삭제할 파일의 절대 경로 집합
+     * @param files 삭제할 파일·디렉터리 항목
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun delete(files: Set<String>, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun delete(files: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
-            forEachCollectingFailures(files, "삭제 실패", nameOf = { it.substringAfterLast('/') }) { path ->
-                fileActionRepo.deleteFile(path, onProgress)
+            forEachCollectingFailures(files, "삭제 실패", nameOf = { it.name }) { item ->
+                fileActionRepo.deleteFile(item.path, onProgress)
             }
         }
     }
@@ -107,9 +106,8 @@ class LocalFileOperationUseCase(
      */
     fun zip(files: Set<String>, parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsInvalidName(validateZipName(name), "$name$ZIP_EXTENSION", "압축 실패")) return
-        val zipFilePath = "$parentPath/$name$ZIP_EXTENSION"
         orchestrator.launch(completionMessage, FileOperationType.ZIP, onRefresh) { onProgress ->
-            fileActionRepo.zipAction(files, zipFilePath, onProgress)
+            fileActionRepo.zipAction(files, parentPath, "$name$ZIP_EXTENSION", onProgress)
         }
     }
 

@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 /**
@@ -171,7 +170,7 @@ class FileListViewModel @Inject constructor(
      * @return 확장자를 뺀 기본 이름
      */
     private fun zipBaseName(selectedList: List<FileHolderItem>, first: FileHolderItem): String {
-        val folderName = File(first.path).parentFile?.name.orEmpty()
+        val folderName = fileNavigatorUseCase.parentOf(first.path)?.let(fileNavigatorUseCase::displayNameOf).orEmpty()
         return if (selectedList.size > 1 && folderName.isNotEmpty()) folderName else nameWithoutExtension(first)
     }
 
@@ -240,7 +239,7 @@ class FileListViewModel @Inject constructor(
 
     /** selectedList의 파일들을 [name].zip으로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
     fun zip(selectedList: List<FileHolderItem>, name: String) {
-        val parent = selectedList.firstOrNull()?.path?.let { File(it).parent } ?: return
+        val parent = selectedList.firstOrNull()?.path?.let(fileNavigatorUseCase::parentOf) ?: return
         val targets = selectedList.map { it.path }.toSet()
         localFileOperationUseCase.zip(
             files = targets,
@@ -290,9 +289,8 @@ class FileListViewModel @Inject constructor(
 
     /** selectedList의 파일들을 삭제한다. */
     fun delete(selectedList: List<FileHolderItem>) {
-        val targets = selectedList.map { it.path }.toSet()
         localFileOperationUseCase.delete(
-            files = targets,
+            files = selectedList.map { it.toDomain() },
             completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

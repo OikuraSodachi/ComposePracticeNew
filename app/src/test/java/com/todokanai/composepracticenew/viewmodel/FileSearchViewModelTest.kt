@@ -307,5 +307,6 @@ class FileSearchViewModelTest {
 
         override fun refresh() {}
         override fun getParentPath(path: String): String? = path.substringBeforeLast('/', "").ifEmpty { null }
+        override fun displayNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
     }
 }

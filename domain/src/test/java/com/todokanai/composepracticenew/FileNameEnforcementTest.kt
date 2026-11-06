@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +36,7 @@ class FileNameEnforcementTest {
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
     private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope)
-    private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase())
+    private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), FileNavigatorUseCase(LocalPathNavigator()))
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, mutationRepo, FileNameUseCase())
 
     @After
@@ -90,7 +91,7 @@ class FileNameEnforcementTest {
     /** 호출된 작업 이름을 기록하는 테스트용 로컬 파일 작업 저장소. */
     private class RecordingFileActionRepository : FileActionRepository {
         val calls = mutableListOf<String>()
-        override suspend fun zipAction(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
+        override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
@@ -103,16 +104,16 @@ class FileNameEnforcementTest {
     /** 호출된 작업 이름을 기록하는 테스트용 원격 변경 저장소. */
     private class RecordingMutationRepository : RemoteFileMutationRepository {
         val calls = mutableListOf<String>()
-        override suspend fun rename(fromPath: String, toPath: String) = IoResult.Done.also { calls += "rename" }
+        override suspend fun rename(path: String, newName: String) = IoResult.Done.also { calls += "rename" }
         override suspend fun deleteFile(path: String) = IoResult.Done.also { calls += "delete" }
-        override suspend fun makeDirectory(path: String) = IoResult.Done.also { calls += "mkdir" }
+        override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
         override suspend fun removeDirectoryRecursive(path: String) = IoResult.Done.also { calls += "rmdir" }
     }
 
     /** 전송을 수행하지 않는 테스트용 원격 전송 저장소. 이 테스트의 대상 작업은 전송을 쓰지 않는다. */
     private object NoOpTransferRepository : RemoteFileTransferRepository {
-        override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */

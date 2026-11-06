@@ -76,11 +76,12 @@ class DirTreeTest {
     }
 
     @Test
-    fun `이름 구간이 비어 있으면 경로 전체를 이름으로 쓴다`() {
-        nav.parents = emptyMap()
-        nav.currentPath.value = "C:/"
+    fun `이름은 저장소가 정한다`() {
+        nav.parents = mapOf("doc:2" to "doc:1")
+        nav.names = mapOf("doc:1" to "사진", "doc:2" to "여행")
+        nav.currentPath.value = "doc:2"
 
-        assertEquals(listOf(PathSegment("C:/", "C:/")), currentDirTree())
+        assertEquals(listOf(PathSegment("사진", "doc:1"), PathSegment("여행", "doc:2")), currentDirTree())
     }
 
     /** 지금 [FileNavigatorUseCase.dirTree]가 내는 경로 단계. */
@@ -97,5 +98,8 @@ class DirTreeTest {
         override fun refresh() {}
         override fun getParentPath(path: String): String? =
             parents?.get(path) ?: path.substringBeforeLast('/').takeIf { parents == null && it.isNotEmpty() && it != path }
+        /** 경로별 표시 이름. 표에 없으면 '/' 기준으로 마지막 구간을 이름으로 쓴다. */
+        var names: Map<String, String> = emptyMap()
+        override fun displayNameOf(path: String): String = names[path] ?: path.substringAfterLast('/').ifEmpty { path }
     }
 }

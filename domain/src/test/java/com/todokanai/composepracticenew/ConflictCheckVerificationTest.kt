@@ -157,5 +157,6 @@ class ConflictCheckVerificationTest {
         override suspend fun navigate(path: String) = NavigateResult.Navigated
         override fun refresh() {}
         override fun getParentPath(path: String): String? = null
+        override fun displayNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
     }
 }

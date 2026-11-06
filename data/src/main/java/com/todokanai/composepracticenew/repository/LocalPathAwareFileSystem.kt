@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.fileexplorer.defaultDisplayName
 import com.todokanai.fileexplorer.defaultParentPath
 import javax.inject.Inject
 
@@ -17,6 +18,7 @@ class LocalPathAwareFileSystem @Inject constructor(
     override fun handles(path: String): Boolean = !path.contains(SCHEME_SEPARATOR)
     override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = localFiles.listFiles(path)
     override fun getParent(path: String): String? = defaultParentPath(path)
+    override fun displayName(path: String): String = defaultDisplayName(path)
     override suspend fun resolveNavigationPath(path: String): String? =
         if (localFiles.canRead(path)) path else null
 

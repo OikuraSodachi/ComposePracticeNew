@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -44,7 +45,7 @@ class RemoteFileOperationFailureTest {
     fun `다운로드가 실패하면 완료 대신 오류를 알린다`() {
         transferRepo.failure = IoResult.ItemFailed("retrieveFileStream 실패: 550 No such file")
 
-        remote.download("ftp://h/r/a.txt", "/local", isDirectory = false, completionMessage = "done") {}
+        remote.download(item("ftp://h/r/a.txt", isDirectory = false), "/local", completionMessage = "done") {}
 
         assertEquals(listOf("retrieveFileStream 실패: 550 No such file"), notices.failures)
         assertTrue(notices.completions.isEmpty())
@@ -54,7 +55,7 @@ class RemoteFileOperationFailureTest {
     fun `업로드 중 연결이 끊기면 완료 대신 오류를 알린다`() {
         transferRepo.failure = IoResult.ConnectionLost("FTP 서버와의 연결이 끊겼습니다")
 
-        remote.upload("/local/a.txt", "ftp://h/r", completionMessage = "done") {}
+        remote.upload(item("/local/a.txt", isDirectory = false), "ftp://h/r", completionMessage = "done") {}
 
         assertEquals(listOf("FTP 서버와의 연결이 끊겼습니다"), notices.failures)
         assertTrue(notices.completions.isEmpty())
@@ -62,7 +63,7 @@ class RemoteFileOperationFailureTest {
 
     @Test
     fun `전송이 성공하면 완료를 알린다`() {
-        remote.download("ftp://h/r/a.txt", "/local", isDirectory = false, completionMessage = "done") {}
+        remote.download(item("ftp://h/r/a.txt", isDirectory = false), "/local", completionMessage = "done") {}
 
         assertEquals(listOf("done"), notices.completions)
         assertTrue(notices.failures.isEmpty())
@@ -73,7 +74,7 @@ class RemoteFileOperationFailureTest {
         mutationRepo.failingPaths += "ftp://h/r/b.txt"
 
         remote.deleteRemote(
-            targets = linkedMapOf("ftp://h/r/a.txt" to false, "ftp://h/r/b.txt" to false, "ftp://h/r/dir" to true),
+            targets = listOf(item("ftp://h/r/a.txt", false), item("ftp://h/r/b.txt", false), item("ftp://h/r/dir", true)),
             completionMessage = "done"
         ) {}
 
@@ -88,7 +89,7 @@ class RemoteFileOperationFailureTest {
         mutationRepo.connectionLostAt = "ftp://h/r/a.txt"
 
         remote.deleteRemote(
-            targets = linkedMapOf("ftp://h/r/a.txt" to false, "ftp://h/r/b.txt" to false),
+            targets = listOf(item("ftp://h/r/a.txt", false), item("ftp://h/r/b.txt", false)),
             completionMessage = "done"
         ) {}
 
@@ -101,7 +102,7 @@ class RemoteFileOperationFailureTest {
         mutationRepo.partialFailures["ftp://h/r/dir"] =
             IoResult.PartiallyFailed("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", "DELE 실패: 550")))
 
-        remote.deleteRemote(targets = linkedMapOf("ftp://h/r/dir" to true), completionMessage = "done") {}
+        remote.deleteRemote(targets = listOf(item("ftp://h/r/dir", true)), completionMessage = "done") {}
 
         assertEquals(listOf("삭제 실패: dir/sub/x.txt (DELE 실패: 550)"), notices.failures)
     }
@@ -113,12 +114,16 @@ class RemoteFileOperationFailureTest {
             IoResult.PartiallyFailed("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", "DELE 실패: 550")))
 
         remote.deleteRemote(
-            targets = linkedMapOf("ftp://h/r/a.txt" to false, "ftp://h/r/dir" to true, "ftp://h/r/ok.txt" to false),
+            targets = listOf(item("ftp://h/r/a.txt", false), item("ftp://h/r/dir", true), item("ftp://h/r/ok.txt", false)),
             completionMessage = "done"
         ) {}
 
         assertEquals(listOf("삭제 실패: 2개 항목 (a.txt, dir/sub/x.txt)"), notices.failures)
     }
+
+    /** [path]의 마지막 경로 조각을 이름으로 갖는 테스트 항목을 만든다. */
+    private fun item(path: String, isDirectory: Boolean) =
+        FileHolderItem(path = path, isDirectory = isDirectory, name = path.substringAfterLast('/'), sizeBytes = null, lastModifiedMillis = 0L)
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
@@ -130,10 +135,10 @@ class RemoteFileOperationFailureTest {
     /** [failure]가 있으면 전송 시 그 실패를 돌려주는 테스트용 원격 전송 저장소. */
     private class FakeTransferRepository : RemoteFileTransferRepository {
         var failure: IoResult.Failure? = null
-        override suspend fun download(remotePath: String, localPath: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
             return failure ?: IoResult.Done
         }
-        override suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
             return failure ?: IoResult.Done
         }
     }
@@ -145,9 +150,9 @@ class RemoteFileOperationFailureTest {
         /** 경로 → 그 경로 작업이 돌려줄 부분 실패. 폴더 삭제 중 하위 항목 실패를 재현한다. */
         val partialFailures = mutableMapOf<String, IoResult.PartiallyFailed>()
         var connectionLostAt: String? = null
-        override suspend fun rename(fromPath: String, toPath: String) = record("rename", fromPath)
+        override suspend fun rename(path: String, newName: String) = record("rename", path)
         override suspend fun deleteFile(path: String) = record("delete", path)
-        override suspend fun makeDirectory(path: String) = record("mkdir", path)
+        override suspend fun makeDirectory(parentPath: String, name: String) = record("mkdir", parentPath)
         override suspend fun removeDirectoryRecursive(path: String) = record("rmdir", path)
 
         private fun record(command: String, path: String): IoResult<Unit> {

@@ -63,7 +63,7 @@ class LocalOperationDestinationGuardTest {
             fileNavigatorUseCase = FileNavigatorUseCase(nav),
             openFileUseCase = OpenFileUseCase(nav) {},
             sortModeUseCase = SortModeUseCase(InMemorySortPreference()),
-            localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase()),
+            localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), FileNavigatorUseCase(nav)),
             conflictCheckUseCase = ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
             messages = FixedMessages
         )

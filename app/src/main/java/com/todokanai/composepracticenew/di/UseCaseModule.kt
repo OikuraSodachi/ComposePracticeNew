@@ -136,8 +136,9 @@ object UseCaseModule {
         orchestrator: FileOperationOrchestrator,
         notices: OperationNoticeReporter,
         fileActionRepo: FileActionRepository,
-        fileNameUseCase: FileNameUseCase
-    ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, fileNameUseCase)
+        fileNameUseCase: FileNameUseCase,
+        navigator: FileNavigatorUseCase
+    ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, fileNameUseCase, navigator)
 
     @Provides @Singleton
     fun provideRemoteFileOperationUseCase(

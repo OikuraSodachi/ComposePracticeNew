@@ -61,14 +61,31 @@ class FileNavigatorUseCase(private val nav: FileNavigatorRepository) {
      */
     private fun ancestorsOf(path: String): List<PathSegment> =
         generateSequence(path) { nav.getParentPath(it) }
-            .map { PathSegment(name = segmentNameOf(it), path = it) }
+            .map { PathSegment(name = nav.displayNameOf(it), path = it) }
             .toList()
             .asReversed()
 
     /**
-     * [path]의 표시 이름을 반환한다.
-     * @param path 디렉터리 경로
-     * @return 마지막 '/' 뒤 부분. 비어 있으면(경로가 '/'로 끝나면) 경로 전체
+     * [path]의 부모 경로를 반환한다.
+     * @param path 부모를 구할 경로
+     * @return 부모 경로. 루트이면 null
      */
-    private fun segmentNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
+    fun parentOf(path: String): String? = nav.getParentPath(path)
+
+    /**
+     * [path] 디렉터리의 표시 이름을 반환한다.
+     * @param path 디렉터리 경로
+     * @return 저장소가 정한 표시 이름
+     */
+    fun displayNameOf(path: String): String = nav.displayNameOf(path)
+
+    /**
+     * [path]가 [ancestor]의 안쪽(자기 자신은 제외)인지 [FileNavigatorRepository.getParentPath]를 따라 올라가며 판별한다.
+     * 부모는 항상 위의 경로이므로 루트(null)에서 멈춘다.
+     * @param path 판별할 경로
+     * @param ancestor 바깥 경로
+     * @return [path]의 상위 경로 중 [ancestor]가 있으면 true
+     */
+    fun isInside(path: String, ancestor: String): Boolean =
+        generateSequence(nav.getParentPath(path)) { nav.getParentPath(it) }.any { it == ancestor }
 }

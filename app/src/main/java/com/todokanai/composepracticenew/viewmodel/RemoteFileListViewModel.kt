@@ -219,7 +219,7 @@ class RemoteFileListViewModel @Inject constructor(
                 path = item.path,
                 newName = newName,
                 completionMessage = messages.notiComplete,
-                errorMessage = "rename 실패: ${item.path.substringAfterLast("/")}",
+                errorMessage = "rename 실패: ${item.name}",
                 onRefresh = { fileNavigatorUseCase.refresh() }
             )
         }
@@ -251,7 +251,7 @@ class RemoteFileListViewModel @Inject constructor(
     fun onDelete(items: List<FileHolderItem>) {
         if (items.isEmpty()) return
         remoteFileOperationUseCase.deleteRemote(
-            targets = items.associate { it.path to it.isDirectory },
+            targets = items.map { it.toDomain() },
             completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

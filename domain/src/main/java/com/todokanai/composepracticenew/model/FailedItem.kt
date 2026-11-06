@@ -5,7 +5,8 @@ private const val MAX_LISTED_FAILURES = 3
 
 /**
  * 여러 항목을 처리하는 작업에서 실패한 항목 하나.
- * @param path 작업 대상 기준 상대 경로. 빈 문자열이면 작업 대상 자신이다
+ * [path]는 실패 메시지에만 쓰는 표시용 경로다. 저장소에 다시 넘기지 않으므로 저장소의 경로 규칙과 무관하게 이름들을 '/'로 잇는다.
+ * @param path 작업 대상 기준 상대 표시 경로. 빈 문자열이면 작업 대상 자신이다
  * @param reason 실패 원인 메시지. 원인을 알 수 없으면 null
  */
 data class FailedItem(val path: String, val reason: String?) {
