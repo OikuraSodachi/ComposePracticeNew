@@ -32,6 +32,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.ui.model.operationLabelRes
 
 /**
  * 파일 작업 하나의 진행률을 표시하는 다이얼로그.
@@ -68,7 +69,7 @@ private fun ProgressItem(state: ProgressStateModel) {
     val progress = state.progress
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = operationLabel(state.operationType),
+            text = stringResource(operationLabelRes(state.operationType)),
             style = MaterialTheme.typography.labelMedium
         )
         if (progress != null) {
@@ -174,18 +175,6 @@ private fun progressText(progress: Int?): String =
 private fun sizeText(state: ProgressStateModel): String? {
     val current = state.currentSize ?: return null
     return state.totalSize?.let { "$current / $it" } ?: current
-}
-
-@Composable
-private fun operationLabel(type: FileOperationType?) = when (type) {
-    FileOperationType.COPY -> stringResource(R.string.progress_copying)
-    FileOperationType.MOVE -> stringResource(R.string.progress_moving)
-    FileOperationType.DELETE -> stringResource(R.string.progress_deleting)
-    FileOperationType.ZIP -> stringResource(R.string.progress_zipping)
-    FileOperationType.UNZIP -> stringResource(R.string.progress_unzipping)
-    FileOperationType.DOWNLOAD -> stringResource(R.string.progress_downloading)
-    FileOperationType.UPLOAD -> stringResource(R.string.progress_uploading)
-    null -> stringResource(R.string.progress_processing)
 }
 
 /** 둥근 모서리의 커스텀 LinearProgressIndicator. */

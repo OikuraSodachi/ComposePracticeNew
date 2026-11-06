@@ -11,9 +11,9 @@ interface FileOperationNotifier {
     /** [state]에 담긴 작업 종류와 진행도로 [instanceId] 작업의 진행 알림을 업데이트한다. */
     fun progressNoti(state: ProgressState, instanceId: Int)
 
-    /** [instanceId] 작업의 알림을 [message]를 담은 완료 알림으로 띄운다. 진행 알림이 있었으면 그 자리를 대신한다. */
+    /** [instanceId] 작업의 알림을 [message]를 담은 완료 알림으로 띄운다. 진행 알림이 있었으면 지우고 완료 알림으로 대신한다. 그 작업에 대한 마지막 호출이다. */
     fun completedNotification(message: String, instanceId: Int)
 
-    /** [instanceId] 작업의 알림을 지운다. */
+    /** 완료하지 못한 [instanceId] 작업의 알림을 지운다. 그 작업에 대한 마지막 호출이다. */
     fun cancelNotification(instanceId: Int)
 }

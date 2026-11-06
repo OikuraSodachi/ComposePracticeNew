@@ -1,5 +1,3 @@
-@file:JvmName("LocalFileActionModelKt")
-
 package com.todokanai.composepracticenew.tools.independent
 
 /** 이 method들은 독립적으로 사용 가능함 */

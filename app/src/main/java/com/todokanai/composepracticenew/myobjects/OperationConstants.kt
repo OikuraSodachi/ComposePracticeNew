@@ -1,6 +1,9 @@
 package com.todokanai.composepracticenew.myobjects
 
-/** 파일 작업 알림 상수 모음. 작업 종류 식별은 [com.todokanai.composepracticenew.model.FileOperationType]이 담당한다. */
+/**
+ * 파일 작업 알림 상수 모음. 작업 종류 식별은 [com.todokanai.composepracticenew.model.FileOperationType]이 담당한다.
+ * 알림을 만드는 쪽(MyNotification)과 받는 쪽(MyApplication의 채널 생성, MainActivity의 클릭 처리)이 모두 app에 있으므로 app에 둔다.
+ */
 object OperationConstants {
 
     /** 알림 채널 식별자. */

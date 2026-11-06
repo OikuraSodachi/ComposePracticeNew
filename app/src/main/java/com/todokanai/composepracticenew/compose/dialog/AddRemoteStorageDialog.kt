@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.ConfirmCancelDialog
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
+import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
@@ -46,7 +47,7 @@ fun AddRemoteStorageDialog(
     validate: (name: String, address: String, port: String) -> Set<RemoteStorageInputError>,
     initialValue: RemoteStorageItem? = null
 ) {
-    val encodingOptions = Constants.REMOTE_ENCODING_OPTIONS
+    val encodingOptions = AppConstants.REMOTE_ENCODING_OPTIONS
     // 입력 필드 6개는 rememberSaveable — 키 없음: 화면 회전 등 구성 변경 후에도 입력 중인 값을 보존하고, initialValue는 최초 진입 시에만 초기값으로 사용
     var name by rememberSaveable { mutableStateOf(initialValue?.name ?: "") }
     var address by rememberSaveable { mutableStateOf(initialValue?.address ?: "") }
