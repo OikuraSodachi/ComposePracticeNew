@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.data.datastore.PreferenceFailureNotices
 import com.todokanai.composepracticenew.datasource.ArchiveExtractor
 import com.todokanai.composepracticenew.datasource.RarArchiveExtractor
 import com.todokanai.composepracticenew.datasource.ZipArchiveExtractor
-import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
@@ -35,7 +34,6 @@ import com.todokanai.composepracticenew.repository.RemoteStorageRepositoryImpl
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepositoryImpl
-import com.todokanai.composepracticenew.tools.MyNotification
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -94,9 +92,6 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindRemoteFileMutationRepository(impl: FtpRepositoryImpl): RemoteFileMutationRepository
-
-    @Binds
-    abstract fun bindFileOperationNotifier(impl: MyNotification): FileOperationNotifier
 
     @Binds @IntoSet
     abstract fun bindFtpPathAwareFileSystem(impl: FtpPathAwareFileSystem): PathAwareFileSystem

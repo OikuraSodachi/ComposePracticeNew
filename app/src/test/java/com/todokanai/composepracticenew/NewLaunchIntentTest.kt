@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class NewLaunchIntentTest {
 
-    /** 알림 클릭 intent에 붙는 flags. MyNotification.buildClickIntent와 같다. */
+    /** 알림 클릭 intent에 붙는 flags. MyNotification.launchIntent와 같다. */
     private val notificationFlags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
 
     @Test

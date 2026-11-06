@@ -16,6 +16,7 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_INSTANCE_ID
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.ui.model.operationLabelRes
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -74,33 +75,40 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         notifyIfPermitted(instanceId, builder)
     }
 
-    /** 작업 종류별 진행 알림 제목을 반환한다. */
-    private fun titleFor(type: FileOperationType?): String = when (type) {
-        FileOperationType.COPY     -> "Copying"
-        FileOperationType.MOVE     -> "Moving"
-        FileOperationType.DELETE   -> "Deleting"
-        FileOperationType.ZIP      -> "Zipping"
-        FileOperationType.UNZIP    -> "Unzipping"
-        FileOperationType.DOWNLOAD -> "Downloading"
-        FileOperationType.UPLOAD   -> "Uploading"
-        null                       -> "Processing"
-    }
+    /** 작업 종류별 진행 알림 제목을 반환한다. 진행 다이얼로그와 같은 문구를 쓴다. */
+    private fun titleFor(type: FileOperationType?): String = context.getString(operationLabelRes(type))
 
     /**
      * 알림 클릭 시 앱을 열고 [instanceId] 작업의 진행률 다이얼로그를 띄우는 PendingIntent를 만든다.
      * requestCode를 작업 인스턴스 ID로 두어, 같은 종류의 작업이 여럿이어도 알림마다 자기 작업을 가리키는 intent를 갖게 한다.
      */
     private fun buildClickIntent(operationTypeId: Int, instanceId: Int): PendingIntent? {
-        val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
-            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val intent = launchIntent()?.apply {
             putExtra(EXTRA_ACTION_KEY, operationTypeId)
             putExtra(EXTRA_INSTANCE_ID, instanceId)
         } ?: return null
-        return PendingIntent.getActivity(
-            context, instanceId, intent,
+        return activityPendingIntent(instanceId, intent)
+    }
+
+    /**
+     * 완료 알림 클릭 시 앱만 여는 PendingIntent를 만든다. 끝난 작업은 진행 상태가 지워져 띄울 진행률 다이얼로그가 없으므로 작업을 가리키지 않는다.
+     * requestCode는 진행 알림과 같은 작업 인스턴스 ID다 — 완료 알림이 그 작업의 진행 알림 자리를 대신하므로, 진행 알림의 intent가 남지 않게 덮어쓴다.
+     */
+    private fun buildCompletedClickIntent(instanceId: Int): PendingIntent? =
+        launchIntent()?.let { activityPendingIntent(instanceId, it) }
+
+    /** 앱의 시작 Activity를 여는 intent. 앱이 이미 열려 있으면 새로 쌓지 않고 그 Activity로 돌아간다. */
+    private fun launchIntent(): Intent? =
+        context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
+    /** [intent]로 Activity를 여는 PendingIntent를 [requestCode]로 만든다. 같은 requestCode의 이전 intent는 덮어쓴다. */
+    private fun activityPendingIntent(requestCode: Int, intent: Intent): PendingIntent =
+        PendingIntent.getActivity(
+            context, requestCode, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-    }
 
     /**
      * 알림 권한이 있을 때만 [builder]의 알림을 작업 [instanceId]의 알림으로 발송한다.
@@ -126,6 +134,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setOngoing(true)
             .build()
 
+    /** 누르면 앱을 열고 알림을 지운다 — 모든 알림이 탭에 반응하도록 한다. */
     override fun completedNotification(message: String, instanceId: Int) {
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
@@ -133,6 +142,8 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setContentText(message)
             .setProgress(0, 0, false)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(buildCompletedClickIntent(instanceId))
+            .setAutoCancel(true)
         notifyIfPermitted(instanceId, builder)
     }
 
