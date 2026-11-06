@@ -56,10 +56,17 @@ android {
     }
 }
 
+// data를 runtimeOnly로 둬도 data의 Hilt 모듈을 찾도록 집계 태스크를 쓴다(기본값이지만 아래 의존이 기대므로 명시)
+hilt {
+    enableAggregatingTask = true
+}
+
 dependencies {
 
     implementation project(':domain')
-    implementation project(':data')
+    implementation project(':core')
+    // app 코드가 data의 클래스·리소스를 컴파일 단계에서 참조하지 못하게 runtimeOnly로 둔다 — implementation으로 되돌리지 않는다(#232)
+    runtimeOnly project(':data')
 
     implementation libs.androidx.core.ktx
     implementation libs.androidx.lifecycle.runtime.ktx
