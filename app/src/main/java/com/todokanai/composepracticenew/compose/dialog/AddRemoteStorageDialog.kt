@@ -30,7 +30,6 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.ConfirmCancelDialog
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.myobjects.AppConstants
-import com.todokanai.composepracticenew.myobjects.Constants
 import com.todokanai.composepracticenew.ui.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
@@ -39,6 +38,7 @@ import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
  * 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호, 인코딩)를 입력받아 추가하거나 수정하는 다이얼로그.
  *
  * 입력 검증 규칙은 [validate]로 주입받고, 이 다이얼로그는 결과에 따라 확인 버튼 활성 여부와 필드 오류 표시만 담당한다.
+ * 확인을 누른 순간에도 최신 입력을 다시 검증해, 위반이면 닫지 않고 입력을 유지한다.
  * 필수 입력이 비어 있다는 오류는 사용자가 그 필드를 한 번이라도 편집한 뒤에만 표시해, 빈 추가 폼을 열자마자 오류가 보이지 않게 한다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,7 +88,8 @@ fun AddRemoteStorageDialog(
         title = stringResource(R.string.dialog_add_remote_storage_title),
         onConfirm = { onConfirm(currentInput()) },
         onDismiss = onDismiss,
-        confirmEnabled = errors.isEmpty()
+        confirmEnabled = errors.isEmpty(),
+        canConfirm = { currentValidate(currentInput()).isEmpty() }
     ) {
         Column {
             TextField(
@@ -183,7 +184,7 @@ fun AddRemoteStorageDialog(
 /** 인코딩 선택의 초기값을 정한다. 수정할 항목의 설정이 없으면(새 항목) 기본 인코딩이다. */
 private fun initialEncodingOf(settings: RemoteProtocolSettings?): String = when (settings) {
     is RemoteProtocolSettings.Ftp -> settings.encoding
-    null -> Constants.REMOTE_ENCODING_DEFAULT
+    null -> RemoteProtocolSettings.Ftp.DEFAULT_ENCODING
 }
 
 /** 오류일 때만 사유 문구를 보여주는 TextField supportingText 슬롯을 만든다. 오류가 아니면 슬롯을 두지 않는다. */

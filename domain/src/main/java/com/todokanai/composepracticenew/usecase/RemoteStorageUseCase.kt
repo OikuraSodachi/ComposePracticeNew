@@ -36,7 +36,7 @@ class RemoteStorageUseCase(
 
     /**
      * 입력한 접속 정보를 저장한다. id가 0이면 새 항목을 추가하고, 기존 id면 그 항목을 교체한다.
-     * [validateInput]을 위반한 입력은 저장하지 않는다 — 화면은 같은 검증으로 확인 버튼을 막으므로, 입력과 확인이 겹친 순간에만 일어난다.
+     * [validateInput]을 위반한 입력은 저장하지 않는다 — 화면은 확인을 처리하기 직전에 같은 검증을 하므로, 화면 입력으로는 일어나지 않는다.
      * @param input 사용자가 입력한 접속 정보
      * @return Unit
      */
@@ -59,7 +59,11 @@ class RemoteStorageUseCase(
     /** [port]가 [RemoteStorageItem.PORT_RANGE] 안의 정수인지 판별한다. */
     private fun isValidPort(port: String): Boolean = port.toIntOrNull()?.let { it in RemoteStorageItem.PORT_RANGE } ?: false
 
-    /** [validateInput]을 통과한 [input]을 저장할 항목으로 바꾼다. */
+    /**
+     * [validateInput]을 통과한 입력값을 저장할 항목으로 바꾼다.
+     * @param input 검증을 통과한 입력값
+     * @return 저장할 항목
+     */
     private fun itemOf(input: RemoteStorageInput) = RemoteStorageItem(
         id = input.id,
         name = input.name,

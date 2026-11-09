@@ -20,6 +20,8 @@ sealed interface RemoteProtocolSettings {
         companion object {
             /** 새 FTP 서버를 추가할 때 처음 채워 두는 포트. */
             const val DEFAULT_PORT = 21
+            /** 새 FTP 서버를 추가할 때 처음 선택해 두는 파일명 인코딩. */
+            const val DEFAULT_ENCODING = "UTF-8"
         }
     }
 
