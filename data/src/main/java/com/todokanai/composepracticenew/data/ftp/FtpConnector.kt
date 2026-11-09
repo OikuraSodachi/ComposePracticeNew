@@ -16,8 +16,8 @@ import javax.inject.Singleton
  * @param keepAlive 로그인 성공 후 idle timeout 방지를 위해 기동하는 Keep-Alive
  */
 @Singleton
-class FtpConnector @Inject constructor(
-    private val session: FtpSession,
+class FtpConnector @Inject internal constructor(
+    private val session: FtpConnectionLifecycle,
     private val keepAlive: FtpKeepAlive
 ) {
 
@@ -85,7 +85,7 @@ class FtpConnector @Inject constructor(
      * @return 쓸 수 있는 연결이면 [ConnectResult.Connected]. 로그인이 거부됐거나 목록을 해석할 수 없으면 그 이유를 담은 실패
      * @throws java.io.IOException 접속하지 못했거나 응답을 읽지 못한 경우
      */
-    private fun establish(client: FTPClient, server: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
+    private fun establish(client: ListingStreamFtpClient, server: String, port: Int, userId: String, password: String, encoding: String): ConnectResult {
         client.connectTimeout = CONNECT_TIMEOUT_MS
         client.setControlEncoding(encoding)
         // 응답 읽기의 상한은 세션이 정해 둔 값으로 접속할 때 걸린다([FtpSession])
@@ -101,7 +101,7 @@ class FtpConnector @Inject constructor(
      * @return 쓸 수 있는 연결이면 [ConnectResult.Connected]. 로그인이 거부됐거나 목록을 해석할 수 없으면 그 이유를 담은 실패
      * @throws java.io.IOException 응답을 읽지 못한 경우
      */
-    private fun loginAndCheck(client: FTPClient, userId: String, password: String): ConnectResult {
+    private fun loginAndCheck(client: ListingStreamFtpClient, userId: String, password: String): ConnectResult {
         if (!client.login(userId, password)) return ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
         client.enterLocalPassiveMode()
         client.setFileType(FTP.BINARY_FILE_TYPE)

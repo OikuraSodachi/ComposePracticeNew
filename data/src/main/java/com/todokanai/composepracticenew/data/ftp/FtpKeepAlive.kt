@@ -15,11 +15,13 @@ import javax.inject.Singleton
  * 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다.
  * 세션과 수명을 맞추기 위해 @Singleton — 어디서 주입하든 같은 NOOP 루프를 시작·중단한다.
  * @param session NOOP 전송과 연결 끊김 처리를 위임할 FTP 세션
+ * @param status 루프를 계속할지 판단할 연결 상태
  * @param scope NOOP 루프를 실행할 앱 수명 코루틴 스코프. 루프는 화면이 아니라 세션에 묶이므로 앱 스코프에서 돈다
  */
 @Singleton
-class FtpKeepAlive @Inject constructor(
-    private val session: FtpSession,
+class FtpKeepAlive @Inject internal constructor(
+    private val session: FtpCommandSession,
+    private val status: FtpConnectionStatus,
     @ApplicationScope private val scope: CoroutineScope
 ) {
     /** 실행 중인 NOOP 루프 Job. 중단 상태이면 null. */
@@ -29,7 +31,7 @@ class FtpKeepAlive @Inject constructor(
     fun start() {
         job?.cancel()
         job = scope.launch {
-            while (isActive && session.connectionState.value is RemoteConnectionState.Connected) {
+            while (isActive && status.connectionState.value is RemoteConnectionState.Connected) {
                 delay(KEEPALIVE_INTERVAL_MS)
                 // NOOP 응답을 읽지 못하면(끊김·타임아웃) 세션이 응답 순서를 잃으므로 withConnectedClient가 세션을 종료하고,
                 // 끊김 상태가 되어 다음 루프 조건(connectionState)에서 종료된다. NOOP을 거부한 응답은 세션 유지에 영향이 없어 결과를 보지 않는다

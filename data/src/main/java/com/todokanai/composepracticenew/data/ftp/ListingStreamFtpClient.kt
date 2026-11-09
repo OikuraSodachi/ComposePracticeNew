@@ -6,18 +6,41 @@ import java.io.IOException
 import java.io.InputStream
 
 /**
- * 목록 조회 명령(LIST·MLSD)의 데이터 스트림을 열어 주는 FTPClient. 전송의 `retrieveFileStream`에 해당하는 목록 조회용 공개 함수가 commons-net에 없어 둔다.
+ * 목록 조회 명령(LIST·MLSD)의 데이터 스트림을 열어 주고, 이 연결의 현재 디렉터리를 기록하는 FTPClient. 전송의 `retrieveFileStream`에 해당하는 목록 조회용 공개 함수가 commons-net에 없어 둔다.
  * commons-net의 `listFiles`·`mlistDir`는 데이터 연결을 읽다 실패한 것과 완료 응답을 읽다 실패한 것을 같은 예외로 던진다.
  * LIST는 완료 응답을 읽지 않은 채 던지고, MLSD는 읽은 뒤에도 던진다. 그래서 목록도 전송처럼 데이터 스트림을 직접 열어 [DataCommandRunner]로 다룬다.
+ * 현재 디렉터리는 이동을 보내는 이 객체가 기록하며, 세션의 ioMutex를 쥔 쪽만 읽고 쓴다.
+ * 명령 블록에는 [FtpCommandClient]로만 넘긴다.
  */
-internal open class ListingStreamFtpClient : FTPClient() {
+internal open class ListingStreamFtpClient : FTPClient(), FtpCommandClient {
+
+    /** 이 연결의 현재 디렉터리. [changeDirectory]와 [recordLogin]만 바꾼다. */
+    final override var workingDirectory: String? = null
+        private set
+
+    /** 이 연결의 로그인 직후 디렉터리. [recordLogin]만 바꾼다. */
+    final override var homeDirectory: String? = null
+        private set
+
+    /**
+     * 새 연결의 로그인 직후 디렉터리를 기록한다. 새 연결의 현재 디렉터리는 홈이다.
+     * @param home 로그인 직후의 현재 디렉터리(FTP 경로). 서버가 알려주지 않았으면 null
+     */
+    fun recordLogin(home: String?) {
+        homeDirectory = home
+        workingDirectory = home
+    }
+
+    /** 이동이 받아들여졌을 때만 현재 디렉터리를 기록한다. */
+    final override fun changeDirectory(pathname: String): Boolean =
+        changeWorkingDirectory(pathname).also { changed -> if (changed) workingDirectory = pathname }
 
     /**
      * 인자 없는 LIST를 보내 현재 디렉터리 목록의 데이터 스트림을 연다. 인자를 붙이지 않는 이유는 [FtpCommandExecutor]의 LIST 조회에 있다.
      * @return 서버가 전송을 시작(1xx)하면 데이터 스트림, 데이터 연결을 열기 전에 거부하면 null(거부 응답은 [getReplyCode]에 남는다)
      * @throws IOException 응답을 읽지 못했거나 데이터 소켓을 열지 못한 경우
      */
-    open fun openListStream(): InputStream? = openStream(FTPCmd.LIST, argument = null)
+    override fun openListStream(): InputStream? = openStream(FTPCmd.LIST, argument = null)
 
     /**
      * MLSD를 보내 [pathname] 목록의 데이터 스트림을 연다.
@@ -25,7 +48,7 @@ internal open class ListingStreamFtpClient : FTPClient() {
      * @return 서버가 전송을 시작(1xx)하면 데이터 스트림, 데이터 연결을 열기 전에 거부하면 null(거부 응답은 [getReplyCode]에 남는다)
      * @throws IOException 응답을 읽지 못했거나 데이터 소켓을 열지 못한 경우
      */
-    open fun openMlsdStream(pathname: String): InputStream? = openStream(FTPCmd.MLSD, pathname)
+    override fun openMlsdStream(pathname: String): InputStream? = openStream(FTPCmd.MLSD, pathname)
 
     /**
      * [command]를 보내 데이터 연결을 열고 그 입력 스트림을 돌려준다. 스트림을 닫으면 데이터 소켓도 닫힌다.

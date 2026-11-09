@@ -29,7 +29,7 @@ class RemoteRootNavigationWiringTest {
     /** 원격 파일 시스템과 FTP 저장소가 함께 쓰는 명령 실행기. */
     private val commands = FtpCommandExecutor(session)
     /** 루트 경로를 정하는 실제 FTP 연결 저장소. */
-    private val connection = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, TestScope())), commands, FtpTransferrer(session, commands))
+    private val connection = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, session, TestScope())), commands, FtpTransferrer(session, commands))
     /** DI 공급 함수로 만든 원격 탐색 저장소. 파일 시스템 집합은 DI에 등록된 것과 같다. */
     private val nav = RepositoryModule.provideRemoteFileNavigatorRepository(
         DataConverter(),

@@ -30,7 +30,7 @@ class FtpRepositoryPathTest {
     /** FTP 저장소와 전송기가 함께 쓰는 명령 실행기. */
     private val commands = FtpCommandExecutor(session)
     /** 검증 대상. */
-    private val repo = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, TestScope())), commands, FtpTransferrer(session, commands))
+    private val repo = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, session, TestScope())), commands, FtpTransferrer(session, commands))
 
     @After
     fun tearDown() {

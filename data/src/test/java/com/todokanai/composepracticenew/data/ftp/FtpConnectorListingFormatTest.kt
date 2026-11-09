@@ -27,7 +27,7 @@ class FtpConnectorListingFormatTest {
     /** Keep-Alive 루프를 돌리는 스코프. 테스트가 끝나면 취소한다. */
     private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
-    private val keepAlive = FtpKeepAlive(session, keepAliveScope)
+    private val keepAlive = FtpKeepAlive(session, session, keepAliveScope)
     /** 검증 대상. */
     private val connector = FtpConnector(session, keepAlive)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */

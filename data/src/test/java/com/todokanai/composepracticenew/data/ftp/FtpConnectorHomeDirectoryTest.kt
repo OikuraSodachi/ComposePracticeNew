@@ -24,7 +24,7 @@ class FtpConnectorHomeDirectoryTest {
     /** Keep-Alive 루프를 돌리는 스코프. 테스트가 끝나면 취소한다. */
     private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
-    private val keepAlive = FtpKeepAlive(session, keepAliveScope)
+    private val keepAlive = FtpKeepAlive(session, session, keepAliveScope)
     /** 검증 대상. */
     private val connector = FtpConnector(session, keepAlive)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
@@ -43,8 +43,8 @@ class FtpConnectorHomeDirectoryTest {
         val result = connectTo(mapOf("PWD" to { it.send("257 \"/home/u\" is the current directory") }))
 
         assertEquals(ConnectResult.Connected, result)
-        assertEquals("/home/u", session.homeDirectory)
-        assertEquals("/home/u", session.workingDirectory)
+        assertEquals("/home/u", client.homeDirectory)
+        assertEquals("/home/u", client.workingDirectory)
     }
 
     @Test
@@ -52,8 +52,8 @@ class FtpConnectorHomeDirectoryTest {
         val result = connectTo(mapOf("PWD" to { it.send("502 Command not implemented") }))
 
         assertEquals(ConnectResult.Connected, result)
-        assertNull(session.homeDirectory)
-        assertNull(session.workingDirectory)
+        assertNull(client.homeDirectory)
+        assertNull(client.workingDirectory)
     }
 
     /**

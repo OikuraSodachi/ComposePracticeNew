@@ -184,9 +184,9 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
         }
     }
 
-    override fun storeFileStream(remote: String?): OutputStream? =
+    override fun storeFileStream(remote: String): OutputStream? =
         respond("STOR", refused = { null }) {
-            storeRequests += remote.orEmpty()
+            storeRequests += remote
             if (streamContent == null) return@respond refuseStream()
             reply(150, "150 Opening data connection")
             ByteArrayOutputStream()
@@ -201,18 +201,18 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
         }
     }
 
-    override fun removeDirectory(pathname: String?): Boolean {
-        removeDirectoryRequests += pathname.orEmpty()
+    override fun removeDirectory(pathname: String): Boolean {
+        removeDirectoryRequests += pathname
         return respond("RMD", refused = { false }) { completed(250, "250 Removed") }
     }
 
-    override fun makeDirectory(pathname: String?): Boolean {
-        makeDirectoryRequests += pathname.orEmpty()
+    override fun makeDirectory(pathname: String): Boolean {
+        makeDirectoryRequests += pathname
         return respond("MKD", refused = { false }) { completed(257, "257 Created") }
     }
 
-    override fun rename(from: String?, to: String?): Boolean {
-        renameRequests += from.orEmpty() to to.orEmpty()
+    override fun rename(from: String, to: String): Boolean {
+        renameRequests += from to to
         return respond("RENAME", refused = { false }) { completed(250, "250 Renamed") }
     }
 
