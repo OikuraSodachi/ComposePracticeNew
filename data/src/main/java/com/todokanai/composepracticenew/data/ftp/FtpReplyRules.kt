@@ -1,8 +1,9 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
-import org.apache.commons.net.ftp.FTPClient
+import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPReply
+import org.apache.commons.net.ftp.parser.MLSxEntryParser
 
 /**
  * 이 앱이 보내는 FTP 명령. 응답 해석 규칙이 명령마다 다를 수 있어 [FtpReplyRules]의 행(行)이 된다.
@@ -50,20 +51,46 @@ internal object FtpReplyRules {
     fun isSystemTypeReply(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
 
     /**
-     * 응답이 예비 응답(1xx)인지 판별한다. 예비 응답 뒤에는 같은 명령의 최종 응답이 이어지며, 목록 조회·전송에서는 데이터 연결을 열어 전송을 시작했다는 뜻이다.
-     * @param replyCode 응답 코드
-     * @return 예비 응답이면 true
-     */
-    fun isPreliminaryReply(replyCode: Int): Boolean = FTPReply.isPositivePreliminary(replyCode)
-
-    /**
      * [command]를 서버가 거부한 마지막 응답을 이 항목만의 실패로 만든다.
      * @param command 거부된 명령
-     * @param client 거부 응답을 받은 FTPClient
+     * @param reply 서버가 보낸 거부 응답 문자열
      * @return 서버 응답을 메시지로 담은 실패
      */
-    fun refusal(command: FtpCommand, client: FTPClient): IoResult.ItemFailed =
-        IoResult.ItemFailed("${command.label} 실패: ${client.replyString.trim()}${refusalNote(command)}")
+    fun refusal(command: FtpCommand, reply: String): IoResult.ItemFailed =
+        IoResult.ItemFailed("${command.label} 실패: ${reply.trim()}${refusalNote(command)}")
+
+    /**
+     * 데이터를 다 주고받았지만 서버가 완료를 확인하지 않은 전송을 이 항목만의 실패로 만든다.
+     * @param reply 서버가 보낸 완료 응답 문자열
+     * @return 서버 응답을 메시지로 담은 실패
+     */
+    fun unacknowledgedTransfer(reply: String): IoResult.ItemFailed = IoResult.ItemFailed("전송 미완료: ${reply.trim()}")
+
+    /**
+     * MLST 응답에서 파일 크기를 읽는다. 항목 줄은 응답의 둘째 줄이며 공백으로 시작한다(RFC 3659 §7.2).
+     * 서버가 거부했거나 항목 줄이 없거나 해석할 수 없는 값(숫자가 아닌 size, 짧은 unix.mode 등 commons-net 해석기가 예외를 던지는 값)이면 크기를 모른다.
+     * @param replyCode MLST의 응답 코드
+     * @param replyLines 응답을 끝까지 읽은 MLST 응답 줄
+     * @return 파일 크기(bytes), 알 수 없으면 -1
+     */
+    fun mlstEntrySize(replyCode: Int, replyLines: Array<String>): Long {
+        if (!FTPReply.isPositiveCompletion(replyCode)) return -1L
+        val entryLine = replyLines.getOrNull(1)?.trimStart()?.takeIf { it.isNotEmpty() } ?: return -1L
+        return parseMlstEntry(entryLine)?.size?.takeIf { it >= 0 } ?: -1L
+    }
+
+    /**
+     * MLST 항목 줄을 해석한다.
+     * @param entryLine 앞 공백을 뗀 항목 줄
+     * @return 해석한 항목. commons-net 해석기가 해석하지 못하면 null
+     */
+    private fun parseMlstEntry(entryLine: String): FTPFile? = try {
+        MLSxEntryParser.parseEntry(entryLine)
+    } catch (e: NumberFormatException) {
+        null
+    } catch (e: IndexOutOfBoundsException) {
+        null
+    }
 
     /**
      * 서버 응답만으로는 원인을 알 수 없는 거부에 덧붙일 설명.

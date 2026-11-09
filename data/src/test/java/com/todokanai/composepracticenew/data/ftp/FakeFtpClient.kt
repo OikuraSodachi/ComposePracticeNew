@@ -10,7 +10,7 @@ import java.util.Locale
 
 /**
  * 테스트가 정하는, 명령 하나에 대한 서버 동작.
- * 명령 이름은 "CWD"·"LIST"·"MLSD"·"RETR"·"STOR"·"DELE"·"RMD"·"MKD"·"RENAME"이다.
+ * 명령 이름은 "CWD"·"LIST"·"MLSD"·"MLST"·"RETR"·"STOR"·"DELE"·"RMD"·"MKD"·"RENAME"이다.
  */
 internal sealed interface ServerBehavior {
     /**
@@ -84,7 +84,7 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
     var listingCompletionCalls = 0
     /** disconnect가 호출된 횟수. */
     var disconnectCalls = 0
-    /** 서버에 보낸 명령 이름(예: "DELE"). 목록 조회·스트림·변경 명령만 기록한다. */
+    /** 서버에 보낸 명령 이름(예: "DELE"). 목록 조회·크기 조회(MLST)·스트림·변경 명령만 기록한다. */
     val sentCommands = mutableListOf<String>()
     /** retrieveFileStream으로 요청된 원격 경로. */
     val retrieveRequests = mutableListOf<String>()
@@ -132,10 +132,15 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
 
     override fun sendCommand(command: FTPCmd, args: String?): Int {
         check(command == FTPCmd.MLST) { "가짜 클라이언트가 처리하지 않는 명령: $command" }
-        lastReplyLines = onMlst(args.orEmpty())
-        val code = lastReplyLines.first().take(3).toInt()
-        reply(code, lastReplyLines.joinToString("\n"))
-        return code
+        return respond("MLST", refused = {
+            lastReplyLines = listOf(lastReplyString)
+            lastReplyCode
+        }) {
+            lastReplyLines = onMlst(args.orEmpty())
+            val code = lastReplyLines.first().take(3).toInt()
+            reply(code, lastReplyLines.joinToString("\n"))
+            code
+        }
     }
 
     override fun getReplyStrings(): Array<String> = lastReplyLines.toTypedArray()

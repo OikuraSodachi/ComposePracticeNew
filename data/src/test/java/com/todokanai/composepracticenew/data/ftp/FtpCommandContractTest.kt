@@ -56,6 +56,10 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 assertEquals("거부 응답 뒤에는 기다릴 응답이 없다", 0, client.completePendingCalls)
                 assertSessionKept()
             }
+            Outcome.CONTINUES -> {
+                assertEquals(IoResult.Done, runBlocking { run() })
+                assertSessionKept()
+            }
             Outcome.CONNECTION_LOST -> {
                 assertTrue(runBlocking { run() } is IoResult.ConnectionLost)
                 assertSessionEnded()
@@ -96,6 +100,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
      * @param ftpName [FakeFtpClient.serverBehaviors]의 명령 이름
      * @param name 테스트 이름에 표시할 행 이름. 같은 명령을 다른 용도로 쓰는 행을 구분한다
      * @param refusalNote 거부 메시지에서 서버 응답 뒤에 붙는 설명. 원인을 응답만으로 알 수 없는 거부에만 붙는다([FtpReplyRules.refusal])
+     * @param refused 서버가 이 명령을 거부했을 때의 기대 결과
      * @param prepare 명령이 그 단계까지 정상 진행되도록 가짜 클라이언트를 준비하는 함수
      * @param run 공개 API로 명령을 실행하는 함수
      */
@@ -103,6 +108,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
         val ftpName: String,
         val name: String = ftpName,
         val refusalNote: String = "",
+        val refused: Outcome = Outcome.ITEM_FAILED,
         val prepare: (FakeFtpClient) -> Unit = {},
         val run: suspend (Fixture) -> IoResult<*>
     ) {
@@ -123,7 +129,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     }
 
     /** 기대하는 결과 종류. */
-    internal enum class Outcome { ITEM_FAILED, CONNECTION_LOST, NOT_SENT, THROWS }
+    internal enum class Outcome { ITEM_FAILED, CONTINUES, CONNECTION_LOST, NOT_SENT, THROWS }
 
     companion object {
         /** 모든 명령 행. */
@@ -147,6 +153,10 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
             ) {
                 it.executor.removeDirectoryRecursive("ftp://host/r/d")
             },
+            // 크기 조회는 진행률에만 쓰므로, 거부되면 크기를 모르는 채로 전송을 이어 간다
+            CommandRow("MLST", refused = Outcome.CONTINUES, prepare = { it.streamContent = "data".toByteArray() }) {
+                it.transferrer.download("ftp://host/r/a.txt", File(it.dir, "a.txt").path)
+            },
             CommandRow("RETR", prepare = { it.streamContent = "data".toByteArray() }) {
                 it.transferrer.download("ftp://host/r/a.txt", File(it.dir, "a.txt").path)
             },
@@ -166,7 +176,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
          * @return 기대 결과
          */
         private fun expectedOutcome(command: CommandRow, behavior: BehaviorColumn): Outcome = when (behavior) {
-            BehaviorColumn.REFUSED_450, BehaviorColumn.REFUSED_550 -> Outcome.ITEM_FAILED
+            BehaviorColumn.REFUSED_450, BehaviorColumn.REFUSED_550 -> command.refused
             BehaviorColumn.CONNECTION_CLOSED, BehaviorColumn.REPLY_TIMEOUT -> Outcome.CONNECTION_LOST
             BehaviorColumn.UNEXPECTED_EXCEPTION -> Outcome.THROWS
             BehaviorColumn.NOT_CONNECTED -> Outcome.NOT_SENT
