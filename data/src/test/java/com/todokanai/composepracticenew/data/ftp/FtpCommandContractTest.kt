@@ -31,9 +31,9 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /** 검증 대상 세션. */
     private val session = FtpSession(client)
     /** 검증 대상 파일 명령 실행기. */
-    private val executor = FtpCommandExecutor(session)
+    private val executor = FtpCommandExecutor(session, DataCommandRunner(session))
     /** 검증 대상 전송기. */
-    private val transferrer = FtpTransferrer(session, executor)
+    private val transferrer = FtpTransferrer(session, executor, DataCommandRunner(session))
 
     @After
     fun tearDown() {

@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicReference
 class FtpListingStalledDataTest {
 
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = ListingStreamFtpClient()
+    private val client = SessionFtpClient()
     /** 검증 대상 세션. 데이터 연결의 읽기 상한을 짧게 둔다. */
     private val session = FtpSession(client, ioTimeoutMillis = IO_TIMEOUT_MILLIS)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
@@ -48,7 +48,7 @@ class FtpListingStalledDataTest {
             }
             exchange.send(if (stall) "426 Transfer aborted" else "226 Transfer complete")
         }
-        val commands = FtpCommandExecutor(session)
+        val commands = FtpCommandExecutor(session, DataCommandRunner(session))
 
         val stalled = runBlocking { commands.listFiles("ftp://host/r") }
         val next = runBlocking { commands.listFiles("ftp://host/r") }

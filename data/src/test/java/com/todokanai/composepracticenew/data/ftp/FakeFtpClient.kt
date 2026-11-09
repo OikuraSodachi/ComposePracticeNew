@@ -38,7 +38,7 @@ internal sealed interface ServerBehavior {
  * 네트워크 없이 연결된 것처럼 동작하는 테스트용 FTPClient. 명령마다 서버 동작([serverBehaviors])과 완료 확인·크기 조회·삭제의 결과를 테스트가 정하고, 호출을 기록한다.
  * [serverBehaviors]에 없는 명령은 정상 응답한다. [streamContent]가 null이면 데이터 스트림 요청을 [streamRefusal]로 거부한다.
  */
-internal class FakeFtpClient : ListingStreamFtpClient() {
+internal class FakeFtpClient : SessionFtpClient() {
     /** 명령 이름 → 그 명령에 서버가 보일 동작. 없으면 정상 응답한다. */
     var serverBehaviors: Map<String, ServerBehavior> = emptyMap()
     /** LIST 조회 시 돌려줄 원격 파일 이름. 모두 1바이트 파일로 돌려준다. */

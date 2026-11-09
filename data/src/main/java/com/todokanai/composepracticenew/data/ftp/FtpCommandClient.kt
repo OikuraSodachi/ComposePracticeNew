@@ -8,7 +8,7 @@ import java.io.OutputStream
 /**
  * 연결된 세션의 명령 블록([FtpCommandSession.withConnectedClient])이 쓸 수 있는 FTP 명령만 담은 표면.
  * 연결 수명(로그인·종료)과 기록 없는 디렉터리 이동을 FTPClient 원본처럼 부를 수 없게, 명령 블록에는 이 타입만 넘긴다.
- * 함수 이름은 구현([ListingStreamFtpClient])이 commons-net에서 물려받는 함수와 같다.
+ * 함수 이름은 구현([SessionFtpClient])이 commons-net에서 물려받는 함수와 같다.
  */
 internal interface FtpCommandClient {
 
@@ -104,13 +104,13 @@ internal interface FtpCommandClient {
     fun completePendingCommand(): Boolean
 
     /**
-     * 명령을 보내고 응답을 끝까지 읽는다.
-     * @param command 보낼 명령
-     * @param args 명령 인자. 없으면 null
+     * MLST를 보내고 응답을 끝까지 읽는다. 항목 줄은 [getReplyStrings]에 남는다.
+     * 임의 명령을 보내는 함수는 두지 않는다 — CWD를 보내면 [workingDirectory]가 서버와 어긋난다.
+     * @param pathname 조회할 항목의 FTP 경로
      * @return 응답 코드
      * @throws IOException 응답을 읽지 못한 경우
      */
-    fun sendCommand(command: FTPCmd, args: String?): Int
+    fun sendMlst(pathname: String): Int
 
     /**
      * NOOP을 보낸다.

@@ -13,7 +13,6 @@ import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTPCmd
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -29,15 +28,14 @@ import javax.inject.Singleton
  * 다운로드의 로컬 파일은 서버가 전송을 받아들인 뒤에(거부되면 기존 파일을 비우지 않도록), 업로드의 로컬 파일은 STOR 전에([uploadingFrom]) 연다.
  * @param session 전송에 사용할 FTPClient와 잠금을 소유한 FTP 세션
  * @param cmd 디렉터리 다운로드 시 원격 트리를 수집하고, 폴더 업로드 시 원격 폴더를 만드는 FtpCommandExecutor
+ * @param dataCommands 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행하는 실행기
  */
 @Singleton
 class FtpTransferrer @Inject internal constructor(
     private val session: FtpCommandSession,
-    private val cmd: FtpCommandExecutor
+    private val cmd: FtpCommandExecutor,
+    private val dataCommands: DataCommandRunner
 ) {
-
-    /** 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행한다. */
-    private val dataCommands = DataCommandRunner(session)
 
     /**
      * remotePath의 파일 또는 디렉터리를 localPath에 스트리밍 다운로드한다.
@@ -169,7 +167,7 @@ class FtpTransferrer @Inject internal constructor(
 
     /**
      * 로컬 디렉터리 트리를 [ftpPath] 아래로 업로드한다. 실패한 파일은 모아서 마지막에 알린다.
-     * 원격 폴더 생성은 이미 있는 경우에도 거부 응답이 오므로 결과를 보지 않으며, 폴더가 실제로 없으면 그 안의 파일 업로드가 실패로 집계된다.
+     * 원격 폴더는 이미 있어도 되며, 만들 수도 없고 있지도 않으면 그 폴더의 실패로 집계된다([FtpCommandExecutor.ensureDirectory]).
      */
     private suspend fun uploadDirectory(
         localDir: File,
@@ -183,7 +181,7 @@ class FtpTransferrer @Inject internal constructor(
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
             if (entry.isDirectory) {
-                cmd.tryMakeDirectory(entryFtpPath)
+                cmd.ensureDirectory(entryFtpPath)
             } else {
                 progress.startFile()
                 val entryBytes = entry.length()
@@ -300,7 +298,7 @@ class FtpTransferrer @Inject internal constructor(
      * @return 파일 크기(bytes), 알 수 없으면 -1
      */
     private fun remoteFileSize(client: FtpCommandClient, ftpPath: String): Long {
-        val replyCode = client.sendCommand(FTPCmd.MLST, ftpPath)
+        val replyCode = client.sendMlst(ftpPath)
         return FtpReplyRules.mlstEntrySize(replyCode, client.getReplyStrings())
     }
 

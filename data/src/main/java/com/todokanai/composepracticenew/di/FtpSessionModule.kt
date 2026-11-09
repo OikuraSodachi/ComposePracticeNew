@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.di
 import com.todokanai.composepracticenew.data.ftp.FtpCommandSession
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionLifecycle
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionStatus
+import com.todokanai.composepracticenew.data.ftp.FtpDataCommandSession
 import com.todokanai.composepracticenew.data.ftp.FtpSession
 import dagger.Binds
 import dagger.Module
@@ -15,6 +16,9 @@ import dagger.hilt.components.SingletonComponent
 internal abstract class FtpSessionModule {
     @Binds
     abstract fun bindFtpCommandSession(impl: FtpSession): FtpCommandSession
+
+    @Binds
+    abstract fun bindFtpDataCommandSession(impl: FtpSession): FtpDataCommandSession
 
     @Binds
     abstract fun bindFtpConnectionLifecycle(impl: FtpSession): FtpConnectionLifecycle

@@ -24,15 +24,19 @@ internal interface FtpCommandSession {
      * @return block의 결과, 또는 연결 끊김
      */
     suspend fun <T> withConnectedClient(block: suspend (FtpCommandClient) -> IoResult<T>): IoResult<T>
+}
+
+/** 데이터 연결을 쓰는 명령([DataCommandRunner])이 세션에 요구하는 역할. 모두 잠금을 쥔 [FtpCommandSession.withConnectedClient] 블록 안에서 호출한다. */
+internal interface FtpDataCommandSession {
 
     /**
-     * 데이터 연결을 쓰는 명령의 데이터 스트림을 연다. [withConnectedClient]의 블록 안에서 호출한다.
+     * 데이터 연결을 쓰는 명령의 데이터 스트림을 연다.
      * @param open 데이터 스트림을 여는 명령. 서버가 거부하면 null을 돌려준다
      * @return 열린 데이터 연결, 서버가 거부했으면 null
      */
     fun <S : Closeable> openDataConnection(open: () -> S?): DataConnection<S>?
 
-    /** 응답 순서를 알 수 없게 된 세션을 끝낸다. [withConnectedClient]의 블록 안에서 호출한다. */
+    /** 응답 순서를 알 수 없게 된 세션을 끝낸다. */
     suspend fun endUnusableSession()
 }
 
@@ -44,7 +48,7 @@ internal interface FtpConnectionLifecycle : FtpConnectionStatus {
      * @param block 잠금 안에서 실행할 연결 작업
      * @return block의 반환값
      */
-    suspend fun <T> withClient(block: suspend (ListingStreamFtpClient) -> T): T
+    suspend fun <T> withClient(block: suspend (SessionFtpClient) -> T): T
 
     /**
      * 소켓이 열려 있는지 판별한다.

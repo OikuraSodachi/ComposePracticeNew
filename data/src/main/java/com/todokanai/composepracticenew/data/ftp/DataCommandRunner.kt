@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import kotlinx.coroutines.CancellationException
 import java.io.Closeable
 import java.io.IOException
+import javax.inject.Inject
 
 /**
  * 데이터 연결을 쓰는 명령 하나를 [DataCommandRunner]로 실행한 결과. 서버 응답을 무엇으로 볼지는 명령마다 받는 쪽이 정한다.
@@ -33,7 +34,7 @@ internal sealed interface DataCommandOutcome {
  * 중단을 정상 닫기로 알리면 서버는 잘린 업로드를 다 받은 파일로 저장한다(RFC 959 §3.4.1). 정상으로 닫지 못한 것(남은 데이터를 보내지 못함)도 데이터 연결의 실패다.
  * @param session 데이터 연결을 열고, 응답 순서를 알 수 없게 된 세션을 끝내는 FTP 세션
  */
-internal class DataCommandRunner(private val session: FtpCommandSession) {
+internal class DataCommandRunner @Inject constructor(private val session: FtpDataCommandSession) {
 
     /**
      * [open]으로 데이터 연결을 열어 [exchange]로 데이터를 주고받고, 연결을 닫은 뒤 완료 응답을 읽는다. 세션 잠금을 쥔 블록 안에서 호출한다.

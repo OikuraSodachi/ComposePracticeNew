@@ -4,8 +4,9 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /** 디렉터리 이동과 현재 디렉터리 기록이 [FtpCommandClient.changeDirectory] 하나로 묶여 어긋나지 않는지 검증하는 단위 테스트(#233). */
-class ListingStreamFtpClientWorkingDirectoryTest {
+class SessionFtpClientWorkingDirectoryTest {
 
+    /** 검증 대상. */
     private val client = FakeFtpClient()
 
     @Test

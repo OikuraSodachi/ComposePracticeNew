@@ -11,18 +11,18 @@ class FtpSessionIoTimeoutTest {
 
     @Test
     fun `상한이 0이면 세션을 만들지 않는다`() {
-        assertThrows(IllegalArgumentException::class.java) { FtpSession(ListingStreamFtpClient(), ioTimeoutMillis = 0) }
+        assertThrows(IllegalArgumentException::class.java) { FtpSession(SessionFtpClient(), ioTimeoutMillis = 0) }
     }
 
     @Test
     fun `상한이 음수면 세션을 만들지 않는다`() {
-        assertThrows(IllegalArgumentException::class.java) { FtpSession(ListingStreamFtpClient(), ioTimeoutMillis = -1) }
+        assertThrows(IllegalArgumentException::class.java) { FtpSession(SessionFtpClient(), ioTimeoutMillis = -1) }
     }
 
     // 거부하지 못하면 서버가 접속해 오지 않는 데이터 연결을 기다리므로 테스트 시간을 제한한다
     @Test(timeout = TEST_TIMEOUT_MILLIS)
     fun `수동 모드로 바꾸지 않은 채 데이터 연결을 열면 구현 오류로 바로 실패한다`() {
-        val client = ListingStreamFtpClient()
+        val client = SessionFtpClient()
         FtpSession(client, ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
 
         ScriptedFtpServer().use { server ->

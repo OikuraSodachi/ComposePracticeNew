@@ -122,7 +122,7 @@ class FtpConnectorCloseRequestTest {
             }
         }
 
-        val listing = runBlocking { FtpCommandExecutor(session).listFiles("ftp://host/r") }
+        val listing = runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles("ftp://host/r") }
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertTrue(listing.toString(), listing is IoResult.ConnectionLost)
@@ -201,7 +201,7 @@ class FtpConnectorCloseRequestTest {
      * @return 항목 이름 집합
      */
     private fun listedNamesOf(path: String): Set<String> {
-        val listing = runBlocking { FtpCommandExecutor(session).listFiles(path) }
+        val listing = runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles(path) }
         return (listing as IoResult.Success).value.mapTo(HashSet()) { it.name }
     }
 
@@ -253,7 +253,7 @@ class FtpConnectorCloseRequestTest {
     }
 
     /** 명령을 보내기 직전에 테스트가 끼어들 수 있는 실제 FTP 클라이언트. 연결 단계 사이에 종료 요청을 끼워 넣는 데 쓴다. */
-    private class InterceptingFtpClient : ListingStreamFtpClient() {
+    private class InterceptingFtpClient : SessionFtpClient() {
         /** 명령을 보내기 직전에 실행할 동작. 보낼 명령 이름을 받는다. 명령을 보내는 스레드에서 실행된다. */
         @Volatile var beforeCommand: (String) -> Unit = {}
         /** 서버에 접속(소켓 열기)하기 직전에 실행할 동작. 연결 작업의 스레드에서 실행된다. */

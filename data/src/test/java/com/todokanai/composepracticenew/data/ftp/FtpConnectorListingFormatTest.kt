@@ -21,7 +21,7 @@ import org.junit.Test
 class FtpConnectorListingFormatTest {
 
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = ListingStreamFtpClient()
+    private val client = SessionFtpClient()
     /** 연결 상태를 소유한 세션. 서버 스크립트가 응답하지 않을 때 오래 기다리지 않도록 I/O 상한을 짧게 둔다. */
     private val session = FtpSession(client, ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
     /** Keep-Alive 루프를 돌리는 스코프. 테스트가 끝나면 취소한다. */
@@ -90,7 +90,7 @@ class FtpConnectorListingFormatTest {
 
         val result = connectTo(scripted)
         val systSentOnConnect = server!!.received.count { it == "SYST" }
-        val listing = runBlocking { FtpCommandExecutor(session).listFiles("ftp://host/r") }
+        val listing = runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles("ftp://host/r") }
 
         assertEquals(ConnectResult.Connected, result)
         assertEquals(listOf("ftp://host/r/a.txt"), (listing as IoResult.Success).value.map { it.path })

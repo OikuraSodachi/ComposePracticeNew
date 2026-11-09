@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.ConnectResult
+import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -18,7 +19,7 @@ import org.junit.Test
 class FtpConnectorHomeDirectoryTest {
 
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = ListingStreamFtpClient()
+    private val client = SessionFtpClient()
     /** 연결 상태와 홈을 소유한 세션. 서버 스크립트가 응답하지 않을 때 오래 기다리지 않도록 I/O 상한을 짧게 둔다. */
     private val session = FtpSession(client, ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
     /** Keep-Alive 루프를 돌리는 스코프. 테스트가 끝나면 취소한다. */
@@ -56,13 +57,33 @@ class FtpConnectorHomeDirectoryTest {
         assertNull(client.workingDirectory)
     }
 
+    @Test
+    fun `다시 연결하면 이전 연결에서 이동한 위치를 버리고 새 연결의 홈을 현재 디렉터리로 기록한다`() {
+        connectTo(mapOf("PWD" to { it.send("257 \"/home/${it.connectionIndex}\" is the current directory") }))
+        runBlocking { session.withConnectedClient { it.changeDirectory("/r"); IoResult.Done } }
+        assertEquals("/r", client.workingDirectory)
+
+        runBlocking { connector.disconnect() }
+        val result = connect(server!!)
+
+        assertEquals(ConnectResult.Connected, result)
+        assertEquals("/home/1", client.homeDirectory)
+        assertEquals("/home/1", client.workingDirectory)
+    }
+
     /**
      * [script]대로 응답하는 서버를 띄워 [FtpConnector]로 접속한다.
      * @param script 기본 응답을 덮어쓸 명령별 응답 동작
      * @return 연결 결과
      */
-    private fun connectTo(script: Map<String, (ScriptedFtpServer.Exchange) -> Unit>): ConnectResult {
-        val scripted = ScriptedFtpServer(script).also { server = it }
-        return runBlocking { connector.connect("server", scripted.host, scripted.port, "user", "password", "UTF-8") }
-    }
+    private fun connectTo(script: Map<String, (ScriptedFtpServer.Exchange) -> Unit>): ConnectResult =
+        connect(ScriptedFtpServer(script).also { server = it })
+
+    /**
+     * [scripted]에 [FtpConnector]로 접속한다.
+     * @param scripted 접속할 서버
+     * @return 연결 결과
+     */
+    private fun connect(scripted: ScriptedFtpServer): ConnectResult =
+        runBlocking { connector.connect("server", scripted.host, scripted.port, "user", "password", "UTF-8") }
 }

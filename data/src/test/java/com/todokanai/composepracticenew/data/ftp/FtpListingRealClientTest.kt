@@ -15,7 +15,7 @@ import org.junit.Test
 class FtpListingRealClientTest {
 
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = ListingStreamFtpClient().apply { defaultTimeout = TIMEOUT_MILLIS }
+    private val client = SessionFtpClient().apply { defaultTimeout = TIMEOUT_MILLIS }
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
     private var server: ScriptedFtpServer? = null
 
@@ -72,6 +72,6 @@ class FtpListingRealClientTest {
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
         val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
-        return runBlocking { FtpCommandExecutor(session).listFiles("ftp://host/r") }
+        return runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles("ftp://host/r") }
     }
 }

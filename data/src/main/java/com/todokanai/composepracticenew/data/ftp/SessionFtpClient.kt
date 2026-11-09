@@ -6,13 +6,14 @@ import java.io.IOException
 import java.io.InputStream
 
 /**
- * 목록 조회 명령(LIST·MLSD)의 데이터 스트림을 열어 주고, 이 연결의 현재 디렉터리를 기록하는 FTPClient. 전송의 `retrieveFileStream`에 해당하는 목록 조회용 공개 함수가 commons-net에 없어 둔다.
+ * 세션이 쓰는 FTPClient. 명령 블록이 쓰는 표면을 구현하고, 목록 조회의 데이터 스트림을 열어 주며, 이 연결의 현재 디렉터리를 기록한다.
+ * 전송의 `retrieveFileStream`에 해당하는 목록 조회용 공개 함수가 commons-net에 없어 스트림 열기를 여기에 둔다.
  * commons-net의 `listFiles`·`mlistDir`는 데이터 연결을 읽다 실패한 것과 완료 응답을 읽다 실패한 것을 같은 예외로 던진다.
  * LIST는 완료 응답을 읽지 않은 채 던지고, MLSD는 읽은 뒤에도 던진다. 그래서 목록도 전송처럼 데이터 스트림을 직접 열어 [DataCommandRunner]로 다룬다.
  * 현재 디렉터리는 이동을 보내는 이 객체가 기록하며, 세션의 ioMutex를 쥔 쪽만 읽고 쓴다.
  * 명령 블록에는 [FtpCommandClient]로만 넘긴다.
  */
-internal open class ListingStreamFtpClient : FTPClient(), FtpCommandClient {
+internal open class SessionFtpClient : FTPClient(), FtpCommandClient {
 
     /** 이 연결의 현재 디렉터리. [changeDirectory]와 [recordLogin]만 바꾼다. */
     final override var workingDirectory: String? = null
@@ -34,6 +35,9 @@ internal open class ListingStreamFtpClient : FTPClient(), FtpCommandClient {
     /** 이동이 받아들여졌을 때만 현재 디렉터리를 기록한다. */
     final override fun changeDirectory(pathname: String): Boolean =
         changeWorkingDirectory(pathname).also { changed -> if (changed) workingDirectory = pathname }
+
+    /** MLST를 보내고 응답을 끝까지 읽는다. */
+    override fun sendMlst(pathname: String): Int = sendCommand(FTPCmd.MLST, pathname)
 
     /**
      * 인자 없는 LIST를 보내 현재 디렉터리 목록의 데이터 스트림을 연다. 인자를 붙이지 않는 이유는 [FtpCommandExecutor]의 LIST 조회에 있다.

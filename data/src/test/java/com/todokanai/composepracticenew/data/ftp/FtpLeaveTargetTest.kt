@@ -17,7 +17,7 @@ class FtpLeaveTargetTest {
     /** [client]를 소유하고 현재 디렉터리를 기록하는 세션. */
     private val session = FtpSession(client)
     /** 검증 대상. */
-    private val commands = FtpCommandExecutor(session)
+    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
 
     @Test
     fun `폴더를 지우면 트리 수집이 들어간 폴더에서 상위 폴더로 한 번 나간 뒤 RMD를 보낸다`() {

@@ -186,24 +186,23 @@ private class BoundedListingStream(
  * 모든 명령은 실패를 결과로 알리며, 연결이 없거나 끊기면 [IoResult.ConnectionLost]를 돌려준다.
  * 서버 응답의 해석은 [FtpReplyRules]에 맡긴다.
  * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
+ * @param dataCommands 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행하는 실행기
  * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree]). 0보다 커야 한다
  */
 @Singleton
 class FtpCommandExecutor internal constructor(
     private val session: FtpCommandSession,
+    private val dataCommands: DataCommandRunner,
     private val treeMemoryLimitBytes: Long
 ) {
 
     /** 트리 수집 메모리 상한을 [TREE_MEMORY_LIMIT_BYTES]로 둔 명령 실행기를 만든다. Hilt가 사용하는 생성자다. */
-    @Inject internal constructor(session: FtpCommandSession) : this(session, TREE_MEMORY_LIMIT_BYTES)
+    @Inject internal constructor(session: FtpCommandSession, dataCommands: DataCommandRunner) : this(session, dataCommands, TREE_MEMORY_LIMIT_BYTES)
 
     init {
         // 0 이하는 상한이 아니다 — 어떤 목록도 받을 수 없어 빈 시작 폴더 말고는 모두 실패한다
         require(treeMemoryLimitBytes > 0) { "treeMemoryLimitBytes must be positive: $treeMemoryLimitBytes" }
     }
-
-    /** 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행한다. */
-    private val dataCommands = DataCommandRunner(session)
 
     /**
      * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
@@ -243,25 +242,30 @@ class FtpCommandExecutor internal constructor(
      * @param path 생성할 디렉터리의 절대 경로 (ftp://server/path 형식)
      * @return 명령 결과
      */
-    suspend fun makeDirectory(path: String): IoResult<Unit> = sendMakeDirectory(extractFtpPath(path))
-
-    /**
-     * [ftpPath]에 원격 디렉터리 생성을 시도한다. 서버의 거부는 실패로 보지 않는다.
-     * 폴더 업로드가 쓴다 — 이미 있는 폴더에도 거부 응답이 오므로, 폴더가 실제로 없으면 그 안의 파일 업로드가 실패로 집계된다.
-     * @param ftpPath 만들 디렉터리의 FTP 경로
-     * @return 서버가 답했으면 성공, 연결이 없거나 끊겼으면 그 실패
-     */
-    internal suspend fun tryMakeDirectory(ftpPath: String): IoResult<Unit> = when (val result = sendMakeDirectory(ftpPath)) {
-        is IoResult.ItemFailed -> IoResult.Done
-        is IoResult.Success, is IoResult.PartiallyFailed, is IoResult.ConnectionLost -> result
+    suspend fun makeDirectory(path: String): IoResult<Unit> {
+        val ftpPath = extractFtpPath(path)
+        return runFtpCommand(FtpCommand.MKD) { it.makeDirectory(ftpPath) }
     }
 
     /**
-     * 디렉터리 생성 명령을 보낸다.
-     * @param ftpPath 만들 디렉터리의 FTP 경로
-     * @return 명령 결과
+     * [ftpPath]에 원격 디렉터리가 있게 한다. 폴더 업로드가 쓴다.
+     * 이미 있는 폴더에도 권한 없음과 같은 거부 응답이 와 응답으로는 구분할 수 없으므로, 거부되면 그 폴더로 CWD해 있는지 확인한다.
+     * 확인이 성공하면 세션은 그 폴더 안에 남는다.
+     * @param ftpPath 있어야 할 디렉터리의 FTP 경로
+     * @return 디렉터리가 있으면 성공, 없거나 들어갈 수 없으면 MKD 거부 응답을 담은 실패, 연결이 없거나 끊겼으면 그 실패
      */
-    private suspend fun sendMakeDirectory(ftpPath: String): IoResult<Unit> = runFtpCommand(FtpCommand.MKD) { it.makeDirectory(ftpPath) }
+    internal suspend fun ensureDirectory(ftpPath: String): IoResult<Unit> =
+        session.withConnectedClient { client ->
+            withContext(Dispatchers.IO) {
+                if (client.makeDirectory(ftpPath)) {
+                    IoResult.Done
+                } else {
+                    // 확인하는 CWD가 마지막 응답을 덮어쓰기 전에 MKD의 거부 응답을 읽어 둔다
+                    val refused = FtpReplyRules.refusal(FtpCommand.MKD, client.getReplyString())
+                    if (client.changeDirectory(ftpPath)) IoResult.Done else refused
+                }
+            }
+        }
 
     /**
      * path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다.

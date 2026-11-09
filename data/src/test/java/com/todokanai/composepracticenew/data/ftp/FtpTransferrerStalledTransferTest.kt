@@ -25,7 +25,7 @@ class FtpTransferrerStalledTransferTest {
     /** 받거나 올릴 파일을 둘 로컬 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-stalled-transfer-test").toFile()
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. 데이터 소켓의 송신 버퍼를 작게 해 서버가 읽지 않으면 쓰기가 곧 막히게 한다. */
-    private val client = ListingStreamFtpClient().apply { sendDataSocketBufferSize = SMALL_BUFFER }
+    private val client = SessionFtpClient().apply { sendDataSocketBufferSize = SMALL_BUFFER }
     /** 검증 대상 세션. 데이터 연결의 읽기·쓰기 상한을 짧게 둔다. */
     private val session = FtpSession(client, ioTimeoutMillis = IO_TIMEOUT_MILLIS)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
@@ -51,7 +51,7 @@ class FtpTransferrerStalledTransferTest {
             exchange.send("426 Transfer aborted")
         })
 
-        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session)).download("ftp://host/a.bin", File(dir, "a.bin").path) }
+        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session)).download("ftp://host/a.bin", File(dir, "a.bin").path) }
 
         assertEquals(IoResult.ItemFailed("Read timed out"), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
@@ -74,7 +74,7 @@ class FtpTransferrerStalledTransferTest {
             exchange.send("426 Transfer aborted")
         })
 
-        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session)).upload(localFile.path, "ftp://host/a.bin") }
+        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session)).upload(localFile.path, "ftp://host/a.bin") }
 
         assertEquals(IoResult.ItemFailed("Write timed out"), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
@@ -95,7 +95,7 @@ class FtpTransferrerStalledTransferTest {
 
         // 첫 진행률 보고에서 실패시켜, 쓰기 상한이 아닌 실패(로컬 파일 읽기 실패 등)로 전송이 멈춘 경우를 만든다
         val result = runBlocking {
-            FtpTransferrer(session, FtpCommandExecutor(session)).upload(localFile.path, "ftp://host/a.bin") { throw IOException(LOCAL_FAILURE) }
+            FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session)).upload(localFile.path, "ftp://host/a.bin") { throw IOException(LOCAL_FAILURE) }
         }
 
         assertEquals(IoResult.ItemFailed(LOCAL_FAILURE), result)
