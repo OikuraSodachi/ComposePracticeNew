@@ -1,8 +1,8 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
+import com.todokanai.composepracticenew.data.ftp.FtpConnectionStatus
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
-import com.todokanai.composepracticenew.data.ftp.FtpSession
 import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
 import com.todokanai.composepracticenew.data.ftp.childFtpUri
 import com.todokanai.composepracticenew.data.ftp.ftpUriOf
@@ -24,8 +24,8 @@ import javax.inject.Singleton
  * @param transferrer FTP 파일 전송을 수행하는 전송기
  */
 @Singleton
-class FtpRepositoryImpl @Inject constructor(
-    session: FtpSession,
+class FtpRepositoryImpl @Inject internal constructor(
+    session: FtpConnectionStatus,
     private val connector: FtpConnector,
     private val commandExecutor: FtpCommandExecutor,
     private val transferrer: FtpTransferrer

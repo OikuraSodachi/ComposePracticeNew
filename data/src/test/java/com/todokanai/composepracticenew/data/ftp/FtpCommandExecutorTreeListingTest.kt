@@ -19,7 +19,7 @@ class FtpCommandExecutorTreeListingTest {
 
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val commands = FtpCommandExecutor(session)
+    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
 
     @Test
     fun `MLSD 서버에서 빈 하위 폴더는 실패가 아닌 빈 폴더로 수집하고 자신·상위 항목은 걸러낸다`() {
@@ -208,7 +208,7 @@ class FtpCommandExecutorTreeListingTest {
         try {
             val target = File(dir, "r")
 
-            val result = runBlocking { FtpTransferrer(session, commands).download("ftp://host/r", target.path, isDirectory = true) }
+            val result = runBlocking { FtpTransferrer(session, commands, DataCommandRunner(session)).download("ftp://host/r", target.path, isDirectory = true) }
 
             assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
             assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
@@ -240,7 +240,7 @@ class FtpCommandExecutorTreeListingTest {
         loggedIn()
         // 어느 하위 경로를 조회해도 같은 두 폴더를 돌려준다 — 단계마다 방문 수가 배로 늘어난다(#257)
         client.remoteDirectories = listOf("a", "b")
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
         val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
 
@@ -257,7 +257,7 @@ class FtpCommandExecutorTreeListingTest {
         client.features = setOf("MLST")
         // 순환이 아닌 넓은 트리 — 폴더마다 하위 폴더 열 개
         client.mlsdListingOf = { path -> (0 until 10).map { "type=dir;unique=$path/d$it; d$it" } }
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
         val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
 
@@ -278,7 +278,7 @@ class FtpCommandExecutorTreeListingTest {
                 else -> (0 until 10).map { "type=dir;unique=$path/d$it; d$it" }
             }
         }
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
         val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
 
@@ -294,14 +294,14 @@ class FtpCommandExecutorTreeListingTest {
         client.mlsdListings = mapOf("/$DEEP_NAME" to listOf("type=file;size=1; a"))
         // 줄 하나(21바이트, 항목 경로의 앞부분 512자)를 받는 동안의 추정치: 250 + 2 × 512 + 4 × 21 = 1358바이트
         // (받은 뒤: 경로 513자, 이름 1자 → 170 + 2 × 514 = 1198바이트)
-        val exact = FtpCommandExecutor(session, treeMemoryLimitBytes = 1358)
+        val exact = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = 1358)
 
         val tree = (runBlocking { exact.collectRemoteTree(DEEP_PATH) } as IoResult.Success).value
 
         assertEquals(listOf("$DEEP_PATH/a"), tree.map { it.path })
         assertEquals(
             IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME"),
-            runBlocking { FtpCommandExecutor(session, treeMemoryLimitBytes = 1357).collectRemoteTree(DEEP_PATH) }
+            runBlocking { FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = 1357).collectRemoteTree(DEEP_PATH) }
         )
     }
 
@@ -312,7 +312,7 @@ class FtpCommandExecutorTreeListingTest {
         // 받은 데이터(42,000바이트)만 세면 받는 동안의 추정치(2000 × (250 + 4 × 21) = 668,000바이트)는 상한 안이라 끝까지 받고,
         // 앞부분(512자)까지 세면 줄 773개 즈음에서 상한(1MiB)을 넘는다
         client.mlsdListings = mapOf("/$DEEP_NAME" to List(2000) { "type=file;size=1; a" })
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = 1024L * 1024)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = 1024L * 1024)
 
         val result = runBlocking { limited.collectRemoteTree(DEEP_PATH) }
 
@@ -327,7 +327,7 @@ class FtpCommandExecutorTreeListingTest {
         client.listingLineEnd = "\r"
         // LF만 세면 받는 동안의 추정치는 4 × 40,000바이트뿐이라 끝까지 받고, CR을 줄 끝으로 세면 줄 775개 즈음에서 상한(1MiB)을 넘는다
         client.mlsdListings = mapOf("/$DEEP_NAME" to List(2000) { "type=file;size=1; a" })
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = 1024L * 1024)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = 1024L * 1024)
 
         val result = runBlocking { limited.collectRemoteTree(DEEP_PATH) }
 
@@ -341,7 +341,7 @@ class FtpCommandExecutorTreeListingTest {
         client.features = setOf("MLST")
         // 한 폴더의 항목이 아주 많다 — 받는 동안의 추정치는 줄마다 250 + 2 × 13(항목 경로의 앞부분) + 4 × 24바이트
         client.mlsdListings = mapOf("/r" to (0 until 1000).map { "type=file;size=1; f$it" })
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
         val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
 
@@ -360,7 +360,7 @@ class FtpCommandExecutorTreeListingTest {
             "/r/b" to (0 until 20).map { "type=file;size=1; f$it" }
         )
         // a의 목록 20개를 받은 뒤의 추정치는 약 4.6KiB, b를 받는 동안의 추정치는 약 7KiB
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = 10L * 1024)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = 10L * 1024)
 
         val result = runBlocking { limited.collectRemoteTree("ftp://host/r") }
 
@@ -369,8 +369,8 @@ class FtpCommandExecutorTreeListingTest {
 
     @Test
     fun `메모리 상한이 0 이하면 명령 실행기를 만들지 않는다`() {
-        assertThrows(IllegalArgumentException::class.java) { FtpCommandExecutor(session, treeMemoryLimitBytes = 0) }
-        assertThrows(IllegalArgumentException::class.java) { FtpCommandExecutor(session, treeMemoryLimitBytes = -1) }
+        assertThrows(IllegalArgumentException::class.java) { FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = 0) }
+        assertThrows(IllegalArgumentException::class.java) { FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = -1) }
     }
 
     @Test
@@ -378,7 +378,7 @@ class FtpCommandExecutorTreeListingTest {
         loggedIn()
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to (0 until 1000).map { "type=file;size=1; f$it" })
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
         val listing = runBlocking { limited.listFiles("ftp://host/r") }
 
@@ -390,7 +390,7 @@ class FtpCommandExecutorTreeListingTest {
         loggedIn()
         client.remoteDirectories = listOf("a", "b")
         client.remoteFiles = listOf("x.txt")
-        val limited = FtpCommandExecutor(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
+        val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
         val result = runBlocking { limited.removeDirectoryRecursive("ftp://host/r") }
 

@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.ProgressThrottle
 import com.todokanai.composepracticenew.data.progress.TransferTotal
+import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -12,8 +13,6 @@ import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTPClient
-import org.apache.commons.net.ftp.FTPCmd
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -25,17 +24,18 @@ import javax.inject.Singleton
  * 전송의 한쪽 끝이 로컬 파일이므로 로컬 스트림 개폐는 이 클래스가 담당하고,
  * 데이터 연결의 개폐·전송 완료 확인은 목록 조회와 같은 [DataCommandRunner]로, 디렉터리 진행률은 로컬 작업과 공유하는 [ByteProgressTracker]로 계산한다.
  * 실패는 결과로 알리며, 연결이 없거나 전송 중 끊기면 [IoResult.ConnectionLost]를 돌려준다.
+ * 세션 경계 안의 로컬 파일 I/O는 [DataCommandRunner]의 exchange에서만 한다 — 경계는 던져진 IOException을 세션 종료로 보기 때문이다.
+ * 다운로드의 로컬 파일은 서버가 전송을 받아들인 뒤에(거부되면 기존 파일을 비우지 않도록), 업로드의 로컬 파일은 STOR 전에([uploadingFrom]) 연다.
  * @param session 전송에 사용할 FTPClient와 잠금을 소유한 FTP 세션
- * @param cmd 디렉터리 다운로드 시 원격 트리를 수집하는 FtpCommandExecutor
+ * @param cmd 디렉터리 다운로드 시 원격 트리를 수집하고, 폴더 업로드 시 원격 폴더를 만드는 FtpCommandExecutor
+ * @param dataCommands 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행하는 실행기
  */
 @Singleton
-class FtpTransferrer @Inject constructor(
-    private val session: FtpSession,
-    private val cmd: FtpCommandExecutor
+class FtpTransferrer @Inject internal constructor(
+    private val session: FtpCommandSession,
+    private val cmd: FtpCommandExecutor,
+    private val dataCommands: DataCommandRunner
 ) {
-
-    /** 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행한다. */
-    private val dataCommands = DataCommandRunner(session)
 
     /**
      * remotePath의 파일 또는 디렉터리를 localPath에 스트리밍 다운로드한다.
@@ -79,8 +79,8 @@ class FtpTransferrer @Inject constructor(
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> {
         val ftpPath = extractFtpPath(remotePath)
+        localFile.parentFile?.mkdirs()
         return session.withConnectedClient { client ->
-            localFile.parentFile?.mkdirs()
             val totalBytes = remoteFileSize(client, ftpPath)
             var writtenBytes = 0L
             val throttle = ProgressThrottle()
@@ -123,8 +123,8 @@ class FtpTransferrer @Inject constructor(
             } else {
                 progress.startFile()
                 val entryFtpPath = extractFtpPath(entry.path)
+                localTarget.parentFile?.mkdirs()
                 session.withConnectedClient { client ->
-                    localTarget.parentFile?.mkdirs()
                     downloadOne(
                         client, entryFtpPath, localTarget,
                         onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entry.size) },
@@ -143,28 +143,31 @@ class FtpTransferrer @Inject constructor(
         localFile: File,
         ftpPath: String,
         onProgress: (ProgressState) -> Unit
-    ): IoResult<Unit> =
-        session.withConnectedClient { client ->
-            val totalBytes = localFile.length()
-            var writtenBytes = 0L
-            val throttle = ProgressThrottle()
-            uploadOne(
-                client, ftpPath, localFile,
-                onChunk = { bytesRead ->
-                    writtenBytes += bytesRead
-                    // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onAcked에서 보고
-                    if (writtenBytes < totalBytes) {
-                        val state = buildProgressState(totalBytes, writtenBytes, localFile.name)
-                        if (throttle.shouldReport(state.progress)) onProgress(state)
-                    }
-                },
-                onAcked = { onProgress(buildProgressState(totalBytes, totalBytes, localFile.name)) }
-            )
+    ): IoResult<Unit> {
+        val totalBytes = localFile.length()
+        return uploadingFrom(localFile) { input ->
+            session.withConnectedClient { client ->
+                var writtenBytes = 0L
+                val throttle = ProgressThrottle()
+                uploadOne(
+                    client, ftpPath, input,
+                    onChunk = { bytesRead ->
+                        writtenBytes += bytesRead
+                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onAcked에서 보고
+                        if (writtenBytes < totalBytes) {
+                            val state = buildProgressState(totalBytes, writtenBytes, localFile.name)
+                            if (throttle.shouldReport(state.progress)) onProgress(state)
+                        }
+                    },
+                    onAcked = { onProgress(buildProgressState(totalBytes, totalBytes, localFile.name)) }
+                )
+            }
         }
+    }
 
     /**
      * 로컬 디렉터리 트리를 [ftpPath] 아래로 업로드한다. 실패한 파일은 모아서 마지막에 알린다.
-     * 원격 폴더 생성은 이미 있는 경우에도 거부 응답이 오므로 결과를 보지 않으며, 폴더가 실제로 없으면 그 안의 파일 업로드가 실패로 집계된다.
+     * 원격 폴더는 이미 있어도 되며, 만들 수도 없고 있지도 않으면 그 폴더의 실패로 집계된다([FtpCommandExecutor.ensureDirectory]).
      */
     private suspend fun uploadDirectory(
         localDir: File,
@@ -178,29 +181,45 @@ class FtpTransferrer @Inject constructor(
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
             if (entry.isDirectory) {
-                session.withConnectedClient { client ->
-                    client.makeDirectory(entryFtpPath)
-                    IoResult.Done
-                }
+                cmd.ensureDirectory(entryFtpPath)
             } else {
                 progress.startFile()
                 val entryBytes = entry.length()
-                session.withConnectedClient { client ->
-                    uploadOne(
-                        client, entryFtpPath, entry,
-                        onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
-                        // 마지막 파일 인덱스 기준으로 100% 보고 — 0바이트 파일 포함 시 바이트 비교 오판 방지
-                        onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
-                    )
+                uploadingFrom(entry) { input ->
+                    session.withConnectedClient { client ->
+                        uploadOne(
+                            client, entryFtpPath, input,
+                            onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
+                            // 마지막 파일 인덱스 기준으로 100% 보고 — 0바이트 파일 포함 시 바이트 비교 오판 방지
+                            onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
+                        )
+                    }
                 }
             }
         }
     }
 
     /**
+     * [localFile]을 열어 [upload]에 넘기고 끝나면 닫는다. 서버가 STOR를 받아들이면 같은 이름의 파일이 비워지므로,
+     * 열 수 없는 파일은 STOR를 보내기 전에 이 항목의 실패로 끝내 서버 파일을 건드리지 않는다. 세션 경계 밖이므로 이 실패는 세션과 무관하다.
+     * @param localFile 업로드할 로컬 파일
+     * @param upload 열린 스트림으로 업로드하는 동작
+     * @return [upload]의 결과, 또는 파일을 열지 못한 실패
+     */
+    private suspend fun uploadingFrom(localFile: File, upload: suspend (InputStream) -> IoResult<Unit>): IoResult<Unit> {
+        val input = localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(localFile.inputStream()) }.valueOr { return it }
+        return try {
+            upload(input)
+        } finally {
+            // 읽기만 한 스트림이라 닫기 실패는 전송 결과와 무관하다
+            runCatching { input.close() }
+        }
+    }
+
+    /**
      * 세션 잠금 안에서 원격 파일 하나를 [localFile]로 받는다. 단일 파일·디렉터리 다운로드가 공유하며,
      * 진행률 보고 규칙은 호출부가 [onChunk]·[onAcked]로 결정한다. 받다 만 파일은 취소된 경우에만 지운다.
-     * @param client 잠금을 확보한 FTPClient
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 받을 원격 파일의 FTP 경로
      * @param localFile 저장할 로컬 파일 — 취소 시 삭제된다
      * @param onChunk 버퍼마다 읽은 바이트 수를 받는 콜백
@@ -208,7 +227,7 @@ class FtpTransferrer @Inject constructor(
      * @return 전송 결과
      */
     private suspend fun downloadOne(
-        client: FTPClient,
+        client: FtpCommandClient,
         ftpPath: String,
         localFile: File,
         onChunk: (Int) -> Unit,
@@ -223,27 +242,25 @@ class FtpTransferrer @Inject constructor(
     }
 
     /**
-     * 세션 잠금 안에서 로컬 파일 [localFile] 하나를 원격으로 올린다. 단일 파일·디렉터리 업로드가 공유하며,
+     * 세션 잠금 안에서 열어 둔 로컬 파일 하나를 원격으로 올린다. 단일 파일·디렉터리 업로드가 공유하며,
      * 진행률 보고 규칙은 호출부가 [onChunk]·[onAcked]로 결정한다.
-     * @param client 잠금을 확보한 FTPClient
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 저장될 원격 파일의 FTP 경로
-     * @param localFile 업로드할 로컬 파일
+     * @param input 업로드할 로컬 파일의 스트림([uploadingFrom])
      * @param onChunk 버퍼마다 쓴 바이트 수를 받는 콜백
      * @param onAcked 서버가 전송 완료를 확인한 뒤 호출되는 콜백
      * @return 전송 결과
      */
     private suspend fun uploadOne(
-        client: FTPClient,
+        client: FtpCommandClient,
         ftpPath: String,
-        localFile: File,
+        input: InputStream,
         onChunk: (Int) -> Unit,
         onAcked: suspend () -> Unit
     ): IoResult<Unit> {
         // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
         // ([FtpCommandExecutor.identifiedListing] 참고)
-        val outcome = dataCommands.run(client, open = { client.storeFileStream(ftpPath) }) { stream ->
-            localFile.inputStream().use { input -> pump(input, stream, onChunk) }
-        }
+        val outcome = dataCommands.run(client, open = { client.storeFileStream(ftpPath) }) { stream -> pump(input, stream, onChunk) }
         return transferResult(FtpCommand.STOR, client, outcome, onAcked)
     }
 
@@ -251,21 +268,21 @@ class FtpTransferrer @Inject constructor(
      * 전송 명령의 결과([DataCommandRunner.run])를 이 항목의 결과로 만든다. 서버가 전송 완료를 확인해야 성공이다.
      * 전송(데이터 스트림·로컬 파일) 중 실패는 제어 채널과 무관하고 완료 응답까지 읽었으므로 이 항목만의 실패다.
      * @param command 보낸 전송 명령
-     * @param client 응답을 받은 FTPClient
+     * @param client 응답을 받은 FTP 클라이언트
      * @param outcome 전송 명령의 결과
      * @param onAcked 서버가 전송 완료를 확인한 뒤 호출되는 콜백
      * @return 전송 결과
      */
     private suspend fun transferResult(
         command: FtpCommand,
-        client: FTPClient,
+        client: FtpCommandClient,
         outcome: DataCommandOutcome,
         onAcked: suspend () -> Unit
     ): IoResult<Unit> = when (outcome) {
-        DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.replyString)
-        is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(outcome.cause.message ?: "전송 실패")
+        DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.getReplyString())
+        is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(outcome.cause.message ?: TRANSFER_FAILED_MESSAGE)
         is DataCommandOutcome.Finished ->
-            if (!outcome.acknowledged) FtpReplyRules.unacknowledgedTransfer(client.replyString)
+            if (!outcome.acknowledged) FtpReplyRules.unacknowledgedTransfer(client.getReplyString())
             else {
                 onAcked()
                 IoResult.Done
@@ -276,13 +293,13 @@ class FtpTransferrer @Inject constructor(
      * 진행률 계산용으로 원격 파일 크기를 조회한다. 서버가 MLST를 거부하거나 응답의 항목 줄을 해석하지 못하면 크기를 모르는 것(-1)으로 본다.
      * 응답을 끝까지 읽은 뒤 항목 줄만 해석하므로, 응답을 읽다 실패한 예외(연결 끊김·타임아웃·응답 형식 오류)는 삼키지 않고 전파해
      * [FtpSession.withConnectedClient]가 세션을 종료하게 한다. FTPClient.mlistFile은 응답 읽기 실패와 항목 해석 실패를 같은 예외로 섞어 던지므로 쓰지 않는다.
-     * @param client 잠금을 확보한 FTPClient
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 크기를 조회할 원격 파일의 FTP 경로
      * @return 파일 크기(bytes), 알 수 없으면 -1
      */
-    private fun remoteFileSize(client: FTPClient, ftpPath: String): Long {
-        val replyCode = client.sendCommand(FTPCmd.MLST, ftpPath)
-        return FtpReplyRules.mlstEntrySize(replyCode, client.replyStrings)
+    private fun remoteFileSize(client: FtpCommandClient, ftpPath: String): Long {
+        val replyCode = client.sendMlst(ftpPath)
+        return FtpReplyRules.mlstEntrySize(replyCode, client.getReplyStrings())
     }
 
     /** [input]을 버퍼 단위로 [output]에 복사하며 청크마다 [onChunk]에 읽은 바이트 수를 전달한다. */
@@ -328,5 +345,7 @@ class FtpTransferrer @Inject constructor(
 
     companion object {
         private const val BUFFER_SIZE = 128 * 1024
+        /** 원인을 알 수 없는 전송 실패의 메시지. */
+        private const val TRANSFER_FAILED_MESSAGE = "전송 실패"
     }
 }

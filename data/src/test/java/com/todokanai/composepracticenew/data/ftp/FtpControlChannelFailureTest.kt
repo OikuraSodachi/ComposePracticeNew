@@ -22,8 +22,8 @@ class FtpControlChannelFailureTest {
     private val dir: File = Files.createTempDirectory("ftp-control-channel-test").toFile()
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     private val session = FtpSession(client)
-    private val commands = FtpCommandExecutor(session)
-    private val transferrer = FtpTransferrer(session, commands)
+    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
+    private val transferrer = FtpTransferrer(session, commands, DataCommandRunner(session))
 
     @After
     fun tearDown() {

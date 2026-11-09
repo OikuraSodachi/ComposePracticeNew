@@ -13,7 +13,7 @@ class FtpRemoveDirectoryRecursiveTest {
 
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val commands = FtpCommandExecutor(session)
+    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
 
     @Test
     fun `하위 파일 삭제가 실패하면 상위 디렉터리 RMD는 보내지 않고 원인 파일만 알리며 형제는 삭제한다`() {

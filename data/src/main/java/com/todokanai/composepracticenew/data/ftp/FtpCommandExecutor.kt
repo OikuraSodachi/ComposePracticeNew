@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPFileEntryParser
 import org.apache.commons.net.ftp.FTPListParseEngine
@@ -187,24 +186,23 @@ private class BoundedListingStream(
  * 모든 명령은 실패를 결과로 알리며, 연결이 없거나 끊기면 [IoResult.ConnectionLost]를 돌려준다.
  * 서버 응답의 해석은 [FtpReplyRules]에 맡긴다.
  * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
+ * @param dataCommands 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행하는 실행기
  * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree]). 0보다 커야 한다
  */
 @Singleton
 class FtpCommandExecutor internal constructor(
-    private val session: FtpSession,
+    private val session: FtpCommandSession,
+    private val dataCommands: DataCommandRunner,
     private val treeMemoryLimitBytes: Long
 ) {
 
     /** 트리 수집 메모리 상한을 [TREE_MEMORY_LIMIT_BYTES]로 둔 명령 실행기를 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor(session: FtpSession) : this(session, TREE_MEMORY_LIMIT_BYTES)
+    @Inject internal constructor(session: FtpCommandSession, dataCommands: DataCommandRunner) : this(session, dataCommands, TREE_MEMORY_LIMIT_BYTES)
 
     init {
         // 0 이하는 상한이 아니다 — 어떤 목록도 받을 수 없어 빈 시작 폴더 말고는 모두 실패한다
         require(treeMemoryLimitBytes > 0) { "treeMemoryLimitBytes must be positive: $treeMemoryLimitBytes" }
     }
-
-    /** 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행한다. */
-    private val dataCommands = DataCommandRunner(session)
 
     /**
      * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
@@ -248,6 +246,26 @@ class FtpCommandExecutor internal constructor(
         val ftpPath = extractFtpPath(path)
         return runFtpCommand(FtpCommand.MKD) { it.makeDirectory(ftpPath) }
     }
+
+    /**
+     * [ftpPath]에 원격 디렉터리가 있게 한다. 폴더 업로드가 쓴다.
+     * 이미 있는 폴더에도 권한 없음과 같은 거부 응답이 와 응답으로는 구분할 수 없으므로, 거부되면 그 폴더로 CWD해 있는지 확인한다.
+     * 확인이 성공하면 세션은 그 폴더 안에 남는다.
+     * @param ftpPath 있어야 할 디렉터리의 FTP 경로
+     * @return 디렉터리가 있으면 성공, 없거나 들어갈 수 없으면 MKD 거부 응답을 담은 실패, 연결이 없거나 끊겼으면 그 실패
+     */
+    internal suspend fun ensureDirectory(ftpPath: String): IoResult<Unit> =
+        session.withConnectedClient { client ->
+            withContext(Dispatchers.IO) {
+                if (client.makeDirectory(ftpPath)) {
+                    IoResult.Done
+                } else {
+                    // 확인하는 CWD가 마지막 응답을 덮어쓰기 전에 MKD의 거부 응답을 읽어 둔다
+                    val refused = FtpReplyRules.refusal(FtpCommand.MKD, client.getReplyString())
+                    if (client.changeDirectory(ftpPath)) IoResult.Done else refused
+                }
+            }
+        }
 
     /**
      * path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다.
@@ -405,14 +423,14 @@ class FtpCommandExecutor internal constructor(
      * 디렉터리로 이동한 뒤 인자 없는 `LIST`로 조회한다(RFC 959: 인자가 없으면 현재 디렉터리, curl과 같은 방식) — LIST 인자를 옵션으로도 읽는
      * 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다.
      * 다른 명령은 모두 절대 경로를 쓰지만, 세션이 조회한 폴더 안에 남으므로 그 폴더나 상위 폴더를 지우거나 옮기는 명령은 먼저 밖으로 나간다([leavingTarget]).
-     * @param client 잠금을 확보한 FTPClient
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param limit 목록을 받는 동안의 메모리 상한. null이면 두지 않는다
      * @return 디렉터리의 항목 목록(LIST 목록에는 항목을 식별할 값이 없어 식별값은 없다), 또는 조회 실패
      */
-    private suspend fun listWithList(client: ListingStreamFtpClient, ftpPath: String, path: String, limit: ListingLimit?): IoResult<IdentifiedListing> {
-        if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client.replyString)
+    private suspend fun listWithList(client: FtpCommandClient, ftpPath: String, path: String, limit: ListingLimit?): IoResult<IdentifiedListing> {
+        if (!client.changeDirectory(ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client.getReplyString())
         return receiveListing(FtpCommand.LIST, client, FtpListingFormat.listParser(client), path, limit, open = { client.openListStream() }) { files ->
             files.filter { it.name != "." && it.name != ".." }.map { ReceivedEntry(it, identity = null) }
         }
@@ -420,7 +438,7 @@ class FtpCommandExecutor internal constructor(
 
     /**
      * MLSD로 목록을 조회한다.
-     * @param client 잠금을 확보한 FTPClient
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 조회할 디렉터리의 FTP 경로
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param withIdentities 서버가 알려준 항목 식별값(MLSD `unique`)도 읽으면 true — 트리 수집이 순환 판별에 쓴다
@@ -428,7 +446,7 @@ class FtpCommandExecutor internal constructor(
      * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdEntries]), 또는 조회 실패
      */
     private suspend fun listWithMlsd(
-        client: ListingStreamFtpClient,
+        client: FtpCommandClient,
         ftpPath: String,
         path: String,
         withIdentities: Boolean,
@@ -444,7 +462,7 @@ class FtpCommandExecutor internal constructor(
      * 목록 데이터를 받다 실패하면(읽기 상한 초과 포함) 받은 일부를 목록으로 보지 않고 이 조회의 실패로 돌려준다 — 완료 응답까지 읽었으므로 세션은 유지된다.
      * 받는 동안의 메모리 상한([limit])을 넘은 것도 데이터를 받다 난 실패라 같은 경로로 연결을 중단으로 닫고, 결과는 [ListingLimit.exceeded]다.
      * @param command 보낼 목록 조회 명령
-     * @param client 잠금을 확보한 FTPClient
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param parser 목록 줄 해석기
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param limit 목록을 받는 동안의 메모리 상한. null이면 두지 않는다
@@ -454,7 +472,7 @@ class FtpCommandExecutor internal constructor(
      */
     private suspend fun receiveListing(
         command: FtpCommand,
-        client: FTPClient,
+        client: FtpCommandClient,
         parser: FTPFileEntryParser,
         path: String,
         limit: ListingLimit?,
@@ -464,16 +482,16 @@ class FtpCommandExecutor internal constructor(
         val engine = FTPListParseEngine(parser)
         val outcome = dataCommands.run(client, open) { stream ->
             val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes, childFtpUriPrefix(path).length) } ?: stream
-            engine.readServerList(keepingOpen(bounded), client.controlEncoding)
+            engine.readServerList(keepingOpen(bounded), client.getControlEncoding())
         }
         return when (outcome) {
-            DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.replyString)
+            DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.getReplyString())
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
                 else IoResult.ItemFailed("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}")
             is DataCommandOutcome.Finished ->
-                if (FtpReplyRules.isListingCompleted(client.replyCode)) IoResult.Success(identifiedListing(received(engine.files), path))
-                else FtpReplyRules.refusal(command, client.replyString)
+                if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(received(engine.files), path))
+                else FtpReplyRules.refusal(command, client.getReplyString())
         }
     }
 
@@ -550,13 +568,13 @@ class FtpCommandExecutor internal constructor(
      */
     private suspend fun runFtpCommand(
         command: FtpCommand,
-        leave: ((FTPClient) -> Unit)? = null,
-        block: (FTPClient) -> Boolean
+        leave: ((FtpCommandClient) -> Unit)? = null,
+        block: (FtpCommandClient) -> Boolean
     ): IoResult<Unit> =
         session.withConnectedClient { client ->
             withContext(Dispatchers.IO) {
                 leave?.invoke(client)
-                if (block(client)) IoResult.Done else FtpReplyRules.refusal(command, client.replyString)
+                if (block(client)) IoResult.Done else FtpReplyRules.refusal(command, client.getReplyString())
             }
         }
 
@@ -568,35 +586,27 @@ class FtpCommandExecutor internal constructor(
      * 세션이 들어가 있는 디렉터리도 지울 수 있는 서버(리눅스 계열)에서 명령을 막지 않는다.
      * @param targetFtpPath 지우거나 옮길 항목의 FTP 경로
      * @param outside 먼저 옮겨 갈 디렉터리의 FTP 경로. [targetFtpPath] 밖이어야 한다
-     * @return 잠금을 확보한 FTPClient로 실행할 디렉터리 이동
+     * @return 잠금을 확보한 FTP 클라이언트로 실행할 디렉터리 이동
      */
-    private fun leavingTarget(targetFtpPath: String, outside: String): (FTPClient) -> Unit = { client ->
-        val current = session.workingDirectory
+    private fun leavingTarget(targetFtpPath: String, outside: String): (FtpCommandClient) -> Unit = { client ->
+        val current = client.workingDirectory
         if (current != null && isSameOrInside(current, targetFtpPath)) {
-            exitCandidates(targetFtpPath, outside).firstOrNull { changeDirectory(client, it) }
+            exitCandidates(client, targetFtpPath, outside).firstOrNull { client.changeDirectory(it) }
         }
     }
 
     /**
-     * [targetFtpPath] 밖으로 나갈 때 차례로 시도할 디렉터리. 대상의 상위 디렉터리를 먼저, 거부되면 로그인 홈([FtpSession.homeDirectory])을 시도한다.
+     * [targetFtpPath] 밖으로 나갈 때 차례로 시도할 디렉터리. 대상의 상위 디렉터리를 먼저, 거부되면 로그인 홈([FtpCommandClient.homeDirectory])을 시도한다.
      * 가상 경로 권한을 쓰는 서버는 상위 디렉터리로의 이동을 거부할 수 있지만, 홈은 로그인한 사용자가 들어가 있던 곳이다. 홈이 대상 안이면 시도하지 않는다.
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param targetFtpPath 지우거나 옮길 항목의 FTP 경로
      * @param outside 먼저 옮겨 갈 디렉터리의 FTP 경로
      * @return 시도할 디렉터리의 FTP 경로 목록
      */
-    private fun exitCandidates(targetFtpPath: String, outside: String): List<String> {
-        val home = session.homeDirectory?.takeUnless { isSameOrInside(it, targetFtpPath) }
+    private fun exitCandidates(client: FtpCommandClient, targetFtpPath: String, outside: String): List<String> {
+        val home = client.homeDirectory?.takeUnless { isSameOrInside(it, targetFtpPath) }
         return listOfNotNull(outside, home).distinct()
     }
-
-    /**
-     * [client]의 현재 디렉터리를 [ftpPath]로 옮기고, 옮겼으면 세션에 기록한다([FtpSession.workingDirectory]).
-     * @param client 잠금을 확보한 FTPClient
-     * @param ftpPath 옮겨 갈 디렉터리의 FTP 경로
-     * @return 옮겼으면 true, 서버가 거부하면 false
-     */
-    private fun changeDirectory(client: FTPClient, ftpPath: String): Boolean =
-        client.changeWorkingDirectory(ftpPath).also { changed -> if (changed) session.workingDirectory = ftpPath }
 
     /**
      * [path]가 [directoryPath] 자신이거나 그 아래인지 판별한다.

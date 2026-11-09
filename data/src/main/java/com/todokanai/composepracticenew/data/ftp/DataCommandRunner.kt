@@ -1,9 +1,9 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import kotlinx.coroutines.CancellationException
-import org.apache.commons.net.ftp.FTPClient
 import java.io.Closeable
 import java.io.IOException
+import javax.inject.Inject
 
 /**
  * 데이터 연결을 쓰는 명령 하나를 [DataCommandRunner]로 실행한 결과. 서버 응답을 무엇으로 볼지는 명령마다 받는 쪽이 정한다.
@@ -34,14 +34,14 @@ internal sealed interface DataCommandOutcome {
  * 중단을 정상 닫기로 알리면 서버는 잘린 업로드를 다 받은 파일로 저장한다(RFC 959 §3.4.1). 정상으로 닫지 못한 것(남은 데이터를 보내지 못함)도 데이터 연결의 실패다.
  * @param session 데이터 연결을 열고, 응답 순서를 알 수 없게 된 세션을 끝내는 FTP 세션
  */
-internal class DataCommandRunner(private val session: FtpSession) {
+internal class DataCommandRunner @Inject constructor(private val session: FtpDataCommandSession) {
 
     /**
      * [open]으로 데이터 연결을 열어 [exchange]로 데이터를 주고받고, 연결을 닫은 뒤 완료 응답을 읽는다. 세션 잠금을 쥔 블록 안에서 호출한다.
      * 완료 응답을 읽다 실패하면 제어 채널을 더 쓸 수 없으므로 그 예외를 전파해 [FtpSession.withConnectedClient]가 세션을 끝내게 한다(데이터 연결의 실패는 suppressed로 붙인다).
      * 취소와 구현 오류는 결과로 바꾸지 않고 전파한다. 구현 오류는 [FtpSession.withConnectedClient]가 세션을 끝내므로 데이터 연결만 닫는다.
      * 취소는 세션을 끝내지 않고 전파되므로, [onCancel]을 실행하고 완료 응답을 기다려 응답 순서를 맞춘다. 완료 응답을 읽지 못했으면 여기서 세션을 끝낸다.
-     * @param client 잠금을 확보한 FTPClient
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param open 명령을 보내 데이터 스트림을 여는 동작. 서버가 거부하면 null을 돌려준다
      * @param onCancel 취소됐을 때 실행할 정리 작업
      * @param exchange 열린 데이터 스트림으로 데이터를 주고받는 동작. 스트림은 이 함수가 닫는다
@@ -49,7 +49,7 @@ internal class DataCommandRunner(private val session: FtpSession) {
      * @throws IOException 명령이나 완료 응답을 읽지 못한 경우
      */
     suspend fun <S : Closeable> run(
-        client: FTPClient,
+        client: FtpCommandClient,
         open: () -> S?,
         onCancel: () -> Unit = {},
         exchange: suspend (S) -> Unit

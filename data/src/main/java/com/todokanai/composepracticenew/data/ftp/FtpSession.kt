@@ -21,20 +21,24 @@ import javax.inject.Singleton
 /**
  * 단일 FTPClient와 그 잠금·로그인 상태를 캡슐화하는 FTP 세션.
  * 클라이언트와 Mutex는 외부로 노출하지 않으며, 명령 실행은 [withClient] 또는 [withConnectedClient]를 통해서만 가능하다.
+ * 쓰는 쪽은 자기 역할의 인터페이스로만 의존한다 — 명령은 [FtpCommandSession], 데이터 연결은 [FtpDataCommandSession], 연결 수명은 [FtpConnectionLifecycle], 상태 읽기는 [FtpConnectionStatus].
  * 잠금 규칙: 로그인 상태 플래그는 stateMutex, FTP 명령 I/O는 ioMutex로 직렬화한다.
  * 서버가 응답하지 않아도 명령이 잠금을 쥔 채 끝없이 기다리지 않도록, [client]의 모든 소켓 읽기·쓰기 한 번에 [ioTimeoutMillis]의 상한을 건다.
  * 상한은 [client]가 소켓 팩토리로 만드는 제어 연결과 수동 모드 데이터 연결에 걸린다. 능동 모드 데이터 연결은 상한을 걸 수 없어 열지 않는다([PassiveOnlyServerSocketFactory]).
  * 상한을 넘긴 I/O는 IOException으로 끝나며, 그 의미(이 항목만의 실패인지 세션 종료인지)는 다른 I/O 실패와 같이 정한다([withConnectedClient]).
- * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]로만 노출한다. 앱에서는 새 클라이언트를, 테스트에서는 가짜 클라이언트를 넘긴다.
- * 목록 조회도 데이터 스트림을 직접 열어야 하므로([DataCommandRunner]) 그 함수를 가진 [ListingStreamFtpClient]다.
+ * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]·[withConnectedClient]로만 노출한다. 앱에서는 새 클라이언트를, 테스트에서는 가짜 클라이언트를 넘긴다.
+ * 목록 조회도 데이터 스트림을 직접 열어야 하므로([DataCommandRunner]) 그 함수를 가진 [SessionFtpClient]다.
  * 소켓 상한·소켓 팩토리는 세션이 정하므로 먼저 정해 둔 값은 덮어쓴다 — 상한을 바꾸려면 [ioTimeoutMillis]로 넘긴다
  * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
  */
 @Singleton
-class FtpSession internal constructor(private val client: ListingStreamFtpClient, ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS) {
+internal class FtpSession(
+    private val client: SessionFtpClient,
+    ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS
+) : FtpCommandSession, FtpDataCommandSession, FtpConnectionLifecycle {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor() : this(ListingStreamFtpClient())
+    @Inject constructor() : this(SessionFtpClient())
 
     init {
         // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다
@@ -60,43 +64,29 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
         client.setServerSocketFactory(PassiveOnlyServerSocketFactory())
     }
 
-    /**
-     * 세션의 현재 디렉터리(FTP 경로). 로그인 직후에는 [homeDirectory]이고, 이 앱이 CWD로 옮길 때마다 갱신한다. 알 수 없으면 null이다.
-     * 현재 디렉터리를 지우거나 옮기는 명령을 그 밖에서 보내려고 기록한다([FtpCommandExecutor]). ioMutex를 쥔 블록 안에서만 읽고 쓴다.
-     */
-    internal var workingDirectory: String? = null
-
-    /**
-     * 로그인 직후의 현재 디렉터리(홈, FTP 경로). 서버가 알려주지 않았으면 null이다.
-     * 로그인한 사용자가 들어갈 수 있는 디렉터리이므로, 대상 밖으로 나가는 이동이 거부될 때 다시 시도할 곳으로 쓴다([FtpCommandExecutor]).
-     * 연결할 때 ioMutex를 쥔 채 정하고, ioMutex를 쥔 블록 안에서만 읽는다.
-     */
-    internal var homeDirectory: String? = null
-        private set
-
     private val _connectionState = MutableStateFlow<RemoteConnectionState>(RemoteConnectionState.Disconnected)
     /**
      * FTP 서버와의 연결 상태. 예기치 않은 끊김([markConnectionDropped])과 앱이 요청한 종료([markLoggedOut]·[closeBypassingIoLock])를 구분해,
      * 끊김은 다음 연결 시도([beginConnecting])나 종료 요청까지 [RemoteConnectionState.Lost]로 남긴다.
      */
-    val connectionState: StateFlow<RemoteConnectionState> = _connectionState.asStateFlow()
+    override val connectionState: StateFlow<RemoteConnectionState> = _connectionState.asStateFlow()
 
     private val _isConnecting = MutableStateFlow(false)
     /** connect() 또는 disconnect() 호출이 진행 중인 경우 true를 방출한다. */
-    val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
+    override val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
 
     /** 소켓 연결과 로그인이 모두 유효하면 true를 반환한다. */
     suspend fun isReady(): Boolean = stateMutex.withLock { client.isConnected && isLoggedIn }
 
     /** 소켓이 열려 있으면 true를 반환한다. 잠금 없이 조회한다. */
-    fun isSocketOpen(): Boolean = client.isConnected
+    override fun isSocketOpen(): Boolean = client.isConnected
 
     /**
      * ioMutex를 확보한 상태로 [block]에 FTPClient를 넘겨 실행한다. 스레드 전환은 호출부가 결정한다.
      * @param block 잠금 안에서 실행할 FTP 명령
      * @return block의 반환값
      */
-    internal suspend fun <T> withClient(block: suspend (ListingStreamFtpClient) -> T): T = ioMutex.withLock { block(client) }
+    override suspend fun <T> withClient(block: suspend (SessionFtpClient) -> T): T = ioMutex.withLock { block(client) }
 
     /**
      * 연결된 상태에서만 [withClient]로 [block]을 실행한다. FTP 명령 실패의 의미를 정하는 경계이며, 규칙은 다음 하나뿐이다.
@@ -105,11 +95,12 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      *   늦게 온 응답이 다음 명령의 응답으로 읽혀 순서가 어긋날 수 있고 commons-net에는 이를 다시 맞출 방법이 없으므로, 세션을 종료하고 [IoResult.ConnectionLost]를 돌려준다
      * - 그 밖의 예외(구현 오류): 명령이 어디까지 진행됐는지 알 수 없어 응답 순서를 보장할 수 없으므로, 세션을 종료하고 그대로 전파한다
      * 그래서 [block] 안에서 세션을 유지할 실패는 예외로 던지지 말고 결과로 돌려줘야 한다.
+     * IOException의 출처는 구분할 수 없으므로 로컬 파일 I/O는 [block] 밖에서 하거나, [DataCommandRunner.run]의 exchange에서만 한다(그 안의 실패는 데이터 연결 실패로 결과가 된다).
      * 잠금을 얻은 시점에 미연결이면 실행하지 않고 [IoResult.ConnectionLost]를 돌려준다. 취소는 그대로 전파한다.
      * @param block 잠금 안에서 실행할 FTP 명령
      * @return block의 결과, 또는 연결 끊김
      */
-    internal suspend fun <T> withConnectedClient(block: suspend (ListingStreamFtpClient) -> IoResult<T>): IoResult<T> = withClient { client ->
+    override suspend fun <T> withConnectedClient(block: suspend (FtpCommandClient) -> IoResult<T>): IoResult<T> = withClient { client ->
         if (!isReady()) return@withClient IoResult.ConnectionLost(NOT_CONNECTED_MESSAGE)
         try {
             block(client)
@@ -126,12 +117,12 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
 
     /**
      * [open]으로 데이터 연결을 쓰는 명령의 데이터 스트림을 열어, 정상 끝과 중단을 구분해 닫을 수 있는 [DataConnection]으로 돌려준다.
-     * ioMutex를 쥔 블록 안에서 [withClient]가 넘긴 클라이언트로 호출한다. 명령의 실행 규칙은 [DataCommandRunner]가 정한다.
-     * @param open 데이터 스트림을 여는 명령(`retrieveFileStream`·`storeFileStream`, [ListingStreamFtpClient]의 목록 조회). 서버가 거부하면 null을 돌려준다
+     * ioMutex를 쥔 [withConnectedClient]의 블록 안에서 호출한다. 명령의 실행 규칙은 [DataCommandRunner]가 정한다.
+     * @param open 데이터 스트림을 여는 명령(`retrieveFileStream`·`storeFileStream`, [SessionFtpClient]의 목록 조회). 서버가 거부하면 null을 돌려준다
      * @return 열린 데이터 연결, 서버가 거부했으면 null
      * @throws IOException 명령의 응답을 읽지 못한 경우
      */
-    internal fun <S : Closeable> openDataConnection(open: () -> S?): DataConnection<S>? {
+    override fun <S : Closeable> openDataConnection(open: () -> S?): DataConnection<S>? {
         val (stream, opened) = sockets.capturing(open)
         return stream?.let { DataConnection(it, opened) }
     }
@@ -141,7 +132,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * 예외로 전파할 수 없는 경로(취소 정리 중 응답을 읽지 못한 경우 등)에서도 호출한다. ioMutex를 쥔 상태에서 호출한다.
      * 취소된 코루틴에서도 끝까지 실행한다 — 상태 잠금을 기다리다 취소로 멈추면 쓸 수 없는 세션이 로그인 상태로 남는다.
      */
-    internal suspend fun endUnusableSession() {
+    override suspend fun endUnusableSession() {
         withContext(NonCancellable) {
             markConnectionDropped()
             runCatching { client.disconnect() }
@@ -174,14 +165,14 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * 종료 요청 표지를 연결 작업 표시와 같은 잠금 안에서 읽는다 — 연결 작업으로 보인 뒤에 온 종료 요청([closeBypassingIoLock])은 모두 [markLoggedIn]이 알아챈다.
      * @return 연결 작업이 [markLoggedIn]에 넘길 종료 요청 표지
      */
-    internal suspend fun beginConnecting(): Int = stateMutex.withLock {
+    override suspend fun beginConnecting(): Int = stateMutex.withLock {
         _isConnecting.value = true
         _connectionState.value = RemoteConnectionState.Disconnected
         bypassCloseRequests.get()
     }
 
     /** 연결 작업이 끝났음을 기록한다. */
-    internal suspend fun endConnecting() = stateMutex.withLock { _isConnecting.value = false }
+    override suspend fun endConnecting() = stateMutex.withLock { _isConnecting.value = false }
 
     /**
      * 로그인 성공 상태로 전환한다. 새 연결의 현재 디렉터리는 로그인 직후의 홈이다.
@@ -191,10 +182,9 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * @param serverName 연결한 서버의 표시 이름. 연결 상태([RemoteConnectionState.Connected])에 함께 담는다
      * @return 로그인 상태로 전환했으면 true, 그 사이 종료가 요청돼 전환하지 않았으면 false
      */
-    internal suspend fun markLoggedIn(closeMark: Int, home: String?, serverName: String): Boolean = stateMutex.withLock {
+    override suspend fun markLoggedIn(closeMark: Int, home: String?, serverName: String): Boolean = stateMutex.withLock {
         if (isCloseRequestedSince(closeMark)) return@withLock false
-        homeDirectory = home
-        workingDirectory = home
+        client.recordLogin(home)
         isLoggedIn = true
         _connectionState.value = RemoteConnectionState.Connected(serverName)
         true
@@ -214,7 +204,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
     private fun isCloseRequestedSince(mark: Int): Boolean = bypassCloseRequests.get() != mark
 
     /** 로그인 해제 상태로 전환한다. */
-    internal suspend fun markLoggedOut() = stateMutex.withLock {
+    override suspend fun markLoggedOut() = stateMutex.withLock {
         isLoggedIn = false
         _connectionState.value = RemoteConnectionState.Disconnected
     }
@@ -227,7 +217,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn]), 소켓을 닫기 전에 요청을 기록한다.
      * 호출 전 소켓이 열려 있거나([isSocketOpen]) 연결 작업 중인지([isConnecting]) 확인해야 한다.
      */
-    internal suspend fun closeBypassingIoLock() {
+    override suspend fun closeBypassingIoLock() {
         stateMutex.withLock { markClosing(RemoteConnectionState.Disconnected) }
         closeClient()
     }
@@ -237,7 +227,7 @@ class FtpSession internal constructor(private val client: ListingStreamFtpClient
      * 연결돼 있는지를 종료 기록과 같은 잠금 안에서 확인한다 — 연결 작업 중인 세션(보호하던 연결이 아닌 새 연결)을 끝내거나, 이미 끊긴 세션의 끊김을 종료로 덮어쓰지 않도록.
      * @return 연결된 세션을 끝냈으면 true, 연결된 세션이 없어 아무것도 하지 않았으면 false
      */
-    internal suspend fun dropConnected(): Boolean {
+    override suspend fun dropConnected(): Boolean {
         val connected = stateMutex.withLock {
             val isConnected = _connectionState.value is RemoteConnectionState.Connected
             if (isConnected) markClosing(RemoteConnectionState.Lost)

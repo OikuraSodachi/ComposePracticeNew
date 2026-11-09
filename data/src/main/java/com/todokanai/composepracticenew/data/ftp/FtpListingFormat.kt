@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPFileEntryParser
@@ -17,10 +16,10 @@ internal object FtpListingFormat {
     /**
      * 목록 조회에 MLSD를 쓰는지 판별한다. MLSD 목록은 형식이 정해져 있어(RFC 3659) 서버 종류를 몰라도 해석할 수 있다.
      * commons-net은 FEAT 응답을 연결이 끝날 때까지 기억하므로 같은 연결에서는 언제나 같은 답이다.
-     * @param client 로그인한 FTPClient
+     * @param client 로그인한 FTP 클라이언트
      * @return MLSD를 쓰면 true, LIST를 쓰면 false
      */
-    fun usesMlsd(client: FTPClient): Boolean = client.hasFeature(FTPCmd.MLST)
+    fun usesMlsd(client: FtpCommandClient): Boolean = client.hasFeature(FTPCmd.MLST)
 
     /**
      * 이 서버의 목록을 해석할 수 있는지 확인한다.
@@ -31,7 +30,7 @@ internal object FtpListingFormat {
      * @return 해석할 수 있으면 true
      * @throws java.io.IOException 응답을 읽지 못한 경우
      */
-    fun isReadable(client: FTPClient): Boolean {
+    fun isReadable(client: SessionFtpClient): Boolean {
         if (usesMlsd(client)) return true
         if (!FtpReplyRules.isSystemTypeReply(client.syst())) return false
         // syst()는 응답을 기억하지 않는다 — getSystemType이 SYST를 한 번 더 보내 commons-net이 해석기를 고를 때 쓸 값을 기억하게 한다
@@ -84,10 +83,10 @@ internal object FtpListingFormat {
     /**
      * LIST 목록을 해석할 해석기를 만든다. 연결할 때 [isReadable]이 확인한 것과 같은 해석기다.
      * commons-net은 [isReadable]이 알아낸 시스템 종류를 연결이 끝날 때까지 기억하므로 SYST를 다시 보내지 않는다.
-     * @param client [isReadable] 확인을 통과한 FTPClient
+     * @param client [isReadable] 확인을 통과한 FTP 클라이언트
      * @return LIST 목록 해석기
      */
-    fun listParser(client: FTPClient): FTPFileEntryParser = parserFor(client.systemType)
+    fun listParser(client: FtpCommandClient): FTPFileEntryParser = parserFor(client.getSystemType())
 
     /**
      * [systemType]의 LIST 목록 해석기를 만든다. 이 앱은 해석기 팩토리를 바꾸지 않으므로 commons-net의 기본 팩토리를 쓴다.

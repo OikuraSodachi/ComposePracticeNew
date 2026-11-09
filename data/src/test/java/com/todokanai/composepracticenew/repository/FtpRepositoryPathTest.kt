@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.data.ftp.DataCommandRunner
 import com.todokanai.composepracticenew.data.ftp.FakeFtpClient
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
@@ -28,9 +29,9 @@ class FtpRepositoryPathTest {
     /** 로그인을 마친 테스트 세션. */
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
     /** FTP 저장소와 전송기가 함께 쓰는 명령 실행기. */
-    private val commands = FtpCommandExecutor(session)
+    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
     /** 검증 대상. */
-    private val repo = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, TestScope())), commands, FtpTransferrer(session, commands))
+    private val repo = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, session, TestScope())), commands, FtpTransferrer(session, commands, DataCommandRunner(session)))
 
     @After
     fun tearDown() {
