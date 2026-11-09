@@ -412,7 +412,7 @@ class FtpCommandExecutor internal constructor(
      * @return 디렉터리의 항목 목록(LIST 목록에는 항목을 식별할 값이 없어 식별값은 없다), 또는 조회 실패
      */
     private suspend fun listWithList(client: ListingStreamFtpClient, ftpPath: String, path: String, limit: ListingLimit?): IoResult<IdentifiedListing> {
-        if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client)
+        if (!changeDirectory(client, ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client.replyString)
         return receiveListing(FtpCommand.LIST, client, FtpListingFormat.listParser(client), path, limit, open = { client.openListStream() }) { files ->
             files.filter { it.name != "." && it.name != ".." }.map { ReceivedEntry(it, identity = null) }
         }
@@ -467,13 +467,13 @@ class FtpCommandExecutor internal constructor(
             engine.readServerList(keepingOpen(bounded), client.controlEncoding)
         }
         return when (outcome) {
-            DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client)
+            DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.replyString)
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
                 else IoResult.ItemFailed("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}")
             is DataCommandOutcome.Finished ->
                 if (FtpReplyRules.isListingCompleted(client.replyCode)) IoResult.Success(identifiedListing(received(engine.files), path))
-                else FtpReplyRules.refusal(command, client)
+                else FtpReplyRules.refusal(command, client.replyString)
         }
     }
 
@@ -556,7 +556,7 @@ class FtpCommandExecutor internal constructor(
         session.withConnectedClient { client ->
             withContext(Dispatchers.IO) {
                 leave?.invoke(client)
-                if (block(client)) IoResult.Done else FtpReplyRules.refusal(command, client)
+                if (block(client)) IoResult.Done else FtpReplyRules.refusal(command, client.replyString)
             }
         }
 

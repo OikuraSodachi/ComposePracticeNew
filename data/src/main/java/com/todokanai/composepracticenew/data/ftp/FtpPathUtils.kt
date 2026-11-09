@@ -1,7 +1,28 @@
 package com.todokanai.composepracticenew.data.ftp
 
-/** FTP 원격 경로를 식별하는 URI 스킴 접두사. FTP 프로토콜 지식은 data 모듈의 FTP 구현 안에만 둔다. */
-internal const val FTP_SCHEME = "ftp://"
+/** FTP 원격 경로를 식별하는 URI 스킴 접두사. 경로 형식 규칙이 이 파일 밖으로 흩어지지 않도록 공개하지 않는다. */
+private const val FTP_SCHEME = "ftp://"
+
+/**
+ * 경로가 ftp:// 형식인지 판별한다.
+ * @param path 판별할 경로
+ * @return ftp:// 형식이면 true
+ */
+internal fun isFtpUri(path: String): Boolean = path.startsWith(FTP_SCHEME)
+
+/**
+ * 서버 주소나 경로를 ftp:// 형식으로 만든다. 입력에 접두사가 있든 없든 하나만 붙는다.
+ * @param location 서버 주소 또는 경로 (ftp:// 접두사 포함 가능)
+ * @return ftp:// 형식의 경로
+ */
+internal fun ftpUriOf(location: String): String = FTP_SCHEME + ftpServerOf(location)
+
+/**
+ * 서버 주소에서 접속에 쓸 호스트 부분을 꺼낸다.
+ * @param address 서버 호스트명 또는 IP (ftp:// 접두사 포함 가능)
+ * @return ftp:// 접두사를 뗀 주소
+ */
+internal fun ftpServerOf(address: String): String = address.removePrefix(FTP_SCHEME)
 
 /** ftp://server/path 형식에서 /path 부분만 추출한다. */
 internal fun extractFtpPath(path: String): String {

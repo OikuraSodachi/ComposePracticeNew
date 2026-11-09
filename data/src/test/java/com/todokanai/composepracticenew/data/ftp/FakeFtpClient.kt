@@ -132,10 +132,17 @@ internal class FakeFtpClient : ListingStreamFtpClient() {
 
     override fun sendCommand(command: FTPCmd, args: String?): Int {
         check(command == FTPCmd.MLST) { "가짜 클라이언트가 처리하지 않는 명령: $command" }
-        lastReplyLines = onMlst(args.orEmpty())
+        lastReplyLines = mlstReply(args.orEmpty())
         val code = lastReplyLines.first().take(3).toInt()
         reply(code, lastReplyLines.joinToString("\n"))
         return code
+    }
+
+    /** MLST의 응답 줄. [serverBehaviors]에 "MLST" 동작이 있으면 그 동작을, 없으면 [onMlst]를 따른다. */
+    private fun mlstReply(path: String): List<String> = when (val behavior = serverBehaviors["MLST"]) {
+        is ServerBehavior.Refuse -> listOf(behavior.text)
+        is ServerBehavior.Fail -> throw behavior.error
+        else -> onMlst(path)
     }
 
     override fun getReplyStrings(): Array<String> = lastReplyLines.toTypedArray()

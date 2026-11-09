@@ -1,7 +1,8 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.data.ftp.FTP_SCHEME
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
+import com.todokanai.composepracticenew.data.ftp.ftpUriOf
+import com.todokanai.composepracticenew.data.ftp.isFtpUri
 import com.todokanai.composepracticenew.data.ftp.parentFtpUri
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.fileexplorer.FileEntry
@@ -15,12 +16,11 @@ import javax.inject.Inject
 class FtpPathAwareFileSystem @Inject constructor(
     private val ftpCommands: FtpCommandExecutor
 ) : PathAwareFileSystem {
-    override fun handles(path: String): Boolean = path.startsWith(FTP_SCHEME)
+    override fun handles(path: String): Boolean = isFtpUri(path)
     override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = ftpCommands.listFiles(path)
     override fun getParent(path: String): String? = parentFtpUri(path)
     // 루트(ftp://host)는 호스트 이름을 표시한다
     override fun displayName(path: String): String = defaultDisplayName(path)
     // 원격 경로는 네트워크 I/O 없이 사전 접근성 검사를 할 수 없으므로 정규화만 수행하고 항상 non-null 반환
-    override suspend fun resolveNavigationPath(path: String): String =
-        FTP_SCHEME + path.removePrefix(FTP_SCHEME)
+    override suspend fun resolveNavigationPath(path: String): String = ftpUriOf(path)
 }

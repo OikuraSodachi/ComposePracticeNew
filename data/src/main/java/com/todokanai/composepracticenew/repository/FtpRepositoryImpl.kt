@@ -1,11 +1,11 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.data.ftp.FTP_SCHEME
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
 import com.todokanai.composepracticenew.data.ftp.FtpSession
 import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
 import com.todokanai.composepracticenew.data.ftp.childFtpUri
+import com.todokanai.composepracticenew.data.ftp.ftpUriOf
 import com.todokanai.composepracticenew.data.ftp.siblingFtpUri
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -43,7 +43,7 @@ class FtpRepositoryImpl @Inject constructor(
     override suspend fun drop(): Boolean = connector.drop()
 
     override fun rootPathOf(item: RemoteStorageItem): String =
-        FTP_SCHEME + item.address.removePrefix(FTP_SCHEME)
+        ftpUriOf(item.address)
 
     override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) =
         transferrer.download(remotePath, File(localDirPath, name).path, isDirectory, onProgress)

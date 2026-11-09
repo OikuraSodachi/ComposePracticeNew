@@ -39,7 +39,7 @@ class FtpConnector @Inject constructor(
         return session.withClient { client ->
             withContext(Dispatchers.IO) {
                 try {
-                    val server = address.removePrefix(FTP_SCHEME)
+                    val server = ftpServerOf(address)
                     if (client.isConnected) {
                         runCatching { client.logout() }
                         runCatching { client.disconnect() }

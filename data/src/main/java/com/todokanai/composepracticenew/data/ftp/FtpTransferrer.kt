@@ -14,8 +14,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
-import org.apache.commons.net.ftp.FTPReply
-import org.apache.commons.net.ftp.parser.MLSxEntryParser
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
@@ -264,10 +262,10 @@ class FtpTransferrer @Inject constructor(
         outcome: DataCommandOutcome,
         onAcked: suspend () -> Unit
     ): IoResult<Unit> = when (outcome) {
-        DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client)
+        DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.replyString)
         is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(outcome.cause.message ?: "전송 실패")
         is DataCommandOutcome.Finished ->
-            if (!outcome.acknowledged) IoResult.ItemFailed("전송 미완료: ${client.replyString.trim()}")
+            if (!outcome.acknowledged) FtpReplyRules.unacknowledgedTransfer(client.replyString)
             else {
                 onAcked()
                 IoResult.Done
@@ -283,26 +281,8 @@ class FtpTransferrer @Inject constructor(
      * @return 파일 크기(bytes), 알 수 없으면 -1
      */
     private fun remoteFileSize(client: FTPClient, ftpPath: String): Long {
-        if (!FTPReply.isPositiveCompletion(client.sendCommand(FTPCmd.MLST, ftpPath))) return -1L
-        return mlstEntrySize(client.replyStrings)
-    }
-
-    /**
-     * MLST 응답의 항목 줄에서 size 사실을 읽는다. 항목 줄은 응답의 둘째 줄이며 공백으로 시작한다(RFC 3659 §7.2).
-     * 항목 줄이 없거나 해석할 수 없는 값(숫자가 아닌 size, 짧은 unix.mode 등 commons-net 해석기가 예외를 던지는 값)이면 크기를 모른다.
-     * @param replyLines 응답을 끝까지 읽은 MLST 응답 줄
-     * @return 파일 크기(bytes), 알 수 없으면 -1
-     */
-    private fun mlstEntrySize(replyLines: Array<String>): Long {
-        val entryLine = replyLines.getOrNull(1)?.trimStart()?.takeIf { it.isNotEmpty() } ?: return -1L
-        val entry = try {
-            MLSxEntryParser.parseEntry(entryLine)
-        } catch (e: NumberFormatException) {
-            null
-        } catch (e: IndexOutOfBoundsException) {
-            null
-        }
-        return entry?.size?.takeIf { it >= 0 } ?: -1L
+        val replyCode = client.sendCommand(FTPCmd.MLST, ftpPath)
+        return FtpReplyRules.mlstEntrySize(replyCode, client.replyStrings)
     }
 
     /** [input]을 버퍼 단위로 [output]에 복사하며 청크마다 [onChunk]에 읽은 바이트 수를 전달한다. */
