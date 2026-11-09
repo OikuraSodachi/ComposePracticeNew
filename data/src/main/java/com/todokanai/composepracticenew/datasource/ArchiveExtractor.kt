@@ -11,7 +11,8 @@ import java.io.File
 interface ArchiveExtractor {
 
     /**
-     * 이 추출기가 [path]의 아카이브 형식을 처리하는지 판별한다.
+     * 이 추출기가 [path]의 아카이브 형식을 처리하는지 파일 이름의 확장자로만 판별한다(대소문자 무시).
+     * 파일을 읽지 않으므로 이름과 내용이 다른 파일도 true일 수 있으며, 그런 파일은 [measure]·[extract]에서 실패로 끝난다.
      * @param path 아카이브 파일 경로
      * @return 처리 가능하면 true
      */
