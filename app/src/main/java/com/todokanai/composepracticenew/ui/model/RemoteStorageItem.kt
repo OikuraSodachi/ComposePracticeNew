@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.ui.model
 
 import androidx.compose.runtime.Immutable
 import com.todokanai.composepracticenew.model.RemoteStorageItem as DomainRemoteStorageItem
-import com.todokanai.composepracticenew.myobjects.Constants
 
 /**
  * 원격 스토리지 접속 정보를 표현하는 앱 레이어 모델. domain 모듈의 RemoteStorageItem을 앱 레이어에서 격리한다.
@@ -12,7 +11,7 @@ import com.todokanai.composepracticenew.myobjects.Constants
  * @param port 서버 포트 번호
  * @param userId 로그인 아이디
  * @param password 로그인 비밀번호
- * @param encoding 파일명 인코딩
+ * @param settings 프로토콜과 그 프로토콜의 접속 설정
  */
 @Immutable
 data class RemoteStorageItem(
@@ -22,7 +21,7 @@ data class RemoteStorageItem(
     val port: Int,
     val userId: String,
     val password: String,
-    val encoding: String = Constants.REMOTE_ENCODING_DEFAULT
+    val settings: RemoteProtocolSettings
 ) {
     companion object {
         /** domain 모듈의 RemoteStorageItem을 앱 레이어 모델로 변환한다. */
@@ -33,7 +32,7 @@ data class RemoteStorageItem(
             port = domain.port,
             userId = domain.userId,
             password = domain.password,
-            encoding = domain.encoding
+            settings = RemoteProtocolSettings.from(domain.settings)
         )
     }
 
@@ -45,6 +44,6 @@ data class RemoteStorageItem(
         port = port,
         userId = userId,
         password = password,
-        encoding = encoding
+        settings = settings.toDomain()
     )
 }

@@ -24,6 +24,7 @@ import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
+import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import kotlinx.coroutines.launch
@@ -51,26 +52,24 @@ private fun StorageConnectionEffects(
  * dialogState 플래그에 따라 원격 스토리지 추가·편집·삭제 다이얼로그를 조건부 렌더링한다.
  *
  * @param dialogState 다이얼로그 open/close 상태 홀더
- * @param onAdd 추가 확인 시 실행할 콜백
- * @param onUpdate 편집 확인 시 수정된 RemoteStorageItem을 전달하는 콜백
+ * @param onAdd 추가 확인 시 입력한 접속 정보를 전달하는 콜백
+ * @param onUpdate 편집 확인 시 입력한 접속 정보를 전달하는 콜백
  * @param remoteStorageList deletingId로 삭제 대상을 찾을 원격 스토리지 목록
  * @param onDelete 삭제 확인 시 대상 RemoteStorageItem을 전달하는 콜백
- * @param validate 추가·편집 입력값(이름, 주소, 포트 문자열)을 검증해 위반한 규칙 집합을 반환하는 함수
+ * @param validate 추가·편집 입력값을 검증해 위반한 규칙 집합을 반환하는 함수
  */
 @Composable
 private fun StorageDialogHost(
     dialogState: StorageDialogState,
     remoteStorageList: List<RemoteStorageItem>,
-    onAdd: (String, String, Int, String, String, String) -> Unit,
-    onUpdate: (RemoteStorageItem) -> Unit,
+    onAdd: (RemoteStorageInput) -> Unit,
+    onUpdate: (RemoteStorageInput) -> Unit,
     onDelete: (RemoteStorageItem) -> Unit,
-    validate: (name: String, address: String, port: String) -> Set<RemoteStorageInputError>,
+    validate: (RemoteStorageInput) -> Set<RemoteStorageInputError>,
 ) {
     if (dialogState.showAddDialog) {
         AddRemoteStorageDialog(
-            onConfirm = { name, address, port, id, password, encoding ->
-                onAdd(name, address, port, id, password, encoding)
-            },
+            onConfirm = onAdd,
             onDismiss = { dialogState.dismissAdd() },
             validate = validate
         )
@@ -78,9 +77,7 @@ private fun StorageDialogHost(
     remoteStorageList.findById(dialogState.editingId)?.let { target ->
         AddRemoteStorageDialog(
             initialValue = target,
-            onConfirm = { name, address, port, id, password, encoding ->
-                onUpdate(target.copy(name = name, address = address, port = port, userId = id, password = password, encoding = encoding))
-            },
+            onConfirm = onUpdate,
             onDismiss = { dialogState.dismissEdit() },
             validate = validate
         )
@@ -127,9 +124,7 @@ fun StorageFrag(
     StorageDialogHost(
         dialogState = dialogState,
         remoteStorageList = uiState.value.remoteStorageList,
-        onAdd    = { name, address, port, id, password, encoding ->
-            viewModel.addRemoteStorage(name, address, port, id, password, encoding)
-        },
+        onAdd    = { viewModel.addRemoteStorage(it) },
         onUpdate = { viewModel.updateRemoteStorage(it) },
         onDelete = { viewModel.deleteRemoteStorage(it) },
         validate = viewModel::validateRemoteStorageInput,

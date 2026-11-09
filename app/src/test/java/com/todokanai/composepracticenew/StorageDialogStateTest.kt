@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import androidx.compose.runtime.saveable.SaverScope
 import com.todokanai.composepracticenew.compose.frag.StorageDialogState
+import com.todokanai.composepracticenew.ui.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -45,6 +46,6 @@ class StorageDialogStateTest {
     }
 
     private fun item(id: Long) = RemoteStorageItem(
-        id = id, name = "n", address = "a", port = 21, userId = "u", password = "p", encoding = "UTF-8"
+        id = id, name = "n", address = "a", port = 21, userId = "u", password = "p", settings = RemoteProtocolSettings.Ftp("UTF-8")
     )
 }

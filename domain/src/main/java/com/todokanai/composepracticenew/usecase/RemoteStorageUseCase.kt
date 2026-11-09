@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.RemoteStorageInput
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
@@ -24,36 +25,24 @@ class RemoteStorageUseCase(
     /**
      * 원격 스토리지 접속 정보 입력값을 검증한다.
      * 이름·주소는 공백뿐일 수 없고, 포트는 1~65535 범위의 정수여야 한다. 아이디·비밀번호는 익명 접속을 위해 빈 값을 허용한다.
-     * @param name 사용자가 입력한 서버 별칭
-     * @param address 사용자가 입력한 서버 주소
-     * @param port 사용자가 입력한 포트 문자열
+     * @param input 사용자가 입력한 접속 정보
      * @return 위반한 규칙의 집합. 비어 있으면 유효한 입력이다
      */
-    fun validateInput(name: String, address: String, port: String): Set<RemoteStorageInputError> = buildSet {
-        if (name.isBlank()) add(RemoteStorageInputError.NAME_BLANK)
-        if (address.isBlank()) add(RemoteStorageInputError.ADDRESS_BLANK)
-        if (!isValidPort(port)) add(RemoteStorageInputError.PORT_OUT_OF_RANGE)
+    fun validateInput(input: RemoteStorageInput): Set<RemoteStorageInputError> = buildSet {
+        if (input.name.isBlank()) add(RemoteStorageInputError.NAME_BLANK)
+        if (input.address.isBlank()) add(RemoteStorageInputError.ADDRESS_BLANK)
+        if (!isValidPort(input.port)) add(RemoteStorageInputError.PORT_OUT_OF_RANGE)
     }
 
     /**
-     * 새 원격 스토리지 접속 정보를 저장한다.
-     * @param name 사용자가 지정한 서버 별칭
-     * @param address 서버 주소 (IP 또는 호스트명)
-     * @param port 서버 포트 번호
-     * @param userId 로그인 사용자 아이디
-     * @param password 로그인 비밀번호
-     * @param encoding 서버 파일 이름 인코딩 (예: UTF-8)
+     * 입력한 접속 정보를 저장한다. id가 0이면 새 항목을 추가하고, 기존 id면 그 항목을 교체한다.
+     * [validateInput]을 위반한 입력은 저장하지 않는다 — 화면은 같은 검증으로 확인 버튼을 막으므로, 입력과 확인이 겹친 순간에만 일어난다.
+     * @param input 사용자가 입력한 접속 정보
      * @return Unit
      */
-    suspend fun add(name: String, address: String, port: Int, userId: String, password: String, encoding: String) =
-        repo.insert(RemoteStorageItem(name = name, address = address, port = port, userId = userId, password = password, encoding = encoding))
-
-    /**
-     * 기존 원격 스토리지 접속 정보를 갱신한다.
-     * @param item 갱신할 RemoteStorageItem — 유효한 기존 id 필요. id가 일치하는 행을 REPLACE함; id가 0이면 새 행이 INSERT됨
-     * @return Unit
-     */
-    suspend fun update(item: RemoteStorageItem) = repo.insert(item)
+    suspend fun save(input: RemoteStorageInput) {
+        if (validateInput(input).isEmpty()) repo.insert(itemOf(input))
+    }
 
     /**
      * 원격 스토리지 접속 정보를 삭제하고, 그 서버가 마지막 연결 서버였으면 기록도 지운다.
@@ -69,4 +58,15 @@ class RemoteStorageUseCase(
 
     /** [port]가 [RemoteStorageItem.PORT_RANGE] 안의 정수인지 판별한다. */
     private fun isValidPort(port: String): Boolean = port.toIntOrNull()?.let { it in RemoteStorageItem.PORT_RANGE } ?: false
+
+    /** [validateInput]을 통과한 [input]을 저장할 항목으로 바꾼다. */
+    private fun itemOf(input: RemoteStorageInput) = RemoteStorageItem(
+        id = input.id,
+        name = input.name,
+        address = input.address,
+        port = input.port.toInt(),
+        userId = input.userId,
+        password = input.password,
+        settings = input.settings
+    )
 }

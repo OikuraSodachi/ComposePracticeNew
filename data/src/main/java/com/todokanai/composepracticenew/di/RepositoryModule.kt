@@ -85,7 +85,7 @@ abstract class RepositoryModule {
     @Binds
     abstract fun bindOperationNoticeReporter(impl: OperationNotices): OperationNoticeReporter
 
-    /** 원격 스토리지 구현을 바꾸려면 아래 세 바인딩의 구현체만 교체한다. */
+    /** 원격 스토리지 구현을 바꾸려면 아래 세 바인딩의 구현체만 교체한다. 여러 프로토콜의 동시 지원은 범위 밖이며, 두 번째 프로토콜을 구현할 때 저장 항목의 프로토콜로 구현을 고르는 라우터를 함께 추가한다. */
     @Binds
     abstract fun bindRemoteConnectionRepository(impl: FtpRepositoryImpl): RemoteConnectionRepository
 

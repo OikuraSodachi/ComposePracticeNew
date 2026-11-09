@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.di.RepositoryModule
 import com.todokanai.composepracticenew.model.NavigateResult
+import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SortMode
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,5 +65,5 @@ class RemoteRootNavigationWiringTest {
      * @param address 서버 주소
      * @return 접속 정보
      */
-    private fun serverAt(address: String) = RemoteStorageItem(name = "nas", address = address, port = 21, userId = "", password = "")
+    private fun serverAt(address: String) = RemoteStorageItem(name = "nas", address = address, port = 21, userId = "", password = "", settings = RemoteProtocolSettings.Ftp("UTF-8"))
 }
