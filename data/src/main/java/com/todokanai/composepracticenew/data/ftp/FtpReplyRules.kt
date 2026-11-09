@@ -51,13 +51,6 @@ internal object FtpReplyRules {
     fun isSystemTypeReply(replyCode: Int): Boolean = FTPReply.isPositiveCompletion(replyCode)
 
     /**
-     * 응답이 예비 응답(1xx)인지 판별한다. 예비 응답 뒤에는 같은 명령의 최종 응답이 이어지며, 목록 조회·전송에서는 데이터 연결을 열어 전송을 시작했다는 뜻이다.
-     * @param replyCode 응답 코드
-     * @return 예비 응답이면 true
-     */
-    fun isPreliminaryReply(replyCode: Int): Boolean = FTPReply.isPositivePreliminary(replyCode)
-
-    /**
      * [command]를 서버가 거부한 마지막 응답을 이 항목만의 실패로 만든다.
      * @param command 거부된 명령
      * @param reply 서버가 보낸 거부 응답 문자열
