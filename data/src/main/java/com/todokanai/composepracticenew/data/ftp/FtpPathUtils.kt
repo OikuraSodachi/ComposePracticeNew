@@ -15,7 +15,7 @@ internal fun isFtpUri(path: String): Boolean = path.startsWith(FTP_SCHEME)
  * @param location 서버 주소 또는 경로 (ftp:// 접두사 포함 가능)
  * @return ftp:// 형식의 경로
  */
-internal fun ftpUriOf(location: String): String = FTP_SCHEME + ftpServerOf(location)
+internal fun ftpUriOf(location: String): String = FTP_SCHEME + location.removePrefix(FTP_SCHEME)
 
 /**
  * 서버 주소에서 접속에 쓸 호스트 부분을 꺼낸다.
