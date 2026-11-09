@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.ReconnectResult
+import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
@@ -17,7 +18,7 @@ import org.junit.Test
 class ReconnectLastSavedIdTest {
 
     /** 저장소에 있는 서버. */
-    private val nas = RemoteStorageItem(id = 5L, name = "nas", address = "192.168.0.1", port = 21, userId = "", password = "")
+    private val nas = RemoteStorageItem(id = 5L, name = "nas", address = "192.168.0.1", port = 21, userId = "", password = "", settings = RemoteProtocolSettings.Ftp("UTF-8"))
 
     @Test
     fun `설정을 읽지 못하면 저장된 서버 없음이 아니라 설정을 읽지 못함으로 돌려준다`() {

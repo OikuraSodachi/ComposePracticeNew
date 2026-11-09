@@ -18,6 +18,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.todokanai.composepracticenew.ui.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
 /**
@@ -70,10 +71,11 @@ private fun RemoteStorageHolderPreview() {
         modifier = Modifier,
         item = RemoteStorageItem(
             name = "내 NAS",
-            address = "smb://192.168.0.1/share",
-            port = 445,
+            address = "192.168.0.1",
+            port = 21,
             userId = "user",
-            password = ""
+            password = "",
+            settings = RemoteProtocolSettings.Ftp("UTF-8")
         ),
         onEdit = {},
         onDelete = {}

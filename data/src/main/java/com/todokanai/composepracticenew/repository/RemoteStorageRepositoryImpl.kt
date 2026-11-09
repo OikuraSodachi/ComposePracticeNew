@@ -1,7 +1,9 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.data.room.PROTOCOL_FTP
 import com.todokanai.composepracticenew.data.room.RemoteStorageInfo
 import com.todokanai.composepracticenew.data.room.RemoteStorageInfoDao
+import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -34,15 +36,24 @@ private fun RemoteStorageInfo.toItem() = RemoteStorageItem(
     port = port,
     userId = userId,
     password = password,
-    encoding = encoding
+    settings = settings()
 )
 
-private fun RemoteStorageItem.toEntity() = RemoteStorageInfo(
-    id = id,
-    name = name,
-    address = address,
-    port = port,
-    userId = userId,
-    password = password,
-    encoding = encoding
-)
+/** 저장된 프로토콜 값을 설정으로 바꾼다. 이 값은 [toEntity]만 쓰므로 모르는 값은 구현 오류다. */
+private fun RemoteStorageInfo.settings(): RemoteProtocolSettings = when (protocol) {
+    PROTOCOL_FTP -> RemoteProtocolSettings.Ftp(encoding)
+    else -> error("알 수 없는 프로토콜: $protocol")
+}
+
+private fun RemoteStorageItem.toEntity() = when (val settings = settings) {
+    is RemoteProtocolSettings.Ftp -> RemoteStorageInfo(
+        id = id,
+        name = name,
+        address = address,
+        port = port,
+        userId = userId,
+        password = password,
+        protocol = PROTOCOL_FTP,
+        encoding = settings.encoding
+    )
+}

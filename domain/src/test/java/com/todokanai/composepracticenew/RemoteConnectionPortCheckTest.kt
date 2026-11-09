@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
+import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
@@ -40,7 +41,7 @@ class RemoteConnectionPortCheckTest {
      * @param port 접속 정보의 포트
      * @return 접속 정보
      */
-    private fun itemWithPort(port: Int) = RemoteStorageItem(name = "nas", address = "192.168.0.1", port = port, userId = "", password = "")
+    private fun itemWithPort(port: Int) = RemoteStorageItem(name = "nas", address = "192.168.0.1", port = port, userId = "", password = "", settings = RemoteProtocolSettings.Ftp("UTF-8"))
 
     /** 연결을 요청받은 포트. 받은 순서대로다. */
     private fun connectedPorts(): List<Int> = connection.connected.map { it.port }

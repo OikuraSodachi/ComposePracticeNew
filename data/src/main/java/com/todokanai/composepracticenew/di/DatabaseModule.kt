@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.di
 
 import android.content.Context
 import androidx.room.Room
+import com.todokanai.composepracticenew.data.room.MIGRATION_3_4
 import com.todokanai.composepracticenew.data.room.MyDatabase
 import com.todokanai.composepracticenew.data.room.RemoteStorageInfoDao
 import com.todokanai.composepracticenew.data.room.UserDao
@@ -20,6 +21,7 @@ class DatabaseModule {
     @Provides
     fun provideMyDatabase(@ApplicationContext context: Context): MyDatabase {
         return Room.databaseBuilder(context, MyDatabase::class.java, "room_db")
+            .addMigrations(MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
     }

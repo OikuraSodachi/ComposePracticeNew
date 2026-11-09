@@ -30,31 +30,33 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.ConfirmCancelDialog
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.myobjects.AppConstants
-import com.todokanai.composepracticenew.myobjects.Constants
+import com.todokanai.composepracticenew.ui.model.RemoteProtocolSettings
+import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 
 /**
  * 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호, 인코딩)를 입력받아 추가하거나 수정하는 다이얼로그.
  *
  * 입력 검증 규칙은 [validate]로 주입받고, 이 다이얼로그는 결과에 따라 확인 버튼 활성 여부와 필드 오류 표시만 담당한다.
+ * 확인을 누른 순간에도 최신 입력을 다시 검증해, 위반이면 닫지 않고 입력을 유지한다.
  * 필수 입력이 비어 있다는 오류는 사용자가 그 필드를 한 번이라도 편집한 뒤에만 표시해, 빈 추가 폼을 열자마자 오류가 보이지 않게 한다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRemoteStorageDialog(
-    onConfirm: (name: String, address: String, port: Int, id: String, password: String, encoding: String) -> Unit,
+    onConfirm: (RemoteStorageInput) -> Unit,
     onDismiss: () -> Unit,
-    validate: (name: String, address: String, port: String) -> Set<RemoteStorageInputError>,
+    validate: (RemoteStorageInput) -> Set<RemoteStorageInputError>,
     initialValue: RemoteStorageItem? = null
 ) {
     val encodingOptions = AppConstants.REMOTE_ENCODING_OPTIONS
     // 입력 필드 6개는 rememberSaveable — 키 없음: 화면 회전 등 구성 변경 후에도 입력 중인 값을 보존하고, initialValue는 최초 진입 시에만 초기값으로 사용
     var name by rememberSaveable { mutableStateOf(initialValue?.name ?: "") }
     var address by rememberSaveable { mutableStateOf(initialValue?.address ?: "") }
-    var port by rememberSaveable { mutableStateOf(initialValue?.port?.toString() ?: "21") }
+    var port by rememberSaveable { mutableStateOf((initialValue?.port ?: RemoteProtocolSettings.Ftp.DEFAULT_PORT).toString()) }
     var id by rememberSaveable { mutableStateOf(initialValue?.userId ?: "") }
     var password by rememberSaveable { mutableStateOf(initialValue?.password ?: "") }
-    var selectedEncoding by rememberSaveable { mutableStateOf(initialValue?.encoding ?: Constants.REMOTE_ENCODING_DEFAULT) }
+    var selectedEncoding by rememberSaveable { mutableStateOf(initialEncodingOf(initialValue?.settings)) }
     // 드롭다운 펼침은 일시적 UI 상태라 구성 변경 시 닫혀도 무방 — remember로 충분
     var encodingExpanded by remember { mutableStateOf(false) }
     // 필드별 편집 여부는 rememberSaveable — 키 없음: 구성 변경 후에도 이미 보이던 오류 표시가 사라지지 않도록 보존
@@ -62,10 +64,21 @@ fun AddRemoteStorageDialog(
     var addressEdited by rememberSaveable { mutableStateOf(false) }
     var portEdited by rememberSaveable { mutableStateOf(false) }
 
+    /** 지금 입력된 값을 하나의 입력값으로 묶는다. 수정이면 대상의 id를 유지한다. */
+    fun currentInput() = RemoteStorageInput(
+        id = initialValue?.id ?: 0,
+        name = name,
+        address = address,
+        port = port,
+        userId = id,
+        password = password,
+        settings = RemoteProtocolSettings.Ftp(selectedEncoding)
+    )
+
     // rememberUpdatedState — 아래 derivedStateOf가 재생성 없이 항상 최신 validate를 호출하도록 보장
     val currentValidate by rememberUpdatedState(validate)
-    // name·address·port·currentValidate를 추적 — 입력이 바뀔 때만 재검증하고, 결과 집합이 같으면 본문을 무효화하지 않음
-    val errors by remember { derivedStateOf { currentValidate(name, address, port) } }
+    // 입력 필드 6개와 currentValidate를 추적 — 입력이 바뀔 때만 재검증하고, 결과 집합이 같으면 본문을 무효화하지 않음
+    val errors by remember { derivedStateOf { currentValidate(currentInput()) } }
     val nameError = nameEdited && RemoteStorageInputError.NAME_BLANK in errors
     val addressError = addressEdited && RemoteStorageInputError.ADDRESS_BLANK in errors
     val portError = portEdited && RemoteStorageInputError.PORT_OUT_OF_RANGE in errors
@@ -73,11 +86,10 @@ fun AddRemoteStorageDialog(
     ConfirmCancelDialog(
         modifier = Modifier,
         title = stringResource(R.string.dialog_add_remote_storage_title),
-        onConfirm = {
-            port.toIntOrNull()?.let { validPort -> onConfirm(name, address, validPort, id, password, selectedEncoding) }
-        },
+        onConfirm = { onConfirm(currentInput()) },
         onDismiss = onDismiss,
-        confirmEnabled = errors.isEmpty()
+        confirmEnabled = errors.isEmpty(),
+        canConfirm = { currentValidate(currentInput()).isEmpty() }
     ) {
         Column {
             TextField(
@@ -169,6 +181,12 @@ fun AddRemoteStorageDialog(
     }
 }
 
+/** 인코딩 선택의 초기값을 정한다. 수정할 항목의 설정이 없으면(새 항목) 기본 인코딩이다. */
+private fun initialEncodingOf(settings: RemoteProtocolSettings?): String = when (settings) {
+    is RemoteProtocolSettings.Ftp -> settings.encoding
+    null -> RemoteProtocolSettings.Ftp.DEFAULT_ENCODING
+}
+
 /** 오류일 때만 사유 문구를 보여주는 TextField supportingText 슬롯을 만든다. 오류가 아니면 슬롯을 두지 않는다. */
 private fun errorSupportingText(isError: Boolean, @StringRes messageRes: Int): (@Composable () -> Unit)? =
     if (isError) ({ Text(stringResource(messageRes)) }) else null
@@ -178,8 +196,8 @@ private fun errorSupportingText(isError: Boolean, @StringRes messageRes: Int): (
 @Composable
 private fun AddRemoteStorageDialogPreview() {
     AddRemoteStorageDialog(
-        onConfirm = { _, _, _, _, _, _ -> },
+        onConfirm = {},
         onDismiss = {},
-        validate = { _, _, _ -> emptySet() }
+        validate = { emptySet() }
     )
 }

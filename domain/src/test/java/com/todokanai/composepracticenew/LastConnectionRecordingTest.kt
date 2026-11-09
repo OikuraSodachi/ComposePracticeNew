@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.NavigateResult
+import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
@@ -20,7 +21,7 @@ import org.junit.Test
 class LastConnectionRecordingTest {
 
     /** 검증에 쓰는 접속 정보. */
-    private val nas = RemoteStorageItem(id = 5L, name = "nas", address = "192.168.0.1", port = 21, userId = "", password = "")
+    private val nas = RemoteStorageItem(id = 5L, name = "nas", address = "192.168.0.1", port = 21, userId = "", password = "", settings = RemoteProtocolSettings.Ftp("UTF-8"))
     /** 가짜 저장소들이 받은 요청. 저장소를 가리지 않고 받은 순서대로 쌓아, 저장소 사이의 호출 순서를 검증한다. */
     private val calls = mutableListOf<String>()
     /** 기록·정리 요청을 [calls]에 쌓는 가짜 저장소. */
