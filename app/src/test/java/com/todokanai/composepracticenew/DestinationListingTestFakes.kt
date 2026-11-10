@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
@@ -80,14 +81,19 @@ internal object NoOpMutationRepository : RemoteFileMutationRepository {
 internal class RecordingFileActionRepository : FileActionRepository {
     val calls = mutableListOf<String>()
 
-    /** 압축 해제 호출마다 넘어온 '여기에 풀기' 여부. */
-    val unzipHereFlags = mutableListOf<Boolean>()
+    /** 압축 해제 호출마다 넘어온 배치 방식. */
+    val unzipLayouts = mutableListOf<ExtractLayout>()
+
+    /** 아카이브 경로와 배치 방식을 받아 해제가 목적지 바로 아래에 만들 이름을 돌려주는 함수. 테스트가 정한다. */
+    var extractedNamesOf: (zipFile: String, layout: ExtractLayout) -> Set<String> = { _, _ -> emptySet() }
     override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip"; unzipHereFlags += unzipHere }
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit) =
+        IoResult.Done.also { calls += "unzip"; unzipLayouts += layout }
+    override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout) = IoResult.Success(extractedNamesOf(zipFile, layout))
     override fun canExtract(path: String) = false
     override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
 }

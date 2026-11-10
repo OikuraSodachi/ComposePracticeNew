@@ -25,4 +25,21 @@ internal object LocalFileChecks {
         }
         return file.canonicalFile.path.startsWith(rootPath)
     }
+
+    /**
+     * 아카이브 항목 [entryName]을 [root] 아래 어디에 풀지 정한다. 추출과 충돌 판정이 같은 규칙으로 위치를 정하도록 한 곳에 둔다.
+     * @param root 추출 대상 루트 디렉터리
+     * @param entryName 아카이브 안의 '/' 구분 항목 경로
+     * @return 풀 위치. [root] 밖을 가리키면(Zip Slip) null
+     */
+    fun entryTargetOf(root: File, entryName: String): File? = root.resolve(entryName).takeIf { isUnderRoot(it, root) }
+
+    /**
+     * 아카이브 항목 [entryName]을 풀면 [root] 바로 아래에 생기는(또는 덮어쓰는) 이름을 구한다. 위치는 [entryTargetOf]로 정한다.
+     * @param root 추출 대상 루트 디렉터리
+     * @param entryName 아카이브 안의 '/' 구분 항목 경로
+     * @return [root] 바로 아래 이름. [root] 밖을 가리켜 풀지 않는 항목이면 null
+     */
+    fun topLevelNameOf(root: File, entryName: String): String? =
+        entryTargetOf(root, entryName)?.let { root.canonicalFile.toPath().relativize(it.canonicalFile.toPath()).getName(0).toString() }
 }

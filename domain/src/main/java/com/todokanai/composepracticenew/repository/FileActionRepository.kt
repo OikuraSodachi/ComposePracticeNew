@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 
@@ -25,9 +26,13 @@ interface FileActionRepository {
     // Moves [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
     suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
-    // Extracts [zipFiles] into [destPath], reporting progress via [onProgress].
-    // If [unzipHere] is true, extracts directly into [destPath] without creating a subfolder.
-    suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean = false, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    // Extracts [zipFiles] into [destPath], placing the entries as [layout] says, reporting progress via [onProgress].
+    suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+
+    // Returns the names that extracting [zipFile] into [destPath] with [layout] creates (or overwrites) directly under [destPath]:
+    // the archive folder for [ExtractLayout.IntoArchiveFolder], the archive's top-level entries for [ExtractLayout.IntoDestination].
+    // [unzipAction] places entries by the same rule, so a conflict check on these names covers everything the extraction can overwrite there.
+    suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout): IoResult<Set<String>>
 
     // Returns true if [unzipAction] supports the archive format of [path].
     fun canExtract(path: String): Boolean

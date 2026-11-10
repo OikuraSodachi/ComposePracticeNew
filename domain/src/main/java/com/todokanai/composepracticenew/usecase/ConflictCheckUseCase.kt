@@ -3,8 +3,10 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.RenameConflict
+import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
 /**
@@ -32,15 +34,35 @@ class ConflictCheckUseCase(
     }
 
     /**
-     * 압축 해제 시 생성될 폴더(확장자를 뗀 이름)가 [destination]의 현재 폴더에 이미 있는 아카이브 항목을 판정한다.
+     * 압축 해제가 목적지 바로 아래에 만들 이름이 [destination]의 현재 폴더에 이미 있는 아카이브 항목을 판정한다.
+     * 목적지 목록은 아카이브를 읽기 전에 정한다 — 확인을 요청한 시점의 폴더에 대해 판정하고 실행하도록.
      * @param items 압축 해제 대상 아카이브 항목
      * @param destination 목적지 폴더를 탐색 중인 FileNavigatorUseCase
-     * @param nameOf 항목에서 파일 이름(확장자 포함)을 꺼내는 함수
-     * @return 판정한 목적지 경로와 충돌 항목. 목적지 목록을 확인하지 못했으면 거부를 알리고 null
+     * @param nameOf 항목에서 표시할 파일 이름을 꺼내는 함수 — 아카이브를 읽지 못했을 때의 거부 메시지에 쓴다
+     * @param extractedNamesOf 항목과 목적지 경로를 받아, 그 항목을 압축 해제할 때 목적지 바로 아래에 생기는 이름 집합을 구하는 함수(배치 방식은 이 함수가 따른다)
+     * @return 판정한 목적지 경로와 충돌 항목. 목적지 목록을 확인하지 못했거나 아카이브를 읽지 못했으면 거부를 알리고 null
      */
-    fun <T> findUnzipConflicts(items: List<T>, destination: FileNavigatorUseCase, nameOf: (T) -> String): DestinationConflicts<T>? {
+    suspend fun <T> findUnzipConflicts(
+        items: List<T>,
+        destination: FileNavigatorUseCase,
+        nameOf: (T) -> String,
+        extractedNamesOf: suspend (item: T, destinationPath: String) -> IoResult<Set<String>>,
+    ): DestinationConflicts<T>? {
         val listing = verifiedOrReject(destination.verifiedListing()) ?: return null
-        return DestinationConflicts(listing.request.path, ConflictRules.unzipConflicts(items, namesOf(listing.items), nameOf))
+        val extracted = items.associateWith { item ->
+            extractedNamesOf(item, listing.request.path).valueOr { failure -> return null.also { reportUnreadableArchive(nameOf(item), failure) } }
+        }
+        return DestinationConflicts(listing.request.path, ConflictRules.unzipConflicts(items, namesOf(listing.items), extracted::getValue))
+    }
+
+    /**
+     * 아카이브를 읽지 못해 충돌을 판정할 수 없으므로 거부를 알린다.
+     * @param archiveName 읽지 못한 아카이브의 표시 이름
+     * @param failure 읽기 실패
+     */
+    private fun reportUnreadableArchive(archiveName: String, failure: IoResult.Failure) {
+        val cause = failure.message?.let { " ($it)" }.orEmpty()
+        notices.report(OperationNoticeKind.FAILURE, "압축 해제 실패: ${archiveName}의 내용을 읽지 못해 충돌을 확인할 수 없습니다$cause")
     }
 
     /**

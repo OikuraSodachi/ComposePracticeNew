@@ -26,7 +26,16 @@ interface ArchiveExtractor {
     fun measure(path: String): ArchiveSize
 
     /**
+     * [extract]가 풀어 만드는 항목의 아카이브 안 경로('/' 구분)를 나열한다. 충돌 판정이 추출과 같은 항목으로 판정하도록 [extract]와 같은 기준으로 고른다.
+     * 루트 밖을 가리키는 항목도 그대로 담는다 — 그런 항목을 걸러 내는 일은 위치를 정하는 쪽([LocalFileChecks.entryTargetOf])이 한다.
+     * @param path 아카이브 파일 경로
+     * @return 항목 경로 목록
+     */
+    fun entryNames(path: String): List<String>
+
+    /**
      * [path] 아카이브를 [root] 아래로 추출하며 [tracker]로 진행률을 보고한다. [measure]가 크기를 모른다고 센 항목은 크기 없이(null) 보고한다.
+     * 항목의 위치는 [LocalFileChecks.entryTargetOf]로 정한다.
      * @param path 아카이브 파일 경로
      * @param root 추출 대상 루트 디렉터리
      * @param tracker 누적 진행률 보고기

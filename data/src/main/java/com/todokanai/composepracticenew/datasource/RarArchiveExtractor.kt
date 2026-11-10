@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
-import com.todokanai.composepracticenew.datasource.LocalFileChecks.isUnderRoot
+import com.todokanai.composepracticenew.datasource.LocalFileChecks.entryTargetOf
 import net.sf.sevenzipjbinding.ArchiveFormat
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
@@ -34,6 +34,14 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
                 count++
             }
             ArchiveSize(knownBytes, count, unknownSizeCount)
+        }
+
+    // 폴더 항목은 extract가 만들지 않으므로(getStream이 건너뜀) 빼고, 경로가 없는 항목도 extract가 건너뛰므로 뺀다
+    override fun entryNames(path: String): List<String> =
+        withArchive(path) { archive ->
+            (0 until archive.numberOfItems)
+                .filterNot { archive.getProperty(it, PropID.IS_FOLDER) as? Boolean == true }
+                .mapNotNull { normalizedPathOf(archive, it) }
         }
 
     override fun extract(path: String, root: File, tracker: ByteProgressTracker): Int =
@@ -82,11 +90,9 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             skipCurrent = false
             if (extractAskMode != ExtractAskMode.EXTRACT) return null
             if (archive.getProperty(index, PropID.IS_FOLDER) as? Boolean == true) return null
-            val rawName = archive.getProperty(index, PropID.PATH) as? String ?: return skipEntry()
-            currentNormalizedName = rawName.replace('\\', '/')
+            currentNormalizedName = normalizedPathOf(archive, index) ?: return skipEntry()
             currentItemSize = knownSizeOf(archive, index)
-            val target = root.resolve(currentNormalizedName)
-            if (!isUnderRoot(target, root)) return skipEntry()
+            val target = entryTargetOf(root, currentNormalizedName) ?: return skipEntry()
             target.parentFile?.mkdirs()
             tracker.startFile()
             return try {
@@ -133,3 +139,11 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
  * @return 크기(bytes), 아카이브가 알려주지 않으면 null
  */
 private fun knownSizeOf(archive: IInArchive, index: Int): Long? = (archive.getProperty(index, PropID.SIZE) as? Long)?.takeIf { it >= 0 }
+
+/**
+ * 항목의 아카이브 안 경로를 '/' 구분으로 정규화해 구한다. 나열과 추출이 같은 이름으로 항목을 가리키도록 한 곳에 둔다.
+ * @param archive 열린 아카이브
+ * @param index 항목 번호
+ * @return '/' 구분 경로, 아카이브가 경로를 알려주지 않으면 null
+ */
+private fun normalizedPathOf(archive: IInArchive, index: Int): String? = (archive.getProperty(index, PropID.PATH) as? String)?.replace('\\', '/')

@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.DestinationConflicts
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.RenameConflict
@@ -194,11 +195,12 @@ class FileListViewModel @Inject constructor(
     /**
      * [mode] 작업을 현재 경로(충돌을 판정한 확인된 목록의 경로)에 실행한다. 목적지에 같은 이름이 있으면 실행하지 않고 [pendingConflict]로 확인을 요청한다.
      * 목적지 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
+     * 압축 해제는 판정에 아카이브를 읽어야 하므로 기다릴 수 있다. 기다리는 동안 취소되면 실행하지 않는다.
      * @param selectedList 작업 대상 항목
      * @param mode 실행할 로컬 작업 모드
-     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이거나 목적지 목록을 확인하지 못해 거부됐으면 false
+     * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이거나 목적지 목록·아카이브를 확인하지 못해 거부됐으면 false
      */
-    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean {
+    suspend fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean {
         val plan = planOf(mode)
         val checked = plan.findConflicts(selectedList) ?: return false
         return conflictGate.request(selectedList, checked.conflicts) { skip ->
@@ -291,17 +293,17 @@ class FileListViewModel @Inject constructor(
                     onRefresh = onRefresh
                 )
             }
-            SelectMode.LocalOperation.Unzip -> unzipPlan(unzipHere = false)
-            SelectMode.LocalOperation.UnzipHere -> unzipPlan(unzipHere = true)
+            SelectMode.LocalOperation.Unzip -> unzipPlan(ExtractLayout.IntoArchiveFolder)
+            SelectMode.LocalOperation.UnzipHere -> unzipPlan(ExtractLayout.IntoDestination)
         }
 
-    /** 압축 해제의 충돌 판정과 실행 방법을 만든다. */
-    private fun unzipPlan(unzipHere: Boolean) =
-        LocalOperationPlan(::findUnzipConflicts) { targets, destPath, onRefresh ->
+    /** [layout]으로 압축 해제할 때의 충돌 판정과 실행 방법을 만든다. 판정과 실행이 같은 배치 방식을 쓰도록 한 값으로 묶는다. */
+    private fun unzipPlan(layout: ExtractLayout) =
+        LocalOperationPlan({ selectedList -> findUnzipConflicts(selectedList, layout) }) { targets, destPath, onRefresh ->
             localFileOperationUseCase.unzip(
                 zipFiles = targets,
                 destPath = destPath,
-                unzipHere = unzipHere,
+                layout = layout,
                 completionMessage = messages.notiComplete,
                 onRefresh = onRefresh
             )
@@ -315,11 +317,13 @@ class FileListViewModel @Inject constructor(
         conflictCheckUseCase.findCopyMoveConflicts(selectedList, fileNavigatorUseCase) { it.name }
 
     /**
-     * 압축 해제의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다.
-     * @return 판정한 목적지 경로와 충돌 항목. 현재 경로의 목록을 확인하지 못했으면 판정할 수 없으므로 null
+     * [layout]으로 압축 해제할 때 목적지(현재 경로)에 생길 이름이 이미 있는 아카이브를 반환한다.
+     * @return 판정한 목적지 경로와 충돌 항목. 현재 경로의 목록이나 아카이브 내용을 확인하지 못했으면 판정할 수 없으므로 null
      */
-    private fun findUnzipConflicts(selectedList: List<FileHolderItem>): DestinationConflicts<FileHolderItem>? =
-        conflictCheckUseCase.findUnzipConflicts(selectedList, fileNavigatorUseCase) { it.name }
+    private suspend fun findUnzipConflicts(selectedList: List<FileHolderItem>, layout: ExtractLayout): DestinationConflicts<FileHolderItem>? =
+        conflictCheckUseCase.findUnzipConflicts(selectedList, fileNavigatorUseCase, nameOf = { it.name }) { item, destinationPath ->
+            localFileOperationUseCase.extractedNames(item.path, destinationPath, layout)
+        }
 
     /** 선택 목록에서 skipFiles를 제외한 대상에 대해 [plan]의 파일 작업을 [destPath]에 실행한다. */
     private fun execute(selectedList: List<FileHolderItem>, plan: LocalOperationPlan, skipFiles: List<FileHolderItem>, destPath: String) {
@@ -336,6 +340,6 @@ class FileListViewModel @Inject constructor(
  * @param run 대상 경로, 목적지 경로, 완료 후 새로고침 동작을 받아 작업을 시작하는 함수
  */
 private class LocalOperationPlan(
-    val findConflicts: (List<FileHolderItem>) -> DestinationConflicts<FileHolderItem>?,
+    val findConflicts: suspend (List<FileHolderItem>) -> DestinationConflicts<FileHolderItem>?,
     val run: (targets: Set<String>, destPath: String, onRefresh: suspend () -> Unit) -> Unit,
 )

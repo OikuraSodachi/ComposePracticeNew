@@ -1,8 +1,10 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
@@ -131,16 +133,26 @@ class LocalFileOperationUseCase(
      * [zipFiles]를 [destPath]에 압축 해제한다.
      * @param zipFiles 압축 해제할 zip/rar 파일의 절대 경로 집합
      * @param destPath 압축 해제 대상 디렉터리의 절대 경로
-     * @param unzipHere true이면 [destPath]에 직접 해제, false이면 파일명 하위 폴더 생성 후 해제
+     * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun unzip(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun unzip(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.UNZIP, onRefresh) { onProgress ->
-            fileActionRepo.unzipAction(zipFiles, destPath, unzipHere, onProgress)
+            fileActionRepo.unzipAction(zipFiles, destPath, layout, onProgress)
         }
     }
+
+    /**
+     * [zipFile]을 [destPath]에 [layout]으로 압축 해제할 때 [destPath] 바로 아래에 생기는(또는 덮어쓰는) 이름을 구한다. [unzip]과 같은 배치 규칙을 따르므로 충돌 판정에 쓴다.
+     * @param zipFile 압축 해제할 zip/rar 파일의 절대 경로
+     * @param destPath 압축 해제 대상 디렉터리의 절대 경로
+     * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
+     * @return [destPath] 바로 아래에 생기는 이름 집합, 또는 아카이브를 읽지 못한 실패
+     */
+    suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout): IoResult<Set<String>> =
+        fileActionRepo.extractedNames(zipFile, destPath, layout)
 
     /**
      * [item]을 [unzip]으로 압축 해제할 수 있는지 판별한다. 형식은 압축 해제 구현이 지원하는 것으로만 정한다.

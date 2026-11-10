@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -90,7 +91,8 @@ class LocalSamePathTest {
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout) = IoResult.Success(emptySet<String>())
         override fun canExtract(path: String) = false
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }

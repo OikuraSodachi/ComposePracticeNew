@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
-import com.todokanai.composepracticenew.datasource.LocalFileChecks.isUnderRoot
+import com.todokanai.composepracticenew.datasource.LocalFileChecks.entryTargetOf
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
@@ -19,12 +19,14 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
             ArchiveSize(knownBytes = knownSizes.sum(), fileCount = files.size, unknownSizeCount = files.size - knownSizes.size)
         }
 
+    // 폴더 항목도 extract가 만들므로 함께 담는다
+    override fun entryNames(path: String): List<String> = ZipFile(path).use { zf -> zf.entries().toList().map { it.name } }
+
     override fun extract(path: String, root: File, tracker: ByteProgressTracker): Int {
         var skipped = 0
         ZipFile(path).use { zf ->
             zf.entries().toList().forEach { entry ->
-                val target = root.resolve(entry.name)
-                if (!isUnderRoot(target, root)) { skipped++; return@forEach }
+                val target = entryTargetOf(root, entry.name) ?: run { skipped++; return@forEach }
                 if (entry.isDirectory) {
                     target.mkdirs()
                 } else {

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
@@ -19,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -80,7 +82,7 @@ class LocalOperationDestinationGuardTest {
     fun `현재 폴더 목록 조회에 실패했으면 복사하지 않고 알리며 선택을 유지한다`() {
         nav.directoryListing.value = DirectoryListing.Failed(request, ListingFailureReason.UNREADABLE, null)
 
-        val executed = viewModel.requestConfirm(selected, SelectMode.LocalOperation.Copy)
+        val executed = confirm(SelectMode.LocalOperation.Copy)
 
         assertFalse("실행하지 않았으므로 호출부가 선택 모드를 초기화하지 않아야 함", executed)
         assertTrue(fileActionRepo.calls.isEmpty())
@@ -91,7 +93,7 @@ class LocalOperationDestinationGuardTest {
     fun `현재 폴더 목록을 조회하는 중이면 이동하지 않는다`() {
         nav.directoryListing.value = DirectoryListing.Loading(request)
 
-        assertFalse(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Move))
+        assertFalse(confirm(SelectMode.LocalOperation.Move))
         assertTrue(fileActionRepo.calls.isEmpty())
     }
 
@@ -100,7 +102,7 @@ class LocalOperationDestinationGuardTest {
         val stale = DirectoryListing.Loaded(ListingRequest("/dest", 0L), emptyList())
         nav.directoryListing.value = DirectoryListing.Loading(request, stale)
 
-        assertFalse(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Copy))
+        assertFalse(confirm(SelectMode.LocalOperation.Copy))
         assertTrue(fileActionRepo.calls.isEmpty())
         assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
@@ -109,7 +111,7 @@ class LocalOperationDestinationGuardTest {
     fun `확인된 목록에 같은 이름이 없으면 바로 복사한다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
 
-        assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Copy))
+        assertTrue(confirm(SelectMode.LocalOperation.Copy))
         assertEquals(listOf("copy"), fileActionRepo.calls)
         assertTrue(notices.failures.isEmpty())
     }
@@ -118,19 +120,40 @@ class LocalOperationDestinationGuardTest {
     fun `확인된 목록에 같은 이름이 없으면 바로 이동한다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
 
-        assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Move))
+        assertTrue(confirm(SelectMode.LocalOperation.Move))
         assertEquals(listOf("move"), fileActionRepo.calls)
     }
 
     @Test
-    fun `압축 해제는 작업 종류에 따라 여기에 풀기 여부를 구분해 실행한다`() {
+    fun `압축 해제는 작업 종류에 따라 배치 방식을 구분해 실행한다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
 
-        assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Unzip))
-        assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.UnzipHere))
+        assertTrue(confirm(SelectMode.LocalOperation.Unzip))
+        assertTrue(confirm(SelectMode.LocalOperation.UnzipHere))
 
         assertEquals(listOf("unzip", "unzip"), fileActionRepo.calls)
-        assertEquals(listOf(false, true), fileActionRepo.unzipHereFlags)
+        assertEquals(listOf(ExtractLayout.IntoArchiveFolder, ExtractLayout.IntoDestination), fileActionRepo.unzipLayouts)
+    }
+
+    @Test
+    fun `여기에 압축 해제는 풀 항목과 같은 이름이 목적지에 있으면 실행하지 않고 확인을 요청한다`() {
+        nav.directoryListing.value = DirectoryListing.Loaded(request, listOf(domainItem("/dest/readme.txt")))
+        fileActionRepo.extractedNamesOf = { _, layout -> if (layout == ExtractLayout.IntoDestination) setOf("readme.txt") else setOf("a") }
+
+        assertFalse(confirm(SelectMode.LocalOperation.UnzipHere))
+
+        assertTrue(fileActionRepo.calls.isEmpty())
+        assertEquals(selected, viewModel.pendingConflict.value?.conflicts)
+    }
+
+    @Test
+    fun `여기에 압축 해제는 아카이브 이름의 폴더가 목적지에 있어도 풀 항목과 겹치지 않으면 바로 실행한다`() {
+        nav.directoryListing.value = DirectoryListing.Loaded(request, listOf(domainItem("/dest/a")))
+        fileActionRepo.extractedNamesOf = { _, layout -> if (layout == ExtractLayout.IntoDestination) setOf("readme.txt") else setOf("a") }
+
+        assertTrue(confirm(SelectMode.LocalOperation.UnzipHere))
+
+        assertEquals(listOf(ExtractLayout.IntoDestination), fileActionRepo.unzipLayouts)
     }
 
     @Test
@@ -163,6 +186,9 @@ class LocalOperationDestinationGuardTest {
         assertFalse(FileNameError.EXISTS_AS_OTHER_TYPE in errors)
         assertTrue(notices.failures.isEmpty())
     }
+
+    /** [selected]로 [mode] 작업의 확인을 요청하고 끝날 때까지 기다린다. */
+    private fun confirm(mode: SelectMode.LocalOperation): Boolean = runBlocking { viewModel.requestConfirm(selected, mode) }
 
     /** [path]의 domain 파일 항목을 만든다. */
     private fun domainItem(path: String) =
