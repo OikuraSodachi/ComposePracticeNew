@@ -8,9 +8,7 @@ import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.tools.OperationMessages
-import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
@@ -50,7 +48,7 @@ import javax.inject.Inject
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
     @RemoteNavigator private val fileNavigatorUseCase: FileNavigatorUseCase,
-    private val sortModeUseCase: SortModeUseCase,
+    sortModeUseCase: SortModeUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
     connectionStateUseCase: RemoteConnectionStateUseCase,
@@ -130,35 +128,14 @@ class RemoteFileListViewModel @Inject constructor(
             initialValue = UiState()
         )
 
-    /** 원격 경로 breadcrumb 목록. */
-    val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
-        .map { list -> list.map { DirectoryItem(name = it.name, path = it.path) } }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList()
-        )
+    /** 경로 breadcrumb 상태와 그 항목으로의 이동. */
+    val dirTreeStateHolder = DirTreeStateHolder(fileNavigatorUseCase, viewModelScope)
 
-    /** 현재 정렬 기준. DataStore에서 수집한다. */
-    val sortMode: StateFlow<SortMode> = sortModeUseCase.sortBy
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = SortMode.BY_DEFAULT
-        )
-
-    /** 정렬 다이얼로그에서 선택된 정렬 기준을 저장한다. */
-    fun onSortModeSelected(mode: SortMode) {
-        sortModeUseCase.saveSortBy(mode)
-    }
+    /** 정렬 기준의 노출과 변경. */
+    val sortModeStateHolder = SortModeStateHolder(sortModeUseCase, viewModelScope)
 
     /** 현재 원격 디렉터리의 목록을 다시 조회한다. 목록 조회 실패 화면의 다시 시도에 쓴다. */
     fun retryListing() = fileNavigatorUseCase.refresh()
-
-    /** breadcrumb 항목 클릭 시 해당 경로로 이동한다. */
-    fun navigateToDir(entry: DirectoryItem) {
-        viewModelScope.launch { fileNavigatorUseCase.setPath(entry.path) }
-    }
 
     /** 항목 클릭 시 디렉터리이면 해당 경로로 이동하고, 파일이면 아무 동작도 하지 않는다. */
     fun onItemClick(item: FileHolderItem) {

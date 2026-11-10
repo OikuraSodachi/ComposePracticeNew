@@ -239,7 +239,6 @@ private fun RemoteFileListDestination(
 ) {
     val coordinator = rememberGraphCoordinator(navController)
     val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
-    val remoteDirTree by remoteViewModel.dirTree.collectAsStateWithLifecycle()
 
     // State 객체만 보관하고 선택 목록은 하위에서 읽는다 — 선택 변경 시 이 destination 전체가 리컴포지션되지 않도록
     val remoteSelection = coordinator.remoteSelection.collectAsStateWithLifecycle()
@@ -279,8 +278,6 @@ private fun RemoteFileListDestination(
         onConfirmUpload = coordinator::confirmUpload,
         onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) },
         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
-        dirTree = remoteDirTree,
-        onDirClick = { remoteViewModel.navigateToDir(it) },
         onExit = mainViewModel::exit,
         viewModel = remoteViewModel
     )

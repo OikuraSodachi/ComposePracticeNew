@@ -6,10 +6,8 @@ import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
-import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
@@ -48,7 +46,7 @@ import javax.inject.Inject
 class FileListViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val openFileUseCase: OpenFileUseCase,
-    private val sortModeUseCase: SortModeUseCase,
+    sortModeUseCase: SortModeUseCase,
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: OperationMessages,
@@ -79,27 +77,11 @@ class FileListViewModel @Inject constructor(
             initialValue = UiState()
         )
 
-    /** 현재 정렬 기준. DataStore에서 수집한다. */
-    val sortMode: StateFlow<SortMode> = sortModeUseCase.sortBy
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = SortMode.BY_DEFAULT
-        )
+    /** 정렬 기준의 노출과 변경. */
+    val sortModeStateHolder = SortModeStateHolder(sortModeUseCase, viewModelScope)
 
-    /** 정렬 다이얼로그에서 선택된 정렬 기준을 저장한다. */
-    fun onSortModeSelected(mode: SortMode) {
-        sortModeUseCase.saveSortBy(mode)
-    }
-
-    /** 경로 breadcrumb에 표시할 디렉터리 트리. */
-    val dirTree: StateFlow<List<DirectoryItem>> = fileNavigatorUseCase.dirTree
-        .map { list -> list.map { DirectoryItem(name = it.name, path = it.path) } }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList()
-        )
+    /** 경로 breadcrumb 상태와 그 항목으로의 이동. */
+    val dirTreeStateHolder = DirTreeStateHolder(fileNavigatorUseCase, viewModelScope)
 
     /** 로컬 작업의 "충돌 검사 → 즉시 실행 / 사용자 확인 대기" 흐름을 관리한다. */
     private val conflictGate = ConflictGate()
@@ -195,13 +177,6 @@ class FileListViewModel @Inject constructor(
 
     /** 현재 디렉터리의 목록을 다시 조회한다. 목록 조회 실패 화면의 다시 시도에 쓴다. */
     fun retryListing() = fileNavigatorUseCase.refresh()
-
-    /** 주어진 절대 경로로 현재 디렉터리를 이동한다. */
-    fun updateCurrentPath(path: String) {
-        viewModelScope.launch {
-            fileNavigatorUseCase.setPath(path)
-        }
-    }
 
     /** 상위 디렉터리로 이동한다. 루트이면 toStorageFrag를 호출한다. */
     fun onBackPressed(toStorageFrag: () -> Unit) {
