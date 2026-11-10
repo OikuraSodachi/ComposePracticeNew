@@ -14,7 +14,7 @@ enum class FileNameError {
     /** 경로 구분자('/' 또는 '\')를 포함한다 — 다른 경로로의 이동·생성이 되는 것을 막는다. */
     CONTAINS_PATH_SEPARATOR,
 
-    /** 제어 문자(U+0000~U+001F, U+007F)를 포함한다. */
+    /** 화면에 보이지 않는 제어 문자를 포함한다: 제어 문자(C0·DEL·C1), 글자 방향 제어 문자(Unicode Bidi_Control), 줄·문단 구분자(U+2028·U+2029). */
     CONTAINS_CONTROL_CHAR,
 
     /** 이름 전체가 현재·상위 디렉터리를 뜻하는 예약 이름('.' 또는 '..')이다. */

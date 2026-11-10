@@ -43,20 +43,17 @@ class FileNameUseCase(private val storageNames: StorageNameRules) {
     private fun isPathSeparator(c: Char): Boolean = c == '/' || c == '\\'
 
     /**
-     * 제어 문자(U+0000~U+001F, U+007F)인지 판별한다.
+     * 화면에 보이지 않으면서 이름을 보이는 모습과 다르게 만들거나 줄을 바꾸는 제어 문자인지 판별한다.
      * @param c 검사할 문자
-     * @return C0 제어 문자 또는 DEL이면 true
+     * @return 제어 문자(C0·DEL·C1), 글자 방향 제어 문자([BIDI_CONTROLS]), 줄·문단 구분자([LINE_SEPARATORS])이면 true
      */
     private fun isControlChar(c: Char): Boolean {
-        // 알려진 한계(PR #207 리뷰 4번, 미해결):
-        // 1) C1 제어 문자(U+0080~U+009F)는 검사하지 않아 통과한다. 대응안: c.isISOControl()로 C0·DEL·C1을 함께 거부.
-        // 2) bidi 서식 문자(U+061C, U+200E/U+200F, U+202A~U+202E, U+2066~U+2069)를 통과시켜 표시 이름 위장이 가능하다.
-        //    예: "report[U+202E]fdp.apk"는 화면에 "reportkpa.pdf"로 보이지만 실제 확장자는 .apk라, 열면 설치 화면이 뜰 수 있다.
-        //    대응안: 위 목록만 명시 거부(BIDI_CONTROLS). Unicode Cf 범주 전체 거부는 이모지 ZWJ(U+200D) 등 정상 이름까지 막으므로 쓰지 않는다.
-        //    이 정책은 사용자가 입력하는 이름에만 적용되므로, 서버·외부 앱이 이미 만든 위장 이름의 표시는 목록 표시 레이어의 별도 과제다.
+        // 범위 밖:
+        // 1) 폭 없는 문자(ZWJ U+200D, ZWNJ U+200C 등)는 이모지·일부 문자 체계의 정상 이름에 쓰이므로 허용한다. Unicode Cf 범주 전체를 거부하지 않는 이유다.
+        // 2) 이 규칙은 사용자가 입력하는 이름에만 적용된다. 서버·외부 앱이 이미 만든 위장 이름의 표시는 목록 표시 레이어의 별도 과제다.
         // 3) FAT/exFAT(SD 카드·USB) 금지 문자(" * : < > ? |)와 끝의 '.'은 그 저장소의 제약이라 [storageNames]가 판정할 자리지만,
         //    지금은 볼륨의 파일 시스템을 구분하지 않아 검사하지 않는다. 해당 저장소에서는 검증 통과 후 mkdir/renameTo 단계에서 실패 알림으로 끝난다.
-        return c.code < 0x20 || c.code == 0x7F
+        return c.isISOControl() || c in BIDI_CONTROLS || c in LINE_SEPARATORS
     }
 
     /**
@@ -65,4 +62,15 @@ class FileNameUseCase(private val storageNames: StorageNameRules) {
      * @return 현재·상위 디렉터리를 뜻하는 예약 이름이면 true
      */
     private fun isReservedName(name: String): Boolean = name == "." || name == ".."
+
+    private companion object {
+        /**
+         * 글자 방향 제어 문자(Unicode PropList의 Bidi_Control 속성 전체).
+         * 이름에 들어가면 "report[U+202E]fdp.apk"가 화면에 "reportkpa.pdf"로 보이는 것처럼 실제 확장자를 위장할 수 있다.
+         */
+        val BIDI_CONTROLS: Set<Char> = setOf('\u061C', '\u200E', '\u200F') + ('\u202A'..'\u202E') + ('\u2066'..'\u2069')
+
+        /** 줄 구분자(U+2028)와 문단 구분자(U+2029). 제어 문자인 '\n'처럼 화면에서 줄을 바꾼다. */
+        val LINE_SEPARATORS: Set<Char> = setOf('\u2028', '\u2029')
+    }
 }

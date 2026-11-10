@@ -49,6 +49,37 @@ class FileNameUseCaseTest {
     }
 
     @Test
+    fun `C1 제어 문자를 포함하면 거부한다`() {
+        listOf('\u0080', '\u0085', '\u009F').forEach { c ->
+            assertEquals("U+%04X".format(c.code), setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a${c}b", LOCATION))
+        }
+    }
+
+    @Test
+    fun `글자 방향 제어 문자를 포함하면 거부한다`() {
+        val bidiControls = listOf('\u061C', '\u200E', '\u200F', '\u202A', '\u202B', '\u202C', '\u202D', '\u202E', '\u2066', '\u2067', '\u2068', '\u2069')
+        bidiControls.forEach { c ->
+            assertEquals("U+%04X".format(c.code), setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a${c}b", LOCATION))
+        }
+        // 화면에는 "reportkpa.pdf"로 보이지만 실제 확장자가 .apk인 위장 이름
+        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("report\u202Efdp.apk", LOCATION))
+    }
+
+    @Test
+    fun `이름 중간의 줄 구분자와 문단 구분자는 거부한다`() {
+        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\u2028b", LOCATION))
+        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\u2029b", LOCATION))
+    }
+
+    @Test
+    fun `이모지 결합 문자 같은 폭 없는 문자는 허용한다`() {
+        // ZWJ(U+200D)로 이은 가족 이모지, ZWNJ(U+200C)를 쓰는 페르시아어 이름
+        listOf("👨\u200D👩\u200D👧.jpg", "می\u200Cخواهم.txt").forEach { name ->
+            assertTrue("name=\"$name\"", useCase.validate(name, LOCATION).isEmpty())
+        }
+    }
+
+    @Test
     fun `이름 전체가 점 하나 또는 둘이면 거부한다`() {
         assertEquals(setOf(FileNameError.RESERVED_NAME), useCase.validate(".", LOCATION))
         assertEquals(setOf(FileNameError.RESERVED_NAME), useCase.validate("..", LOCATION))
