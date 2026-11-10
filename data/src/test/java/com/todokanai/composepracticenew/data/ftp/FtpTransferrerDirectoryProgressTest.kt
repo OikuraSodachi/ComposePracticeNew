@@ -48,12 +48,12 @@ class FtpTransferrerDirectoryProgressTest {
     }
 
     @Test
-    fun `모든 파일의 크기를 알면 합계에 대한 퍼센트로 보고한다`() {
+    fun `모든 파일의 크기를 알면 합계에 대한 퍼센트로 보고하고 100%는 마지막 파일의 완료 응답 뒤에 보고한다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=4; a.txt", "type=file;size=4; b.txt"))
 
         assertEquals(IoResult.Done, download())
 
-        assertEquals(listOf(50, 100), reports.map { it.progress })
+        assertEquals(listOf(50, 99, 100), reports.map { it.progress })
         assertTrue(reports.all { it.totalBytes == 8L })
     }
 

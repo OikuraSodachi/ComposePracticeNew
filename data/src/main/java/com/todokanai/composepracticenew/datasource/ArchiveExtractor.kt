@@ -19,14 +19,14 @@ interface ArchiveExtractor {
     fun supports(path: String): Boolean
 
     /**
-     * 추출 전 진행률 계산에 필요한 총 바이트·파일 수를 산정한다.
+     * 추출 전 진행률 계산에 필요한 총 바이트·파일 수를 산정한다. 아카이브가 크기를 알려주지 않는 항목은 따로 센다.
      * @param path 아카이브 파일 경로
-     * @return 추출될 항목의 바이트 합과 파일 개수
+     * @return 크기를 아는 항목의 바이트 합, 파일 개수, 크기를 모르는 파일 개수
      */
     fun measure(path: String): ArchiveSize
 
     /**
-     * [path] 아카이브를 [root] 아래로 추출하며 [tracker]로 진행률을 보고한다.
+     * [path] 아카이브를 [root] 아래로 추출하며 [tracker]로 진행률을 보고한다. [measure]가 크기를 모른다고 센 항목은 크기 없이(null) 보고한다.
      * @param path 아카이브 파일 경로
      * @param root 추출 대상 루트 디렉터리
      * @param tracker 누적 진행률 보고기
@@ -37,7 +37,8 @@ interface ArchiveExtractor {
 
 /**
  * 아카이브 추출 대상의 크기 정보.
- * @param bytes 항목 바이트 합(0 이상). 아카이브가 크기를 알려주지 않는 항목은 0으로 친다 — 추출 진행률은 크기 정보가 부정확할 수 있어 100%로 제한된다
+ * @param knownBytes 크기를 아는 항목의 바이트 합(0 이상)
  * @param fileCount 파일(디렉터리 제외) 개수
+ * @param unknownSizeCount 아카이브가 크기를 알려주지 않는 파일 개수(0 이상, [fileCount] 이하)
  */
-data class ArchiveSize(val bytes: Long, val fileCount: Int)
+data class ArchiveSize(val knownBytes: Long, val fileCount: Int, val unknownSizeCount: Int)

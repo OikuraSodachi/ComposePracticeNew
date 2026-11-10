@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
-import com.todokanai.composepracticenew.data.progress.ProgressThrottle
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
@@ -22,7 +21,7 @@ import javax.inject.Singleton
 /**
  * FTP 파일 다운로드와 업로드를 스트리밍으로 수행하며 진행률을 보고한다.
  * 전송의 한쪽 끝이 로컬 파일이므로 로컬 스트림 개폐는 이 클래스가 담당하고,
- * 데이터 연결의 개폐·전송 완료 확인은 목록 조회와 같은 [DataCommandRunner]로, 디렉터리 진행률은 로컬 작업과 공유하는 [ByteProgressTracker]로 계산한다.
+ * 데이터 연결의 개폐·전송 완료 확인은 목록 조회와 같은 [DataCommandRunner]로, 진행률은 파일·디렉터리 모두 로컬 작업과 공유하는 [ByteProgressTracker]로 계산한다(단일 파일은 파일 하나짜리 작업).
  * 실패는 결과로 알리며, 연결이 없거나 전송 중 끊기면 [IoResult.ConnectionLost]를 돌려준다.
  * 세션 경계 안의 로컬 파일 I/O는 [DataCommandRunner]의 exchange에서만 한다 — 경계는 던져진 IOException을 세션 종료로 보기 때문이다.
  * 다운로드의 로컬 파일은 서버가 전송을 받아들인 뒤에(거부되면 기존 파일을 비우지 않도록), 업로드의 로컬 파일은 STOR 전에([uploadingFrom]) 연다.
@@ -70,8 +69,7 @@ class FtpTransferrer @Inject internal constructor(
         }
 
     /**
-     * 단일 원격 파일을 [localFile]로 다운로드한다. 크기 확인 시 100% 미만까지만 보고하며,
-     * 청크 단위 보고는 [ProgressThrottle]로 퍼센트 변경 또는 일정 시간 경과 시에만 전달한다.
+     * 단일 원격 파일을 [localFile]로 다운로드한다. 진행률은 파일 하나짜리 작업으로 보고하며, 크기를 모르면 퍼센트 없이 받은 바이트를 보고한다.
      */
     private suspend fun downloadFile(
         remotePath: String,
@@ -81,23 +79,13 @@ class FtpTransferrer @Inject internal constructor(
         val ftpPath = extractFtpPath(remotePath)
         localFile.parentFile?.mkdirs()
         return session.withConnectedClient { client ->
-            val totalBytes = remoteFileSize(client, ftpPath)
-            var writtenBytes = 0L
-            val throttle = ProgressThrottle()
+            val fileBytes = remoteFileSize(client, ftpPath)
+            val progress = ByteProgressTracker(singleFileTotal(fileBytes), 1, onProgress)
+            progress.startFile()
             downloadOne(
                 client, ftpPath, localFile,
-                onChunk = { bytesRead ->
-                    writtenBytes += bytesRead
-                    // ACK 전 100% 조기 발행 방지 — totalBytes 미확인 시는 시간 기준으로만 보고
-                    if (totalBytes <= 0 || writtenBytes < totalBytes) {
-                        val state = buildProgressState(totalBytes, writtenBytes, localFile.name)
-                        if (throttle.shouldReport(state.progress)) onProgress(state)
-                    }
-                },
-                onAcked = {
-                    // totalBytes > 0 인 경우에만 100% 보고 — 크기 미확인 시 progress=null이므로 생략
-                    if (totalBytes > 0) onProgress(buildProgressState(totalBytes, totalBytes, localFile.name))
-                }
+                onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, fileBytes) },
+                onAcked = { progress.onFileCompleted(localFile.name, fileBytes) }
             )
         }
     }
@@ -113,7 +101,7 @@ class FtpTransferrer @Inject internal constructor(
     ): IoResult<Unit> {
         val allEntries = cmd.collectRemoteTree(remotePath).valueOr { return it }
         val fileEntries = allEntries.filter { !it.isDirectory }
-        val progress = directoryProgress(transferTotalOf(fileEntries), fileEntries.size, onProgress)
+        val progress = ByteProgressTracker(transferTotalOf(fileEntries), fileEntries.size, onProgress)
         File(localPath).mkdirs()
         return forEachCollectingFailures(allEntries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
             val localTarget = File(localPath, relativeRemotePath(entry.path, remotePath))
@@ -136,30 +124,22 @@ class FtpTransferrer @Inject internal constructor(
     }
 
     /**
-     * 단일 로컬 파일을 [ftpPath]로 업로드한다. 서버 확인 전까지 100% 미만만 보고하며,
-     * 청크 단위 보고는 [ProgressThrottle]로 퍼센트 변경 또는 일정 시간 경과 시에만 전달한다.
+     * 단일 로컬 파일을 [ftpPath]로 업로드한다. 진행률은 파일 하나짜리 작업으로 보고한다.
      */
     private suspend fun uploadFile(
         localFile: File,
         ftpPath: String,
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> {
-        val totalBytes = localFile.length()
+        val fileBytes = localFile.length()
         return uploadingFrom(localFile) { input ->
             session.withConnectedClient { client ->
-                var writtenBytes = 0L
-                val throttle = ProgressThrottle()
+                val progress = ByteProgressTracker(fileBytes, 1, onProgress)
+                progress.startFile()
                 uploadOne(
                     client, ftpPath, input,
-                    onChunk = { bytesRead ->
-                        writtenBytes += bytesRead
-                        // ACK 전 100% 조기 발행 방지 — 서버 확인 후 onAcked에서 보고
-                        if (writtenBytes < totalBytes) {
-                            val state = buildProgressState(totalBytes, writtenBytes, localFile.name)
-                            if (throttle.shouldReport(state.progress)) onProgress(state)
-                        }
-                    },
-                    onAcked = { onProgress(buildProgressState(totalBytes, totalBytes, localFile.name)) }
+                    onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, fileBytes) },
+                    onAcked = { progress.onFileCompleted(localFile.name, fileBytes) }
                 )
             }
         }
@@ -176,7 +156,7 @@ class FtpTransferrer @Inject internal constructor(
     ): IoResult<Unit> {
         val allEntries = localDir.walkTopDown().toList()
         val fileEntries = allEntries.filter { it.isFile }
-        val progress = directoryProgress(TransferTotal.Known(fileEntries.sumOf { it.length() }), fileEntries.size, onProgress)
+        val progress = ByteProgressTracker(fileEntries.sumOf { it.length() }, fileEntries.size, onProgress)
         return forEachCollectingFailures(allEntries, "업로드 실패", nameOf = { localDir.slashRelativePathOf(it).ifEmpty { it.name } }) { entry ->
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
@@ -190,7 +170,6 @@ class FtpTransferrer @Inject internal constructor(
                         uploadOne(
                             client, entryFtpPath, input,
                             onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
-                            // 마지막 파일 인덱스 기준으로 100% 보고 — 0바이트 파일 포함 시 바이트 비교 오판 방지
                             onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
                         )
                     }
@@ -290,16 +269,16 @@ class FtpTransferrer @Inject internal constructor(
     }
 
     /**
-     * 진행률 계산용으로 원격 파일 크기를 조회한다. 서버가 MLST를 거부하거나 응답의 항목 줄을 해석하지 못하면 크기를 모르는 것(-1)으로 본다.
+     * 진행률 계산용으로 원격 파일 크기를 조회한다. 서버가 MLST를 거부하거나 응답의 항목 줄을 해석하지 못하면 크기를 모르는 것(null)으로 본다.
      * 응답을 끝까지 읽은 뒤 항목 줄만 해석하므로, 응답을 읽다 실패한 예외(연결 끊김·타임아웃·응답 형식 오류)는 삼키지 않고 전파해
      * [FtpSession.withConnectedClient]가 세션을 종료하게 한다. FTPClient.mlistFile은 응답 읽기 실패와 항목 해석 실패를 같은 예외로 섞어 던지므로 쓰지 않는다.
      * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 크기를 조회할 원격 파일의 FTP 경로
-     * @return 파일 크기(bytes), 알 수 없으면 -1
+     * @return 파일 크기(bytes, 0 이상), 알 수 없으면 null
      */
-    private fun remoteFileSize(client: FtpCommandClient, ftpPath: String): Long {
+    private fun remoteFileSize(client: FtpCommandClient, ftpPath: String): Long? {
         val replyCode = client.sendMlst(ftpPath)
-        return FtpReplyRules.mlstEntrySize(replyCode, client.getReplyStrings())
+        return FtpReplyRules.mlstEntrySize(replyCode, client.getReplyStrings()).takeIf { it >= 0 }
     }
 
     /** [input]을 버퍼 단위로 [output]에 복사하며 청크마다 [onChunk]에 읽은 바이트 수를 전달한다. */
@@ -313,15 +292,6 @@ class FtpTransferrer @Inject internal constructor(
     }
 
     /**
-     * 디렉터리 전송용 누적 진행률 계산기를 만든다. 서버 ACK 전 100% 조기 보고를 막기 위해 100%는 마지막 파일 완료 시에만 보고한다.
-     * @param total 전송 대상 전체 크기
-     * @param totalCount 전송 대상 파일 개수
-     * @param onProgress 진행 상태를 수신하는 콜백
-     */
-    private fun directoryProgress(total: TransferTotal, totalCount: Int, onProgress: (ProgressState) -> Unit) =
-        ByteProgressTracker(total, totalCount, onProgress, holdBelow100 = true, reportProgressFloat = true)
-
-    /**
      * 받을 파일들의 전체 크기를 구한다. 크기를 모르는 파일이 하나라도 있으면 전체 크기를 모른다 — 아는 크기만 더한 합계로 퍼센트를 내면
      * 받는 바이트가 합계를 넘어 진행률이 거짓이 되므로, 아는 크기의 합은 따로 둔다.
      * @param fileEntries 받을 파일 항목 목록
@@ -329,19 +299,16 @@ class FtpTransferrer @Inject internal constructor(
      */
     private fun transferTotalOf(fileEntries: List<FileEntry>): TransferTotal {
         val knownSizes = fileEntries.mapNotNull { it.size }
-        val unknownCount = fileEntries.size - knownSizes.size
-        return if (unknownCount == 0) TransferTotal.Known(knownSizes.sum())
-               else TransferTotal.Partial(knownSizes.sum(), unknownCount)
+        return TransferTotal.of(knownSizes.sum(), fileEntries.size - knownSizes.size)
     }
 
-    /** 단일 파일 전송의 진행 상태를 만든다. [totalBytes]가 0 이하(크기 모름)면 진행률과 전체 크기를 비운다. */
-    private fun buildProgressState(totalBytes: Long, writtenBytes: Long, fileName: String) = ProgressState(
-        totalBytes = totalBytes.takeIf { it > 0 },
-        writtenBytes = writtenBytes,
-        progress = if (totalBytes > 0) (writtenBytes * 100 / totalBytes).toInt() else null,
-        progressFloat = if (totalBytes > 0) writtenBytes.toFloat() / totalBytes else null,
-        currentFileName = fileName
-    )
+    /**
+     * 단일 파일 전송의 전체 크기를 구한다. 0바이트 파일도 크기를 아는 파일이다.
+     * @param fileBytes 파일 크기. 모르면 null
+     * @return 크기를 알면 그 크기, 모르면 크기를 모르는 파일 하나
+     */
+    private fun singleFileTotal(fileBytes: Long?): TransferTotal =
+        TransferTotal.of(knownBytes = fileBytes ?: 0, unknownFileCount = if (fileBytes == null) 1 else 0)
 
     companion object {
         private const val BUFFER_SIZE = 128 * 1024

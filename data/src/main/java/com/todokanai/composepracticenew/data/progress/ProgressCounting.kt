@@ -38,13 +38,11 @@ internal interface ProgressCounting {
 /**
  * 진행 보고 한 번에 담을 계산 결과.
  * @param progress 진행도(0~100 퍼센트). 모르면 null
- * @param progressFloat 진행도(0.0~1.0). 모르면 null
  * @param totalBytes 작업 전체의 바이트 수. 모르면 null
  * @param knownSize 크기를 모르는 파일이 섞였을 때 크기를 아는 부분의 진행. 그 밖에는 null
  */
 internal data class ProgressReading(
     val progress: Int?,
-    val progressFloat: Float?,
     val totalBytes: Long?,
     val knownSize: KnownSizeProgress? = null
 )

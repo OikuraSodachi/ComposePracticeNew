@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.isUnderRoot
 import java.io.File
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
@@ -13,8 +14,9 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     override fun measure(path: String): ArchiveSize =
         ZipFile(path).use { zf ->
-            val entries = zf.entries().toList()
-            ArchiveSize(bytes = entries.sumOf { it.size.coerceAtLeast(0) }, fileCount = entries.count { !it.isDirectory })
+            val files = zf.entries().toList().filter { !it.isDirectory }
+            val knownSizes = files.mapNotNull(::knownSizeOf)
+            ArchiveSize(knownBytes = knownSizes.sum(), fileCount = files.size, unknownSizeCount = files.size - knownSizes.size)
         }
 
     override fun extract(path: String, root: File, tracker: ByteProgressTracker): Int {
@@ -30,7 +32,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
                     tracker.startFile()
                     zf.getInputStream(entry).use { input ->
                         target.outputStream().use { output ->
-                            tracker.pump(input, output, entry.name, entry.size)
+                            tracker.pump(input, output, entry.name, knownSizeOf(entry))
                         }
                     }
                 }
@@ -38,4 +40,11 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
         }
         return skipped
     }
+
+    /**
+     * 항목의 압축 해제 후 크기를 구한다. [measure]와 [extract]가 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
+     * @param entry 아카이브 항목
+     * @return 크기(bytes), 아카이브가 알려주지 않으면(-1) null
+     */
+    private fun knownSizeOf(entry: ZipEntry): Long? = entry.size.takeIf { it >= 0 }
 }

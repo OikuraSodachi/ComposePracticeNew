@@ -25,4 +25,15 @@ sealed interface TransferTotal {
             require(unknownFileCount >= 1) { "크기를 모르는 파일이 없으면 Known이다: $unknownFileCount" }
         }
     }
+
+    companion object {
+        /**
+         * 크기를 모르는 파일 수에 맞는 전체 크기를 만든다. 크기를 모르는 파일이 없으면 [Known], 있으면 [Partial]이다.
+         * @param knownBytes 크기를 아는 파일들의 크기 합(0 이상)
+         * @param unknownFileCount 크기를 모르는 파일 수(0 이상)
+         * @return 작업 전체의 크기
+         */
+        fun of(knownBytes: Long, unknownFileCount: Int): TransferTotal =
+            if (unknownFileCount == 0) Known(knownBytes) else Partial(knownBytes, unknownFileCount)
+    }
 }

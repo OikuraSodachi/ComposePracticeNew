@@ -50,7 +50,7 @@ internal class KnownSizeCounting(
     override fun completedBytes(writtenBytes: Long): Long = writtenBytes
 
     /** 퍼센트 없이 크기를 아는 부분의 진행만 담은 진행 값을 만든다. */
-    private fun reading() = ProgressReading(progress = null, progressFloat = null, totalBytes = null, knownSize = snapshot())
+    private fun reading() = ProgressReading(progress = null, totalBytes = null, knownSize = snapshot())
 
     /** 지금까지 센 몫으로 크기를 아는 부분의 진행을 만든다. */
     private fun snapshot() = KnownSizeProgress(
