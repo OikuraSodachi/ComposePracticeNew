@@ -17,7 +17,7 @@ class RenameConflictTest {
     private val folderY = Entry("/d/y", "y", true)
     private val siblings = listOf(fileA, fileB, folderX, folderY)
 
-    private fun conflictOf(target: Entry, newName: String, matchKeyOf: (String) -> String = { it }) =
+    private fun conflictOf(target: Entry, newName: String, matchKeyOf: (String) -> String = { it }, siblings: List<Entry> = this.siblings) =
         ConflictRules.renameConflict(
             target.path, target.isDirectory, newName, siblings, matchKeyOf, Entry::path, Entry::name, Entry::isDirectory
         )
@@ -49,5 +49,30 @@ class RenameConflictTest {
     fun `비교 값이 같은 다른 항목과는 충돌한다`() {
         assertEquals(RenameConflict.FILE, conflictOf(fileA, "B.TXT", String::lowercase))
         assertEquals(RenameConflict.NONE, conflictOf(fileA, "B.TXT"))
+    }
+
+    @Test
+    fun `비교 값만 같은 다른 종류 항목뿐이면 막지 않는다 — 덮어쓰지 않는 실행이 저장소에 따라 실패하거나 성공한다`() {
+        assertEquals(RenameConflict.NONE, conflictOf(fileA, "X", String::lowercase))
+        assertEquals(RenameConflict.NONE, conflictOf(folderX, "B.TXT", String::lowercase))
+    }
+
+    @Test
+    fun `이름이 정확히 같은 항목이 있으면 목록 순서와 관계없이 그 항목의 종류로 판정한다`() {
+        val upperFile = Entry("/d/B", "B", false)
+        val lowerFolder = Entry("/d/b", "b", true)
+
+        listOf(listOf(upperFile, lowerFolder), listOf(lowerFolder, upperFile)).forEach { order ->
+            val siblings = listOf(fileA) + order
+            assertEquals(RenameConflict.TYPE_MISMATCH, conflictOf(fileA, "b", String::lowercase, siblings))
+            assertEquals(RenameConflict.FILE, conflictOf(fileA, "B", String::lowercase, siblings))
+        }
+    }
+
+    @Test
+    fun `비교 값만 같은 항목 중 같은 종류가 있으면 다른 종류가 함께 있어도 확인 대상이다`() {
+        val siblings = listOf(fileA, Entry("/d/B", "B", true), Entry("/d/b́", "b́", false))
+
+        assertEquals(RenameConflict.FILE, conflictOf(fileA, "b", { it.lowercase().filter { c -> c != '́' } }, siblings))
     }
 }

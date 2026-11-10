@@ -44,6 +44,8 @@ internal object ConflictRules {
     /**
      * [targetPath] 항목의 이름을 [newName]으로 바꿀 때 같은 폴더의 기존 항목과 어떻게 겹치는지 판정한다.
      * 이름을 바꿀 항목 자신은 비교에서 제외하므로, 대소문자·정규형만 바꾸는 이름 변경은 충돌이 아니다.
+     * 이름이 정확히 같은 항목은 어느 저장소에서든 같은 항목이므로 그 종류로 정한다. 비교 값만 같은 항목은 같은 항목일 수도 있을 뿐이므로,
+     * 같은 종류가 있으면 덮어쓸 수 있어 확인 대상으로 보고, 다른 종류뿐이면 충돌로 보지 않는다 — 덮어쓰지 않는 실행은 그 저장소가 같은 항목으로 다루면 실패하고 아니면 성공한다.
      * @param targetPath 이름을 바꿀 항목의 경로
      * @param targetIsDirectory 이름을 바꿀 항목이 폴더이면 true
      * @param newName 새 이름
@@ -64,10 +66,11 @@ internal object ConflictRules {
         nameOf: (T) -> String,
         isDirectoryOf: (T) -> Boolean,
     ): RenameConflict {
+        val others = siblings.filter { pathOf(it) != targetPath }
+        others.firstOrNull { nameOf(it) == newName }?.let { return conflictBetween(targetIsDirectory, isDirectoryOf(it)) }
         val newKey = matchKeyOf(newName)
-        val existing = siblings.firstOrNull { pathOf(it) != targetPath && matchKeyOf(nameOf(it)) == newKey }
-            ?: return RenameConflict.NONE
-        return conflictBetween(targetIsDirectory, isDirectoryOf(existing))
+        val hasSameTypeMatch = others.any { isDirectoryOf(it) == targetIsDirectory && matchKeyOf(nameOf(it)) == newKey }
+        return if (hasSameTypeMatch) conflictBetween(targetIsDirectory, targetIsDirectory) else RenameConflict.NONE
     }
 
     /**
