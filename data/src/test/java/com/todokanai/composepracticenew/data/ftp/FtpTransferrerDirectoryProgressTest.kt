@@ -48,13 +48,23 @@ class FtpTransferrerDirectoryProgressTest {
     }
 
     @Test
-    fun `모든 파일의 크기를 알면 합계에 대한 퍼센트로 보고하고 100%는 마지막 파일의 완료 응답 뒤에 보고한다`() {
+    fun `모든 파일의 크기를 알면 합계에 대한 퍼센트로 보고하고 100%는 모든 파일을 받은 뒤에 보고한다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=4; a.txt", "type=file;size=4; b.txt"))
 
         assertEquals(IoResult.Done, download())
 
         assertEquals(listOf(50, 99, 100), reports.map { it.progress })
         assertTrue(reports.all { it.totalBytes == 8L })
+    }
+
+    @Test
+    fun `앞선 파일이 실패하면 마지막 파일의 완료 응답을 받아도 100%를 보고하지 않는다`() {
+        client.mlsdListings = mapOf("/r" to listOf("type=file;size=4; a.txt", "type=file;size=4; b.txt"))
+        client.onCompletePending = { client.completePendingCalls != 1 }
+
+        assertTrue(download() is IoResult.PartiallyFailed)
+
+        assertTrue(reports.none { it.progress == 100 })
     }
 
     private fun download(): IoResult<Unit> = runBlocking {

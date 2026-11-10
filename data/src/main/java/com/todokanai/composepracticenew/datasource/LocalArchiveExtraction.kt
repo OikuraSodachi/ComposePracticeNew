@@ -35,9 +35,9 @@ class LocalArchiveExtraction @Inject constructor(
             val knownBytes = sizes.sumOf { it.knownBytes }
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
             checkDiskSpace(knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
-            onProgress(ProgressState(progress = 0))
             val total = TransferTotal.of(knownBytes, sizes.sumOf { it.unknownSizeCount })
             val tracker = ByteProgressTracker(total, sizes.sumOf { it.fileCount }, onProgress)
+            tracker.reportStart()
 
             var skippedEntries = 0
             archives.forEach { (zipFilePath, extractor) ->

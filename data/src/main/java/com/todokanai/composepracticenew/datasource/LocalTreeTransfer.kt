@@ -44,8 +44,8 @@ class LocalTreeTransfer internal constructor(
             }
             val totalBytes = totalBytesAcc
             checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(it) }
-            onProgress(ProgressState(progress = 0))
             val tracker = ByteProgressTracker(totalBytes, allFiles.size, onProgress)
+            tracker.reportStart()
 
             roots.forEach { root -> copyTree(root, File(targetPath, root.name), tracker) }
             tracker.reportComplete()
@@ -81,8 +81,8 @@ class LocalTreeTransfer internal constructor(
                 if (free == 0L) return@move IoResult.ItemFailed("디스크 공간 부족: 여유 공간 없음")
                 checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(it) }
             }
-            onProgress(ProgressState(progress = 0))
             val tracker = ByteProgressTracker(totalBytes, leafCounts.sum(), onProgress)
+            tracker.reportStart()
 
             roots.forEachIndexed { i, root ->
                 val dest = File(targetPath, root.name)
@@ -126,6 +126,7 @@ class LocalTreeTransfer internal constructor(
                         tracker.pump(input, output, src.name, src.length())
                     }
                 }
+                tracker.onFileCompleted(src.name, src.length())
             }
         }
     }

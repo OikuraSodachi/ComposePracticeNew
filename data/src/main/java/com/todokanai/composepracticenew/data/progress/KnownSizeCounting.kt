@@ -24,6 +24,8 @@ internal class KnownSizeCounting(
     /** 크기를 모르는 파일들에서 처리한 바이트 수. */
     private var unknownWrittenBytes = 0L
 
+    override fun startReading(): ProgressReading = reading()
+
     override fun onFileStarted() {
         currentFileKnownBytes = 0
     }

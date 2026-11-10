@@ -43,8 +43,8 @@ class LocalZipCompressor @Inject constructor() {
         val totalBytes = allFiles.sumOf { (_, f) -> f.length() }
         checkDiskSpace(totalBytes, (File(zipFile).parentFile ?: File(zipFile)).freeSpace)
             ?.let { return IoResult.ItemFailed(it) }
-        onProgress(ProgressState(progress = 0))
         val tracker = ByteProgressTracker(totalBytes, allFiles.size, onProgress)
+        tracker.reportStart()
         // 압축 대상 목록을 만든 뒤에 새 파일을 확보 — 기존 파일(선택 항목 자신 포함)은 절대 열지 않으므로 잘라내기·자기 참조가 생기지 않는다
         val output = createUniqueFile(File(zipFile))
 
@@ -61,6 +61,7 @@ class LocalZipCompressor @Inject constructor() {
                     tracker.pump(input, zos, sFile.name, sFile.length())
                 }
                 zos.closeEntry()
+                tracker.onFileCompleted(sFile.name, sFile.length())
             }
         }
         tracker.reportComplete()

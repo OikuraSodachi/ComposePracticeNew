@@ -58,12 +58,13 @@ class ByteProgressTrackerTest {
     }
 
     @Test
-    fun `전체 크기를 몰라도 마지막 파일을 마치면 받은 바이트를 전체로 100%를 보고한다`() {
+    fun `전체 크기를 몰라도 작업을 마치면 받은 바이트를 전체로 100%를 보고한다`() {
         val tracker = unknownTotalTracker(totalFileCount = 1)
         tracker.startFile()
         tracker.addBytes(30, "a", null)
-
         tracker.onFileCompleted("a", null)
+
+        tracker.reportComplete()
 
         val last = reports.last()
         assertEquals(100, last.progress)
@@ -113,14 +114,31 @@ class ByteProgressTrackerTest {
     }
 
     @Test
-    fun `전체 크기를 알아도 마지막 바이트를 처리한 것만으로는 100%를 보고하지 않고 완료 때 보고한다`() {
+    fun `전체 크기를 알면 마지막 파일을 마쳐도 100%를 보고하지 않고 작업 완료 때 보고한다`() {
         val tracker = knownTotalTracker(totalBytes = 10, totalFileCount = 1)
 
         tracker.startFile()
         tracker.addBytes(10, "a", 10)
         tracker.onFileCompleted("a", 10)
+        assertEquals(listOf(99), reports.map { it.progress })
 
+        tracker.reportComplete()
         assertEquals(listOf(99, 100), reports.map { it.progress })
+    }
+
+    @Test
+    fun `전체 크기를 모르면 마지막 파일을 마쳐도 100%를 보고하지 않는다`() {
+        val tracker = unknownTotalTracker(totalFileCount = 2, knownBytes = 4, unknownFileCount = 1)
+
+        tracker.startFile()
+        tracker.addBytes(4, "known", 4)
+        tracker.onFileCompleted("known", 4)
+        now += INTERVAL
+        tracker.startFile()
+        tracker.addBytes(2, "unknown", null)
+        tracker.onFileCompleted("unknown", null)
+
+        assertEquals(listOf(null, null, null), reports.map { it.progress })
     }
 
     @Test
@@ -148,6 +166,27 @@ class ByteProgressTrackerTest {
 
         assertEquals(listOf(1L, 3L), reports.map { it.writtenBytes })
         assertEquals(listOf(0, 0), reports.map { it.progress })
+    }
+
+    @Test
+    fun `전체 크기를 알면 시작 상태를 0%로 보고한다`() {
+        knownTotalTracker(totalBytes = 10, totalFileCount = 2).reportStart()
+
+        val state = reports.single()
+        assertEquals(0, state.progress)
+        assertEquals(10L, state.totalBytes)
+        assertEquals(2, state.listSize)
+        assertEquals(0, state.currentIndex)
+    }
+
+    @Test
+    fun `전체 크기를 모르면 시작 상태를 퍼센트 없이 크기를 아는 부분의 진행으로 보고한다`() {
+        unknownTotalTracker(totalFileCount = 2, knownBytes = 4, unknownFileCount = 1).reportStart()
+
+        val state = reports.single()
+        assertNull(state.progress)
+        assertNull(state.totalBytes)
+        assertEquals(KnownSizeProgress(4, 0, 0, 1, 0), state.knownSize)
     }
 
     @Test

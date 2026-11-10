@@ -35,6 +35,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
                             tracker.pump(input, output, entry.name, knownSizeOf(entry))
                         }
                     }
+                    tracker.onFileCompleted(entry.name, knownSizeOf(entry))
                 }
             }
         }

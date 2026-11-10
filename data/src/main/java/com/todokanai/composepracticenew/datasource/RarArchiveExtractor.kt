@@ -109,10 +109,16 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
         override fun prepareOperation(extractAskMode: ExtractAskMode) {}
 
+        /** 결과는 마지막 [getStream] 항목의 것이다(SevenZipJBinding 계약). 출력을 연 항목이 OK로 끝나야 그 몫을 확정한다 — 폴더·건너뛴 항목은 출력을 열지 않는다. */
         override fun setOperationResult(extractOperationResult: ExtractOperationResult) {
+            val wroteEntry = currentOutputStream != null
             currentOutputStream?.close()
             currentOutputStream = null
-            if (!skipCurrent && extractOperationResult != ExtractOperationResult.OK) skippedEntries++
+            if (extractOperationResult == ExtractOperationResult.OK) {
+                if (wroteEntry) tracker.onFileCompleted(currentNormalizedName, currentItemSize)
+            } else if (!skipCurrent) {
+                skippedEntries++
+            }
         }
 
         override fun setTotal(total: Long) {}

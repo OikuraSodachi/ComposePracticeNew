@@ -14,6 +14,8 @@ internal class PercentCounting(
     private val throttle: ProgressThrottle
 ) : ProgressCounting {
 
+    override fun startReading(): ProgressReading = ProgressReading(0, totalBytes)
+
     override fun onFileStarted() {}
 
     override fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ProgressReading? {

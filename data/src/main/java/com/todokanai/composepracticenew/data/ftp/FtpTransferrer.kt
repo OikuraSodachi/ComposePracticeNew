@@ -86,7 +86,7 @@ class FtpTransferrer @Inject internal constructor(
                 client, ftpPath, localFile,
                 onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, fileBytes) },
                 onAcked = { progress.onFileCompleted(localFile.name, fileBytes) }
-            )
+            ).onSuccess { progress.reportComplete() }
         }
     }
 
@@ -120,7 +120,7 @@ class FtpTransferrer @Inject internal constructor(
                     )
                 }
             }
-        }.onSuccess { progress.reportIfEmpty() }
+        }.onSuccess { progress.reportComplete() }
     }
 
     /**
@@ -140,7 +140,7 @@ class FtpTransferrer @Inject internal constructor(
                     client, ftpPath, input,
                     onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, fileBytes) },
                     onAcked = { progress.onFileCompleted(localFile.name, fileBytes) }
-                )
+                ).onSuccess { progress.reportComplete() }
             }
         }
     }
@@ -175,7 +175,7 @@ class FtpTransferrer @Inject internal constructor(
                     }
                 }
             }
-        }
+        }.onSuccess { progress.reportComplete() }
     }
 
     /**
