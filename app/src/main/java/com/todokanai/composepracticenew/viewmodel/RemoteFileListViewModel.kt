@@ -185,7 +185,6 @@ class RemoteFileListViewModel @Inject constructor(
             targetIsDirectory = item.isDirectory,
             newName = name,
             folder = fileNavigatorUseCase,
-            ignoreCase = REMOTE_IGNORE_CASE,
         )
         return if (conflict == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
     }
@@ -225,7 +224,6 @@ class RemoteFileListViewModel @Inject constructor(
             targetIsDirectory = item.isDirectory,
             newName = name,
             folder = fileNavigatorUseCase,
-            ignoreCase = REMOTE_IGNORE_CASE,
         )
 
     /**
@@ -246,7 +244,6 @@ class RemoteFileListViewModel @Inject constructor(
         baseName = messages.defaultNewFolderName,
         extension = "",
         folder = fileNavigatorUseCase,
-        ignoreCase = REMOTE_IGNORE_CASE,
     )
 
     /**
@@ -266,7 +263,5 @@ class RemoteFileListViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "RemoteFileListVM"
-        /** 서버의 대소문자 구분 여부를 알 수 없으므로, 대부분인 Unix 계열 서버에 맞춰 이름 변경 겹침을 대소문자를 구분해 비교한다. */
-        private const val REMOTE_IGNORE_CASE = false
     }
 }

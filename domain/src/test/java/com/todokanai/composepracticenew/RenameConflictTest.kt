@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.usecase.ConflictRules
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** [ConflictRules.renameConflict]가 같은 폴더의 기존 항목과 겹치는 방식을 종류·대소문자 규칙에 따라 판정하는지 검증하는 단위 테스트. */
+/** [ConflictRules.renameConflict]가 같은 폴더의 기존 항목과 겹치는 방식을 종류·이름 비교 규칙에 따라 판정하는지 검증하는 단위 테스트. */
 class RenameConflictTest {
 
     /** 테스트용 폴더 항목. */
@@ -17,9 +17,9 @@ class RenameConflictTest {
     private val folderY = Entry("/d/y", "y", true)
     private val siblings = listOf(fileA, fileB, folderX, folderY)
 
-    private fun conflictOf(target: Entry, newName: String, ignoreCase: Boolean = false) =
+    private fun conflictOf(target: Entry, newName: String, matchKeyOf: (String) -> String = { it }) =
         ConflictRules.renameConflict(
-            target.path, target.isDirectory, newName, siblings, ignoreCase, Entry::path, Entry::name, Entry::isDirectory
+            target.path, target.isDirectory, newName, siblings, matchKeyOf, Entry::path, Entry::name, Entry::isDirectory
         )
 
     @Test
@@ -40,14 +40,14 @@ class RenameConflictTest {
     }
 
     @Test
-    fun `자기 자신의 이름이나 대소문자만 바꾼 이름은 충돌이 아니다`() {
+    fun `자기 자신의 이름이나 비교 값만 같은 이름은 충돌이 아니다`() {
         assertEquals(RenameConflict.NONE, conflictOf(fileA, "a.txt"))
-        assertEquals(RenameConflict.NONE, conflictOf(fileA, "A.TXT", ignoreCase = true))
+        assertEquals(RenameConflict.NONE, conflictOf(fileA, "A.TXT", String::lowercase))
     }
 
     @Test
-    fun `대소문자 무시 여부에 따라 대소문자만 다른 다른 항목과의 충돌이 달라진다`() {
-        assertEquals(RenameConflict.FILE, conflictOf(fileA, "B.TXT", ignoreCase = true))
-        assertEquals(RenameConflict.NONE, conflictOf(fileA, "B.TXT", ignoreCase = false))
+    fun `비교 값이 같은 다른 항목과는 충돌한다`() {
+        assertEquals(RenameConflict.FILE, conflictOf(fileA, "B.TXT", String::lowercase))
+        assertEquals(RenameConflict.NONE, conflictOf(fileA, "B.TXT"))
     }
 }

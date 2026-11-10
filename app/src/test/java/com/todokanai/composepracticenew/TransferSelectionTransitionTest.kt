@@ -50,7 +50,7 @@ class TransferSelectionTransitionTest {
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase(NoStorageNameRules)),
-            ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
+            ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified },
             FixedMessages,
             RemoteConnectionStateUseCase(connection)
         )

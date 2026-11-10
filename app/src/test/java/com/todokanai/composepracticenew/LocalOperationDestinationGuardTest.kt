@@ -66,7 +66,7 @@ class LocalOperationDestinationGuardTest {
         val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, operationScope)
         val navigator = FileNavigatorUseCase(nav, nav)
         val localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(NoStorageNameRules), nav)
-        val conflictCheckUseCase = ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified }
+        val conflictCheckUseCase = ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified }
         viewModel = FileListViewModel(
             fileNavigatorUseCase = navigator,
             openFileUseCase = OpenFileUseCase(nav) {},

@@ -13,6 +13,7 @@ import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
+import com.todokanai.composepracticenew.repository.FileSystemNameMatching
 import com.todokanai.composepracticenew.repository.FileSystemNameRules
 import com.todokanai.composepracticenew.repository.FileSystemPathRules
 import com.todokanai.composepracticenew.repository.FileInfoRepository
@@ -37,6 +38,7 @@ import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepositoryImpl
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
+import com.todokanai.composepracticenew.repository.StorageNameMatching
 import com.todokanai.composepracticenew.repository.StorageNameRules
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
@@ -168,5 +170,10 @@ abstract class RepositoryModule {
         @Provides @Singleton @RemoteNavigator
         fun provideRemoteStorageNameRules(@RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameRules =
             FileSystemNameRules(fileSystems)
+
+        /** 이름 충돌 판정의 이름 비교 규칙. 충돌 판정은 두 화면의 목적지(다운로드는 로컬, 업로드는 원격)를 모두 다루므로 등록된 모든 파일 시스템에서 고른다. */
+        @Provides @Singleton
+        fun provideStorageNameMatching(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameMatching =
+            FileSystemNameMatching(fileSystems)
     }
 }
