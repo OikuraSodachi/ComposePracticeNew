@@ -64,11 +64,8 @@ private fun RemoteRenameDialogHost(
  * @param selectMode 현재 선택 모드
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
- * @param onRename 이름 변경 실행 콜백
- * @param validateRename 이름을 바꿀 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
+ * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
- * @param onConfirmRename 이름 변경 덮어쓰기 확인 콜백
- * @param onCancelRename 이름 변경 덮어쓰기 취소 콜백
  * @param onDelete 선택 파일 일괄 삭제 실행 콜백
  * @param onEnterDownloadMode 다운로드 모드 진입 콜백
  * @param onConfirmUpload 업로드 확인 콜백
@@ -79,14 +76,11 @@ fun RemoteBottomButtonListView(
     selectMode: RemoteSelectMode,
     onResetSelection: () -> Unit,
     selectedList: () -> List<FileHolderItem>,
-    onRename: (FileHolderItem, String) -> Unit,
-    validateRename: (FileHolderItem, String) -> Set<FileNameError>,
+    rename: RenameActions,
     pendingRename: PendingRename?,
-    onConfirmRename: () -> Unit,
-    onCancelRename: () -> Unit,
     onDelete: (List<FileHolderItem>) -> Unit,
-    onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
-    onConfirmUpload: () -> Unit = {},
+    onEnterDownloadMode: (List<FileHolderItem>) -> Unit,
+    onConfirmUpload: () -> Unit,
 ) {
     val currentSelectedList = selectedList()
     var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
@@ -100,16 +94,16 @@ fun RemoteBottomButtonListView(
     RemoteRenameDialogHost(
         renameTarget = renameTarget,
         onDismiss    = { renameTarget = null },
-        onRename     = onRename,
-        validateRename = validateRename,
+        onRename     = rename.onRename,
+        validateRename = rename.validate,
         title        = strRemoteRename,
     )
     pendingRename?.let { pending ->
         RenameConflictDialog(
             pending = pending,
             isRemote = true,
-            onConfirm = onConfirmRename,
-            onDismiss = onCancelRename
+            onConfirm = rename.onConfirmOverwrite,
+            onDismiss = rename.onCancelOverwrite
         )
     }
     if (showDeleteDialog) {

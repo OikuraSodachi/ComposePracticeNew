@@ -199,9 +199,10 @@ class FileListViewModel @Inject constructor(
      * @return 즉시 실행했으면 true, 사용자 확인 대기로 전환했거나 이미 대기 중이거나 목적지 목록을 확인하지 못해 거부됐으면 false
      */
     fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): Boolean {
-        val checked = conflictsFor(selectedList, mode) ?: return false
+        val plan = planOf(mode)
+        val checked = plan.findConflicts(selectedList) ?: return false
         return conflictGate.request(selectedList, checked.conflicts) { skip ->
-            execute(selectedList, mode, skip, checked.destinationPath)
+            execute(selectedList, plan, skip, checked.destinationPath)
         }
     }
 
@@ -271,51 +272,70 @@ class FileListViewModel @Inject constructor(
         )
     }
 
-    /**
-     * [mode] 작업의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다.
-     * @return 판정한 목적지 경로와 충돌 항목. 현재 경로의 목록을 확인하지 못했으면 판정할 수 없으므로 null
-     */
-    private fun conflictsFor(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation): DestinationConflicts<FileHolderItem>? =
+    /** [mode] 작업의 충돌 판정과 실행 방법을 돌려준다. 작업별 분기는 여기 한 곳에만 둔다. */
+    private fun planOf(mode: SelectMode.LocalOperation): LocalOperationPlan =
         when (mode) {
-            SelectMode.LocalOperation.Copy, SelectMode.LocalOperation.Move ->
-                conflictCheckUseCase.findCopyMoveConflicts(selectedList, fileNavigatorUseCase) { it.name }
-            SelectMode.LocalOperation.Unzip, SelectMode.LocalOperation.UnzipHere ->
-                conflictCheckUseCase.findUnzipConflicts(selectedList, fileNavigatorUseCase) { it.name }
+            SelectMode.LocalOperation.Copy -> LocalOperationPlan(::findCopyMoveConflicts) { targets, destPath, onRefresh ->
+                localFileOperationUseCase.copy(
+                    files = targets,
+                    destPath = destPath,
+                    completionMessage = messages.notiComplete,
+                    onRefresh = onRefresh
+                )
+            }
+            SelectMode.LocalOperation.Move -> LocalOperationPlan(::findCopyMoveConflicts) { targets, destPath, onRefresh ->
+                localFileOperationUseCase.move(
+                    files = targets,
+                    destPath = destPath,
+                    completionMessage = messages.notiMoveComplete,
+                    onRefresh = onRefresh
+                )
+            }
+            SelectMode.LocalOperation.Unzip -> unzipPlan(unzipHere = false)
+            SelectMode.LocalOperation.UnzipHere -> unzipPlan(unzipHere = true)
         }
 
-    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 [mode]에 맞는 파일 작업을 [destPath]에 실행한다. */
-    private fun execute(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation, skipFiles: List<FileHolderItem>, destPath: String) {
+    /** 압축 해제의 충돌 판정과 실행 방법을 만든다. */
+    private fun unzipPlan(unzipHere: Boolean) =
+        LocalOperationPlan(::findUnzipConflicts) { targets, destPath, onRefresh ->
+            localFileOperationUseCase.unzip(
+                zipFiles = targets,
+                destPath = destPath,
+                unzipHere = unzipHere,
+                completionMessage = messages.notiComplete,
+                onRefresh = onRefresh
+            )
+        }
+
+    /**
+     * 복사·이동의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다.
+     * @return 판정한 목적지 경로와 충돌 항목. 현재 경로의 목록을 확인하지 못했으면 판정할 수 없으므로 null
+     */
+    private fun findCopyMoveConflicts(selectedList: List<FileHolderItem>): DestinationConflicts<FileHolderItem>? =
+        conflictCheckUseCase.findCopyMoveConflicts(selectedList, fileNavigatorUseCase) { it.name }
+
+    /**
+     * 압축 해제의 목적지(현재 경로)에 이미 같은 이름으로 존재하는 항목을 반환한다.
+     * @return 판정한 목적지 경로와 충돌 항목. 현재 경로의 목록을 확인하지 못했으면 판정할 수 없으므로 null
+     */
+    private fun findUnzipConflicts(selectedList: List<FileHolderItem>): DestinationConflicts<FileHolderItem>? =
+        conflictCheckUseCase.findUnzipConflicts(selectedList, fileNavigatorUseCase) { it.name }
+
+    /** 선택 목록에서 skipFiles를 제외한 대상에 대해 [plan]의 파일 작업을 [destPath]에 실행한다. */
+    private fun execute(selectedList: List<FileHolderItem>, plan: LocalOperationPlan, skipFiles: List<FileHolderItem>, destPath: String) {
         val conflictPaths = skipFiles.map { it.path }.toSet()
         val targets = selectedList.filterNot { it.path in conflictPaths }.map { it.path }.toSet()
         if (targets.isEmpty()) return
-        val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
-        when (mode) {
-            SelectMode.LocalOperation.Copy -> localFileOperationUseCase.copy(
-                files = targets,
-                destPath = destPath,
-                completionMessage = messages.notiComplete,
-                onRefresh = onRefresh
-            )
-            SelectMode.LocalOperation.Move -> localFileOperationUseCase.move(
-                files = targets,
-                destPath = destPath,
-                completionMessage = messages.notiMoveComplete,
-                onRefresh = onRefresh
-            )
-            SelectMode.LocalOperation.Unzip -> localFileOperationUseCase.unzip(
-                zipFiles = targets,
-                destPath = destPath,
-                unzipHere = false,
-                completionMessage = messages.notiComplete,
-                onRefresh = onRefresh
-            )
-            SelectMode.LocalOperation.UnzipHere -> localFileOperationUseCase.unzip(
-                zipFiles = targets,
-                destPath = destPath,
-                unzipHere = true,
-                completionMessage = messages.notiComplete,
-                onRefresh = onRefresh
-            )
-        }
+        plan.run(targets, destPath) { fileNavigatorUseCase.refresh() }
     }
 }
+
+/**
+ * 로컬 작업 하나의 충돌 판정과 실행 방법을 묶은 값.
+ * @param findConflicts 선택 항목의 목적지 충돌을 판정하는 함수. 목적지 목록을 확인하지 못했으면 null을 반환한다
+ * @param run 대상 경로, 목적지 경로, 완료 후 새로고침 동작을 받아 작업을 시작하는 함수
+ */
+private class LocalOperationPlan(
+    val findConflicts: (List<FileHolderItem>) -> DestinationConflicts<FileHolderItem>?,
+    val run: (targets: Set<String>, destPath: String, onRefresh: suspend () -> Unit) -> Unit,
+)

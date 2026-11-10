@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -16,6 +17,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
+import com.todokanai.composepracticenew.compose.listview.RenameActions
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -70,10 +72,10 @@ fun RemoteFileListFrag(
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
-    onSwitchToLocal: () -> Unit = {},
-    onEnterDownloadMode: (List<FileHolderItem>) -> Unit = {},
-    onConfirmUpload: () -> Unit = {},
-    onConnectionLost: () -> Unit = {},
+    onSwitchToLocal: () -> Unit,
+    onEnterDownloadMode: (List<FileHolderItem>) -> Unit,
+    onConfirmUpload: () -> Unit,
+    onConnectionLost: () -> Unit,
     navigateToStorage: () -> Unit,
     onExit: () -> Unit,
     viewModel: RemoteFileListViewModel
@@ -86,6 +88,16 @@ fun RemoteFileListFrag(
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
     /** 목록 스크롤 상태. 목록(FileListView)을 화면에서 빼는 분기보다 위에서 만든다 — 위치가 남는 기간을 목록의 컴포지션 여부가 아니라 경로로 정한다 */
     val listState = rememberListingScrollState(uiState.value.listing)
+    /** 이름 변경 다이얼로그의 콜백 묶음. */
+    // viewModel을 키로 — 리컴포지션마다 새 묶음을 만들어 하단 버튼 영역의 건너뛰기가 깨지지 않도록 같은 ViewModel 동안 유지한다
+    val renameActions = remember(viewModel) {
+        RenameActions(
+            onRename = viewModel::onRename,
+            validate = viewModel::validateRename,
+            onConfirmOverwrite = viewModel::confirmRename,
+            onCancelOverwrite = viewModel::cancelRename,
+        )
+    }
 
     val context = LocalContext.current
     RemoteFileListConnectionEffects(
@@ -144,11 +156,8 @@ fun RemoteFileListFrag(
             selectMode = selectMode,
             onResetSelection = onResetSelection,
             selectedList = selectedList,
-            onRename = viewModel::onRename,
-            validateRename = viewModel::validateRename,
+            rename = renameActions,
             pendingRename = pendingRename,
-            onConfirmRename = viewModel::confirmRename,
-            onCancelRename = viewModel::cancelRename,
             onDelete = viewModel::onDelete,
             onEnterDownloadMode = onEnterDownloadMode,
             onConfirmUpload = onConfirmUpload,

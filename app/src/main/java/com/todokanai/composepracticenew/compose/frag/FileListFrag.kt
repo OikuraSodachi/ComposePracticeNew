@@ -17,11 +17,14 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.compose.listview.LocalTransferActions
+import com.todokanai.composepracticenew.compose.listview.RenameActions
+import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
+import com.todokanai.composepracticenew.compose.listview.ZipActions
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
-import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.ui.model.ListingKey
 import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
@@ -31,9 +34,8 @@ import kotlinx.coroutines.flow.Flow
 /**
  * 로컬 파일 목록 화면. 경로·옵션 바, 파일 목록, 하단 작업 버튼, 저장소 전환 탭을 조합한다.
  * @param selectedList 선택 목록을 반환하는 함수 — 값을 실제로 쓰는 하위 컴포저블에서 읽어 선택 변경 시 리컴포지션 범위를 좁힌다
- * @param selectionSummary 정보 다이얼로그에 표시할 선택 요약을 반환하는 함수(null이면 다이얼로그를 표시하지 않음) — 다이얼로그 호스트에서만 읽는다
- * @param onShowInfo 선택 항목의 정보 다이얼로그를 여는 콜백
- * @param onDismissInfo 정보 다이얼로그를 닫는 콜백
+ * @param info 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음
+ * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
  * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
@@ -45,9 +47,8 @@ fun FileListFrag(
     modifier: Modifier,
     selectMode: LocalSelectMode,
     selectedList: () -> List<FileHolderItem>,
-    selectionSummary: () -> SelectionSummary?,
-    onShowInfo: (List<FileHolderItem>) -> Unit,
-    onDismissInfo: () -> Unit,
+    info: SelectionInfoActions,
+    transfer: LocalTransferActions,
     onStartMultiSelect: (FileHolderItem) -> Unit,
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
@@ -55,9 +56,7 @@ fun FileListFrag(
     removeFromList: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     childCountsFor: (ListingKey) -> ChildCountSource,
-    onSwitchToRemote: () -> Unit = {},
-    onConfirmDownload: () -> Unit = {},
-    onEnterUploadMode: () -> Unit = {},
+    onSwitchToRemote: () -> Unit,
     navigateToStorage: () -> Unit,
     onExit: () -> Unit,
     viewModel: FileListViewModel,
@@ -75,6 +74,25 @@ fun FileListFrag(
     val isSearchOpen by remember(searchState) { derivedStateOf { searchState.value != null } }
     /** 목록 스크롤 상태. 검색이 열려 목록을 그리지 않는 동안에도 남도록 이른 return보다 위에서 만든다 — 검색을 닫으면 같은 경로의 스크롤 위치로 돌아온다 */
     val listState = rememberListingScrollState(uiState.value.listing)
+    /** 압축 다이얼로그의 콜백 묶음. */
+    // viewModel을 키로 — 리컴포지션마다 새 묶음을 만들어 하단 버튼 영역의 건너뛰기가 깨지지 않도록 같은 ViewModel 동안 유지한다
+    val zipActions = remember(viewModel) {
+        ZipActions(
+            onZip = viewModel::zip,
+            suggestName = viewModel::suggestZipName,
+            validateName = viewModel::validateZipName,
+        )
+    }
+    /** 이름 변경 다이얼로그의 콜백 묶음. */
+    // viewModel을 키로 — 위와 같은 이유로 같은 ViewModel 동안 유지한다
+    val renameActions = remember(viewModel) {
+        RenameActions(
+            onRename = viewModel::rename,
+            validate = viewModel::validateRename,
+            onConfirmOverwrite = viewModel::confirmRename,
+            onCancelOverwrite = viewModel::cancelRename,
+        )
+    }
 
     BackHandler(enabled = selectMode == SelectMode.MultiSelect, onBack = onResetSelection)
 
@@ -129,23 +147,15 @@ fun FileListFrag(
             onSelectOperation = onSelectOperation,
             onResetSelection = onResetSelection,
             selectedList = selectedList,
-            selectionSummary = selectionSummary,
-            onShowInfo = onShowInfo,
-            onDismissInfo = onDismissInfo,
-            onConfirmDownload = onConfirmDownload,
-            onEnterUploadMode = onEnterUploadMode,
+            info = info,
+            transfer = transfer,
             pendingConflict = pendingConflict,
             onRequestConfirm = viewModel::requestConfirm,
             onResolveConflict = viewModel::resolveConflict,
-            onZip = viewModel::zip,
-            suggestZipName = viewModel::suggestZipName,
-            validateZipName = viewModel::validateZipName,
+            zip = zipActions,
             canUnzip = viewModel::canUnzip,
-            onRename = viewModel::rename,
-            validateRename = viewModel::validateRename,
+            rename = renameActions,
             pendingRename = pendingRename,
-            onConfirmRename = viewModel::confirmRename,
-            onCancelRename = viewModel::cancelRename,
             onDelete = viewModel::delete
         )
 

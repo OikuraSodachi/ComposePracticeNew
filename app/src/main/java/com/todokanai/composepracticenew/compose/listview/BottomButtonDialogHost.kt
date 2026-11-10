@@ -8,12 +8,10 @@ import com.todokanai.composepracticenew.compose.dialog.InfoDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.ZipDialog
-import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.PendingRename
-import com.todokanai.composepracticenew.ui.model.SelectionSummary
 
 /**
  * dialogState 플래그와 ViewModel의 충돌 상태에 따라 파일 작업 다이얼로그를 조건부 렌더링한다.
@@ -21,17 +19,11 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param dialogState 입력·확인용 다이얼로그 open/close 상태 홀더
  * @param pendingConflict ViewModel이 보유한 사용자 확인 대기 충돌. null이면 충돌 다이얼로그를 표시하지 않음
  * @param selectedList 현재 선택된 파일 목록
- * @param selectionSummary 정보 다이얼로그에 표시할 선택 요약을 반환하는 함수. null이면 정보 다이얼로그를 표시하지 않음
- * @param onDismissInfo 정보 다이얼로그를 닫는 콜백
+ * @param info 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음
  * @param onResetSelection 작업 실행 후 선택 모드·선택 목록을 초기화하는 콜백
- * @param onZip 압축 실행 콜백
- * @param suggestZipName 압축 대상으로 압축 다이얼로그에 미리 채울 이름(확장자 제외)을 만드는 함수
- * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
- * @param onRename 이름 변경 실행 콜백
- * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
+ * @param zip 압축 다이얼로그의 콜백 묶음
+ * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
- * @param onConfirmRename 이름 변경 덮어쓰기(합치기) 확인 콜백
- * @param onCancelRename 이름 변경 덮어쓰기 취소 콜백
  * @param onDelete 삭제 실행 콜백
  * @param onResolveConflict 충돌 처리 방법을 전달하는 콜백 — 작업을 실행했으면 true를 반환
  */
@@ -40,54 +32,48 @@ fun BottomButtonDialogHost(
     dialogState: BottomButtonDialogState,
     pendingConflict: PendingConflict?,
     selectedList: List<FileHolderItem>,
-    selectionSummary: () -> SelectionSummary?,
-    onDismissInfo: () -> Unit,
+    info: SelectionInfoActions,
     onResetSelection: () -> Unit,
-    onZip: (List<FileHolderItem>, String) -> Unit,
-    suggestZipName: (List<FileHolderItem>) -> String,
-    validateZipName: (String) -> Set<FileNameError>,
-    onRename: (FileHolderItem, String) -> Unit,
-    validateRename: (FileHolderItem, String) -> Set<FileNameError>,
+    zip: ZipActions,
+    rename: RenameActions,
     pendingRename: PendingRename?,
-    onConfirmRename: () -> Unit,
-    onCancelRename: () -> Unit,
     onDelete: (List<FileHolderItem>) -> Unit,
     onResolveConflict: (ConflictResolution) -> Boolean,
 ) {
     if (dialogState.zipDialog) {
         // 키 없음 — 연 회차마다 한 번만 제안한다. 입력란은 첫 구성의 값만 쓰므로, 리컴포지션마다 목록을 다시 훑을 필요가 없다
-        val suggestedName = remember { suggestZipName(selectedList) }
+        val suggestedName = remember { zip.suggestName(selectedList) }
         ZipDialog(
             initialText = suggestedName,
             onConfirm = {
-                onZip(selectedList, it)
+                zip.onZip(selectedList, it)
                 onResetSelection()
             },
             onDismiss = { dialogState.dismissZip() },
-            validate = validateZipName
+            validate = zip.validateName
         )
     }
     if (dialogState.renameDialog) {
         RenameDialog(
             currentName = selectedList.first().name,
             isDirectory = selectedList.first().isDirectory,
-            onConfirm = { onRename(selectedList.first(), it) },
+            onConfirm = { rename.onRename(selectedList.first(), it) },
             onDismiss = { dialogState.dismissRename() },
-            validate = { name -> validateRename(selectedList.first(), name) }
+            validate = { name -> rename.validate(selectedList.first(), name) }
         )
     }
     pendingRename?.let { pending ->
         RenameConflictDialog(
             pending = pending,
             isRemote = false,
-            onConfirm = onConfirmRename,
-            onDismiss = onCancelRename
+            onConfirm = rename.onConfirmOverwrite,
+            onDismiss = rename.onCancelOverwrite
         )
     }
-    selectionSummary()?.let { summary ->
+    info.summary()?.let { summary ->
         InfoDialog(
             summary = summary,
-            onDismiss = onDismissInfo
+            onDismiss = info.onDismiss
         )
     }
     if (dialogState.deleteDialog) {

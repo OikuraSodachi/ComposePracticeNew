@@ -1,12 +1,60 @@
 package com.todokanai.composepracticenew.compose.listview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.BottomButtonAction
 import com.todokanai.composepracticenew.compose.BottomButtons
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+
+/** [operation]의 목적지 확인 단계로 전환하는 버튼 항목을 만든다. */
+private fun operationAction(
+    operation: SelectMode.LocalOperation,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
+) = BottomButtonAction(operation.labelRes) { onSelectOperation(operation) }
+
+/** 다중 선택 모드에서 하단에 바로 보이는 버튼 항목(이동·복사·삭제)을 만든다. */
+private fun multiSelectPrimaryActions(
+    dialogState: BottomButtonDialogState,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
+): List<BottomButtonAction> = listOf(
+    operationAction(SelectMode.LocalOperation.Move, onSelectOperation),
+    operationAction(SelectMode.LocalOperation.Copy, onSelectOperation),
+    BottomButtonAction(R.string.btn_delete, dialogState::openDelete),
+)
+
+/**
+ * 다중 선택 모드의 더보기 메뉴 항목을 만든다. 이름 변경은 하나만 선택했을 때, 압축 해제는 그 항목을 해제할 수 있을 때만 넣는다.
+ * @param selectedList 현재 선택된 파일 목록
+ * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수
+ * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
+ * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
+ * @param onShowInfo 현재 선택 항목의 정보 다이얼로그를 여는 콜백
+ * @param onUpload 업로드 모드로 들어가는 콜백
+ * @return 표시 순서대로 나열한 메뉴 항목
+ */
+internal fun multiSelectMoreActions(
+    selectedList: List<FileHolderItem>,
+    canUnzip: (FileHolderItem) -> Boolean,
+    dialogState: BottomButtonDialogState,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
+    onShowInfo: () -> Unit,
+    onUpload: () -> Unit,
+): List<BottomButtonAction> = buildList {
+    add(BottomButtonAction(R.string.btn_zip, dialogState::openZip))
+    add(BottomButtonAction(R.string.btn_info, onShowInfo))
+    add(BottomButtonAction(R.string.btn_upload, onUpload))
+    val single = selectedList.singleOrNull() ?: return@buildList
+    add(BottomButtonAction(R.string.btn_rename, dialogState::openRename))
+    if (canUnzip(single)) {
+        add(operationAction(SelectMode.LocalOperation.Unzip, onSelectOperation))
+        add(operationAction(SelectMode.LocalOperation.UnzipHere, onSelectOperation))
+    }
+}
 
 /**
  * 로컬 화면의 selectMode에 따라 적절한 하단 버튼 UI를 렌더링한다.
@@ -20,8 +68,7 @@ import com.todokanai.composepracticenew.ui.model.SelectMode
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 선택 모드·선택 목록을 초기화하는 콜백 — 확인 단계의 취소도 선택을 비운다
  * @param onShowInfo 현재 선택 항목의 정보 다이얼로그를 여는 콜백
- * @param onConfirmDownload 다운로드 확인 콜백 — 선택 초기화는 실제 실행 시점에 coordinator가 담당한다
- * @param onEnterUploadMode 업로드 모드 진입 콜백
+ * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
  */
 @Composable
 fun ModeAwareButtons(
@@ -34,28 +81,28 @@ fun ModeAwareButtons(
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
     onShowInfo: () -> Unit,
-    onConfirmDownload: () -> Unit,
-    onEnterUploadMode: () -> Unit,
+    transfer: LocalTransferActions,
 ) {
     when (selectMode) {
         SelectMode.Default -> Unit
         SelectMode.MultiSelect -> {
+            /** 하단에 바로 보이는 버튼 항목. */
+            // dialogState·onSelectOperation을 키로 — 선택이 바뀌어도 그대로 재사용해 항목 목록을 새로 만들지 않는다
+            val primaryActions = remember(dialogState, onSelectOperation) {
+                multiSelectPrimaryActions(dialogState, onSelectOperation)
+            }
+            /** 더보기 메뉴 항목. */
+            // 선택 목록·판별 함수·항목이 캡처하는 콜백을 키로 — 이 값들이 바뀔 때만 메뉴 항목을 다시 만들고, 바뀐 콜백을 놓치지 않는다
+            val moreActions = remember(selectedList, canUnzip, dialogState, onSelectOperation, onShowInfo, transfer, onResetSelection) {
+                multiSelectMoreActions(selectedList, canUnzip, dialogState, onSelectOperation, onShowInfo) {
+                    transfer.onEnterUploadMode()
+                    onResetSelection()
+                }
+            }
             BottomButtons(
                 modifier = modifier,
-                move = { onSelectOperation(SelectMode.LocalOperation.Move) },
-                copy = { onSelectOperation(SelectMode.LocalOperation.Copy) },
-                delete = { dialogState.openDelete() },
-                zip = { dialogState.openZip() },
-                unzip = { onSelectOperation(SelectMode.LocalOperation.Unzip) },
-                unzipHere = { onSelectOperation(SelectMode.LocalOperation.UnzipHere) },
-                rename = { dialogState.openRename() },
-                info = onShowInfo,
-                upload = {
-                    onEnterUploadMode()
-                    onResetSelection()
-                },
-                selectedList = selectedList,
-                canUnzip = canUnzip
+                primaryActions = primaryActions,
+                moreActions = moreActions,
             )
         }
         is SelectMode.LocalOperation -> ConfirmButtons(
@@ -66,7 +113,7 @@ fun ModeAwareButtons(
         )
         SelectMode.Download -> ConfirmButtons(
             modifier = modifier,
-            confirm = onConfirmDownload,
+            confirm = transfer.onConfirmDownload,
             cancel = onResetSelection,
             mode = SelectMode.Download
         )
