@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.isUnderRoot
+import net.sf.sevenzipjbinding.ArchiveFormat
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
 import net.sf.sevenzipjbinding.IArchiveExtractCallback
@@ -11,11 +12,12 @@ import net.sf.sevenzipjbinding.PropID
 import net.sf.sevenzipjbinding.SevenZip
 import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream
 import java.io.File
+import java.io.IOException
 import java.io.OutputStream
 import java.io.RandomAccessFile
 import javax.inject.Inject
 
-/** SevenZipJBinding으로 RAR 아카이브를 산정·추출하는 ArchiveExtractor. */
+/** SevenZipJBinding으로 RAR 아카이브를 산정·추출하는 ArchiveExtractor. 이름이 `.rar`이고 내용도 RAR(RAR4·RAR5)인 파일만 다룬다. */
 class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     override fun supports(path: String): Boolean = path.endsWith(".rar", ignoreCase = true)
@@ -39,11 +41,17 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             callback.skippedEntries
         }
 
-    /** RAR 파일을 열어 [block]에 IInArchive를 넘기고 사용 후 닫는다. */
+    /** RAR 파일을 열어 [block]에 IInArchive를 넘기고 사용 후 닫는다. 7-Zip은 내용으로 형식을 판별해 다른 형식도 열어 주므로, RAR이 아니면 IOException으로 실패시킨다. */
     private fun <T> withArchive(path: String, block: (IInArchive) -> T): T =
         RandomAccessFile(path, "r").use { raf ->
-            SevenZip.openInArchive(null, RandomAccessFileInStream(raf)).use(block)
+            SevenZip.openInArchive(null, RandomAccessFileInStream(raf)).use { archive ->
+                if (!isRar(archive.archiveFormat)) throw IOException("RAR 파일이 아닙니다: ${File(path).name}")
+                block(archive)
+            }
         }
+
+    /** [format]이 이 추출기가 다루는 RAR 형식(RAR4·RAR5)인지 판별한다. */
+    private fun isRar(format: ArchiveFormat): Boolean = format == ArchiveFormat.RAR || format == ArchiveFormat.RAR5
 
     /**
      * 항목별 출력 스트림을 열고 기록하며 진행률을 보고하는 추출 콜백.
@@ -56,7 +64,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
         private val root: File,
         private val tracker: ByteProgressTracker
     ) : IArchiveExtractCallback {
-        /** 경로 검증 실패·쓰기 실패·추출 오류로 건너뛴 항목 수. */
+        /** 경로 없음·경로 검증 실패·쓰기 실패·추출 오류로 건너뛴 항목 수. */
         var skippedEntries = 0
             private set
         /** 현재 항목을 쓰고 있는 출력 스트림. 항목 완료 시 닫고 null로 되돌린다. */
@@ -72,11 +80,11 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             skipCurrent = false
             if (extractAskMode != ExtractAskMode.EXTRACT) return null
             if (archive.getProperty(index, PropID.IS_FOLDER) as? Boolean == true) return null
-            val rawName = archive.getProperty(index, PropID.PATH) as? String ?: return null
+            val rawName = archive.getProperty(index, PropID.PATH) as? String ?: return skipEntry()
             currentNormalizedName = rawName.replace('\\', '/')
             currentItemSize = (archive.getProperty(index, PropID.SIZE) as? Long) ?: 0L
             val target = root.resolve(currentNormalizedName)
-            if (!isUnderRoot(target, root)) { skipCurrent = true; skippedEntries++; return null }
+            if (!isUnderRoot(target, root)) return skipEntry()
             target.parentFile?.mkdirs()
             tracker.startFile()
             return try {
@@ -87,7 +95,14 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
                     tracker.addBytes(data.size.toLong(), currentNormalizedName, currentItemSize)
                     data.size
                 }
-            } catch (e: Exception) { skipCurrent = true; skippedEntries++; null }
+            } catch (e: Exception) { skipEntry() }
+        }
+
+        /** 현재 항목을 건너뜀으로 집계하고, 라이브러리에 건너뛰라고 알리는 null을 돌려준다. */
+        private fun skipEntry(): ISequentialOutStream? {
+            skipCurrent = true
+            skippedEntries++
+            return null
         }
 
         override fun prepareOperation(extractAskMode: ExtractAskMode) {}

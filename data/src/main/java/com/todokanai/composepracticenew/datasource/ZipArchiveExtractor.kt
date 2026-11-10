@@ -6,7 +6,7 @@ import java.io.File
 import java.util.zip.ZipFile
 import javax.inject.Inject
 
-/** java.util.zip으로 ZIP 아카이브를 산정·추출하는 ArchiveExtractor. */
+/** java.util.zip으로 ZIP 아카이브를 산정·추출하는 ArchiveExtractor. 이름이 `.zip`인 파일만 다루며, 속이 ZIP인 다른 형식(.apk, .jar, .docx 등)은 지원 범위 밖이다. */
 class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     override fun supports(path: String): Boolean = path.endsWith(".zip", ignoreCase = true)
