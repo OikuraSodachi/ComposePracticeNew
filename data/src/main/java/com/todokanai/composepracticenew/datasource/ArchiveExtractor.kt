@@ -6,7 +6,7 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
  * 아카이브 한 형식의 크기 산정과 추출을 담당하는 전략 인터페이스.
  * 구현체는 Hilt `@IntoSet`으로 등록되며 [supports]는 형식 간 서로 배타적이어야 한다.
  * 새 형식은 이 인터페이스 구현과 DI 등록만으로 추가된다.
- * 읽지 못하는 아카이브(손상, 이름 해석 실패 등)는 [measure]·[entryNames]·[extract] 모두 IOException으로 알린다 — 호출부는 IOException만 실패 결과로 바꾸므로(localIo), 라이브러리가 입력 결함을 다른 예외로 알리면 구현체가 IOException으로 바꾼다.
+ * 읽지 못하는 아카이브(손상, 이름 해석 실패, 이름 없는 항목 등)는 [measure]·[entryNames]·[extract] 모두 IOException으로 알린다 — 호출부는 IOException만 실패 결과로 바꾸므로(localIo), 라이브러리가 입력 결함을 다른 예외로 알리면 구현체가 IOException으로 바꾼다.
  */
 interface ArchiveExtractor {
 
@@ -26,7 +26,7 @@ interface ArchiveExtractor {
     fun measure(path: String): ArchiveSize
 
     /**
-     * [extract]가 풀어 만드는 항목의 아카이브 안 경로('/' 구분)를 나열한다. 충돌 판정이 추출과 같은 항목으로 판정하도록 [extract]와 같은 기준으로 고른다.
+     * [extract]가 풀어 만드는 항목(폴더 포함)의 아카이브 안 경로('/' 구분)를 나열한다. 충돌 판정이 추출과 같은 항목으로 판정하도록 [extract]와 같은 기준으로 고른다.
      * 루트 밖을 가리키는 항목도 그대로 담는다 — 그런 항목을 걸러 내는 일은 위치를 정하는 쪽([ExtractionRoot.targetOf])이 한다.
      * @param path 아카이브 파일 경로
      * @return 항목 경로 목록
@@ -34,14 +34,14 @@ interface ArchiveExtractor {
     fun entryNames(path: String): List<String>
 
     /**
-     * [path] 아카이브를 [root] 아래로 추출하며 [tracker]로 진행률을 보고한다. [measure]가 크기를 모른다고 센 항목은 크기 없이(null) 보고한다.
-     * 항목의 위치는 [ExtractionRoot.targetOf]로 정한다.
+     * [path] 아카이브의 항목을 [writer]로 만들며 [tracker]로 진행률을 보고한다. [measure]가 크기를 모른다고 센 항목은 크기 없이(null) 보고한다.
+     * 폴더 항목은 [ArchiveEntryWriter.createFolder], 파일 항목은 [ArchiveEntryWriter.openFile]로만 만든다 — 위치 검증과 건너뜀 집계는 [writer]가 한다.
+     * 쓰기 실패와 풀 수 없는 항목(CRC·데이터 오류 등)은 그 항목에서 멈추고 IOException으로 알린다(작업 전체 실패). 이미 만든 항목은 남는다.
      * @param path 아카이브 파일 경로
-     * @param root 추출 대상 루트 디렉터리
+     * @param writer 항목을 추출 루트 아래에 만드는 쓰기 도우미
      * @param tracker 누적 진행률 보고기
-     * @return 경로 검증 실패 등으로 건너뛴 항목 수
      */
-    fun extract(path: String, root: ExtractionRoot, tracker: ByteProgressTracker): Int
+    fun extract(path: String, writer: ArchiveEntryWriter, tracker: ByteProgressTracker)
 }
 
 /**

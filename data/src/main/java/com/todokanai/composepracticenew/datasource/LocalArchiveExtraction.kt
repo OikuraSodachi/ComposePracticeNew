@@ -43,8 +43,10 @@ class LocalArchiveExtraction @Inject constructor(
 
             var skippedEntries = 0
             archives.forEach { (zipFilePath, extractor) ->
-                val root = rootOf(File(destPath), zipFilePath, layout).also { it.mkdirs() }
-                skippedEntries += extractor.extract(zipFilePath, ExtractionRoot(root), tracker)
+                val root = rootOf(File(destPath), zipFilePath, layout).also(::createDirectories)
+                val writer = ArchiveEntryWriter(ExtractionRoot(root))
+                extractor.extract(zipFilePath, writer, tracker)
+                skippedEntries += writer.skippedEntries
             }
             if (skippedEntries > 0) return@localIo IoResult.ItemFailed("경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀")
             tracker.reportComplete()

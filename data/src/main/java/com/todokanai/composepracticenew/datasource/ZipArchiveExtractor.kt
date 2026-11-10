@@ -21,26 +21,21 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     // 폴더 항목도 extract가 만들므로 함께 담는다
     override fun entryNames(path: String): List<String> = ZipFile(path).use { zf -> entriesOf(zf).map { it.name } }
 
-    override fun extract(path: String, root: ExtractionRoot, tracker: ByteProgressTracker): Int {
-        var skipped = 0
+    override fun extract(path: String, writer: ArchiveEntryWriter, tracker: ByteProgressTracker) {
         ZipFile(path).use { zf ->
             entriesOf(zf).forEach { entry ->
-                val target = root.targetOf(entry.name) ?: run { skipped++; return@forEach }
                 if (entry.isDirectory) {
-                    target.mkdirs()
-                } else {
-                    target.parentFile?.mkdirs()
-                    tracker.startFile()
-                    zf.getInputStream(entry).use { input ->
-                        target.outputStream().use { output ->
-                            tracker.pump(input, output, entry.name, knownSizeOf(entry))
-                        }
-                    }
-                    tracker.onFileCompleted(entry.name, knownSizeOf(entry))
+                    writer.createFolder(entry.name)
+                    return@forEach
                 }
+                zf.getInputStream(entry).use { input ->
+                    val output = writer.openFile(entry.name) ?: return@forEach
+                    tracker.startFile()
+                    output.use { tracker.pump(input, it, entry.name, knownSizeOf(entry)) }
+                }
+                tracker.onFileCompleted(entry.name, knownSizeOf(entry))
             }
         }
-        return skipped
     }
 
     /**

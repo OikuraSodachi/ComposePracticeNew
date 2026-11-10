@@ -73,7 +73,7 @@ class LocalArchiveCompressionTest {
         val out = File(dir, "out.zip")
         assertEquals(listOf("empty/", "src/", "src/a.txt", "src/blank/", "src/blank/deeper/"), entriesOf(out))
         val restored = File(dir, "restored").apply { mkdirs() }
-        ZipArchiveExtractor().extract(out.path, ExtractionRoot(restored), ByteProgressTracker(1, 1, onProgress = {}))
+        ZipArchiveExtractor().extract(out.path, ArchiveEntryWriter(ExtractionRoot(restored)), ByteProgressTracker(1, 1, onProgress = {}))
         assertTrue(File(restored, "empty").isDirectory)
         assertTrue(File(restored, "src/blank/deeper").isDirectory)
         assertEquals("hello", File(restored, "src/a.txt").readText())

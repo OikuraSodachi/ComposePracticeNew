@@ -76,6 +76,26 @@ class LocalArchiveExtractionLayoutTest {
         assertTrue(names(other, ExtractLayout.IntoDestination) is IoResult.ItemFailed)
     }
 
+    @Test
+    fun `폴더 항목 자리에 같은 이름의 파일이 있어 폴더를 만들지 못하면 실패로 끝난다`() {
+        val zip = zipOf("a.zip", "empty/")
+        File(dest, "empty").writeText("file")
+
+        val result = runBlocking { extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoDestination) {} }
+
+        assertTrue(result is IoResult.ItemFailed)
+    }
+
+    @Test
+    fun `아카이브 폴더 자리에 같은 이름의 파일이 있어 폴더를 만들지 못하면 실패로 끝난다`() {
+        val zip = zipOf("a.zip", "empty/")
+        File(dest, "a").writeText("file")
+
+        val result = runBlocking { extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder) {} }
+
+        assertTrue(result is IoResult.ItemFailed)
+    }
+
     /** [zip]을 [dest]에 [layout]으로 풀 때 생길 이름을 구한다. */
     private fun names(zip: File, layout: ExtractLayout): IoResult<Set<String>> = runBlocking { extraction.extractedNames(zip.path, dest.path, layout) }
 
