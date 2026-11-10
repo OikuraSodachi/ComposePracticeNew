@@ -61,7 +61,7 @@ class TransferDestinationGuardTest {
             notices,
             transferRepo,
             NoOpMutationRepository,
-            FileNameUseCase()
+            FileNameUseCase(NoStorageNameRules)
         )
         viewModel = FileTransferCoordinatorViewModel(
             FileNavigatorUseCase(localNav, localNav),

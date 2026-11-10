@@ -19,7 +19,7 @@ import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
  * @param notices 실행 전 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param transferRepo 원격↔로컬 파일 전송을 실행하는 RemoteFileTransferRepository
  * @param mutationRepo 원격 파일 이름변경·삭제·생성을 실행하는 RemoteFileMutationRepository
- * @param fileNameUseCase 파일 이름 규칙을 검증하는 UseCase
+ * @param fileNameUseCase 원격 화면이 다루는 저장소의 제약을 포함한 파일 이름 규칙을 검증하는 UseCase
  */
 class RemoteFileOperationUseCase(
     private val orchestrator: FileOperationOrchestrator,
@@ -31,9 +31,10 @@ class RemoteFileOperationUseCase(
     /**
      * 원격 새 폴더·이름 변경에 쓸 이름을 검증한다.
      * @param name 사용자가 입력한 이름
+     * @param location 이름이 놓일 경로 — 새 폴더면 만들 폴더, 이름 변경이면 그 항목 자신
      * @return 위반한 규칙의 집합. 비어 있으면 유효한 이름이다
      */
-    fun validateEntryName(name: String): Set<FileNameError> = fileNameUseCase.validate(name)
+    fun validateEntryName(name: String, location: String): Set<FileNameError> = fileNameUseCase.validate(name, location)
 
     /**
      * 원격 항목 [item]을 [localDestPath]에 같은 이름으로 다운로드한다.
@@ -73,7 +74,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(newName), newName, "이름 변경 실패")) return
+        if (rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             failingWith(errorMessage) { mutationRepo.rename(path, newName) }
         }
@@ -105,7 +106,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(dirName), dirName, "디렉터리 생성 실패")) return
+        if (rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, "디렉터리 생성 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             failingWith(errorMessage) { mutationRepo.makeDirectory(parentPath, dirName) }
         }

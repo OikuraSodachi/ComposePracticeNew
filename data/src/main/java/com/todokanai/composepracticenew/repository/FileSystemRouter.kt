@@ -25,8 +25,15 @@ internal class FileSystemRouter(private val fileSystems: Set<PathAwareFileSystem
      * @return 경로를 처리하는 파일 시스템. 없으면 null
      */
     fun resolve(path: String): PathAwareFileSystem? =
+        find(path) ?: null.also { Log.w(TAG, "No file system handles path: $path") }
+
+    /**
+     * [path]를 처리하는 파일 시스템을 로그 없이 찾는다. 처리자가 없다는 사실을 결과로 알리는 호출부가 쓴다 — 입력마다 불리는 판정이 경고 로그를 쌓지 않도록.
+     * @param path 처리할 경로
+     * @return 경로를 처리하는 파일 시스템. 없으면 null
+     */
+    fun find(path: String): PathAwareFileSystem? =
         fileSystems.firstOrNull { it.handles(path) }
-            ?: null.also { Log.w(TAG, "No file system handles path: $path") }
 
     /**
      * [path]의 파일과 하위 디렉터리 목록을 경로를 처리하는 파일 시스템에서 조회한다.

@@ -38,7 +38,7 @@ class LocalSamePathTest {
     )
     private val local = LocalFileOperationUseCase(
         FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, GrantedProtection, scope),
-        notices, NoOpFileActionRepository, FileNameUseCase(), paths
+        notices, NoOpFileActionRepository, FileNameUseCase(NoStorageNameRules), paths
     )
 
     @After

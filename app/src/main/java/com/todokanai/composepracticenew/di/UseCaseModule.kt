@@ -17,6 +17,7 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
+import com.todokanai.composepracticenew.repository.StorageNameRules
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
@@ -121,9 +122,6 @@ object UseCaseModule {
         ConflictCheckUseCase(notices) { messages.destinationUnverified }
 
     @Provides @Singleton
-    fun provideFileNameUseCase() = FileNameUseCase()
-
-    @Provides @Singleton
     fun provideFileOperationOrchestrator(
         notifier: FileOperationNotifier,
         progressRepo: ProgressRepository,
@@ -132,21 +130,23 @@ object UseCaseModule {
         @ApplicationScope appScope: CoroutineScope
     ) = FileOperationOrchestrator(notifier, progressRepo, notices, protection, appScope)
 
+    /** 이름 규칙은 로컬 화면이 다루는 저장소의 제약으로 판정한다. */
     @Provides @Singleton
     fun provideLocalFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
         notices: OperationNoticeReporter,
         fileActionRepo: FileActionRepository,
-        fileNameUseCase: FileNameUseCase,
+        nameRules: StorageNameRules,
         paths: StoragePathRules
-    ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, fileNameUseCase, paths)
+    ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(nameRules), paths)
 
+    /** 이름 규칙은 원격 화면이 다루는 저장소의 제약으로 판정한다. */
     @Provides @Singleton
     fun provideRemoteFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
         notices: OperationNoticeReporter,
         transferRepo: RemoteFileTransferRepository,
         mutationRepo: RemoteFileMutationRepository,
-        fileNameUseCase: FileNameUseCase
-    ) = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, fileNameUseCase)
+        @RemoteNavigator nameRules: StorageNameRules
+    ) = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase(nameRules))
 }

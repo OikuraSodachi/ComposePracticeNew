@@ -40,17 +40,17 @@ fun BottomButtonDialogHost(
     onDelete: (List<FileHolderItem>) -> Unit,
     onResolveConflict: (ConflictResolution) -> Unit,
 ) {
-    if (dialogState.compressDialog) {
+    dialogState.compressTarget?.let { folder ->
         // 키 없음 — 연 회차마다 한 번만 제안한다. 입력란은 첫 구성의 값만 쓰므로, 리컴포지션마다 목록을 다시 훑을 필요가 없다
         val suggestedName = remember { compress.suggestName(selectedList) }
         CompressDialog(
             initialText = suggestedName,
             onConfirm = {
-                compress.onCompress(selectedList, it)
+                compress.onCompress(selectedList, folder, it)
                 onResetSelection()
             },
             onDismiss = { dialogState.dismissCompress() },
-            validate = compress.validateName
+            validate = { name -> compress.validateName(folder, name) }
         )
     }
     if (dialogState.renameDialog) {

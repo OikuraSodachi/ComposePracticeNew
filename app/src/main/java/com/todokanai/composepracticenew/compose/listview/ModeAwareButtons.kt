@@ -28,9 +28,11 @@ private fun multiSelectPrimaryActions(
 )
 
 /**
- * 다중 선택 모드의 더보기 메뉴 항목을 만든다. 이름 변경은 하나만 선택했을 때, 압축 해제는 그 항목을 해제할 수 있을 때만 넣는다.
+ * 다중 선택 모드의 더보기 메뉴 항목을 만든다. 압축은 압축 파일을 만들 폴더를 정할 수 있을 때, 이름 변경은 하나만 선택했을 때,
+ * 압축 해제는 그 항목을 해제할 수 있을 때만 넣는다.
  * @param selectedList 현재 선택된 파일 목록
  * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수
+ * @param archiveFolderOf 선택 목록으로 압축 파일을 만들 폴더를 정하는 함수. 정할 수 없으면 null
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onShowInfo 현재 선택 항목의 정보 다이얼로그를 여는 콜백
@@ -40,12 +42,13 @@ private fun multiSelectPrimaryActions(
 internal fun multiSelectMoreActions(
     selectedList: List<FileHolderItem>,
     canUnzip: (FileHolderItem) -> Boolean,
+    archiveFolderOf: (List<FileHolderItem>) -> String?,
     dialogState: BottomButtonDialogState,
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onShowInfo: () -> Unit,
     onUpload: () -> Unit,
 ): List<BottomButtonAction> = buildList {
-    add(BottomButtonAction(R.string.btn_zip, dialogState::openCompress))
+    archiveFolderOf(selectedList)?.let { folder -> add(BottomButtonAction(R.string.btn_zip) { dialogState.openCompress(folder) }) }
     add(BottomButtonAction(R.string.btn_info, onShowInfo))
     add(BottomButtonAction(R.string.btn_upload, onUpload))
     val single = selectedList.singleOrNull() ?: return@buildList
@@ -63,6 +66,7 @@ internal fun multiSelectMoreActions(
  * @param selectMode 현재 로컬 선택 모드
  * @param selectedList 현재 선택된 파일 목록
  * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수
+ * @param archiveFolderOf 선택 목록으로 압축 파일을 만들 폴더를 정하는 함수. 정할 수 없으면 null이며 압축 메뉴를 두지 않는다
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
  * @param onConfirmWithConflictCheck 로컬 작업 실행을 요청하는 콜백 — 충돌 판단은 ViewModel이 수행한다
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
@@ -76,6 +80,7 @@ fun ModeAwareButtons(
     selectMode: LocalSelectMode,
     selectedList: List<FileHolderItem>,
     canUnzip: (FileHolderItem) -> Boolean,
+    archiveFolderOf: (List<FileHolderItem>) -> String?,
     dialogState: BottomButtonDialogState,
     onConfirmWithConflictCheck: (SelectMode.LocalOperation) -> Unit,
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
@@ -93,8 +98,8 @@ fun ModeAwareButtons(
             }
             /** 더보기 메뉴 항목. */
             // 선택 목록·판별 함수·항목이 캡처하는 콜백을 키로 — 이 값들이 바뀔 때만 메뉴 항목을 다시 만들고, 바뀐 콜백을 놓치지 않는다
-            val moreActions = remember(selectedList, canUnzip, dialogState, onSelectOperation, onShowInfo, transfer, onResetSelection) {
-                multiSelectMoreActions(selectedList, canUnzip, dialogState, onSelectOperation, onShowInfo) {
+            val moreActions = remember(selectedList, canUnzip, archiveFolderOf, dialogState, onSelectOperation, onShowInfo, transfer, onResetSelection) {
+                multiSelectMoreActions(selectedList, canUnzip, archiveFolderOf, dialogState, onSelectOperation, onShowInfo) {
                     transfer.onEnterUploadMode()
                     onResetSelection()
                 }

@@ -8,12 +8,14 @@ import androidx.compose.runtime.setValue
 
 /** BottomButtonListView의 입력·확인용 다이얼로그 open/close 상태를 보유한다. 파일 충돌 상태와 정보 다이얼로그(계산을 수반함)는 ViewModel이 보유한다. */
 class BottomButtonDialogState {
-    var compressDialog     by mutableStateOf(false); private set
+    /** 열린 압축 다이얼로그가 압축 파일을 만들 폴더. null이면 닫혀 있다. 열 때 정해, 검증과 실행이 같은 폴더를 쓴다. */
+    var compressTarget     by mutableStateOf<String?>(null); private set
     var renameDialog       by mutableStateOf(false); private set
     var deleteDialog       by mutableStateOf(false); private set
 
-    fun openCompress()    { compressDialog = true }
-    fun dismissCompress() { compressDialog = false }
+    /** [folder]에 압축 파일을 만드는 다이얼로그를 연다. */
+    fun openCompress(folder: String) { compressTarget = folder }
+    fun dismissCompress() { compressTarget = null }
 
     fun openRename()    { renameDialog = true }
     fun dismissRename() { renameDialog = false }

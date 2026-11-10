@@ -93,8 +93,15 @@ class FileListViewModel @Inject constructor(
     /** 같은 이름의 항목이 있어 덮어쓰기(폴더는 합치기) 확인을 기다리는 이름 변경. */
     val pendingRename: StateFlow<PendingRename?> = renameGate.pending
 
-    /** 새 폴더에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
-    fun validateEntryName(name: String): Set<FileNameError> = localFileOperationUseCase.validateEntryName(name)
+    /** 새 폴더를 만들 대상인 현재 폴더. 없으면 만들 곳이 없어 화면이 새 폴더 메뉴를 두지 않는다. */
+    val newFolderTarget: StateFlow<String?> = fileNavigatorUseCase.currentPath
+
+    /**
+     * [target] 폴더에 만들 새 폴더 이름 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다.
+     * [target]은 다이얼로그를 연 때 정한 대상 폴더로, [newFolder]에도 같은 값이 넘어간다.
+     */
+    fun validateEntryName(target: String, name: String): Set<FileNameError> =
+        localFileOperationUseCase.validateEntryName(name, target)
 
     /** [item]을 압축 해제할 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식을 따르는 UseCase가 한다. */
     fun canUnzip(item: FileHolderItem): Boolean = localFileOperationUseCase.canUnzip(item.toDomain())
@@ -107,7 +114,7 @@ class FileListViewModel @Inject constructor(
      * @return 위반한 규칙의 집합. 비어 있으면 확인 버튼을 누를 수 있다
      */
     fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
-        val errors = localFileOperationUseCase.validateEntryName(name)
+        val errors = localFileOperationUseCase.validateEntryName(name, item.path)
         val conflict = conflictCheckUseCase.previewRenameConflict(
             targetPath = item.path,
             targetIsDirectory = item.isDirectory,
@@ -121,8 +128,20 @@ class FileListViewModel @Inject constructor(
     /** 압축 다이얼로그가 만드는 아카이브 형식. 형식을 고르는 화면이 없으므로 ZIP 하나다. */
     private val archiveFormat = ArchiveFormat.ZIP
 
-    /** 압축 파일 이름([name]+[archiveFormat]의 확장자)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
-    fun validateArchiveName(name: String): Set<FileNameError> = localFileOperationUseCase.validateArchiveName(name, archiveFormat)
+    /**
+     * 압축 파일을 만들 폴더를 정한다. 압축 파일은 첫 항목 옆에 만든다. 다이얼로그를 열 때 한 번 정해 [validateArchiveName]과 [compress]에 함께 넘긴다.
+     * @param selectedList 압축할 항목
+     * @return 첫 항목의 부모 폴더. 항목이 없거나 부모를 정할 수 없으면 null(화면은 압축 메뉴를 두지 않는다)
+     */
+    fun archiveFolderOf(selectedList: List<FileHolderItem>): String? =
+        selectedList.firstOrNull()?.path?.let(fileNavigatorUseCase::parentOf)
+
+    /**
+     * [folder]에 만들 압축 파일 이름([name]+[archiveFormat]의 확장자)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다.
+     * [folder]는 다이얼로그를 연 때 [archiveFolderOf]로 정한 폴더로, [compress]에도 같은 값이 넘어간다.
+     */
+    fun validateArchiveName(folder: String, name: String): Set<FileNameError> =
+        localFileOperationUseCase.validateArchiveName(name, folder, archiveFormat)
 
     /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
     fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
@@ -167,11 +186,14 @@ class FileListViewModel @Inject constructor(
     private fun nameWithoutExtension(item: FileHolderItem): String =
         if (item.isDirectory) item.name else item.name.substring(0, FileNameParts.baseNameEnd(item.name))
 
-    /** 현재 경로에 [name] 이름의 새 폴더를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
-    fun newFolder(name: String) {
-        val currentPath = fileNavigatorUseCase.currentPath.value ?: return
+    /**
+     * [target] 폴더에 [name] 이름의 새 폴더를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
+     * @param target 다이얼로그를 연 때 정한 대상 폴더 — [validateEntryName]이 판정한 것과 같은 폴더
+     * @param name 새 폴더 이름
+     */
+    fun newFolder(target: String, name: String) {
         localFileOperationUseCase.makeDirectory(
-            parentPath = currentPath,
+            parentPath = target,
             name = name,
             completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
@@ -207,13 +229,17 @@ class FileListViewModel @Inject constructor(
      */
     fun resolveConflict(resolution: ConflictResolution) = localOperationConfirmer.resolveConflict(resolution)
 
-    /** selectedList의 파일들을 [name]에 [archiveFormat]의 확장자를 붙인 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
-    fun compress(selectedList: List<FileHolderItem>, name: String) {
-        val parent = selectedList.firstOrNull()?.path?.let(fileNavigatorUseCase::parentOf) ?: return
+    /**
+     * selectedList의 파일들을 [folder]에 [name]+[archiveFormat]의 확장자 이름의 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
+     * @param selectedList 압축할 항목
+     * @param folder 다이얼로그를 연 때 [archiveFolderOf]로 정한 폴더 — [validateArchiveName]이 판정한 것과 같은 폴더
+     * @param name 압축 파일 이름(확장자 제외)
+     */
+    fun compress(selectedList: List<FileHolderItem>, folder: String, name: String) {
         val targets = selectedList.map { it.path }.toSet()
         localFileOperationUseCase.compress(
             files = targets,
-            parentPath = parent,
+            parentPath = folder,
             name = name,
             format = archiveFormat,
             completionMessage = messages.notiComplete,

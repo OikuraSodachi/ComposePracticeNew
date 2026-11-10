@@ -66,6 +66,7 @@ fun BottomButtonListView(
         selectMode = selectMode,
         selectedList = currentSelectedList,
         canUnzip = canUnzip,
+        archiveFolderOf = compress.folderOf,
         dialogState = dialogState,
         onConfirmWithConflictCheck = onConfirmWithConflictCheck,
         onSelectOperation = onSelectOperation,
