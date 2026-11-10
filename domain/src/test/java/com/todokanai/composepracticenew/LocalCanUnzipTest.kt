@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
@@ -54,7 +55,8 @@ class LocalCanUnzipTest {
     /** `.zip`으로 끝나는 경로만 압축 해제할 수 있다고 답하는 테스트용 저장소. 다른 작업은 쓰지 않는다. */
     private object ZipOnlyRepository : FileActionRepository {
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done

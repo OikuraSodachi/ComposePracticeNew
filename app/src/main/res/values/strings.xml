@@ -101,7 +101,7 @@
     <string name="progress_copying">복사 중</string>
     <string name="progress_moving">이동 중</string>
     <string name="progress_deleting">삭제 중</string>
-    <string name="progress_zipping">압축 중</string>
+    <string name="progress_compressing">압축 중</string>
     <string name="progress_unzipping">압축 해제 중</string>
     <string name="progress_downloading">다운로드 중</string>
     <string name="progress_uploading">업로드 중</string>

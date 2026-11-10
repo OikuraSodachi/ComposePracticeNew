@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -47,7 +48,7 @@ class FileNameEnforcementTest {
     fun `로컬 이름 변경·새 폴더·압축은 규칙 위반 이름을 거부하고 오류를 방출한다`() {
         local.rename("/dir/a.txt", "x/y", false, "done") {}
         local.makeDirectory("/dir", "..", "done") {}
-        local.zip(setOf("/dir/a.txt"), "/dir", " archive", "done") {}
+        local.compress(setOf("/dir/a.txt"), "/dir", " archive", ArchiveFormat.ZIP, "done") {}
 
         assertEquals(3, notices.failures.size)
         assertTrue(notices.failures[0].startsWith("이름 변경 실패"))
@@ -78,8 +79,8 @@ class FileNameEnforcementTest {
 
     @Test
     fun `압축 이름 검증은 확장자를 포함한 길이로 판정한다`() {
-        assertTrue(local.validateZipName("a".repeat(251)).isEmpty())
-        assertTrue(local.validateZipName("a".repeat(252)).isNotEmpty())
+        assertTrue(local.validateArchiveName("a".repeat(251), ArchiveFormat.ZIP).isEmpty())
+        assertTrue(local.validateArchiveName("a".repeat(252), ArchiveFormat.ZIP).isNotEmpty())
     }
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
@@ -92,7 +93,8 @@ class FileNameEnforcementTest {
     /** 호출된 작업 이름을 기록하는 테스트용 로컬 파일 작업 저장소. */
     private class RecordingFileActionRepository : FileActionRepository {
         val calls = mutableListOf<String>()
-        override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
+        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
+        override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }

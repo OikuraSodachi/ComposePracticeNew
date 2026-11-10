@@ -45,7 +45,7 @@ internal fun multiSelectMoreActions(
     onShowInfo: () -> Unit,
     onUpload: () -> Unit,
 ): List<BottomButtonAction> = buildList {
-    add(BottomButtonAction(R.string.btn_zip, dialogState::openZip))
+    add(BottomButtonAction(R.string.btn_zip, dialogState::openCompress))
     add(BottomButtonAction(R.string.btn_info, onShowInfo))
     add(BottomButtonAction(R.string.btn_upload, onUpload))
     val single = selectedList.singleOrNull() ?: return@buildList

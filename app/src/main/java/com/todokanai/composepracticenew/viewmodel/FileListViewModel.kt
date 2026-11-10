@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.RenameConflict
@@ -117,8 +118,11 @@ class FileListViewModel @Inject constructor(
         return if (conflict == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
     }
 
-    /** 압축 파일 이름([name].zip)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
-    fun validateZipName(name: String): Set<FileNameError> = localFileOperationUseCase.validateZipName(name)
+    /** 압축 다이얼로그가 만드는 아카이브 형식. 형식을 고르는 화면이 없으므로 ZIP 하나다. */
+    private val archiveFormat = ArchiveFormat.ZIP
+
+    /** 압축 파일 이름([name]+[archiveFormat]의 확장자)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
+    fun validateArchiveName(name: String): Set<FileNameError> = localFileOperationUseCase.validateArchiveName(name, archiveFormat)
 
     /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
     fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
@@ -129,16 +133,16 @@ class FileListViewModel @Inject constructor(
     )
 
     /**
-     * 압축 다이얼로그에 미리 채울 이름(확장자 제외). 같은 이름의 zip이 있으면 `이름 (n)`으로 겹치지 않게 고른다.
+     * 압축 다이얼로그에 미리 채울 이름(확장자 제외). 같은 이름의 아카이브가 있으면 `이름 (n)`으로 겹치지 않게 고른다.
      * @param selectedList 압축할 항목
      * @return 하나면 그 항목의 이름(파일은 확장자 제외), 여러 개면 항목들이 있는 폴더의 이름
      */
-    fun suggestZipName(selectedList: List<FileHolderItem>): String {
+    fun suggestArchiveName(selectedList: List<FileHolderItem>): String {
         val first = selectedList.firstOrNull() ?: return ""
         return conflictCheckUseCase.suggestNameBeside(
             siblingPath = first.path,
-            baseName = zipBaseName(selectedList, first),
-            extension = LocalFileOperationUseCase.ZIP_EXTENSION,
+            baseName = archiveBaseName(selectedList, first),
+            extension = archiveFormat.extension,
             folder = fileNavigatorUseCase,
             ignoreCase = LOCAL_IGNORE_CASE,
         )
@@ -150,7 +154,7 @@ class FileListViewModel @Inject constructor(
      * @param first [selectedList]의 첫 항목
      * @return 확장자를 뺀 기본 이름
      */
-    private fun zipBaseName(selectedList: List<FileHolderItem>, first: FileHolderItem): String {
+    private fun archiveBaseName(selectedList: List<FileHolderItem>, first: FileHolderItem): String {
         val folderName = fileNavigatorUseCase.parentOf(first.path)?.let(fileNavigatorUseCase::displayNameOf).orEmpty()
         return if (selectedList.size > 1 && folderName.isNotEmpty()) folderName else nameWithoutExtension(first)
     }
@@ -203,14 +207,15 @@ class FileListViewModel @Inject constructor(
      */
     fun resolveConflict(resolution: ConflictResolution) = localOperationConfirmer.resolveConflict(resolution)
 
-    /** selectedList의 파일들을 [name].zip으로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
-    fun zip(selectedList: List<FileHolderItem>, name: String) {
+    /** selectedList의 파일들을 [name]에 [archiveFormat]의 확장자를 붙인 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다. */
+    fun compress(selectedList: List<FileHolderItem>, name: String) {
         val parent = selectedList.firstOrNull()?.path?.let(fileNavigatorUseCase::parentOf) ?: return
         val targets = selectedList.map { it.path }.toSet()
-        localFileOperationUseCase.zip(
+        localFileOperationUseCase.compress(
             files = targets,
             parentPath = parent,
             name = name,
+            format = archiveFormat,
             completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

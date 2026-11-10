@@ -10,7 +10,7 @@ enum class FileOperationType(val id: Int, val isRemote: Boolean) {
     COPY(20, false),
     MOVE(21, false),
     DELETE(22, false),
-    ZIP(23, false),
+    COMPRESS(23, false),
     UNZIP(24, false),
     DOWNLOAD(25, true),
     UPLOAD(26, true);

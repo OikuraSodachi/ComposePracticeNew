@@ -163,7 +163,7 @@ private fun unknownFilesTextRes(operationType: FileOperationType?): Int = when (
     FileOperationType.DOWNLOAD -> R.string.progress_unknown_files_received
     FileOperationType.UPLOAD -> R.string.progress_unknown_files_sent
     FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE,
-    FileOperationType.ZIP, FileOperationType.UNZIP, null -> R.string.progress_unknown_files_processed
+    FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> R.string.progress_unknown_files_processed
 }
 
 /** 진행률의 표시 문구. 모르면 퍼센트 대신 알 수 없음을 보여준다. */
