@@ -210,10 +210,10 @@ class FileListViewModel @Inject constructor(
 
     /**
      * 확인한 [mode] 작업을 확정해 [LocalOperationConfirmer]에 넘긴다. 판정·실행은 이 화면의 수명과 무관하게 끝까지 진행된다.
-     * @param selectedList 작업 대상 항목
+     * @param selection 로컬 화면의 선택에서 꺼낸 작업 대상
      * @param mode 실행할 로컬 작업 모드
      */
-    fun requestConfirm(selectedList: List<FileHolderItem>, mode: SelectMode.LocalOperation) = localOperationConfirmer.confirm(selectedList, mode)
+    fun requestConfirm(selection: SubmittedSelection, mode: SelectMode.LocalOperation) = localOperationConfirmer.confirm(selection.items, mode)
 
     /**
      * 대기 중인 충돌을 사용자의 선택대로 처리한다.
@@ -222,13 +222,13 @@ class FileListViewModel @Inject constructor(
     fun resolveConflict(resolution: ConflictResolution) = localOperationConfirmer.resolveConflict(resolution)
 
     /**
-     * selectedList의 파일들을 [folder]에 [name]+[archiveFormat]의 확장자 이름의 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
-     * @param selectedList 압축할 항목
+     * selection의 파일들을 [folder]에 [name]+[archiveFormat]의 확장자 이름의 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
+     * @param selection 로컬 화면의 선택에서 꺼낸 압축할 항목
      * @param folder 다이얼로그를 연 때 [archiveFolderOf]로 정한 폴더 — [validateArchiveName]이 판정한 것과 같은 폴더
      * @param name 압축 파일 이름(확장자 제외)
      */
-    fun compress(selectedList: List<FileHolderItem>, folder: String, name: String) {
-        val targets = selectedList.map { it.path }.toSet()
+    fun compress(selection: SubmittedSelection, folder: String, name: String) {
+        val targets = selection.items.map { it.path }.toSet()
         localFileOperationUseCase.compress(
             files = targets,
             parentPath = folder,
@@ -240,11 +240,14 @@ class FileListViewModel @Inject constructor(
     }
 
     /**
-     * [item]의 이름을 [name]으로 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
+     * selection의 항목 하나의 이름을 [name]으로 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
      * 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
      * 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
+     * @param selection 로컬 화면의 선택에서 꺼낸 항목. 이름 변경은 하나만 선택했을 때만 열리므로 항목이 정확히 하나다
+     * @param name 새 이름
      */
-    fun rename(item: FileHolderItem, name: String) {
+    fun rename(selection: SubmittedSelection, name: String) {
+        val item = selection.items.single()
         val conflict = renameConflictOf(item, name) ?: return
         renameGate.request(item, name, conflict) { overwrite ->
             localFileOperationUseCase.rename(
@@ -275,10 +278,13 @@ class FileListViewModel @Inject constructor(
             folder = fileNavigatorUseCase,
         )
 
-    /** selectedList의 파일들을 삭제한다. */
-    fun delete(selectedList: List<FileHolderItem>) {
+    /**
+     * selection의 파일들을 삭제한다.
+     * @param selection 로컬 화면의 선택에서 꺼낸 삭제할 항목
+     */
+    fun delete(selection: SubmittedSelection) {
         localFileOperationUseCase.delete(
-            files = selectedList.map { it.toDomain() },
+            files = selection.items.map { it.toDomain() },
             completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

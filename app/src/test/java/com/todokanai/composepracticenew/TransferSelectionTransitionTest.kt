@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Before
 import org.junit.Test
 
@@ -69,7 +70,7 @@ class TransferSelectionTransitionTest {
         viewModel.enterLocalOperation(SelectMode.LocalOperation.Copy)
         viewModel.startRemoteMultiSelect(remoteX)
 
-        viewModel.enterDownloadMode(listOf(remoteX))
+        viewModel.enterDownloadMode()
 
         assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(remoteX)), viewModel.localSelection.value)
         assertEquals(emptyList<FileHolderItem>(), viewModel.localSelection.value.selected)
@@ -91,7 +92,7 @@ class TransferSelectionTransitionTest {
 
     @Test
     fun `다운로드 목적지 확인을 취소하면 대기 목록도 사라진다`() {
-        viewModel.enterDownloadMode(listOf(remoteX))
+        enterDownload(remoteX)
 
         viewModel.resetLocalSelection()
 
@@ -110,7 +111,7 @@ class TransferSelectionTransitionTest {
 
     @Test
     fun `로컬 화면에 있는 동안 원격 세션이 끊기면 다운로드 대기 목록이 사라진다`() {
-        viewModel.enterDownloadMode(listOf(remoteX))
+        enterDownload(remoteX)
 
         connection.connectionState.value = RemoteConnectionState.Lost
 
@@ -139,11 +140,60 @@ class TransferSelectionTransitionTest {
 
     @Test
     fun `앱이 연결을 종료한 것은 끊김이 아니므로 다운로드 대기 목록이 남는다`() {
-        viewModel.enterDownloadMode(listOf(remoteX))
+        enterDownload(remoteX)
 
         connection.connectionState.value = RemoteConnectionState.Disconnected
 
         assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(remoteX)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `로컬에 꺼낼 선택이 없으면 업로드 확인 단계로 들어가지 않고 원격 화면을 바꾸지 않는다`() {
+        viewModel.startRemoteMultiSelect(remoteX)
+
+        assertFalse(viewModel.enterUploadMode())
+
+        assertEquals(SelectionState.MultiSelect(listOf(remoteX)), viewModel.remoteSelection.value)
+    }
+
+    @Test
+    fun `원격에 꺼낼 선택이 없으면 다운로드 확인 단계로 들어가지 않고 로컬 화면을 바꾸지 않는다`() {
+        viewModel.startLocalMultiSelect(localA)
+
+        assertFalse(viewModel.enterDownloadMode())
+
+        assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `로컬 선택을 꺼내면 로컬 화면은 기본 모드로 돌아가고 원격 화면은 그대로다`() {
+        viewModel.startLocalMultiSelect(localA)
+        viewModel.enterLocalOperation(SelectMode.LocalOperation.Copy)
+        viewModel.startRemoteMultiSelect(remoteX)
+
+        val submitted = viewModel.submitLocalSelection()
+
+        assertEquals(listOf(localA), submitted?.items)
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+        assertEquals(SelectionState.MultiSelect(listOf(remoteX)), viewModel.remoteSelection.value)
+    }
+
+    @Test
+    fun `원격 선택을 꺼내면 원격 화면은 기본 모드로 돌아가고 로컬 화면은 그대로다`() {
+        viewModel.startRemoteMultiSelect(remoteX)
+        viewModel.startLocalMultiSelect(localA)
+
+        val submitted = viewModel.submitRemoteSelection()
+
+        assertEquals(listOf(remoteX), submitted?.items)
+        assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
+        assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
+    }
+
+    /** 원격 화면에서 [item]을 다중 선택한 뒤 다운로드 대기 목록으로 로컬 화면에 넘긴다. */
+    private fun enterDownload(item: FileHolderItem) {
+        viewModel.startRemoteMultiSelect(item)
+        viewModel.enterDownloadMode()
     }
 
     /** [path]의 앱 레이어 파일 항목을 만든다. */

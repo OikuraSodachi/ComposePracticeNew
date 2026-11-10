@@ -190,12 +190,14 @@ class RemoteFileListViewModel @Inject constructor(
     }
 
     /**
-     * item을 newName으로 이름 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
+     * selection의 항목 하나를 newName으로 이름 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
      * 확인 후에도 RNTO만 보내며, 덮어쓸지는 서버 동작에 따른다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      * 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
-     * @param item 이름을 변경할 원격 파일 항목, @param newName 변경할 새 이름
+     * @param selection 원격 화면의 선택에서 꺼낸 항목. 이름 변경은 하나만 선택했을 때만 열리므로 항목이 정확히 하나다
+     * @param newName 변경할 새 이름
      */
-    fun onRename(item: FileHolderItem, newName: String) {
+    fun onRename(selection: SubmittedSelection, newName: String) {
+        val item = selection.items.single()
         val conflict = renameConflictOf(item, newName) ?: return
         renameGate.request(item, newName, conflict) { _ ->
             remoteFileOperationUseCase.renameRemote(
@@ -227,10 +229,11 @@ class RemoteFileListViewModel @Inject constructor(
         )
 
     /**
-     * items를 원격 서버에서 하나의 작업으로 삭제한다.
-     * @param items 삭제할 원격 파일 또는 디렉터리 항목
+     * selection의 항목을 원격 서버에서 하나의 작업으로 삭제한다.
+     * @param selection 원격 화면의 선택에서 꺼낸 삭제할 원격 파일 또는 디렉터리 항목
      */
-    fun onDelete(items: List<FileHolderItem>) {
+    fun onDelete(selection: SubmittedSelection) {
+        val items = selection.items
         if (items.isEmpty()) return
         remoteFileOperationUseCase.deleteRemote(
             targets = items.map { it.toDomain() },

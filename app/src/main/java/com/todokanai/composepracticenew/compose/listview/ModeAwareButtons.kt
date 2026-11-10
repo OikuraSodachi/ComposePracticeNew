@@ -98,11 +98,9 @@ fun ModeAwareButtons(
             }
             /** 더보기 메뉴 항목. */
             // 선택 목록·판별 함수·항목이 캡처하는 콜백을 키로 — 이 값들이 바뀔 때만 메뉴 항목을 다시 만들고, 바뀐 콜백을 놓치지 않는다
-            val moreActions = remember(selectedList, canUnzip, archiveFolderOf, dialogState, onSelectOperation, onShowInfo, transfer, onResetSelection) {
-                multiSelectMoreActions(selectedList, canUnzip, archiveFolderOf, dialogState, onSelectOperation, onShowInfo) {
-                    transfer.onEnterUploadMode()
-                    onResetSelection()
-                }
+            val moreActions = remember(selectedList, canUnzip, archiveFolderOf, dialogState, onSelectOperation, onShowInfo, transfer) {
+                // 업로드 진입이 로컬 선택을 꺼내며 비우므로 여기서 따로 비우지 않는다
+                multiSelectMoreActions(selectedList, canUnzip, archiveFolderOf, dialogState, onSelectOperation, onShowInfo, transfer.onEnterUploadMode)
             }
             BottomButtons(
                 modifier = modifier,

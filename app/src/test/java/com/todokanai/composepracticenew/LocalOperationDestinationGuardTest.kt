@@ -17,6 +17,8 @@ import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.LocalOperationConfirmer
+import com.todokanai.composepracticenew.viewmodel.SelectionStateHolder
+import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -198,7 +200,7 @@ class LocalOperationDestinationGuardTest {
     fun `이름 변경은 이전 요청의 목록으로 판정하지 않고 실행하지 않는다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(ListingRequest("/dest", 0L), emptyList())
 
-        viewModel.rename(renameTarget, "b.txt")
+        viewModel.rename(submitted(listOf(renameTarget)), "b.txt")
 
         assertTrue(fileActionRepo.calls.isEmpty())
         assertNull(viewModel.pendingRename.value)
@@ -209,7 +211,7 @@ class LocalOperationDestinationGuardTest {
     fun `이름 변경은 현재 요청의 확인된 목록으로 겹침을 판정한다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(request, listOf(domainItem("/dest/a.txt"), domainItem("/dest/b.txt")))
 
-        viewModel.rename(renameTarget, "b.txt")
+        viewModel.rename(submitted(listOf(renameTarget)), "b.txt")
 
         assertTrue("겹치므로 확인을 기다려야 함", fileActionRepo.calls.isEmpty())
         assertEquals("b.txt", viewModel.pendingRename.value?.newName)
@@ -226,7 +228,15 @@ class LocalOperationDestinationGuardTest {
     }
 
     /** [selected]로 [mode] 작업을 확정한다. 판정이 일시 중단하지 않으면 호출 안에서 끝난다. */
-    private fun confirm(mode: SelectMode.LocalOperation) = viewModel.requestConfirm(selected, mode)
+    private fun confirm(mode: SelectMode.LocalOperation) = viewModel.requestConfirm(submitted(selected), mode)
+
+    /** [items]를 다중 선택한 뒤 꺼낸 작업 대상을 만든다. 작업 대상은 선택에서 꺼내야만 만들 수 있다. */
+    private fun submitted(items: List<FileHolderItem>): SubmittedSelection =
+        SelectionStateHolder<Nothing, Nothing>().run {
+            startMultiSelect(items.first())
+            replaceSelection(items)
+            submit()!!
+        }
 
     /** [path]의 domain 파일 항목을 만든다. */
     private fun domainItem(path: String) =

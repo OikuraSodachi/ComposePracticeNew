@@ -197,8 +197,9 @@ private fun FileListDestination(
     val transferActions = remember(coordinator, navController) {
         LocalTransferActions(
             onConfirmDownload = coordinator::confirmDownload,
-            onEnterUploadMode = {
-                coordinator.enterUploadMode()
+            onEnterUploadMode = onEnterUploadMode@{
+                // 넘길 선택이 없으면 업로드 확인 단계가 아니므로 원격 화면으로 가지 않는다
+                if (!coordinator.enterUploadMode()) return@onEnterUploadMode
                 // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다 —
                 // 원격 화면에서 뒤로가면 로컬 목록으로 돌아온다(그래프 항목이 남아 coordinator의 업로드 대기 상태도 유지)
                 if (!navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, false)) {
@@ -221,6 +222,7 @@ private fun FileListDestination(
         onStartMultiSelect = coordinator::startLocalMultiSelect,
         onSelectOperation = coordinator::enterLocalOperation,
         onResetSelection = coordinator::resetLocalSelection,
+        onSubmitSelection = coordinator::submitLocalSelection,
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,
         onRangeSelect = coordinator::setLocalSelectedList,
@@ -273,6 +275,7 @@ private fun RemoteFileListDestination(
         selectedList = { remoteSelection.value.selected },
         onStartMultiSelect = coordinator::startRemoteMultiSelect,
         onResetSelection = coordinator::resetRemoteSelection,
+        onSubmitSelection = coordinator::submitRemoteSelection,
         addToList = coordinator::addToRemoteList,
         removeFromList = coordinator::removeFromRemoteList,
         onRangeSelect = coordinator::setRemoteSelectedList,
@@ -284,8 +287,9 @@ private fun RemoteFileListDestination(
                 }
             }
         },
-        onEnterDownloadMode = { items ->
-            coordinator.enterDownloadMode(items)
+        onEnterDownloadMode = onEnterDownloadMode@{
+            // 넘길 선택이 없으면 다운로드 확인 단계가 아니므로 로컬 화면으로 가지 않는다
+            if (!coordinator.enterDownloadMode()) return@onEnterDownloadMode
             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                 navController.navigate(NavDestinations.FILE_LIST) {
                     popUpTo(NavDestinations.REMOTE_FILE_LIST) { inclusive = true }

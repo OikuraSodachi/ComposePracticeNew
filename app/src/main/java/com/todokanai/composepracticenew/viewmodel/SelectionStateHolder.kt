@@ -44,6 +44,28 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
     /** 다른 화면에서 고른 pending을 받을 transfer의 목적지 확인 단계로 전환한다. 이 화면의 선택은 버린다. */
     fun receive(transfer: T, pending: List<FileHolderItem>) { _state.value = SelectionState.Receiving(transfer, pending) }
 
+    /**
+     * 이 화면의 선택을 작업 대상으로 꺼내고, 같은 갱신에서 기본 모드로 되돌린다.
+     * 작업 함수는 [SubmittedSelection]만 받으므로, 선택을 비우지 않고 작업을 부르는 코드는 컴파일되지 않는다.
+     * @return 다중 선택·같은 저장소 작업 상태였으면 그 선택, 그 밖의 상태면(꺼낼 선택이 없음) 상태를 바꾸지 않고 null
+     */
+    fun submit(): SubmittedSelection? {
+        var submitted: SubmittedSelection? = null
+        _state.update { current ->
+            when (current) {
+                is SelectionState.MultiSelect, is SelectionState.Operation -> {
+                    submitted = Submitted(current.selected)
+                    SelectionState.Default
+                }
+                SelectionState.Default, is SelectionState.Receiving -> {
+                    submitted = null
+                    current
+                }
+            }
+        }
+        return submitted
+    }
+
     /** 기본 모드로 되돌린다. 선택 목록과 전송 대기 목록도 함께 사라진다. */
     fun reset() { _state.value = SelectionState.Default }
 
@@ -58,4 +80,19 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
             if (current is SelectionState.MultiSelect) SelectionState.MultiSelect(edit(current.selected)) else current
         }
     }
+
+    /**
+     * [submit]만 만드는 [SubmittedSelection] 구현.
+     * @param items 꺼낸 선택 목록
+     */
+    private class Submitted(override val items: List<FileHolderItem>) : SubmittedSelection
+}
+
+/**
+ * 화면의 선택에서 꺼낸 작업 대상. [SelectionStateHolder.submit]만 만들 수 있으며, 그 화면의 선택은 이 값을 꺼낼 때 이미 기본 모드로 되돌아가 있다.
+ * 선택을 대상으로 하는 작업 함수가 목록 대신 이 값을 받아, 선택 초기화를 빠뜨린 호출을 컴파일 단계에서 막는다.
+ */
+sealed interface SubmittedSelection {
+    /** 작업 대상 항목 목록. */
+    val items: List<FileHolderItem>
 }

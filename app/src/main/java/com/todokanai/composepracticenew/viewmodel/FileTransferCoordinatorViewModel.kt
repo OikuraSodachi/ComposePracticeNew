@@ -94,21 +94,37 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun setRemoteSelectedList(list: List<FileHolderItem>) = remote.replaceSelection(list)
 
     /**
-     * 로컬 선택 목록을 업로드 대기 목록으로 원격 화면에 넘기고, 로컬 화면은 기본 모드로 되돌린다.
-     * 원격 화면에 다중 선택이 남아 있어도 묻지 않고 버린다 — 의도된 동작이다(새로 시작한 전송이 받는 화면의 이전 선택보다 우선한다).
+     * 로컬 화면의 선택을 작업 대상으로 꺼내고 로컬 화면을 기본 모드로 되돌린다. 같은 저장소 작업(복사·이동·압축 해제·압축·삭제·이름 변경)은 확인할 때 이것으로 대상을 받는다.
+     * @return 꺼낸 선택. 로컬 화면에 꺼낼 선택이 없으면(기본 모드·다운로드 확인) null
      */
-    fun enterUploadMode() {
-        remote.receive(SelectMode.Upload, local.state.value.selected)
-        local.reset()
+    fun submitLocalSelection(): SubmittedSelection? = local.submit()
+
+    /**
+     * 원격 화면의 선택을 작업 대상으로 꺼내고 원격 화면을 기본 모드로 되돌린다. 원격 작업(삭제·이름 변경)은 확인할 때 이것으로 대상을 받는다.
+     * @return 꺼낸 선택. 원격 화면에 꺼낼 선택이 없으면(기본 모드·업로드 확인) null
+     */
+    fun submitRemoteSelection(): SubmittedSelection? = remote.submit()
+
+    /**
+     * 로컬 선택을 꺼내 업로드 대기 목록으로 원격 화면에 넘긴다. 로컬 화면은 꺼낼 때 기본 모드로 돌아간다.
+     * 원격 화면에 다중 선택이 남아 있어도 묻지 않고 버린다 — 의도된 동작이다(새로 시작한 전송이 받는 화면의 이전 선택보다 우선한다).
+     * @return 업로드 확인 단계로 들어갔는지. 로컬 화면에 꺼낼 선택이 없으면 아무것도 바꾸지 않고 false
+     */
+    fun enterUploadMode(): Boolean {
+        val submitted = local.submit() ?: return false
+        remote.receive(SelectMode.Upload, submitted.items)
+        return true
     }
 
     /**
-     * items를 다운로드 대기 목록으로 로컬 화면에 넘기고, 원격 화면은 기본 모드로 되돌린다.
+     * 원격 선택을 꺼내 다운로드 대기 목록으로 로컬 화면에 넘긴다. 원격 화면은 꺼낼 때 기본 모드로 돌아간다.
      * 로컬 화면에 다중 선택이나 작업(복사·이동·압축 해제) 목적지 확인이 남아 있어도 묻지 않고 버린다 — 의도된 동작이다(새로 시작한 전송이 받는 화면의 이전 선택보다 우선한다).
+     * @return 다운로드 확인 단계로 들어갔는지. 원격 화면에 꺼낼 선택이 없으면 아무것도 바꾸지 않고 false
      */
-    fun enterDownloadMode(items: List<FileHolderItem>) {
-        local.receive(SelectMode.Download, items)
-        remote.reset()
+    fun enterDownloadMode(): Boolean {
+        val submitted = remote.submit() ?: return false
+        local.receive(SelectMode.Download, submitted.items)
+        return true
     }
 
     /**
@@ -143,10 +159,10 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         }
     }
 
-    /** 로컬 화면을 기본 모드로 되돌린다. 선택 목록·다운로드 대기 목록도 함께 사라진다. */
+    /** 로컬 화면을 기본 모드로 되돌린다(취소·뒤로가기). 선택 목록·다운로드 대기 목록도 함께 사라진다. */
     fun resetLocalSelection() = local.reset()
 
-    /** 원격 화면을 기본 모드로 되돌린다. 선택 목록·업로드 대기 목록도 함께 사라진다. */
+    /** 원격 화면을 기본 모드로 되돌린다(취소·뒤로가기). 선택 목록·업로드 대기 목록도 함께 사라진다. */
     fun resetRemoteSelection() = remote.reset()
 
     /**
