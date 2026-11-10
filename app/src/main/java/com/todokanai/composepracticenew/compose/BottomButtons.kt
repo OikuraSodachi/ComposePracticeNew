@@ -36,6 +36,8 @@ fun BottomButtons(
     moreActions: List<BottomButtonAction>,
 ) {
     val strMore = stringResource(R.string.btn_more)
+    /** 더보기 메뉴에 넘길 (표시 문자열, 동작) 목록. */
+    // remember 없이 매번 만든다 — 항목 목록은 호출부가 기억해 넘기고, stringResource는 컴포지션 안에서 읽어야 구성 변경(언어 등)을 따른다
     val dropdownContents = moreActions.map { stringResource(it.labelRes) to it.onClick }
 
     Row(

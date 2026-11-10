@@ -18,7 +18,7 @@ sealed interface SelectMode {
 
     /**
      * 로컬 화면에서 목적지로 이동한 뒤 확인 버튼으로 실행하는 로컬 파일 작업 모드. 실행 전 이름 충돌을 검사한다.
-     * @param labelRes 확인 버튼에 표시할 문자열 리소스
+     * @param labelRes 확인 버튼과, 다중 선택에서 이 모드로 들어가는 버튼에 함께 표시할 문자열 리소스. 두 버튼의 문구를 다르게 하려면 진입 버튼에 별도 리소스를 둔다
      */
     sealed class LocalOperation(@StringRes override val labelRes: Int) : LocalSelectMode, SameStorageOperation {
         /** 복사 목적지 탐색 후 확인하는 모드. */
