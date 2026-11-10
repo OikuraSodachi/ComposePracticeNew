@@ -20,7 +20,7 @@ import java.util.zip.ZipFile
 class LocalArchiveCompressionTest {
 
     private val dir: File = Files.createTempDirectory("zip-test").toFile()
-    private val compression = LocalArchiveCompression(setOf(ZipArchiveCompressor()))
+    private val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()))
 
     @After
     fun tearDown() {
@@ -116,10 +116,36 @@ class LocalArchiveCompressionTest {
     fun `형식을 쓰는 구현이 없으면 아무것도 만들지 않고 실패한다`() = runBlocking {
         val src = folderWith("a.txt", "hello")
 
-        val result = LocalArchiveCompression(emptySet()).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {}
+        val result = LocalArchiveCompression(emptyMap()).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {}
 
         assertTrue(result.toString(), result is IoResult.ItemFailed)
         assertTrue(!File(dir, "out.zip").exists())
+    }
+
+    @Test
+    fun `지원 형식은 구현을 등록한 형식이다`() {
+        assertEquals(setOf(ArchiveFormat.ZIP), compression.supportedFormats())
+        assertEquals(emptySet<ArchiveFormat>(), LocalArchiveCompression(emptyMap()).supportedFormats())
+    }
+
+    @Test
+    fun `형식별 구현에는 모을 때 정한 폴더·파일 구분과 파일 크기를 담아 넘긴다`() = runBlocking {
+        val src = folderWith("a.txt", "hello")
+        val recorder = RecordingCompressor()
+
+        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {})
+
+        assertEquals(listOf(ArchiveSource.Folder("src"), ArchiveSource.Regular("src/a.txt", File(src, "a.txt"), 5L)), recorder.entries)
+    }
+
+    /** 받은 항목을 기록하기만 하는 테스트용 ArchiveCompressor. */
+    private class RecordingCompressor : ArchiveCompressor {
+        /** 마지막 [write] 호출이 받은 항목. */
+        var entries: List<ArchiveSource> = emptyList()
+
+        override fun write(entries: List<ArchiveSource>, output: File, tracker: ByteProgressTracker) {
+            this.entries = entries
+        }
     }
 
     /** [targetFiles]를 [dir] 아래 [baseName].zip으로 압축한다. */

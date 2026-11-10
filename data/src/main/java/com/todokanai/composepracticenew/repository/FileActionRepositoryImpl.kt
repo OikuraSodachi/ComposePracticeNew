@@ -27,6 +27,7 @@ class FileActionRepositoryImpl @Inject constructor(
 ) : FileActionRepository {
     override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) =
         archiveCompression.compress(targetFiles, parentPath, baseName, format, onProgress)
+    override fun supportedArchiveFormats() = archiveCompression.supportedFormats()
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = treeTransfer.copy(targetFiles, targetPath, onProgress)
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = entryMutator.rename(targetFile, newName, overwrite)
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFile, onProgress)

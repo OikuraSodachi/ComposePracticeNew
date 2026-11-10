@@ -10,8 +10,11 @@ interface FileActionRepository {
 
     // Compresses [targetFiles] into a new [format] archive named [baseName] + [ArchiveFormat.extension] under [parentPath], reporting progress via [onProgress].
     // Never overwrites: if that name already exists, a numbered name such as "name (1).zip" is used instead.
-    // Fails without creating anything if the implementation has no compressor for [format].
+    // Fails without creating anything if [format] is not in [supportedArchiveFormats].
     suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+
+    // Returns the archive formats [compressAction] can create.
+    fun supportedArchiveFormats(): Set<ArchiveFormat>
 
     // Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
     suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>

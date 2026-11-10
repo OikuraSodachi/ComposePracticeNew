@@ -12,12 +12,18 @@ import java.io.File
 import javax.inject.Inject
 
 /**
- * 로컬 파일·디렉터리를 하나의 아카이브로 압축하는 흐름을 조율한다. 형식별 쓰기는 주입된 [ArchiveCompressor] 집합에 위임한다.
- * @param compressors 형식별 아카이브 쓰기 구현 집합 — 각 format은 서로 겹치지 않는다
+ * 로컬 파일·디렉터리를 하나의 아카이브로 압축하는 흐름을 조율한다. 형식별 쓰기는 주입된 [ArchiveCompressor]에 위임한다.
+ * @param compressors 형식을 키로 등록한 아카이브 쓰기 구현 — 한 형식에 구현 하나(같은 키의 중복 등록은 Dagger가 컴파일 오류로 막는다)
  */
 class LocalArchiveCompression @Inject constructor(
-    private val compressors: Set<@JvmSuppressWildcards ArchiveCompressor>
+    private val compressors: Map<ArchiveFormat, @JvmSuppressWildcards ArchiveCompressor>
 ) {
+
+    /**
+     * [compress]가 만들 수 있는 아카이브 형식을 구한다.
+     * @return 구현이 등록된 형식의 집합
+     */
+    fun supportedFormats(): Set<ArchiveFormat> = compressors.keys
 
     /**
      * [targetFiles]를 [parentPath] 아래 `[baseName][ArchiveFormat.extension]` 아카이브로 압축한다. 그 이름이 이미 있으면 덮어쓰지 않고 `이름 (n).확장자` 형태의 새 이름으로 만든다.
@@ -36,7 +42,7 @@ class LocalArchiveCompression @Inject constructor(
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo {
-            val compressor = compressorFor(format) ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${format.extension}")
+            val compressor = compressors[format] ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${format.extension}")
             compressEntries(compressor, targetFiles, File(parentPath, "$baseName${format.extension}"), onProgress)
         }
     }
@@ -52,10 +58,10 @@ class LocalArchiveCompression @Inject constructor(
     private fun compressEntries(compressor: ArchiveCompressor, targetFiles: Set<String>, desired: File, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         val roots = targetFiles.map(::File)
         // 위에서 아래로 순회하므로 폴더 항목이 항상 그 하위 항목보다 먼저 온다
-        val entries = roots.flatMap { root -> root.walkTopDown().map { ArchiveSource(entryNameOf(root, it), it) }.toList() }
+        val entries = roots.flatMap { root -> root.walkTopDown().map { sourceOf(root, it) }.toList() }
         if (entries.isEmpty()) return IoResult.ItemFailed("압축할 항목이 없습니다.")
-        val files = entries.filter { !it.file.isDirectory }
-        val totalBytes = files.sumOf { it.file.length() }
+        val files = entries.filterIsInstance<ArchiveSource.Regular>()
+        val totalBytes = files.sumOf { it.bytes }
         checkDiskSpace(totalBytes, (desired.parentFile ?: desired).freeSpace)
             ?.let { return IoResult.ItemFailed(it) }
         val tracker = ByteProgressTracker(totalBytes, files.size, onProgress)
@@ -68,11 +74,15 @@ class LocalArchiveCompression @Inject constructor(
     }
 
     /**
-     * [format]을 쓰는 구현을 찾는다.
-     * @param format 만들 아카이브 형식
-     * @return 구현. 없으면 null
+     * [file]을 아카이브 항목으로 만든다. 폴더인지와 파일 크기는 여기서 한 번만 정한다 — 진행 합계와 형식별 쓰기가 같은 값을 쓰도록.
+     * @param root 사용자가 선택한 압축 대상(파일 또는 폴더)
+     * @param file [root] 자신 또는 그 하위 항목
+     * @return 폴더면 [ArchiveSource.Folder], 아니면 지금 크기를 담은 [ArchiveSource.Regular]
      */
-    private fun compressorFor(format: ArchiveFormat): ArchiveCompressor? = compressors.firstOrNull { it.format == format }
+    private fun sourceOf(root: File, file: File): ArchiveSource {
+        val name = entryNameOf(root, file)
+        return if (file.isDirectory) ArchiveSource.Folder(name) else ArchiveSource.Regular(name, file, file.length())
+    }
 
     /**
      * [file]의 항목 이름을 선택 항목 [root]의 부모 폴더 기준 상대 경로로 만든다.

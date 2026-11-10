@@ -92,6 +92,7 @@ internal class RecordingFileActionRepository : FileActionRepository {
     /** 정해 두면 압축 해제가 만들 이름을 구하는 호출이 이 값이 완료될 때까지 기다린다 — 아카이브를 읽는 동안의 일시 중단을 흉내 낸다. */
     var extractedNamesGate: CompletableDeferred<Unit>? = null
     override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
+    override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }

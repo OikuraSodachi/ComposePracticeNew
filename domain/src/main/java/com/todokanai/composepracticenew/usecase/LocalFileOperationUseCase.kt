@@ -115,7 +115,7 @@ class LocalFileOperationUseCase(
     }
 
     /**
-     * [files]를 [parentPath] 아래 [name]에 [format]의 확장자를 붙인 아카이브로 압축한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
+     * [files]를 [parentPath] 아래 [name]에 [format]의 확장자를 붙인 아카이브로 압축한다. 저장소가 [format]을 지원하지 않거나 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
      * 같은 이름의 파일이 이미 있으면 저장소가 `이름 (n).zip` 형태의 새 이름으로 만든다(기존 파일은 덮어쓰지 않는다).
      * @param files 압축할 파일의 절대 경로 집합
      * @param parentPath 아카이브를 생성할 디렉터리의 절대 경로
@@ -126,6 +126,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, completionMessage: String, onRefresh: suspend () -> Unit) {
+        if (rejectsUnsupportedFormat(format)) return
         if (rejectsInvalidName(validateArchiveName(name, format), "$name${format.extension}", "압축 실패")) return
         orchestrator.launch(completionMessage, FileOperationType.COMPRESS, onRefresh) { onProgress ->
             fileActionRepo.compressAction(files, parentPath, name, format, onProgress)
@@ -206,6 +207,17 @@ class LocalFileOperationUseCase(
     private fun rejectsInvalidName(errors: Set<FileNameError>, displayName: String, failurePrefix: String): Boolean {
         if (errors.isEmpty()) return false
         notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
+        return true
+    }
+
+    /**
+     * 저장소가 [format]을 만들 수 없으면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다 — 진행 표시·보호를 얻기 전에 거부하도록 실행 전에 판별한다.
+     * @param format 만들 아카이브 형식
+     * @return 지원하지 않는 형식이라 작업을 실행하지 않아야 하면 true
+     */
+    private fun rejectsUnsupportedFormat(format: ArchiveFormat): Boolean {
+        if (format in fileActionRepo.supportedArchiveFormats()) return false
+        notices.report(OperationNoticeKind.FAILURE, "압축 실패: 지원하지 않는 압축 형식입니다 (${format.extension})")
         return true
     }
 }

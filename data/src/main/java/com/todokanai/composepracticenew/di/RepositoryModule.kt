@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.datasource.ArchiveExtractor
 import com.todokanai.composepracticenew.datasource.RarArchiveExtractor
 import com.todokanai.composepracticenew.datasource.ZipArchiveCompressor
 import com.todokanai.composepracticenew.datasource.ZipArchiveExtractor
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
@@ -43,6 +44,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.multibindings.IntoMap
 import dagger.multibindings.IntoSet
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -109,7 +111,7 @@ abstract class RepositoryModule {
     @Binds @IntoSet
     abstract fun bindRarArchiveExtractor(impl: RarArchiveExtractor): ArchiveExtractor
 
-    @Binds @IntoSet
+    @Binds @IntoMap @ArchiveFormatKey(ArchiveFormat.ZIP)
     abstract fun bindZipArchiveCompressor(impl: ZipArchiveCompressor): ArchiveCompressor
 
     companion object {
