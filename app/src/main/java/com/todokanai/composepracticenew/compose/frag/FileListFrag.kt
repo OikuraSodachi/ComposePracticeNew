@@ -29,6 +29,7 @@ import com.todokanai.composepracticenew.ui.model.ListingKey
 import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
+import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -38,7 +39,8 @@ import kotlinx.coroutines.flow.Flow
  * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
  * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
- * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
+ * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백 — 취소·뒤로가기용
+ * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
  * @param childCountsFor 목록 조회 요청을 받아 그 결과의 폴더별 하위 항목 수를 읽는 창구를 돌려주는 함수. 상태를 바꾸지 않아 컴포지션 중에 부른다
  * @param searchViewModel 파일 검색의 열림 여부·검색어·결과를 맡는 ViewModel. 검색이 열려 있으면 목록 대신 검색 화면을 그린다
  */
@@ -52,6 +54,7 @@ fun FileListFrag(
     onStartMultiSelect: (FileHolderItem) -> Unit,
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
+    onSubmitSelection: () -> SubmittedSelection?,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
@@ -150,6 +153,7 @@ fun FileListFrag(
             selectMode = selectMode,
             onSelectOperation = onSelectOperation,
             onResetSelection = onResetSelection,
+            onSubmitSelection = onSubmitSelection,
             selectedList = selectedList,
             info = info,
             transfer = transfer,

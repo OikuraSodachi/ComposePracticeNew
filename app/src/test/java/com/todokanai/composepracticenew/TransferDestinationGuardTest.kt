@@ -140,7 +140,8 @@ class TransferDestinationGuardTest {
     @Test
     fun `다운로드 대상 로컬 목록 조회에 실패했으면 다운로드하지 않고 대기 목록을 유지한다`() {
         localNav.directoryListing.value = DirectoryListing.Failed(localRequest, ListingFailureReason.UNREADABLE, null)
-        viewModel.enterDownloadMode(listOf(download))
+        viewModel.startRemoteMultiSelect(download)
+        viewModel.enterDownloadMode()
 
         viewModel.confirmDownload()
 

@@ -23,6 +23,7 @@ import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
+import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 
 /**
  * 원격 스토리지 재연결 실패 이벤트와 세션 끊김 상태를 관찰해 콜백을 실행한다.
@@ -60,7 +61,9 @@ private fun RemoteFileListConnectionEffects(
  * 원격 스토리지의 파일 목록을 표시하고 I/O 작업(다운로드·업로드·이름변경·삭제·새폴더)을 제공하는 화면.
  * @param selectedList 선택 목록을 반환하는 함수 — 값을 실제로 쓰는 하위 컴포저블에서 읽어 선택 변경 시 리컴포지션 범위를 좁힌다
  * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
- * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
+ * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백 — 취소·뒤로가기용
+ * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
+ * @param onEnterDownloadMode 원격 선택을 꺼내 다운로드 모드로 진입하는 콜백
  */
 @Composable
 fun RemoteFileListFrag(
@@ -69,11 +72,12 @@ fun RemoteFileListFrag(
     selectedList: () -> List<FileHolderItem>,
     onStartMultiSelect: (FileHolderItem) -> Unit,
     onResetSelection: () -> Unit,
+    onSubmitSelection: () -> SubmittedSelection?,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     onSwitchToLocal: () -> Unit,
-    onEnterDownloadMode: (List<FileHolderItem>) -> Unit,
+    onEnterDownloadMode: () -> Unit,
     onConfirmUpload: () -> Unit,
     onConnectionLost: () -> Unit,
     navigateToStorage: () -> Unit,
@@ -158,6 +162,7 @@ fun RemoteFileListFrag(
             modifier = Modifier,
             selectMode = selectMode,
             onResetSelection = onResetSelection,
+            onSubmitSelection = onSubmitSelection,
             selectedList = selectedList,
             rename = renameActions,
             pendingRename = pendingRename,

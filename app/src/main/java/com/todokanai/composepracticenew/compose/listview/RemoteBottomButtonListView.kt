@@ -26,13 +26,14 @@ import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 
 /**
  * renameTarget이 설정된 경우 이름 변경 다이얼로그를 렌더링한다.
  *
  * @param renameTarget 이름을 변경할 대상 파일, null이면 다이얼로그를 표시하지 않음
  * @param onDismiss 다이얼로그 닫기 콜백
- * @param onRename 이름 변경 확인 시 실행할 콜백
+ * @param onConfirm 이름 변경 확인 시 새 이름을 전달받는 콜백
  * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param title 다이얼로그 제목 문자열
  */
@@ -40,7 +41,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 private fun RemoteRenameDialogHost(
     renameTarget: FileHolderItem?,
     onDismiss: () -> Unit,
-    onRename: (FileHolderItem, String) -> Unit,
+    onConfirm: (String) -> Unit,
     validateRename: (FileHolderItem, String) -> Set<FileNameError>,
     title: String,
 ) {
@@ -51,7 +52,7 @@ private fun RemoteRenameDialogHost(
             initialText = target.name,
             selectBaseNameOnly = !target.isDirectory,
             validate = { name -> validateRename(target, name) },
-            onConfirm = { newName -> onRename(target, newName) },
+            onConfirm = onConfirm,
             onDismiss = onDismiss,
         )
     }
@@ -62,12 +63,13 @@ private fun RemoteRenameDialogHost(
  *
  * @param modifier 레이아웃 수정자
  * @param selectMode 현재 선택 모드
- * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
+ * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백 — 취소·뒤로가기용
+ * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
  * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
- * @param onDelete 선택 파일 일괄 삭제 실행 콜백
- * @param onEnterDownloadMode 다운로드 모드 진입 콜백
+ * @param onDelete 선택에서 꺼낸 파일 일괄 삭제 실행 콜백
+ * @param onEnterDownloadMode 원격 선택을 꺼내 다운로드 모드로 진입하는 콜백
  * @param onConfirmUpload 업로드 확인 콜백
  */
 @Composable
@@ -75,15 +77,19 @@ fun RemoteBottomButtonListView(
     modifier: Modifier,
     selectMode: RemoteSelectMode,
     onResetSelection: () -> Unit,
+    onSubmitSelection: () -> SubmittedSelection?,
     selectedList: () -> List<FileHolderItem>,
     rename: RenameActions,
     pendingRename: PendingRename?,
-    onDelete: (List<FileHolderItem>) -> Unit,
-    onEnterDownloadMode: (List<FileHolderItem>) -> Unit,
+    onDelete: (SubmittedSelection) -> Unit,
+    onEnterDownloadMode: () -> Unit,
     onConfirmUpload: () -> Unit,
 ) {
     val currentSelectedList = selectedList()
-    var renameTarget by remember { mutableStateOf<FileHolderItem?>(null) }
+    /** 이름 변경 다이얼로그를 띄울지 여부. 대상은 선택 목록의 단일 항목이다. */
+    // 이름 변경 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다.
+    // 저장하지 않는 선택 목록과 어긋나지 않도록(복원 뒤 누르지 않은 창이 뜨지 않도록) 플래그도 저장하지 않는다
+    var showRenameDialog by remember { mutableStateOf(false) }
     // 삭제 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 
@@ -92,9 +98,10 @@ fun RemoteBottomButtonListView(
     val strRemoteRename   = stringResource(R.string.btn_remote_rename)
 
     RemoteRenameDialogHost(
-        renameTarget = renameTarget,
-        onDismiss    = { renameTarget = null },
-        onRename     = rename.onRename,
+        // 선택이 하나가 아니게 되면(끊김으로 선택이 버려지는 등) 대상이 없으므로 띄우지 않는다
+        renameTarget = currentSelectedList.singleOrNull()?.takeIf { showRenameDialog },
+        onDismiss    = { showRenameDialog = false },
+        onConfirm    = { newName -> onSubmitSelection()?.let { rename.onRename(it, newName) } },
         validateRename = rename.validate,
         title        = strRemoteRename,
     )
@@ -108,10 +115,7 @@ fun RemoteBottomButtonListView(
     }
     if (showDeleteDialog) {
         DeleteDialog(
-            onConfirm = {
-                onDelete(currentSelectedList.toList())
-                onResetSelection()
-            },
+            onConfirm = { onSubmitSelection()?.let(onDelete) },
             onDismiss = { showDeleteDialog = false }
         )
     }
@@ -125,19 +129,14 @@ fun RemoteBottomButtonListView(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = {
-                    onEnterDownloadMode(currentSelectedList.toList())
-                }) { Text(strRemoteDownload) }
+                TextButton(onClick = onEnterDownloadMode) { Text(strRemoteDownload) }
                 TextButton(
                     enabled = currentSelectedList.isNotEmpty(),
                     onClick = { showDeleteDialog = true }
                 ) { Text(strRemoteDelete) }
                 TextButton(
                     enabled = currentSelectedList.size == 1,
-                    onClick = {
-                        renameTarget = currentSelectedList.first()
-                        onResetSelection()
-                    }
+                    onClick = { showRenameDialog = true }
                 ) { Text(strRemoteRename) }
             }
         }

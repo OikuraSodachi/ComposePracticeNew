@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /** 화면 하나의 선택 상태가 허용된 전환으로만 바뀌고, 기본·전송 목적지 상태에 선택이 남지 않는지 검증하는 단위 테스트. */
@@ -118,6 +119,53 @@ class SelectionStateHolderTest {
         holder.enterOperation(SelectMode.LocalOperation.Move)
         holder.discardReceiving()
         assertEquals(SelectionState.Operation(SelectMode.LocalOperation.Move, listOf(a)), holder.state.value)
+    }
+
+    @Test
+    fun `다중 선택을 꺼내면 그 선택을 돌려주고 기본 모드가 된다`() {
+        holder.startMultiSelect(a)
+        holder.add(b)
+
+        val submitted = holder.submit()
+
+        assertEquals(listOf(a, b), submitted?.items)
+        assertEquals(SelectionState.Default, holder.state.value)
+    }
+
+    @Test
+    fun `작업 확인 단계의 선택을 꺼내면 그 선택을 돌려주고 기본 모드가 된다`() {
+        holder.startMultiSelect(a)
+        holder.enterOperation(SelectMode.LocalOperation.Copy)
+
+        val submitted = holder.submit()
+
+        assertEquals(listOf(a), submitted?.items)
+        assertEquals(SelectionState.Default, holder.state.value)
+    }
+
+    @Test
+    fun `한 번 꺼낸 선택은 다시 꺼낼 수 없다`() {
+        holder.startMultiSelect(a)
+        holder.submit()
+
+        assertNull(holder.submit())
+    }
+
+    @Test
+    fun `다중 선택에서 항목을 모두 해제했으면 꺼낼 선택이 없으므로 다중 선택을 그대로 둔다`() {
+        holder.startMultiSelect(a)
+        holder.remove(a)
+
+        assertNull(holder.submit())
+        assertEquals(SelectionState.MultiSelect(emptyList<FileHolderItem>()), holder.state.value)
+    }
+
+    @Test
+    fun `전송 목적지 확인 중에는 꺼낼 선택이 없으므로 대기 목록을 그대로 둔다`() {
+        holder.receive(SelectMode.Download, listOf(a))
+
+        assertNull(holder.submit())
+        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(a)), holder.state.value)
     }
 
     /** [path]의 파일 항목을 만든다. */
