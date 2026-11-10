@@ -166,6 +166,26 @@ class TransferSelectionTransitionTest {
     }
 
     @Test
+    fun `로컬 선택을 모두 해제했으면 업로드 확인 단계로 들어가지 않는다`() {
+        viewModel.startLocalMultiSelect(localA)
+        viewModel.removeFromLocalList(localA)
+
+        assertFalse(viewModel.enterUploadMode())
+
+        assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
+    }
+
+    @Test
+    fun `원격 선택을 모두 해제했으면 다운로드 확인 단계로 들어가지 않는다`() {
+        viewModel.startRemoteMultiSelect(remoteX)
+        viewModel.removeFromRemoteList(remoteX)
+
+        assertFalse(viewModel.enterDownloadMode())
+
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
     fun `로컬 선택을 꺼내면 로컬 화면은 기본 모드로 돌아가고 원격 화면은 그대로다`() {
         viewModel.startLocalMultiSelect(localA)
         viewModel.enterLocalOperation(SelectMode.LocalOperation.Copy)

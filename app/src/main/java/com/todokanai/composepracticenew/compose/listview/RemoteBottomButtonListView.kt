@@ -9,6 +9,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,8 +86,10 @@ fun RemoteBottomButtonListView(
     onConfirmUpload: () -> Unit,
 ) {
     val currentSelectedList = selectedList()
-    // 이름 변경 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다
-    var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    /** 이름 변경 다이얼로그를 띄울지 여부. 대상은 선택 목록의 단일 항목이다. */
+    // 이름 변경 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다.
+    // 저장하지 않는 선택 목록과 어긋나지 않도록(복원 뒤 누르지 않은 창이 뜨지 않도록) 플래그도 저장하지 않는다
+    var showRenameDialog by remember { mutableStateOf(false) }
     // 삭제 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
 

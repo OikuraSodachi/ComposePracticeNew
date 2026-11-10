@@ -47,23 +47,22 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
     /**
      * 이 화면의 선택을 작업 대상으로 꺼내고, 같은 갱신에서 기본 모드로 되돌린다.
      * 작업 함수는 [SubmittedSelection]만 받으므로, 선택을 비우지 않고 작업을 부르는 코드는 컴파일되지 않는다.
-     * @return 다중 선택·같은 저장소 작업 상태였으면 그 선택, 그 밖의 상태면(꺼낼 선택이 없음) 상태를 바꾸지 않고 null
+     * @return 다중 선택·같은 저장소 작업 상태에 항목이 있었으면 그 선택, 꺼낼 선택이 없으면(그 밖의 상태, 모두 해제한 다중 선택) 상태를 바꾸지 않고 null
      */
     fun submit(): SubmittedSelection? {
         var submitted: SubmittedSelection? = null
         _state.update { current ->
-            when (current) {
-                is SelectionState.MultiSelect, is SelectionState.Operation -> {
-                    submitted = Submitted(current.selected)
-                    SelectionState.Default
-                }
-                SelectionState.Default, is SelectionState.Receiving -> {
-                    submitted = null
-                    current
-                }
-            }
+            val items = submittableItems(current)
+            submitted = items?.let(::Submitted)
+            if (items == null) current else SelectionState.Default
         }
         return submitted
+    }
+
+    /** state에서 작업 대상으로 꺼낼 선택 목록. 이 화면의 선택이 아니거나(기본·전송 목적지) 비었으면 null. */
+    private fun submittableItems(state: SelectionState<Op, T>): List<FileHolderItem>? = when (state) {
+        is SelectionState.MultiSelect, is SelectionState.Operation -> state.selected.takeIf { it.isNotEmpty() }
+        SelectionState.Default, is SelectionState.Receiving -> null
     }
 
     /** 기본 모드로 되돌린다. 선택 목록과 전송 대기 목록도 함께 사라진다. */

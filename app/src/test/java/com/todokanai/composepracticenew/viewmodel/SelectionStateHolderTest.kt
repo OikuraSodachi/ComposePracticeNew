@@ -152,6 +152,15 @@ class SelectionStateHolderTest {
     }
 
     @Test
+    fun `다중 선택에서 항목을 모두 해제했으면 꺼낼 선택이 없으므로 다중 선택을 그대로 둔다`() {
+        holder.startMultiSelect(a)
+        holder.remove(a)
+
+        assertNull(holder.submit())
+        assertEquals(SelectionState.MultiSelect(emptyList<FileHolderItem>()), holder.state.value)
+    }
+
+    @Test
     fun `전송 목적지 확인 중에는 꺼낼 선택이 없으므로 대기 목록을 그대로 둔다`() {
         holder.receive(SelectMode.Download, listOf(a))
 
