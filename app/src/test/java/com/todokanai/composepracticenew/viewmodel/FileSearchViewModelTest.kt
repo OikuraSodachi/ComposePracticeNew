@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import com.todokanai.composepracticenew.RecordingFileLauncher
+import com.todokanai.composepracticenew.RecordingOperationNotices
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.ListingRequest
@@ -52,8 +54,8 @@ class FileSearchViewModelTest {
     private val volumes = MutableStateFlow(listOf(StorageVolumeInfo("/storage/0", 0, 0)))
     /** 이동한 경로를 기록하는 탐색 저장소. */
     private val nav = RecordingNavigator()
-    /** 외부 앱으로 연 파일 경로. */
-    private val openedFiles = mutableListOf<String>()
+    /** 외부 앱으로 연 파일 경로를 기록하는 파일 열기. */
+    private val launcher = RecordingFileLauncher()
     private lateinit var viewModel: FileSearchViewModel
 
     /** 검색 결과로 쓸 폴더. */
@@ -68,7 +70,7 @@ class FileSearchViewModelTest {
             override val storageList = volumes
             override fun load() {}
         }
-        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav, nav), OpenFileUseCase(nav) { openedFiles += it })
+        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav, nav), OpenFileUseCase(nav, launcher, RecordingOperationNotices()))
         viewModel.open()
     }
 
@@ -202,7 +204,7 @@ class FileSearchViewModelTest {
 
         viewModel.onResultClick(result, SelectMode.Default)
 
-        assertEquals(listOf(song.path), openedFiles)
+        assertEquals(listOf(song.path), launcher.launched)
         assertEquals(2, viewModel.state.value?.results?.size)
     }
 
@@ -211,7 +213,7 @@ class FileSearchViewModelTest {
         val results = searchedResults()
 
         viewModel.onResultClick(results.first { !it.isDirectory }, SelectMode.LocalOperation.Copy)
-        assertEquals(emptyList<String>(), openedFiles)
+        assertEquals(emptyList<String>(), launcher.launched)
 
         viewModel.onResultClick(results.first { it.isDirectory }, SelectMode.Download)
         assertEquals(listOf(music.path), nav.navigated)

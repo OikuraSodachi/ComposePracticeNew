@@ -137,7 +137,7 @@ class RemoteFileListViewModel @Inject constructor(
     /** 현재 원격 디렉터리의 목록을 다시 조회한다. 목록 조회 실패 화면의 다시 시도에 쓴다. */
     fun retryListing() = fileNavigatorUseCase.refresh()
 
-    /** 항목 클릭 시 디렉터리이면 해당 경로로 이동하고, 파일이면 아무 동작도 하지 않는다. */
+    /** 항목 클릭 시 디렉터리이면 해당 경로로 이동하고, 파일이면 아무 동작도 하지 않는다(원격 파일 열기는 먼저 내려받아야 하는 별도 기능이며 지원 범위 밖이다). */
     fun onItemClick(item: FileHolderItem) {
         if (item.isDirectory) {
             viewModelScope.launch {
