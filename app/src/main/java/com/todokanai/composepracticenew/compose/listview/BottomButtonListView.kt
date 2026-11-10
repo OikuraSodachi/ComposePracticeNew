@@ -5,14 +5,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
-import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.SelectMode
-import com.todokanai.composepracticenew.ui.model.SelectionSummary
 
 /**
  * 로컬 화면의 하단 파일 작업 버튼(ModeAwareButtons)과 관련 다이얼로그(BottomButtonDialogHost)를 조합한다.
@@ -20,16 +18,12 @@ import com.todokanai.composepracticenew.ui.model.SelectionSummary
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
- * @param selectionSummary 정보 다이얼로그에 표시할 선택 요약을 반환하는 함수(null이면 다이얼로그를 표시하지 않음) — 다이얼로그 호스트에서만 읽는다
- * @param onShowInfo 선택 항목의 정보 다이얼로그를 여는 콜백
- * @param onDismissInfo 정보 다이얼로그를 닫는 콜백
- * @param suggestZipName 압축 대상으로 압축 다이얼로그에 미리 채울 이름(확장자 제외)을 만드는 함수
- * @param validateZipName 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
+ * @param info 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음
+ * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
+ * @param zip 압축 다이얼로그의 콜백 묶음
  * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수 — 압축 해제 버튼 표시 여부를 정한다
- * @param validateRename 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
+ * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
- * @param onConfirmRename 이름 변경 덮어쓰기(합치기) 확인 콜백
- * @param onCancelRename 이름 변경 덮어쓰기 취소 콜백
  */
 @Composable
 fun BottomButtonListView(
@@ -38,23 +32,15 @@ fun BottomButtonListView(
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
     selectedList: () -> List<FileHolderItem>,
-    selectionSummary: () -> SelectionSummary?,
-    onShowInfo: (List<FileHolderItem>) -> Unit,
-    onDismissInfo: () -> Unit,
+    info: SelectionInfoActions,
     pendingConflict: PendingConflict?,
-    onConfirmDownload: () -> Unit = {},
-    onEnterUploadMode: () -> Unit = {},
+    transfer: LocalTransferActions,
     onRequestConfirm: (List<FileHolderItem>, SelectMode.LocalOperation) -> Boolean,
     onResolveConflict: (ConflictResolution) -> Boolean,
-    onZip: (List<FileHolderItem>, String) -> Unit,
-    suggestZipName: (List<FileHolderItem>) -> String,
-    validateZipName: (String) -> Set<FileNameError>,
+    zip: ZipActions,
     canUnzip: (FileHolderItem) -> Boolean,
-    onRename: (FileHolderItem, String) -> Unit,
-    validateRename: (FileHolderItem, String) -> Set<FileNameError>,
+    rename: RenameActions,
     pendingRename: PendingRename?,
-    onConfirmRename: () -> Unit,
-    onCancelRename: () -> Unit,
     onDelete: (List<FileHolderItem>) -> Unit,
 ) {
     val dialogState = rememberBottomButtonDialogState()
@@ -68,8 +54,8 @@ fun BottomButtonListView(
         { mode -> if (onRequestConfirm(latestSelectedList, mode)) onResetSelection() }
     }
     /** 누른 시점의 선택 목록으로 정보 다이얼로그를 연다. */
-    // 키 없음 — 선택 목록은 rememberUpdatedState로 실행 시점에 읽고, onShowInfo는 안정 참조
-    val onShowSelectedInfo: () -> Unit = remember { { onShowInfo(latestSelectedList) } }
+    // info를 키로 — 선택 목록은 rememberUpdatedState로 실행 시점에 읽고, 콜백 묶음이 바뀔 때만 람다를 새로 만든다
+    val onShowSelectedInfo: () -> Unit = remember(info) { { info.onShow(latestSelectedList) } }
 
     ModeAwareButtons(
         modifier = modifier,
@@ -81,24 +67,17 @@ fun BottomButtonListView(
         onSelectOperation = onSelectOperation,
         onResetSelection = onResetSelection,
         onShowInfo = onShowSelectedInfo,
-        onConfirmDownload = onConfirmDownload,
-        onEnterUploadMode = onEnterUploadMode,
+        transfer = transfer,
     )
     BottomButtonDialogHost(
         dialogState = dialogState,
         pendingConflict = pendingConflict,
         selectedList = currentSelectedList,
-        selectionSummary = selectionSummary,
-        onDismissInfo = onDismissInfo,
+        info = info,
         onResetSelection = onResetSelection,
-        onZip = onZip,
-        suggestZipName = suggestZipName,
-        validateZipName = validateZipName,
-        onRename = onRename,
-        validateRename = validateRename,
+        zip = zip,
+        rename = rename,
         pendingRename = pendingRename,
-        onConfirmRename = onConfirmRename,
-        onCancelRename = onCancelRename,
         onDelete = onDelete,
         onResolveConflict = onResolveConflict,
     )

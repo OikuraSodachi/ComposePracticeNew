@@ -79,12 +79,15 @@ internal object NoOpMutationRepository : RemoteFileMutationRepository {
 /** 호출된 로컬 작업을 기록하는 테스트용 로컬 파일 작업 저장소. */
 internal class RecordingFileActionRepository : FileActionRepository {
     val calls = mutableListOf<String>()
+
+    /** 압축 해제 호출마다 넘어온 '여기에 풀기' 여부. */
+    val unzipHereFlags = mutableListOf<Boolean>()
     override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip" }
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip"; unzipHereFlags += unzipHere }
     override fun canExtract(path: String) = false
     override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
 }

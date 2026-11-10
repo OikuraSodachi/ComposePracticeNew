@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.compose
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,91 +16,40 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dropdownmenu.MyDropdownMenu
-import com.todokanai.composepracticenew.ui.model.FileHolderItem
-
-private fun buildDropdownItems(
-    selectedList: List<FileHolderItem>,
-    canUnzip: (FileHolderItem) -> Boolean,
-    strZip: String,
-    strInfo: String,
-    strUpload: String,
-    strRename: String,
-    strUnzip: String,
-    strUnzipHere: String,
-    zip: () -> Unit,
-    info: () -> Unit,
-    upload: () -> Unit,
-    rename: () -> Unit,
-    unzip: () -> Unit,
-    unzipHere: () -> Unit,
-): List<Pair<String, () -> Unit>> =
-    mutableListOf(Pair(strZip, zip), Pair(strInfo, info), Pair(strUpload, upload))
-        .apply {
-            if (selectedList.size == 1) {
-                add(Pair(strRename, rename))
-                if (canUnzip(selectedList.first())) {
-                    add(Pair(strUnzip, unzip))
-                    add(Pair(strUnzipHere, unzipHere))
-                }
-            }
-        }
 
 /**
- * 멀티셀렉트 모드에서 이동·복사·삭제·더보기(압축·정보·업로드·이름변경·압축해제) 버튼을 제공한다.
- * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수 — 하나만 선택했을 때 압축 해제 버튼 표시 여부를 정한다
+ * 하단 버튼이나 더보기 메뉴의 항목 하나.
+ * @param labelRes 표시할 문자열 리소스
+ * @param onClick 눌렀을 때 실행할 동작
+ */
+class BottomButtonAction(@StringRes val labelRes: Int, val onClick: () -> Unit)
+
+/**
+ * 주어진 항목을 하단 버튼과 더보기 메뉴로 그린다. 어떤 항목을 언제 보일지는 호출부가 정한다.
+ * @param primaryActions 하단에 바로 보이는 버튼 항목
+ * @param moreActions 더보기 메뉴의 항목
  */
 @Composable
 fun BottomButtons(
     modifier: Modifier,
-    move:()->Unit,
-    copy:()->Unit,
-    delete:()->Unit,
-    zip:()->Unit,
-    unzip:()->Unit,
-    unzipHere:()->Unit,
-    rename:()->Unit,
-    info:()->Unit,
-    upload:()->Unit,
-    selectedList: List<FileHolderItem>,
-    canUnzip: (FileHolderItem) -> Boolean
+    primaryActions: List<BottomButtonAction>,
+    moreActions: List<BottomButtonAction>,
 ) {
-    val strMove = stringResource(R.string.btn_move)
-    val strCopy = stringResource(R.string.btn_copy)
-    val strDelete = stringResource(R.string.btn_delete)
     val strMore = stringResource(R.string.btn_more)
-    val strZip = stringResource(R.string.btn_zip)
-    val strInfo = stringResource(R.string.btn_info)
-    val strUpload = stringResource(R.string.btn_upload)
-    val strRename = stringResource(R.string.btn_rename)
-    val strUnzip = stringResource(R.string.btn_unzip)
-    val strUnzipHere = stringResource(R.string.btn_unzip_here)
+    val dropdownContents = moreActions.map { stringResource(it.labelRes) to it.onClick }
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(50.dp)
     ) {
-        TextButton(
-            onClick = move,
-            Modifier.weight(1f)
-        ) {
-            Text(strMove)
-        }
-        TextButton(
-            onClick = copy,
-            Modifier.weight(1f)
-        ) {
-            Text(strCopy)
-        }
-        TextButton(
-            onClick = delete,
-            Modifier.weight(1f)
-        ) {
-            Text(strDelete)
-        }
-        // selectedList·canUnzip을 키로 — 선택이 바뀌거나 판별 출처가 바뀔 때만 메뉴 항목을 다시 만든다
-        val dropdownContents = remember(selectedList, canUnzip) {
-            buildDropdownItems(selectedList, canUnzip, strZip, strInfo, strUpload, strRename, strUnzip, strUnzipHere, zip, info, upload, rename, unzip, unzipHere)
+        primaryActions.forEach { action ->
+            TextButton(
+                onClick = action.onClick,
+                Modifier.weight(1f)
+            ) {
+                Text(stringResource(action.labelRes))
+            }
         }
         Box(
             modifier = Modifier

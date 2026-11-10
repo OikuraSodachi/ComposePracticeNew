@@ -115,6 +115,25 @@ class LocalOperationDestinationGuardTest {
     }
 
     @Test
+    fun `확인된 목록에 같은 이름이 없으면 바로 이동한다`() {
+        nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
+
+        assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Move))
+        assertEquals(listOf("move"), fileActionRepo.calls)
+    }
+
+    @Test
+    fun `압축 해제는 작업 종류에 따라 여기에 풀기 여부를 구분해 실행한다`() {
+        nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
+
+        assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.Unzip))
+        assertTrue(viewModel.requestConfirm(selected, SelectMode.LocalOperation.UnzipHere))
+
+        assertEquals(listOf("unzip", "unzip"), fileActionRepo.calls)
+        assertEquals(listOf(false, true), fileActionRepo.unzipHereFlags)
+    }
+
+    @Test
     fun `이름 변경은 이전 요청의 목록으로 판정하지 않고 실행하지 않는다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(ListingRequest("/dest", 0L), emptyList())
 

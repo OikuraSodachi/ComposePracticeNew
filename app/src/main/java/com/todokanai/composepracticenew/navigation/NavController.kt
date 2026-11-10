@@ -33,6 +33,8 @@ import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
+import com.todokanai.composepracticenew.compose.listview.LocalTransferActions
+import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
 import com.todokanai.composepracticenew.model.OperationNoticeKind
@@ -181,6 +183,31 @@ private fun FileListDestination(
     val selectionSummary = infoViewModel.summary.collectAsStateWithLifecycle()
     val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
 
+    /** 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음. */
+    // infoViewModel·selectionSummary를 키로 — 리컴포지션마다 새 묶음을 만들어 FileListFrag의 건너뛰기가 깨지지 않도록 이 둘이 같은 동안 유지한다
+    val infoActions = remember(infoViewModel, selectionSummary) {
+        SelectionInfoActions(
+            summary = { selectionSummary.value },
+            onShow = infoViewModel::show,
+            onDismiss = infoViewModel::dismiss,
+        )
+    }
+    /** 로컬 화면의 전송 콜백 묶음. */
+    // coordinator·navController를 키로 — 위와 같은 이유로 이 둘이 같은 동안 유지한다
+    val transferActions = remember(coordinator, navController) {
+        LocalTransferActions(
+            onConfirmDownload = coordinator::confirmDownload,
+            onEnterUploadMode = {
+                coordinator.enterUploadMode()
+                // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다 —
+                // 원격 화면에서 뒤로가면 로컬 목록으로 돌아온다(그래프 항목이 남아 coordinator의 업로드 대기 상태도 유지)
+                if (!navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, false)) {
+                    navController.navigate(NavDestinations.REMOTE_FILE_LIST)
+                }
+            },
+        )
+    }
+
     BackHandler {
         viewModel.onBackPressed { navController.popBackStack() }
     }
@@ -189,9 +216,8 @@ private fun FileListDestination(
         modifier = Modifier,
         selectMode = localSelectMode,
         selectedList = { localSelection.value.selected },
-        selectionSummary = { selectionSummary.value },
-        onShowInfo = infoViewModel::show,
-        onDismissInfo = infoViewModel::dismiss,
+        info = infoActions,
+        transfer = transferActions,
         onStartMultiSelect = coordinator::startLocalMultiSelect,
         onSelectOperation = coordinator::enterLocalOperation,
         onResetSelection = coordinator::resetLocalSelection,
@@ -203,15 +229,6 @@ private fun FileListDestination(
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                 // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
                 popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
-            }
-        },
-        onConfirmDownload = coordinator::confirmDownload,
-        onEnterUploadMode = {
-            coordinator.enterUploadMode()
-            // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다 —
-            // 원격 화면에서 뒤로가면 로컬 목록으로 돌아온다(그래프 항목이 남아 coordinator의 업로드 대기 상태도 유지)
-            if (!navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, false)) {
-                navController.navigate(NavDestinations.REMOTE_FILE_LIST)
             }
         },
         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
