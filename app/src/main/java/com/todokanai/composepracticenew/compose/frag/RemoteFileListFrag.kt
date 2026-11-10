@@ -19,7 +19,6 @@ import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListV
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
-import com.todokanai.composepracticenew.ui.model.DirectoryItem
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
@@ -77,12 +76,12 @@ fun RemoteFileListFrag(
     onConnectionLost: () -> Unit = {},
     navigateToStorage: () -> Unit,
     onExit: () -> Unit,
-    dirTree: List<DirectoryItem>,
-    onDirClick: (DirectoryItem) -> Unit,
     viewModel: RemoteFileListViewModel
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-    val sortMode by viewModel.sortMode.collectAsStateWithLifecycle()
+    val sortMode by viewModel.sortModeHolder.sortMode.collectAsStateWithLifecycle()
+    // dirTree 변경 시 NavController 블록 recompose 없이 RemoteFileListFrag 내부만 갱신
+    val dirTree by viewModel.dirTreeHolder.dirTree.collectAsStateWithLifecycle()
     val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
     /** 목록 스크롤 상태. 목록(FileListView)을 화면에서 빼는 분기보다 위에서 만든다 — 위치가 남는 기간을 목록의 컴포지션 여부가 아니라 경로로 정한다 */
@@ -111,9 +110,9 @@ fun RemoteFileListFrag(
             modifier = Modifier,
             navigateToStorage = navigateToStorage,
             dirTree = dirTree,
-            onDirClick = onDirClick,
+            onDirClick = viewModel.dirTreeHolder::onDirClick,
             sortMode = sortMode,
-            onSortModeSelected = viewModel::onSortModeSelected,
+            onSortModeSelected = viewModel.sortModeHolder::onSortModeSelected,
             onNewFolder = viewModel::onMakeDirectory,
             suggestFolderName = viewModel::suggestNewFolderName,
             validateFolderName = viewModel::validateEntryName,
