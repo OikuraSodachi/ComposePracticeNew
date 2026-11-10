@@ -129,10 +129,10 @@ class RemoteFileListViewModel @Inject constructor(
         )
 
     /** 경로 breadcrumb 상태와 그 항목으로의 이동. */
-    val dirTreeHolder = DirTreeHolder(fileNavigatorUseCase, viewModelScope)
+    val dirTreeStateHolder = DirTreeStateHolder(fileNavigatorUseCase, viewModelScope)
 
     /** 정렬 기준의 노출과 변경. */
-    val sortModeHolder = SortModeHolder(sortModeUseCase, viewModelScope)
+    val sortModeStateHolder = SortModeStateHolder(sortModeUseCase, viewModelScope)
 
     /** 현재 원격 디렉터리의 목록을 다시 조회한다. 목록 조회 실패 화면의 다시 시도에 쓴다. */
     fun retryListing() = fileNavigatorUseCase.refresh()

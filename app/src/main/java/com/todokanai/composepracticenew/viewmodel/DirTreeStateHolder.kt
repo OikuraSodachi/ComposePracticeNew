@@ -11,10 +11,11 @@ import kotlinx.coroutines.launch
 
 /**
  * 목록 화면의 경로 breadcrumb 상태와 그 항목을 눌렀을 때의 이동을 맡는다. 로컬·원격 목록 ViewModel이 구성(composition)으로 보유한다.
+ * 모든 멤버를 화면이 직접 쓰므로 ViewModel은 이를 감추고 다시 노출하지 않고 public 프로퍼티로 둔다.
  * @param fileNavigatorUseCase 표시할 저장소의 디렉터리 탐색 상태를 제공하는 UseCase
  * @param scope 경로 수집과 이동 요청이 속할 CoroutineScope
  */
-class DirTreeHolder(
+class DirTreeStateHolder(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
     private val scope: CoroutineScope
 ) {

@@ -78,10 +78,10 @@ class FileListViewModel @Inject constructor(
         )
 
     /** 정렬 기준의 노출과 변경. */
-    val sortModeHolder = SortModeHolder(sortModeUseCase, viewModelScope)
+    val sortModeStateHolder = SortModeStateHolder(sortModeUseCase, viewModelScope)
 
     /** 경로 breadcrumb 상태와 그 항목으로의 이동. */
-    val dirTreeHolder = DirTreeHolder(fileNavigatorUseCase, viewModelScope)
+    val dirTreeStateHolder = DirTreeStateHolder(fileNavigatorUseCase, viewModelScope)
 
     /** 로컬 작업의 "충돌 검사 → 즉시 실행 / 사용자 확인 대기" 흐름을 관리한다. */
     private val conflictGate = ConflictGate()

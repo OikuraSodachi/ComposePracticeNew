@@ -79,9 +79,9 @@ fun RemoteFileListFrag(
     viewModel: RemoteFileListViewModel
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-    val sortMode by viewModel.sortModeHolder.sortMode.collectAsStateWithLifecycle()
-    // dirTree 변경 시 NavController 블록 recompose 없이 RemoteFileListFrag 내부만 갱신
-    val dirTree by viewModel.dirTreeHolder.dirTree.collectAsStateWithLifecycle()
+    val sortMode by viewModel.sortModeStateHolder.sortMode.collectAsStateWithLifecycle()
+    /** 경로 breadcrumb 목록. 이 값이 바뀌어도 NavController 블록은 다시 실행하지 않고 이 화면만 갱신한다. */
+    val dirTree by viewModel.dirTreeStateHolder.dirTree.collectAsStateWithLifecycle()
     val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
     /** 목록 스크롤 상태. 목록(FileListView)을 화면에서 빼는 분기보다 위에서 만든다 — 위치가 남는 기간을 목록의 컴포지션 여부가 아니라 경로로 정한다 */
@@ -110,9 +110,9 @@ fun RemoteFileListFrag(
             modifier = Modifier,
             navigateToStorage = navigateToStorage,
             dirTree = dirTree,
-            onDirClick = viewModel.dirTreeHolder::onDirClick,
+            onDirClick = viewModel.dirTreeStateHolder::onDirClick,
             sortMode = sortMode,
-            onSortModeSelected = viewModel.sortModeHolder::onSortModeSelected,
+            onSortModeSelected = viewModel.sortModeStateHolder::onSortModeSelected,
             onNewFolder = viewModel::onMakeDirectory,
             suggestFolderName = viewModel::suggestNewFolderName,
             validateFolderName = viewModel::validateEntryName,
