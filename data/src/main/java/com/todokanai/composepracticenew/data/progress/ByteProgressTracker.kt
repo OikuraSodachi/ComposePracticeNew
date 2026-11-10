@@ -5,25 +5,20 @@ import java.io.InputStream
 import java.io.OutputStream
 
 /**
- * 여러 파일에 걸친 바이트 단위 작업(로컬 복사·이동·압축·압축해제, FTP 디렉터리 전송)의 누적 진행을 보고한다. 로컬 작업과 FTP 전송이 같은 규칙을 공유하며,
- * 차이는 생성 옵션으로만 표현한다. 트래커는 누적 바이트·파일 순번·100% 보고를 맡고, 바이트를 진행 값으로 바꾸는 계산은 [total]에 맞는 [ProgressCounting]이 맡는다 —
- * 전체 크기를 알면 퍼센트가 바뀔 때만([PercentCounting]), 모르면 퍼센트를 지어내지 않고 크기를 아는 부분의 진행을 [throttle]의 시간 간격마다([KnownSizeCounting]) 보고한다.
- * 전체 크기를 모르면 100%는 마지막 파일 완료 때만 보고한다.
+ * 바이트 단위 파일 작업(로컬 복사·이동·압축·압축해제, FTP 파일·디렉터리 전송)의 누적 진행을 보고한다. 단일 파일도 파일 하나짜리 작업으로 보고,
+ * 모든 작업이 생성 옵션 없이 같은 규칙을 따른다. 트래커는 누적 바이트·파일 순번·100% 보고를 맡고, 바이트를 진행 값으로 바꾸는 계산은 [total]에 맞는 [ProgressCounting]이 맡는다 —
+ * 전체 크기를 알면 퍼센트가 바뀌었거나 [throttle]의 시간 간격이 지났을 때([PercentCounting]), 모르면 퍼센트를 지어내지 않고 크기를 아는 부분의 진행을 시간 간격마다([KnownSizeCounting]) 보고한다.
+ * 파일마다 처리를 마치면([onFileCompleted], 서버 ACK·출력 닫기 등) 그 파일의 몫을 확정한다 — 크기를 아는 부분의 진행은 이 확정으로만 쌓이므로, 시작한 파일을 성공적으로 마친 쪽은 반드시 알린다.
+ * 100%는 작업 전체가 끝났다는 뜻이므로 작업 완료([reportComplete])에서만 보고한다 — 마지막 순번 파일을 마쳤어도 앞선 파일이 실패했을 수 있다.
  * @param total 작업 전체의 크기
  * @param totalFileCount 작업 대상 파일 개수
  * @param onProgress 진행 상태를 수신하는 콜백
- * @param holdBelow100 true이면 바이트 기반 보고를 100 미만까지만 하고, 100%는 [onFileCompleted]에서 마지막 파일 완료 시에만 보고한다(서버 ACK 전 조기 100% 방지용)
- * @param reportProgressFloat true이면 보고에 progressFloat(0.0~1.0)을 포함한다
- * @param clampTo100 true이면 전체 크기를 알 때의 진행률을 0..100으로 제한한다(항목 크기 정보가 부정확할 수 있는 아카이브용)
- * @param throttle 전체 크기를 모를 때 보고 간격을 정하는 ProgressThrottle
+ * @param throttle 보고 간격을 정하는 ProgressThrottle
  */
 class ByteProgressTracker internal constructor(
     total: TransferTotal,
     private val totalFileCount: Int,
     private val onProgress: (ProgressState) -> Unit,
-    holdBelow100: Boolean = false,
-    private val reportProgressFloat: Boolean = false,
-    clampTo100: Boolean = false,
     throttle: ProgressThrottle = ProgressThrottle()
 ) {
     /**
@@ -31,28 +26,35 @@ class ByteProgressTracker internal constructor(
      * @param totalBytes 작업 대상 전체 바이트 수(0 이상)
      * @param totalFileCount 작업 대상 파일 개수
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @param holdBelow100 [ByteProgressTracker]의 holdBelow100과 같다
-     * @param reportProgressFloat [ByteProgressTracker]의 reportProgressFloat과 같다
-     * @param clampTo100 [ByteProgressTracker]의 clampTo100과 같다
      */
     internal constructor(
         totalBytes: Long,
         totalFileCount: Int,
-        onProgress: (ProgressState) -> Unit,
-        holdBelow100: Boolean = false,
-        reportProgressFloat: Boolean = false,
-        clampTo100: Boolean = false
-    ) : this(TransferTotal.Known(totalBytes), totalFileCount, onProgress, holdBelow100, reportProgressFloat, clampTo100)
+        onProgress: (ProgressState) -> Unit
+    ) : this(TransferTotal.Known(totalBytes), totalFileCount, onProgress)
 
     /** 작업 전체의 크기에 맞는 계산 방식. */
     private val counting: ProgressCounting = when (total) {
-        is TransferTotal.Known -> PercentCounting(total.bytes, holdBelow100, clampTo100)
+        is TransferTotal.Known -> PercentCounting(total.bytes, throttle)
         is TransferTotal.Partial -> KnownSizeCounting(total, throttle)
     }
     /** 지금까지 처리된 누적 바이트 수. */
     private var writtenBytes = 0L
     /** 현재 처리 중인 파일의 1-based 순번. */
     private var fileIndex = 0
+
+    /** 작업 시작 상태(처리한 바이트·파일 없음)를 [total]에 맞는 형식으로 보고한다 — 크기를 알면 0%, 모르면 퍼센트 없이 크기를 아는 부분의 진행. */
+    fun reportStart() {
+        val reading = counting.startReading()
+        onProgress(ProgressState(
+            progress = reading.progress,
+            totalBytes = reading.totalBytes,
+            writtenBytes = 0,
+            listSize = totalFileCount,
+            currentIndex = 0,
+            knownSize = reading.knownSize
+        ))
+    }
 
     /** 다음 파일 처리를 시작한다. */
     fun startFile() {
@@ -82,9 +84,9 @@ class ByteProgressTracker internal constructor(
      * @param input 읽을 스트림
      * @param output 쓸 스트림
      * @param fileName 현재 파일명
-     * @param fileBytes 현재 파일의 전체 크기
+     * @param fileBytes 현재 파일의 전체 크기 — null이면 크기를 모르는 파일
      */
-    fun pump(input: InputStream, output: OutputStream, fileName: String, fileBytes: Long) {
+    fun pump(input: InputStream, output: OutputStream, fileName: String, fileBytes: Long?) {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         var read = input.read(buffer)
         while (read != -1) {
@@ -95,33 +97,19 @@ class ByteProgressTracker internal constructor(
     }
 
     /**
-     * 현재 파일의 처리 완료(서버 ACK 등)를 알린다. 마지막 파일이면 100%를, 아니면 완료로 바뀐 진행이 있을 때 그 진행을 보고한다.
+     * 현재 파일의 처리 완료(서버 ACK·출력 닫기 등)를 알려 그 파일의 몫을 확정하고, 완료로 바뀐 진행이 있으면 보고한다. 마지막 파일이어도 100%는 보고하지 않는다.
      * @param fileName 완료된 파일명
      * @param fileBytes 완료된 파일의 전체 크기 — null이면 보고에서 생략
      */
     fun onFileCompleted(fileName: String, fileBytes: Long?) {
-        val reading = counting.onFileCompleted(fileBytes)
-        if (fileIndex == totalFileCount) {
-            val completed = counting.completedBytes(writtenBytes)
-            onProgress(stateOf(ProgressReading(100, 1f, completed), fileName, fileBytes, written = completed))
-        } else {
-            reading?.let { onProgress(stateOf(it, fileName, fileBytes)) }
-        }
+        counting.onFileCompleted(fileBytes)?.let { onProgress(stateOf(it, fileName, fileBytes)) }
     }
 
-    /** 처리할 파일이 하나도 없으면 즉시 100%를 보고한다. */
-    fun reportIfEmpty() {
-        if (totalFileCount == 0) {
-            onProgress(ProgressState(progress = 100, progressFloat = 1f, totalBytes = 0, writtenBytes = 0, listSize = 0, currentIndex = 0))
-        }
-    }
-
-    /** 작업 완료 시 100% 진행 상태를 보고한다. */
+    /** 작업 완료 시 100% 진행 상태를 보고한다. 처리할 파일이 없던 작업도 이것으로 100%를 보고한다. */
     fun reportComplete() {
         val completed = counting.completedBytes(writtenBytes)
         onProgress(ProgressState(
             progress = 100,
-            progressFloat = if (reportProgressFloat) 1f else null,
             totalBytes = completed,
             writtenBytes = completed,
             listSize = totalFileCount,
@@ -130,17 +118,15 @@ class ByteProgressTracker internal constructor(
     }
 
     /**
-     * 계산 결과와 현재 파일 순번으로 ProgressState를 만든다. progressFloat은 [reportProgressFloat]일 때만 포함한다.
+     * 계산 결과와 현재 파일 순번으로 ProgressState를 만든다.
      * @param reading 계산 방식이 낸 진행 값
      * @param fileName 현재 파일명
      * @param fileBytes 현재 파일의 전체 크기
-     * @param written 보고할 누적 바이트 수
      */
-    private fun stateOf(reading: ProgressReading, fileName: String, fileBytes: Long?, written: Long = writtenBytes) = ProgressState(
+    private fun stateOf(reading: ProgressReading, fileName: String, fileBytes: Long?) = ProgressState(
         progress = reading.progress,
-        progressFloat = if (reportProgressFloat) reading.progressFloat else null,
         totalBytes = reading.totalBytes,
-        writtenBytes = written,
+        writtenBytes = writtenBytes,
         listSize = totalFileCount,
         currentIndex = fileIndex,
         currentFileName = fileName,

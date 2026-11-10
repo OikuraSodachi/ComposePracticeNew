@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -31,10 +32,12 @@ class LocalArchiveExtraction @Inject constructor(
                 path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${File(path).name}"))
             }
             val sizes = archives.map { (path, extractor) -> extractor.measure(path) }
-            val totalBytes = sizes.sumOf { it.bytes }
-            checkDiskSpace(totalBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
-            onProgress(ProgressState(progress = 0))
-            val tracker = ByteProgressTracker(totalBytes, sizes.sumOf { it.fileCount }, onProgress, clampTo100 = true)
+            val knownBytes = sizes.sumOf { it.knownBytes }
+            // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
+            checkDiskSpace(knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
+            val total = TransferTotal.of(knownBytes, sizes.sumOf { it.unknownSizeCount })
+            val tracker = ByteProgressTracker(total, sizes.sumOf { it.fileCount }, onProgress)
+            tracker.reportStart()
 
             var skippedEntries = 0
             archives.forEach { (zipFilePath, extractor) ->
@@ -43,7 +46,7 @@ class LocalArchiveExtraction @Inject constructor(
                 skippedEntries += extractor.extract(zipFilePath, root, tracker)
             }
             if (skippedEntries > 0) return@localIo IoResult.ItemFailed("경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀")
-            onProgress(ProgressState(progress = 100))
+            tracker.reportComplete()
             IoResult.Done
         }
     }

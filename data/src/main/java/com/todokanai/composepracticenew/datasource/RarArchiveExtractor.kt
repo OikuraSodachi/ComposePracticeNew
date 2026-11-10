@@ -24,14 +24,16 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     override fun measure(path: String): ArchiveSize =
         withArchive(path) { archive ->
-            var bytes = 0L
+            var knownBytes = 0L
             var count = 0
+            var unknownSizeCount = 0
             for (i in 0 until archive.numberOfItems) {
                 if (archive.getProperty(i, PropID.IS_FOLDER) as? Boolean == true) continue
-                bytes += (archive.getProperty(i, PropID.SIZE) as? Long) ?: 0L
+                val size = knownSizeOf(archive, i)
+                if (size == null) unknownSizeCount++ else knownBytes += size
                 count++
             }
-            ArchiveSize(bytes, count)
+            ArchiveSize(knownBytes, count, unknownSizeCount)
         }
 
     override fun extract(path: String, root: File, tracker: ByteProgressTracker): Int =
@@ -71,8 +73,8 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
         private var currentOutputStream: OutputStream? = null
         /** 현재 항목의 '/' 구분 정규화 경로. */
         private var currentNormalizedName = ""
-        /** 현재 항목의 압축 해제 후 크기(bytes). */
-        private var currentItemSize = 0L
+        /** 현재 항목의 압축 해제 후 크기(bytes). 아카이브가 알려주지 않으면 null. */
+        private var currentItemSize: Long? = null
         /** 현재 항목을 건너뛰었는지 여부 — 이미 집계한 항목을 결과 단계에서 중복 집계하지 않기 위해 쓴다. */
         private var skipCurrent = false
 
@@ -82,7 +84,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             if (archive.getProperty(index, PropID.IS_FOLDER) as? Boolean == true) return null
             val rawName = archive.getProperty(index, PropID.PATH) as? String ?: return skipEntry()
             currentNormalizedName = rawName.replace('\\', '/')
-            currentItemSize = (archive.getProperty(index, PropID.SIZE) as? Long) ?: 0L
+            currentItemSize = knownSizeOf(archive, index)
             val target = root.resolve(currentNormalizedName)
             if (!isUnderRoot(target, root)) return skipEntry()
             target.parentFile?.mkdirs()
@@ -107,13 +109,27 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
         override fun prepareOperation(extractAskMode: ExtractAskMode) {}
 
+        /** 결과는 마지막 [getStream] 항목의 것이다(SevenZipJBinding 계약). 출력을 연 항목이 OK로 끝나야 그 몫을 확정한다 — 폴더·건너뛴 항목은 출력을 열지 않는다. */
         override fun setOperationResult(extractOperationResult: ExtractOperationResult) {
+            val wroteEntry = currentOutputStream != null
             currentOutputStream?.close()
             currentOutputStream = null
-            if (!skipCurrent && extractOperationResult != ExtractOperationResult.OK) skippedEntries++
+            if (extractOperationResult == ExtractOperationResult.OK) {
+                if (wroteEntry) tracker.onFileCompleted(currentNormalizedName, currentItemSize)
+            } else if (!skipCurrent) {
+                skippedEntries++
+            }
         }
 
         override fun setTotal(total: Long) {}
         override fun setCompleted(complete: Long) {}
     }
 }
+
+/**
+ * 항목의 압축 해제 후 크기를 구한다. 산정과 추출이 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
+ * @param archive 열린 아카이브
+ * @param index 항목 번호
+ * @return 크기(bytes), 아카이브가 알려주지 않으면 null
+ */
+private fun knownSizeOf(archive: IInArchive, index: Int): Long? = (archive.getProperty(index, PropID.SIZE) as? Long)?.takeIf { it >= 0 }
