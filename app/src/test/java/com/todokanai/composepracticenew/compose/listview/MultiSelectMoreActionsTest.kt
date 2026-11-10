@@ -15,12 +15,16 @@ class MultiSelectMoreActionsTest {
     /** 눌린 항목이 넘긴 로컬 작업을 기록한다. */
     private val selectedOperations = mutableListOf<SelectMode.LocalOperation>()
 
-    /** [selectedList]와 [canUnzip]으로 메뉴 항목을 만든다. */
-    private fun actions(selectedList: List<FileHolderItem>, canUnzip: Boolean = false) =
+    /** 메뉴 항목이 다이얼로그를 여는 상태 홀더. */
+    private val dialogState = BottomButtonDialogState()
+
+    /** [selectedList], [canUnzip], 압축 파일을 만들 폴더 [archiveFolder]로 메뉴 항목을 만든다. */
+    private fun actions(selectedList: List<FileHolderItem>, canUnzip: Boolean = false, archiveFolder: String? = "/") =
         multiSelectMoreActions(
             selectedList = selectedList,
             canUnzip = { canUnzip },
-            dialogState = BottomButtonDialogState(),
+            archiveFolderOf = { archiveFolder },
+            dialogState = dialogState,
             onSelectOperation = { selectedOperations += it },
             onShowInfo = {},
             onUpload = {},
@@ -58,6 +62,21 @@ class MultiSelectMoreActionsTest {
         menu.first { it.labelRes == R.string.btn_unzip_here }.onClick()
 
         assertEquals(listOf(SelectMode.LocalOperation.Unzip, SelectMode.LocalOperation.UnzipHere), selectedOperations)
+    }
+
+    @Test
+    fun `압축 항목은 정한 폴더로 압축 다이얼로그를 연다`() {
+        actions(listOf(archive, other), archiveFolder = "/dir").first { it.labelRes == R.string.btn_zip }.onClick()
+
+        assertEquals("/dir", dialogState.compressTarget)
+    }
+
+    @Test
+    fun `압축 파일을 만들 폴더를 정할 수 없으면 압축 항목을 두지 않는다`() {
+        assertEquals(
+            listOf(R.string.btn_info, R.string.btn_upload),
+            actions(listOf(archive, other), archiveFolder = null).map { it.labelRes },
+        )
     }
 
     /** [path]의 파일 항목을 만든다. */

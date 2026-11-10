@@ -20,22 +20,23 @@ import kotlin.random.Random
  * 다이얼로그를 열 때마다 새 [openId]를 발급해, 이전에 열었던 다이얼로그의 저장된 입력값이 새로 연 다이얼로그에 복원되지 않게 한다.
  */
 class OptionDialogState {
-    /** 새 폴더 다이얼로그 열림 여부. */
-    var newFolderDialog by mutableStateOf(false); private set
+    /** 열린 새 폴더 다이얼로그가 폴더를 만들 대상 폴더. null이면 닫혀 있다. 열 때 정해, 검증과 실행이 같은 폴더를 쓴다. */
+    var newFolderTarget by mutableStateOf<String?>(null); private set
     /** 정렬 다이얼로그 열림 여부. */
     var sortDialog by mutableStateOf(false); private set
     /** 마지막으로 다이얼로그를 연 회차의 식별자. 다이얼로그를 key로 감싸 회차별로 입력 상태를 분리하는 데 쓴다. */
     var openId by mutableStateOf(0L); private set
 
-    fun openNewFolder()    { openId = Random.nextLong(); newFolderDialog = true }
-    fun dismissNewFolder() { newFolderDialog = false }
+    /** [target] 폴더에 새 폴더를 만드는 다이얼로그를 연다. */
+    fun openNewFolder(target: String) { openId = Random.nextLong(); newFolderTarget = target }
+    fun dismissNewFolder() { newFolderTarget = null }
 
     fun openSort()    { openId = Random.nextLong(); sortDialog = true }
     fun dismissSort() { sortDialog = false }
 
     /** 열린 다이얼로그를 모두 닫는다. */
     fun dismissAll() {
-        newFolderDialog = false
+        newFolderTarget = null
         sortDialog = false
     }
 }

@@ -40,9 +40,10 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
  * @param onDirClick 경로 표시줄 항목 클릭 콜백
  * @param sortMode 현재 정렬 기준
  * @param onSortModeSelected 정렬 기준 선택 콜백
- * @param onNewFolder 새 폴더 이름 확인 콜백
+ * @param newFolderTarget 새 폴더를 만들 현재 폴더. null이면 만들 곳이 없어 새 폴더 메뉴를 두지 않는다
+ * @param onNewFolder 다이얼로그를 연 때의 대상 폴더와 입력한 이름으로 새 폴더를 만드는 콜백
  * @param suggestFolderName 새 폴더 다이얼로그에 미리 채울 이름을 만드는 함수
- * @param validateFolderName 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
+ * @param validateFolderName 대상 폴더와 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onExit 앱 종료 콜백
  * @param onSearchClick 검색 버튼 클릭 콜백. null이면 검색 버튼을 두지 않는다(원격 화면, 다중 선택 중)
  */
@@ -54,14 +55,20 @@ fun OptionFrag(
     onDirClick: (DirectoryItem) -> Unit,
     sortMode: SortMode,
     onSortModeSelected: (SortMode) -> Unit,
-    onNewFolder: (String) -> Unit,
+    newFolderTarget: String?,
+    onNewFolder: (String, String) -> Unit,
     suggestFolderName: () -> String,
-    validateFolderName: (String) -> Set<FileNameError>,
+    validateFolderName: (String, String) -> Set<FileNameError>,
     onExit: () -> Unit,
     onSearchClick: (() -> Unit)? = null,
 ) {
     // 화면 단위 ViewModel에 보관된 다이얼로그 상태 — 회전 시 유지, 화면 이동·프로세스 종료 후 복귀 시 닫힘(rememberOptionDialogState 참고)
     val dialogState = rememberOptionDialogState()
+    /** 새 폴더 메뉴 클릭 콜백. 대상 폴더가 없으면 null이라 메뉴에 두지 않는다. */
+    // newFolderTarget·dialogState를 키로 — 대상 폴더가 바뀔 때만 새로 만들어, 메뉴 항목 목록의 remember가 리컴포지션마다 깨지지 않게 한다
+    val onNewFolderClick = remember(newFolderTarget, dialogState) {
+        newFolderTarget?.let { target -> { dialogState.openNewFolder(target) } }
+    }
 
     OptionDialogHost(
         dialogState = dialogState,
@@ -77,7 +84,7 @@ fun OptionFrag(
     ) {
         OptionTopBar(
             navigateToStorage = navigateToStorage,
-            onNewFolderClick = dialogState::openNewFolder,
+            onNewFolderClick = onNewFolderClick,
             onSortClick = dialogState::openSort,
             onExit = onExit,
             onSearchClick = onSearchClick,
@@ -92,7 +99,7 @@ fun OptionFrag(
 /**
  * 저장소 이동 버튼, 검색 버튼, 더보기 메뉴(새 폴더·정렬·종료)를 보여주는 상단 버튼 바. 더보기 메뉴의 열림 상태는 이 컴포저블이 보유한다.
  * @param navigateToStorage 저장소 선택 화면으로 이동하는 콜백
- * @param onNewFolderClick 더보기 메뉴의 새 폴더 항목 클릭 콜백
+ * @param onNewFolderClick 더보기 메뉴의 새 폴더 항목 클릭 콜백. null이면 새 폴더 항목을 두지 않는다
  * @param onSortClick 더보기 메뉴의 정렬 항목 클릭 콜백
  * @param onExit 더보기 메뉴의 종료 항목 클릭 콜백
  * @param onSearchClick 검색 버튼 클릭 콜백. null이면 검색 버튼을 두지 않는다
@@ -100,7 +107,7 @@ fun OptionFrag(
 @Composable
 private fun OptionTopBar(
     navigateToStorage: () -> Unit,
-    onNewFolderClick: () -> Unit,
+    onNewFolderClick: (() -> Unit)?,
     onSortClick: () -> Unit,
     onExit: () -> Unit,
     onSearchClick: (() -> Unit)?,
@@ -142,8 +149,8 @@ private fun OptionTopBar(
             val exitLabel = stringResource(R.string.btn_exit)
             // 문구 3개·콜백 3개를 키로 — List는 불안정 타입이라 인스턴스로 비교되므로, 값이 같으면 같은 목록을 넘겨 MyDropdownMenu가 스킵되게 한다
             val menuItems = remember(newFolderLabel, sortLabel, exitLabel, onNewFolderClick, onSortClick, onExit) {
-                listOf(
-                    Pair(newFolderLabel, onNewFolderClick),
+                listOfNotNull(
+                    onNewFolderClick?.let { Pair(newFolderLabel, it) },
                     Pair(sortLabel, onSortClick),
                     Pair(exitLabel, onExit)
                 )
@@ -201,20 +208,20 @@ private fun PathSeparator() {
  * @param dialogState 다이얼로그 열림 상태 홀더
  * @param sortMode 정렬 다이얼로그에서 선택된 것으로 보여줄 현재 정렬 기준
  * @param onSortModeSelected 정렬 기준 선택 콜백
- * @param onNewFolder 새 폴더 이름 확인 콜백
+ * @param onNewFolder 대상 폴더와 입력한 이름으로 새 폴더를 만드는 콜백
  * @param suggestFolderName 새 폴더 다이얼로그에 미리 채울 이름을 만드는 함수
- * @param validateFolderName 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
+ * @param validateFolderName 대상 폴더와 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  */
 @Composable
 private fun OptionDialogHost(
     dialogState: OptionDialogState,
     sortMode: SortMode,
     onSortModeSelected: (SortMode) -> Unit,
-    onNewFolder: (String) -> Unit,
+    onNewFolder: (String, String) -> Unit,
     suggestFolderName: () -> String,
-    validateFolderName: (String) -> Set<FileNameError>,
+    validateFolderName: (String, String) -> Set<FileNameError>,
 ) {
-    if (dialogState.newFolderDialog) {
+    dialogState.newFolderTarget?.let { target ->
         // openId를 키로 — 연 회차마다 입력 상태(rememberSaveable)를 분리해, 화면 이동·프로세스 종료 때 저장된 이전 입력값이
         // 새로 연 다이얼로그에 복원되지 않게 한다. 회전 시에는 openId가 그대로라 입력값이 유지된다
         key(dialogState.openId) {
@@ -224,8 +231,8 @@ private fun OptionDialogHost(
                 title = stringResource(R.string.dialog_new_folder_title),
                 hint = stringResource(R.string.dialog_new_folder_hint),
                 initialText = suggestedName,
-                validate = validateFolderName,
-                onConfirm = onNewFolder,
+                validate = { name -> validateFolderName(target, name) },
+                onConfirm = { name -> onNewFolder(target, name) },
                 onDismiss = dialogState::dismissNewFolder,
             )
         }
