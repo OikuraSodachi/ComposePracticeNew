@@ -24,6 +24,8 @@ class FtpPathAwareFileSystem @Inject constructor(
     override fun displayName(path: String): String = defaultDisplayName(path)
     // 서버의 이름 제약은 알 수 없어(RFC 959·3659에 이름 제약을 묻는 명령이 없다) 주요 파일시스템의 길이 한도만 적용하고, 그 밖의 거부는 서버 응답으로 알린다
     override fun nameViolationsOf(fullName: String, location: String): Set<FileNameError> = nameByteLimitViolations(fullName)
+    // 서버가 대소문자·정규형을 구분하는지는 알 수 없어(RFC 959·2389·3659에 묻는 명령이 없다) 어느 서버에서든 같은 항목이 될 수 있는 이름을 묶는다
+    override fun nameMatchKeyOf(name: String, location: String): String = caseAndNormalizationInsensitiveKey(name)
     // 원격 경로는 네트워크 I/O 없이 사전 접근성 검사를 할 수 없으므로 정규화만 수행하고 항상 non-null 반환
     override suspend fun resolveNavigationPath(path: String): String = ftpUriOf(path)
 }

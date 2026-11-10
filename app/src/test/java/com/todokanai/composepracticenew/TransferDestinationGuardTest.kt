@@ -67,7 +67,7 @@ class TransferDestinationGuardTest {
             FileNavigatorUseCase(localNav, localNav),
             FileNavigatorUseCase(remoteNav, remoteNav),
             remoteOps,
-            ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
+            ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified },
             FixedMessages,
             RemoteConnectionStateUseCase(FakeConnectionRepository())
         )

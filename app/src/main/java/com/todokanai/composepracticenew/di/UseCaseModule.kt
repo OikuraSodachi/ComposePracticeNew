@@ -17,6 +17,7 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
+import com.todokanai.composepracticenew.repository.StorageNameMatching
 import com.todokanai.composepracticenew.repository.StorageNameRules
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
@@ -118,8 +119,8 @@ object UseCaseModule {
     ) = RemoteConnectionResilienceUseCase(lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
 
     @Provides @Singleton
-    fun provideConflictCheckUseCase(notices: OperationNoticeReporter, messages: OperationMessages) =
-        ConflictCheckUseCase(notices) { messages.destinationUnverified }
+    fun provideConflictCheckUseCase(notices: OperationNoticeReporter, nameMatching: StorageNameMatching, messages: OperationMessages) =
+        ConflictCheckUseCase(notices, nameMatching) { messages.destinationUnverified }
 
     @Provides @Singleton
     fun provideFileOperationOrchestrator(

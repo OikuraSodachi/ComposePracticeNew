@@ -54,11 +54,6 @@ class FileListViewModel @Inject constructor(
     private val localOperationConfirmer: LocalOperationConfirmer,
 ) : ViewModel() {
 
-    private companion object {
-        /** 로컬 공용 저장소(/storage/emulated, SD 카드)는 대소문자를 구분하지 않으므로 이름 변경 겹침을 대소문자 무시로 비교한다. */
-        const val LOCAL_IGNORE_CASE = true
-    }
-
     /**
      * 파일 목록 화면에 필요한 UI 상태를 담는 클래스.
      * @param listing 현재 디렉터리의 목록 상태(조회 중·완료·실패)
@@ -120,7 +115,6 @@ class FileListViewModel @Inject constructor(
             targetIsDirectory = item.isDirectory,
             newName = name,
             folder = fileNavigatorUseCase,
-            ignoreCase = LOCAL_IGNORE_CASE,
         )
         return if (conflict == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
     }
@@ -148,7 +142,6 @@ class FileListViewModel @Inject constructor(
         baseName = messages.defaultNewFolderName,
         extension = "",
         folder = fileNavigatorUseCase,
-        ignoreCase = LOCAL_IGNORE_CASE,
     )
 
     /**
@@ -163,7 +156,6 @@ class FileListViewModel @Inject constructor(
             baseName = archiveBaseName(selectedList, first),
             extension = archiveFormat.extension,
             folder = fileNavigatorUseCase,
-            ignoreCase = LOCAL_IGNORE_CASE,
         )
     }
 
@@ -281,7 +273,6 @@ class FileListViewModel @Inject constructor(
             targetIsDirectory = item.isDirectory,
             newName = name,
             folder = fileNavigatorUseCase,
-            ignoreCase = LOCAL_IGNORE_CASE,
         )
 
     /** selectedList의 파일들을 삭제한다. */

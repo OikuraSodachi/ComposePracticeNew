@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.fileexplorer.FileEntry
 
 /**
- * 경로 종류에 따라 파일 목록 조회·부모 계산·이동·이름 제약 판정을 처리하는 파일 시스템 추상화.
+ * 경로 종류에 따라 파일 목록 조회·부모 계산·이동·이름 제약 판정·이름 비교를 처리하는 파일 시스템 추상화.
  * FileExplorerRepositoryImpl이 스토리지 타입별 분기 없이 위임하기 위해 사용한다.
  * 구현체는 Hilt `@IntoSet`으로 등록되며 순서가 보장되지 않으므로, 각 구현의 [handles]는 서로 배타적이어야 한다.
  */
@@ -45,6 +45,14 @@ interface PathAwareFileSystem {
      * @return 위반한 규칙의 집합. 비어 있으면 이 파일 시스템의 제약을 지킨다
      */
     fun nameViolationsOf(fullName: String, location: String): Set<FileNameError>
+
+    /**
+     * [location]에 놓인 [name]을 이 파일 시스템이 다른 이름과 같은 항목으로 다룰 수 있는지 비교할 값을 구한다.
+     * @param name 비교할 항목 이름
+     * @param location 이름이 놓인 폴더의 경로 — 같은 종류 안에서도 볼륨마다 규칙이 다를 때 고르는 데 쓴다
+     * @return 비교 값. 두 이름의 값이 같으면 같은 항목으로 다뤄질 수 있다
+     */
+    fun nameMatchKeyOf(name: String, location: String): String
 
     /**
      * path로 이동할 때 실제로 navigateTo에 전달할 정규화 경로를 반환한다.

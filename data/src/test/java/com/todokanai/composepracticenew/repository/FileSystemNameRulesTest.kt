@@ -59,6 +59,7 @@ class FileSystemNameRulesTest {
         override fun getParent(path: String): String? = null
         override fun displayName(path: String) = path
         override fun nameViolationsOf(fullName: String, location: String) = setOf(FileNameError.RESERVED_NAME)
+        override fun nameMatchKeyOf(name: String, location: String) = name
         override suspend fun resolveNavigationPath(path: String): String? = null
     }
 }
