@@ -83,7 +83,7 @@ class LocalArchiveExtractionLayoutTest {
 
         val result = runBlocking { extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoDestination) {} }
 
-        assertTrue(result is IoResult.ItemFailed)
+        assertTrue((result as IoResult.ItemFailed).message!!.endsWith("같은 이름의 항목이 이미 있음"))
     }
 
     @Test

@@ -33,7 +33,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      */
     suspend fun rename(targetFile: String, newName: String, overwrite: Boolean): IoResult<Unit> = withContext(Dispatchers.IO) {
         val source = File(targetFile)
-        localIo(describe = { e -> "이름 변경 실패: ${source.name} → $newName (${e.message})" }) {
+        localIo(describe = { e -> "이름 변경 실패: ${source.name} → $newName (${ioFailureMessageOf(e)})" }) {
             renameEntry(source, newName, overwrite)
         }
     }
