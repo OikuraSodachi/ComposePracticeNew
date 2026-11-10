@@ -29,7 +29,12 @@ class OpenFileUseCase(
         else failureMessageOf(launcher.launch(item.path), item.name)?.let { notices.report(OperationNoticeKind.FAILURE, it) }
     }
 
-    /** 여는 결과 result에 대해 알릴 실패 메시지. 열었으면 null. */
+    /**
+     * 여는 결과에 대해 알릴 실패 메시지를 만든다.
+     * @param result 여는 결과
+     * @param name 메시지에 넣을 항목 이름
+     * @return 알릴 실패 메시지, 다른 앱으로 넘겼으면 null
+     */
     private fun failureMessageOf(result: FileLaunchResult, name: String): String? = when (result) {
         FileLaunchResult.Launched -> null
         FileLaunchResult.UnknownType -> "열기 실패: 형식을 알 수 없는 파일입니다 ($name)"
