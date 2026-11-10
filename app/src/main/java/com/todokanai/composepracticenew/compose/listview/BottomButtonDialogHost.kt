@@ -25,7 +25,7 @@ import com.todokanai.composepracticenew.ui.model.PendingRename
  * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
  * @param onDelete 삭제 실행 콜백
- * @param onResolveConflict 충돌 처리 방법을 전달하는 콜백 — 작업을 실행했으면 true를 반환
+ * @param onResolveConflict 충돌 처리 방법을 전달하는 콜백
  */
 @Composable
 fun BottomButtonDialogHost(
@@ -38,7 +38,7 @@ fun BottomButtonDialogHost(
     rename: RenameActions,
     pendingRename: PendingRename?,
     onDelete: (List<FileHolderItem>) -> Unit,
-    onResolveConflict: (ConflictResolution) -> Boolean,
+    onResolveConflict: (ConflictResolution) -> Unit,
 ) {
     if (dialogState.zipDialog) {
         // 키 없음 — 연 회차마다 한 번만 제안한다. 입력란은 첫 구성의 값만 쓰므로, 리컴포지션마다 목록을 다시 훑을 필요가 없다
@@ -89,8 +89,9 @@ fun BottomButtonDialogHost(
         FileConflictDialog(
             conflictingFiles = conflict.conflicts,
             totalCount = conflict.targets.size,
-            onOverwrite = { if (onResolveConflict(ConflictResolution.OVERWRITE)) onResetSelection() },
-            onSkip = { if (onResolveConflict(ConflictResolution.SKIP)) onResetSelection() },
+            // 선택은 확인할 때 이미 비웠다 — 여기서 비우면 그 뒤 사용자가 시작한 새 선택을 지운다
+            onOverwrite = { onResolveConflict(ConflictResolution.OVERWRITE) },
+            onSkip = { onResolveConflict(ConflictResolution.SKIP) },
             onCancel = { onResolveConflict(ConflictResolution.CANCEL) }
         )
     }

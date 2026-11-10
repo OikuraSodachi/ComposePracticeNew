@@ -20,14 +20,14 @@ internal object ConflictRules {
         items.filter { nameOf(it) in destinationNames }
 
     /**
-     * 압축 해제 시 생성될 폴더(확장자를 뗀 이름)가 목적지에 이미 있는 아카이브 항목을 반환한다.
+     * 압축 해제가 목적지 바로 아래에 만들 이름 중 하나라도 목적지에 이미 있는 아카이브 항목을 반환한다.
      * @param items 압축 해제 대상 아카이브 항목
      * @param destinationNames 목적지 디렉터리의 기존 파일 이름 집합
-     * @param nameOf 항목에서 파일 이름(확장자 포함)을 꺼내는 함수
+     * @param extractedNamesOf 항목을 압축 해제할 때 목적지 바로 아래에 생기는 이름 집합을 꺼내는 함수(배치 방식에 따라 구현이 정한다)
      * @return [items] 중 충돌하는 항목(원래 순서 유지)
      */
-    fun <T> unzipConflicts(items: List<T>, destinationNames: Set<String>, nameOf: (T) -> String): List<T> =
-        items.filter { nameOf(it).substringBeforeLast('.') in destinationNames }
+    fun <T> unzipConflicts(items: List<T>, destinationNames: Set<String>, extractedNamesOf: (T) -> Set<String>): List<T> =
+        items.filter { item -> extractedNamesOf(item).any { it in destinationNames } }
 
     /**
      * [targetPath] 항목의 이름을 [newName]으로 바꿀 때 같은 폴더의 기존 항목과 어떻게 겹치는지 판정한다.

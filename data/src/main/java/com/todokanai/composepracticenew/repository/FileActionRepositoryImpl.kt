@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.datasource.LocalArchiveExtraction
 import com.todokanai.composepracticenew.datasource.LocalEntryMutator
 import com.todokanai.composepracticenew.datasource.LocalTreeTransfer
 import com.todokanai.composepracticenew.datasource.LocalZipCompressor
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.ProgressState
 import java.io.File
 import javax.inject.Inject
@@ -30,7 +31,9 @@ class FileActionRepositoryImpl @Inject constructor(
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = entryMutator.rename(targetFile, newName, overwrite)
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFile, onProgress)
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = treeTransfer.move(targetFiles, targetPath, onProgress)
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, unzipHere: Boolean, onProgress: (ProgressState) -> Unit) = archiveExtraction.unzip(zipFiles, destPath, unzipHere, onProgress)
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit) =
+        archiveExtraction.unzip(zipFiles, destPath, layout, onProgress)
+    override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout) = archiveExtraction.extractedNames(zipFile, destPath, layout)
     override fun canExtract(path: String) = archiveExtraction.canExtract(path)
     override suspend fun makeDirectory(parentPath: String, name: String) = entryMutator.makeDirectory(parentPath, name)
 }

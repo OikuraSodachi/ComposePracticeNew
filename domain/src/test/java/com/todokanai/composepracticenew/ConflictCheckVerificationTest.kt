@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
@@ -12,6 +13,7 @@ import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -66,7 +68,39 @@ class ConflictCheckVerificationTest {
     fun `목록이 이전 요청의 것이면 경로가 같아도 판정하지 않는다`() {
         show(DirectoryListing.Loaded(previous, emptyList()))
 
-        assertUnverified(useCase.findUnzipConflicts(incoming, navigator) { it.name })
+        assertUnverified(runBlocking { useCase.findUnzipConflicts(incoming, navigator, nameOf = { it.name }) { _, _ -> IoResult.Success(emptySet()) } })
+    }
+
+    @Test
+    fun `압축 해제는 해제가 목적지 바로 아래에 만들 이름이 목록에 있으면 충돌로 판정하고 판정한 목록의 경로로 이름을 구한다`() {
+        show(DirectoryListing.Loaded(current, listOf(item("/a/readme.txt"), item("/a/b"))))
+        val archives = listOf(item("/src/a.zip"), item("/src/b.zip"))
+        val askedPaths = mutableListOf<String>()
+        // a.zip은 목적지에 바로 풀면 readme.txt를 만들고, b.zip은 c.txt만 만든다 — 목적지의 b는 b.zip이 건드리지 않는다
+        val extracted = mapOf("a.zip" to setOf("readme.txt", "docs"), "b.zip" to setOf("c.txt"))
+
+        val result = runBlocking {
+            useCase.findUnzipConflicts(archives, navigator, nameOf = { it.name }) { archive, destinationPath ->
+                askedPaths += destinationPath
+                IoResult.Success(extracted.getValue(archive.name))
+            }
+        }
+
+        assertEquals(DestinationConflicts("/a", listOf(archives[0])), result)
+        assertEquals(listOf("/a", "/a"), askedPaths)
+        assertTrue(notices.failures.isEmpty())
+    }
+
+    @Test
+    fun `압축 해제는 아카이브를 읽지 못하면 판정하지 않고 그 아카이브 이름과 원인으로 거부를 알린다`() {
+        show(DirectoryListing.Loaded(current, emptyList()))
+
+        val result = runBlocking {
+            useCase.findUnzipConflicts(listOf(item("/src/broken.rar")), navigator, nameOf = { it.name }) { _, _ -> IoResult.ItemFailed("손상됨") }
+        }
+
+        assertNull(result)
+        assertEquals(listOf("압축 해제 실패: broken.rar의 내용을 읽지 못해 충돌을 확인할 수 없습니다 (손상됨)"), notices.failures)
     }
 
     @Test
