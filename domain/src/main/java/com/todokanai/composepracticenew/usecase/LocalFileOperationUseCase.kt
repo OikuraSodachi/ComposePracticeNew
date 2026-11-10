@@ -19,7 +19,7 @@ import com.todokanai.composepracticenew.repository.StoragePathRules
  * @param orchestrator 인스턴스 ID·진행 핸들·콜백·실행 스코프를 제공하는 공통 오케스트레이터
  * @param notices 실행 전 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param fileActionRepo 로컬 파일 변경 작업을 실행하는 FileActionRepository
- * @param fileNameUseCase 파일 이름 규칙을 검증하는 UseCase
+ * @param fileNameUseCase 로컬 저장소의 제약을 포함한 파일 이름 규칙을 검증하는 UseCase
  * @param paths 출발지와 목적지의 위치 관계를 판별할 로컬 저장소의 경로 규칙(StoragePathRules 구현체)
  */
 class LocalFileOperationUseCase(
@@ -32,17 +32,20 @@ class LocalFileOperationUseCase(
     /**
      * 새 폴더·이름 변경에 쓸 이름을 검증한다.
      * @param name 사용자가 입력한 이름
+     * @param location 이름이 놓일 경로 — 새 폴더면 만들 폴더, 이름 변경이면 그 항목 자신
      * @return 위반한 규칙의 집합. 비어 있으면 유효한 이름이다
      */
-    fun validateEntryName(name: String): Set<FileNameError> = fileNameUseCase.validate(name)
+    fun validateEntryName(name: String, location: String): Set<FileNameError> = fileNameUseCase.validate(name, location)
 
     /**
-     * 압축 파일 이름을 검증한다. 길이 한도는 [format]의 확장자를 포함해 판정한다.
+     * 압축 파일 이름을 검증한다. 저장소의 제약(길이 한도 등)은 [format]의 확장자를 포함해 판정한다.
      * @param name 사용자가 입력한 압축 파일 이름(확장자 제외)
+     * @param location 압축 파일을 만들 폴더의 경로
      * @param format 만들 아카이브 형식
      * @return 위반한 규칙의 집합. 비어 있으면 유효한 이름이다
      */
-    fun validateArchiveName(name: String, format: ArchiveFormat): Set<FileNameError> = fileNameUseCase.validate(name, format.extension)
+    fun validateArchiveName(name: String, location: String, format: ArchiveFormat): Set<FileNameError> =
+        fileNameUseCase.validate(name, location, format.extension)
 
     /**
      * 목적지가 원본 중 하나의 부모(제자리 복사·이동)이거나 그 안쪽인지 판별한다.
@@ -127,7 +130,7 @@ class LocalFileOperationUseCase(
      */
     fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsUnsupportedFormat(format)) return
-        if (rejectsInvalidName(validateArchiveName(name, format), "$name${format.extension}", "압축 실패")) return
+        if (rejectsInvalidName(validateArchiveName(name, parentPath, format),"$name${format.extension}", "압축 실패")) return
         orchestrator.launch(completionMessage, FileOperationType.COMPRESS, onRefresh) { onProgress ->
             fileActionRepo.compressAction(files, parentPath, name, format, onProgress)
         }
@@ -176,7 +179,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun rename(path: String, newName: String, overwrite: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(newName), newName, "이름 변경 실패")) return
+        if (rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             fileActionRepo.renameFile(path, newName, overwrite)
         }
@@ -191,7 +194,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(name), name, "폴더 생성 실패")) return
+        if (rejectsInvalidName(validateEntryName(name, parentPath), name, "폴더 생성 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             fileActionRepo.makeDirectory(parentPath, name)
         }

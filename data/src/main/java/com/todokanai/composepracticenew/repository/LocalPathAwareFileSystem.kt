@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
+import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.defaultDisplayName
@@ -19,6 +20,8 @@ class LocalPathAwareFileSystem @Inject constructor(
     override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = localFiles.listFiles(path)
     override fun getParent(path: String): String? = defaultParentPath(path)
     override fun displayName(path: String): String = defaultDisplayName(path)
+    // 볼륨의 파일 시스템(FAT 등)을 구분하지 않으므로 모든 로컬 경로에 주요 파일시스템의 길이 한도만 적용한다
+    override fun nameViolationsOf(fullName: String, location: String): Set<FileNameError> = nameByteLimitViolations(fullName)
     override suspend fun resolveNavigationPath(path: String): String? =
         if (localFiles.canRead(path)) path else null
 

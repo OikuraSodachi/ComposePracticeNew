@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
+import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -38,8 +39,10 @@ class FileNameEnforcementTest {
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
     private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope)
-    private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), LocalPathRules())
-    private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, mutationRepo, FileNameUseCase())
+    /** 저장소의 제약을 물은 이름과 위치를 기록하는 이름 규칙. */
+    private val storageNames = RecordingStorageNameRules()
+    private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(storageNames), LocalPathRules())
+    private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, mutationRepo, FileNameUseCase(storageNames))
 
     @After
     fun tearDown() = scope.cancel()
@@ -78,9 +81,29 @@ class FileNameEnforcementTest {
     }
 
     @Test
-    fun `압축 이름 검증은 확장자를 포함한 길이로 판정한다`() {
-        assertTrue(local.validateArchiveName("a".repeat(251), ArchiveFormat.ZIP).isEmpty())
-        assertTrue(local.validateArchiveName("a".repeat(252), ArchiveFormat.ZIP).isNotEmpty())
+    fun `저장소의 제약은 이름이 놓일 위치로 묻는다 — 새 항목은 만들 폴더, 이름 변경은 그 항목 자신`() {
+        local.rename("/dir/a.txt", "a.md", false, "done") {}
+        local.makeDirectory("/dir", "new folder", "done") {}
+        local.compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP, "done") {}
+        remote.renameRemote("/r/a.txt", "b.txt", "done", "fail") {}
+        remote.makeDirectoryRemote("/r", "sub", "done", "fail") {}
+
+        assertEquals(
+            listOf("a.md" to "/dir/a.txt", "new folder" to "/dir", "archive.zip" to "/dir", "b.txt" to "/r/a.txt", "sub" to "/r"),
+            storageNames.calls
+        )
+    }
+
+    @Test
+    fun `저장소의 제약을 위반한 이름은 저장소를 호출하지 않고 거부한다`() {
+        val tooLong = RecordingStorageNameRules(setOf(FileNameError.TOO_LONG))
+        val strictLocal = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(tooLong), LocalPathRules())
+
+        strictLocal.makeDirectory("/dir", "new folder", "done") {}
+
+        assertEquals(1, notices.failures.size)
+        assertTrue(notices.failures[0].startsWith("폴더 생성 실패"))
+        assertTrue("저장소가 호출되면 안 됨: ${fileActionRepo.calls}", fileActionRepo.calls.isEmpty())
     }
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */

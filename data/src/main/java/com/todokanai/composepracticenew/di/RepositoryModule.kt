@@ -13,6 +13,7 @@ import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
+import com.todokanai.composepracticenew.repository.FileSystemNameRules
 import com.todokanai.composepracticenew.repository.FileSystemPathRules
 import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.LocalFileInfoRepositoryImpl
@@ -36,6 +37,7 @@ import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepositoryImpl
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
+import com.todokanai.composepracticenew.repository.StorageNameRules
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepositoryImpl
@@ -146,5 +148,15 @@ abstract class RepositoryModule {
         @Provides @Singleton @RemoteNavigator
         fun provideRemoteStoragePathRules(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StoragePathRules =
             FileSystemPathRules(fileSystems)
+
+        /** 로컬 화면의 이름 제약. 로컬 탐색과 같은 파일 시스템 집합을 쓴다. */
+        @Provides @Singleton
+        fun provideLocalStorageNameRules(localFileSystem: LocalPathAwareFileSystem): StorageNameRules =
+            FileSystemNameRules(setOf(localFileSystem))
+
+        /** 원격 화면의 이름 제약. 원격 탐색과 같은 파일 시스템 집합을 쓴다. */
+        @Provides @Singleton @RemoteNavigator
+        fun provideRemoteStorageNameRules(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameRules =
+            FileSystemNameRules(fileSystems)
     }
 }

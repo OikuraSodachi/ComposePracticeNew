@@ -36,7 +36,7 @@ class RemoteFileOperationFailureTest {
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
     private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope)
-    private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase())
+    private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase(NoStorageNameRules))
 
     @After
     fun tearDown() = scope.cancel()

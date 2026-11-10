@@ -6,71 +6,77 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** [FileNameUseCase.validate]의 파일 이름 규칙(공백뿐·앞뒤 공백 거부, 경로 문자·제어 문자·예약 이름·255바이트 초과 거부)을 검증하는 단위 테스트. */
+/**
+ * [FileNameUseCase.validate]의 공통 이름 규칙(공백뿐·앞뒤 공백 거부, 경로 문자·제어 문자·예약 이름 거부)과,
+ * 저장소의 제약을 이름이 놓일 위치의 규칙에 맡기는 동작을 검증하는 단위 테스트.
+ */
 class FileNameUseCaseTest {
 
-    private val useCase = FileNameUseCase()
+    private val useCase = FileNameUseCase(NoStorageNameRules)
 
     @Test
     fun `일반 이름·중간 공백·확장자 변경은 허용한다`() {
         listOf("docs", "a.txt", "a.md", "archive.tar.gz", ".hidden", "...", "이름 변경", "my  file.txt").forEach { name ->
-            assertTrue("name=\"$name\"", useCase.validate(name).isEmpty())
+            assertTrue("name=\"$name\"", useCase.validate(name, LOCATION).isEmpty())
         }
     }
 
     @Test
     fun `공백뿐인 이름은 거부한다`() {
-        assertEquals(setOf(FileNameError.BLANK), useCase.validate(""))
-        assertEquals(setOf(FileNameError.BLANK), useCase.validate("   "))
+        assertEquals(setOf(FileNameError.BLANK), useCase.validate("", LOCATION))
+        assertEquals(setOf(FileNameError.BLANK), useCase.validate("   ", LOCATION))
     }
 
     @Test
     fun `앞이나 뒤에 공백이 있으면 거부한다`() {
         // 탭 등 제어 문자인 공백은 CONTAINS_CONTROL_CHAR도 함께 걸리므로 여기서는 제어 문자가 아닌 공백만 사용
         listOf("  docs ", " docs", "docs ", "docs　").forEach { name ->
-            assertEquals("name=\"$name\"", setOf(FileNameError.LEADING_OR_TRAILING_WHITESPACE), useCase.validate(name))
+            assertEquals("name=\"$name\"", setOf(FileNameError.LEADING_OR_TRAILING_WHITESPACE), useCase.validate(name, LOCATION))
         }
     }
 
     @Test
     fun `경로 구분자를 포함하면 거부한다`() {
-        assertEquals(setOf(FileNameError.CONTAINS_PATH_SEPARATOR), useCase.validate("a/b"))
-        assertEquals(setOf(FileNameError.CONTAINS_PATH_SEPARATOR), useCase.validate("a\\b"))
+        assertEquals(setOf(FileNameError.CONTAINS_PATH_SEPARATOR), useCase.validate("a/b", LOCATION))
+        assertEquals(setOf(FileNameError.CONTAINS_PATH_SEPARATOR), useCase.validate("a\\b", LOCATION))
     }
 
     @Test
     fun `제어 문자를 포함하면 거부한다`() {
-        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\u0000b"))
-        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\nb"))
-        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\u007Fb"))
+        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\u0000b", LOCATION))
+        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\nb", LOCATION))
+        assertEquals(setOf(FileNameError.CONTAINS_CONTROL_CHAR), useCase.validate("a\u007Fb", LOCATION))
     }
 
     @Test
     fun `이름 전체가 점 하나 또는 둘이면 거부한다`() {
-        assertEquals(setOf(FileNameError.RESERVED_NAME), useCase.validate("."))
-        assertEquals(setOf(FileNameError.RESERVED_NAME), useCase.validate(".."))
+        assertEquals(setOf(FileNameError.RESERVED_NAME), useCase.validate(".", LOCATION))
+        assertEquals(setOf(FileNameError.RESERVED_NAME), useCase.validate("..", LOCATION))
     }
 
     @Test
-    fun `UTF-8 255바이트까지 허용하고 초과하면 거부한다`() {
-        assertTrue(useCase.validate("a".repeat(255)).isEmpty())
-        assertEquals(setOf(FileNameError.TOO_LONG), useCase.validate("a".repeat(256)))
-        // 한글은 UTF-8 3바이트 — 85자(255바이트)는 허용, 86자(258바이트)는 거부
-        assertTrue(useCase.validate("가".repeat(85)).isEmpty())
-        assertEquals(setOf(FileNameError.TOO_LONG), useCase.validate("가".repeat(86)))
+    fun `공통 규칙에는 길이 한도가 없다`() {
+        assertTrue(useCase.validate("a".repeat(1000), LOCATION).isEmpty())
     }
 
     @Test
-    fun `suffix를 포함한 길이로 한도를 판정한다`() {
-        assertTrue(useCase.validate("a".repeat(251), suffix = ".zip").isEmpty())
-        assertEquals(setOf(FileNameError.TOO_LONG), useCase.validate("a".repeat(252), suffix = ".zip"))
+    fun `저장소의 제약은 suffix를 붙인 이름과 위치로 묻고 그 위반을 돌려준다`() {
+        val storage = RecordingStorageNameRules(setOf(FileNameError.TOO_LONG))
+
+        assertEquals(setOf(FileNameError.TOO_LONG), FileNameUseCase(storage).validate("archive", LOCATION, suffix = ".zip"))
+        assertEquals(listOf("archive.zip" to LOCATION), storage.calls)
     }
 
     @Test
-    fun `위반한 규칙을 모두 검사 순서대로 반환한다`() {
+    fun `위반한 규칙을 공통 규칙, 저장소의 제약 순서로 모두 반환한다`() {
         assertEquals(
-            listOf(FileNameError.CONTAINS_PATH_SEPARATOR, FileNameError.CONTAINS_CONTROL_CHAR),
-            useCase.validate("a/\u0001").toList()
+            listOf(FileNameError.CONTAINS_PATH_SEPARATOR, FileNameError.CONTAINS_CONTROL_CHAR, FileNameError.TOO_LONG),
+            FileNameUseCase(RecordingStorageNameRules(setOf(FileNameError.TOO_LONG))).validate("a/\u0001", LOCATION).toList()
         )
+    }
+
+    private companion object {
+        /** 이름이 놓일 위치로 넘기는 경로. */
+        const val LOCATION = "/dir"
     }
 }

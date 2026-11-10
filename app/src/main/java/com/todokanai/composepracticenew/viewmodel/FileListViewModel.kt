@@ -93,8 +93,14 @@ class FileListViewModel @Inject constructor(
     /** 같은 이름의 항목이 있어 덮어쓰기(폴더는 합치기) 확인을 기다리는 이름 변경. */
     val pendingRename: StateFlow<PendingRename?> = renameGate.pending
 
-    /** 새 폴더에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
-    fun validateEntryName(name: String): Set<FileNameError> = localFileOperationUseCase.validateEntryName(name)
+    /**
+     * 현재 폴더에 만들 새 폴더 이름 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다.
+     * 현재 폴더가 없으면 판정할 저장소가 없어 빈 집합을 돌려준다 — 그때는 [newFolder]도 아무것도 만들지 않는다.
+     */
+    fun validateEntryName(name: String): Set<FileNameError> {
+        val location = fileNavigatorUseCase.currentPath.value ?: return emptySet()
+        return localFileOperationUseCase.validateEntryName(name, location)
+    }
 
     /** [item]을 압축 해제할 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식을 따르는 UseCase가 한다. */
     fun canUnzip(item: FileHolderItem): Boolean = localFileOperationUseCase.canUnzip(item.toDomain())
@@ -107,7 +113,7 @@ class FileListViewModel @Inject constructor(
      * @return 위반한 규칙의 집합. 비어 있으면 확인 버튼을 누를 수 있다
      */
     fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
-        val errors = localFileOperationUseCase.validateEntryName(name)
+        val errors = localFileOperationUseCase.validateEntryName(name, item.path)
         val conflict = conflictCheckUseCase.previewRenameConflict(
             targetPath = item.path,
             targetIsDirectory = item.isDirectory,
@@ -121,8 +127,14 @@ class FileListViewModel @Inject constructor(
     /** 압축 다이얼로그가 만드는 아카이브 형식. 형식을 고르는 화면이 없으므로 ZIP 하나다. */
     private val archiveFormat = ArchiveFormat.ZIP
 
-    /** 압축 파일 이름([name]+[archiveFormat]의 확장자)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다. */
-    fun validateArchiveName(name: String): Set<FileNameError> = localFileOperationUseCase.validateArchiveName(name, archiveFormat)
+    /**
+     * 현재 폴더에 만들 압축 파일 이름([name]+[archiveFormat]의 확장자)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다.
+     * 압축 파일은 선택 항목 옆(현재 폴더)에 만들어지므로 현재 폴더의 저장소로 판정하고, 현재 폴더가 없으면 빈 집합을 돌려준다.
+     */
+    fun validateArchiveName(name: String): Set<FileNameError> {
+        val location = fileNavigatorUseCase.currentPath.value ?: return emptySet()
+        return localFileOperationUseCase.validateArchiveName(name, location, archiveFormat)
+    }
 
     /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
     fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(

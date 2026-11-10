@@ -156,8 +156,14 @@ class RemoteFileListViewModel @Inject constructor(
         }
     }
 
-    /** 원격 새 폴더·이름 변경에 쓸 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다. */
-    fun validateEntryName(name: String): Set<FileNameError> = remoteFileOperationUseCase.validateEntryName(name)
+    /**
+     * 현재 폴더에 만들 원격 새 폴더 이름 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다.
+     * 현재 폴더가 없으면 판정할 저장소가 없어 빈 집합을 돌려준다 — 그때는 [onMakeDirectory]도 아무것도 만들지 않는다.
+     */
+    fun validateEntryName(name: String): Set<FileNameError> {
+        val location = fileNavigatorUseCase.currentPath.value ?: return emptySet()
+        return remoteFileOperationUseCase.validateEntryName(name, location)
+    }
 
     /** 이름 변경의 "충돌 판정 → 즉시 실행 / 덮어쓰기 확인 대기" 흐름을 관리한다. */
     private val renameGate = RenameConfirmGate()
@@ -172,7 +178,7 @@ class RemoteFileListViewModel @Inject constructor(
      * @return 위반한 규칙의 집합. 비어 있으면 확인 버튼을 누를 수 있다
      */
     fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
-        val errors = remoteFileOperationUseCase.validateEntryName(name)
+        val errors = remoteFileOperationUseCase.validateEntryName(name, item.path)
         val conflict = conflictCheckUseCase.previewRenameConflict(
             targetPath = item.path,
             targetIsDirectory = item.isDirectory,
