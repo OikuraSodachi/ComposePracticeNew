@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -12,11 +13,14 @@ import java.io.File
 import java.nio.file.Files
 import java.util.zip.ZipFile
 
-/** [LocalZipCompressor]의 항목 이름 규칙(선택 항목 이름부터 시작), 빈 폴더 보존, 기존 파일을 덮어쓰지 않고 번호를 붙인 새 이름으로 만드는 동작을 검증하는 단위 테스트. */
-class LocalZipCompressorTest {
+/**
+ * [LocalArchiveCompression]과 [ZipArchiveCompressor]의 압축 동작을 검증하는 단위 테스트.
+ * 항목 이름 규칙(선택 항목 이름부터 시작), 빈 폴더 보존, 기존 파일을 덮어쓰지 않고 번호를 붙인 새 이름으로 만드는 동작, 구현이 없는 형식의 실패를 확인한다.
+ */
+class LocalArchiveCompressionTest {
 
     private val dir: File = Files.createTempDirectory("zip-test").toFile()
-    private val compressor = LocalZipCompressor()
+    private val compression = LocalArchiveCompression(setOf(ZipArchiveCompressor()))
 
     @After
     fun tearDown() {
@@ -24,10 +28,10 @@ class LocalZipCompressorTest {
     }
 
     @Test
-    fun `같은 이름이 없으면 지정한 경로에 만든다`() = runBlocking {
+    fun `같은 이름이 없으면 받은 이름에 형식의 확장자를 붙여 만든다`() = runBlocking {
         val src = folderWith("a.txt", "hello")
 
-        assertEquals(IoResult.Done, compressor.zip(setOf(src.path), File(dir, "out.zip").path) {})
+        assertEquals(IoResult.Done, compress(setOf(src.path), "out"))
 
         assertEquals(listOf("src/", "src/a.txt"), entriesOf(File(dir, "out.zip")))
     }
@@ -37,7 +41,7 @@ class LocalZipCompressorTest {
         val a = File(dir, "a.txt").apply { writeText("hello") }
         val b = File(dir, "b.txt").apply { writeText("world") }
 
-        assertEquals(IoResult.Done, compressor.zip(setOf(a.path, b.path), File(dir, "out.zip").path) {})
+        assertEquals(IoResult.Done, compress(setOf(a.path, b.path), "out"))
 
         val out = File(dir, "out.zip")
         assertEquals(listOf("a.txt", "b.txt"), entriesOf(out))
@@ -50,7 +54,7 @@ class LocalZipCompressorTest {
         File(src, "sub").mkdirs(); File(src, "sub/c.txt").writeText("deep")
         val b = File(dir, "b.txt").apply { writeText("world") }
 
-        assertEquals(IoResult.Done, compressor.zip(setOf(src.path, b.path), File(dir, "out.zip").path) {})
+        assertEquals(IoResult.Done, compress(setOf(src.path, b.path), "out"))
 
         assertEquals(listOf("b.txt", "src/", "src/a.txt", "src/sub/", "src/sub/c.txt"), entriesOf(File(dir, "out.zip")))
     }
@@ -61,7 +65,7 @@ class LocalZipCompressorTest {
         val src = folderWith("a.txt", "hello")
         File(src, "blank/deeper").mkdirs()
 
-        assertEquals(IoResult.Done, compressor.zip(setOf(emptyAlone.path, src.path), File(dir, "out.zip").path) {})
+        assertEquals(IoResult.Done, compress(setOf(emptyAlone.path, src.path), "out"))
 
         val out = File(dir, "out.zip")
         assertEquals(listOf("empty/", "src/", "src/a.txt", "src/blank/", "src/blank/deeper/"), entriesOf(out))
@@ -76,7 +80,7 @@ class LocalZipCompressorTest {
     fun `빈 폴더만 선택해도 압축한다`() = runBlocking {
         val emptyAlone = File(dir, "empty").apply { mkdirs() }
 
-        assertEquals(IoResult.Done, compressor.zip(setOf(emptyAlone.path), File(dir, "out.zip").path) {})
+        assertEquals(IoResult.Done, compress(setOf(emptyAlone.path), "out"))
 
         assertEquals(listOf("empty/"), entriesOf(File(dir, "out.zip")))
     }
@@ -87,7 +91,7 @@ class LocalZipCompressorTest {
         val taken = File(dir, "photos (1).zip").apply { writeText("also taken") }
         val src = folderWith("a.txt", "hello")
 
-        assertEquals(IoResult.Done, compressor.zip(setOf(src.path), existing.path) {})
+        assertEquals(IoResult.Done, compress(setOf(src.path), "photos"))
 
         assertEquals("original", existing.readText())
         assertEquals("also taken", taken.readText())
@@ -100,13 +104,27 @@ class LocalZipCompressorTest {
         val self = File(dir, "photos.zip").apply { writeBytes(bytes) }
         val a = File(dir, "a.txt").apply { writeText("hello") }
 
-        assertEquals(IoResult.Done, compressor.zip(setOf(self.path, a.path), self.path) {})
+        assertEquals(IoResult.Done, compress(setOf(self.path, a.path), "photos"))
 
         assertArrayEquals(bytes, self.readBytes())
         ZipFile(File(dir, "photos (1).zip")).use { zip ->
             assertArrayEquals(bytes, zip.getInputStream(zip.getEntry("photos.zip")).readBytes())
         }
     }
+
+    @Test
+    fun `형식을 쓰는 구현이 없으면 아무것도 만들지 않고 실패한다`() = runBlocking {
+        val src = folderWith("a.txt", "hello")
+
+        val result = LocalArchiveCompression(emptySet()).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {}
+
+        assertTrue(result.toString(), result is IoResult.ItemFailed)
+        assertTrue(!File(dir, "out.zip").exists())
+    }
+
+    /** [targetFiles]를 [dir] 아래 [baseName].zip으로 압축한다. */
+    private suspend fun compress(targetFiles: Set<String>, baseName: String): IoResult<Unit> =
+        compression.compress(targetFiles, dir.path, baseName, ArchiveFormat.ZIP) {}
 
     /** [dir] 아래 src 폴더에 [name] 파일을 [content] 내용으로 만들고 그 폴더를 반환한다. */
     private fun folderWith(name: String, content: String): File =

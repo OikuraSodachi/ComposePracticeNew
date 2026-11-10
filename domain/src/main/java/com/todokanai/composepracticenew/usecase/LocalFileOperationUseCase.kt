@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
@@ -36,11 +37,12 @@ class LocalFileOperationUseCase(
     fun validateEntryName(name: String): Set<FileNameError> = fileNameUseCase.validate(name)
 
     /**
-     * 압축 파일 이름을 검증한다. 길이 한도는 [ZIP_EXTENSION]을 포함해 판정한다.
+     * 압축 파일 이름을 검증한다. 길이 한도는 [format]의 확장자를 포함해 판정한다.
      * @param name 사용자가 입력한 압축 파일 이름(확장자 제외)
+     * @param format 만들 아카이브 형식
      * @return 위반한 규칙의 집합. 비어 있으면 유효한 이름이다
      */
-    fun validateZipName(name: String): Set<FileNameError> = fileNameUseCase.validate(name, ZIP_EXTENSION)
+    fun validateArchiveName(name: String, format: ArchiveFormat): Set<FileNameError> = fileNameUseCase.validate(name, format.extension)
 
     /**
      * 목적지가 원본 중 하나의 부모(제자리 복사·이동)이거나 그 안쪽인지 판별한다.
@@ -113,19 +115,20 @@ class LocalFileOperationUseCase(
     }
 
     /**
-     * [files]를 [parentPath] 아래 [name][ZIP_EXTENSION] 파일로 압축한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
+     * [files]를 [parentPath] 아래 [name]에 [format]의 확장자를 붙인 아카이브로 압축한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
      * 같은 이름의 파일이 이미 있으면 저장소가 `이름 (n).zip` 형태의 새 이름으로 만든다(기존 파일은 덮어쓰지 않는다).
      * @param files 압축할 파일의 절대 경로 집합
-     * @param parentPath zip 파일을 생성할 디렉터리의 절대 경로
-     * @param name 생성할 zip 파일 이름(확장자 제외)
+     * @param parentPath 아카이브를 생성할 디렉터리의 절대 경로
+     * @param name 생성할 아카이브 이름(확장자 제외)
+     * @param format 만들 아카이브 형식
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun zip(files: Set<String>, parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateZipName(name), "$name$ZIP_EXTENSION", "압축 실패")) return
-        orchestrator.launch(completionMessage, FileOperationType.ZIP, onRefresh) { onProgress ->
-            fileActionRepo.zipAction(files, parentPath, "$name$ZIP_EXTENSION", onProgress)
+    fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, completionMessage: String, onRefresh: suspend () -> Unit) {
+        if (rejectsInvalidName(validateArchiveName(name, format), "$name${format.extension}", "압축 실패")) return
+        orchestrator.launch(completionMessage, FileOperationType.COMPRESS, onRefresh) { onProgress ->
+            fileActionRepo.compressAction(files, parentPath, name, format, onProgress)
         }
     }
 
@@ -204,10 +207,5 @@ class LocalFileOperationUseCase(
         if (errors.isEmpty()) return false
         notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
         return true
-    }
-
-    companion object {
-        /** 압축 파일 이름 뒤에 붙는 확장자. */
-        const val ZIP_EXTENSION = ".zip"
     }
 }

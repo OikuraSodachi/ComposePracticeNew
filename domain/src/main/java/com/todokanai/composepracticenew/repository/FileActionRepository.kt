@@ -1,15 +1,17 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 
-/** Contract for performing file mutations (zip, copy, rename, delete, move). Every operation reports failure as an [IoResult.Failure], never as an exception. */
+/** Contract for performing file mutations (compress, copy, rename, delete, move). Every operation reports failure as an [IoResult.Failure], never as an exception. */
 interface FileActionRepository {
 
-    // Compresses [targetFiles] into a new zip file named [zipName] under [parentPath], reporting progress via [onProgress].
-    // Never overwrites: if [zipName] already exists, a numbered name such as "name (1).zip" is used instead.
-    suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    // Compresses [targetFiles] into a new [format] archive named [baseName] + [ArchiveFormat.extension] under [parentPath], reporting progress via [onProgress].
+    // Never overwrites: if that name already exists, a numbered name such as "name (1).zip" is used instead.
+    // Fails without creating anything if the implementation has no compressor for [format].
+    suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
     suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>

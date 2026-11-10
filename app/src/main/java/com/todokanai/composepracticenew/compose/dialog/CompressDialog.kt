@@ -14,7 +14,7 @@ import com.todokanai.composepracticenew.model.FileNameError
  * @param validate 입력 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  */
 @Composable
-fun ZipDialog(
+fun CompressDialog(
     initialText: String,
     onConfirm: (text:String)->Unit,
     onDismiss: ()-> Unit,
@@ -30,11 +30,11 @@ fun ZipDialog(
     )
 }
 
-/** ZipDialog의 기본 이름을 채운 모양을 확인하는 프리뷰. */
+/** CompressDialog의 기본 이름을 채운 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
-private fun ZipDialogPreview(){
-    ZipDialog(
+private fun CompressDialogPreview(){
+    CompressDialog(
         initialText = "Download",
         onConfirm = {},
         onDismiss = {},

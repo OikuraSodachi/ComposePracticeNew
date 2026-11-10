@@ -20,7 +20,7 @@ import com.todokanai.composepracticenew.ui.model.SelectMode
  * @param selectedList 선택 목록을 반환하는 함수 — 이 컴포저블에서 읽어 선택 변경 시 리컴포지션을 하단 버튼 영역으로 한정한다
  * @param info 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음
  * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
- * @param zip 압축 다이얼로그의 콜백 묶음
+ * @param compress 압축 다이얼로그의 콜백 묶음
  * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수 — 압축 해제 버튼 표시 여부를 정한다
  * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
@@ -37,7 +37,7 @@ fun BottomButtonListView(
     transfer: LocalTransferActions,
     onRequestConfirm: (List<FileHolderItem>, SelectMode.LocalOperation) -> Unit,
     onResolveConflict: (ConflictResolution) -> Unit,
-    zip: ZipActions,
+    compress: CompressActions,
     canUnzip: (FileHolderItem) -> Boolean,
     rename: RenameActions,
     pendingRename: PendingRename?,
@@ -79,7 +79,7 @@ fun BottomButtonListView(
         selectedList = currentSelectedList,
         info = info,
         onResetSelection = onResetSelection,
-        zip = zip,
+        compress = compress,
         rename = rename,
         pendingRename = pendingRename,
         onDelete = onDelete,

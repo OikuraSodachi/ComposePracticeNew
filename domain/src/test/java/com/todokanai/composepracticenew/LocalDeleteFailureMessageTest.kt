@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FileHolderItem
@@ -74,7 +75,7 @@ class LocalDeleteFailureMessageTest {
         /** 경로 → 그 경로 삭제가 돌려줄 부분 실패. */
         val failures = mutableMapOf<String, IoResult.PartiallyFailed>()
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = failures[targetFile] ?: IoResult.Done
-        override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done

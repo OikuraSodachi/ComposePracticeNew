@@ -2,78 +2,84 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
+import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 
-/** 로컬 파일·디렉터리를 하나의 ZIP 파일로 압축한다. */
-class LocalZipCompressor @Inject constructor() {
+/**
+ * 로컬 파일·디렉터리를 하나의 아카이브로 압축하는 흐름을 조율한다. 형식별 쓰기는 주입된 [ArchiveCompressor] 집합에 위임한다.
+ * @param compressors 형식별 아카이브 쓰기 구현 집합 — 각 format은 서로 겹치지 않는다
+ */
+class LocalArchiveCompression @Inject constructor(
+    private val compressors: Set<@JvmSuppressWildcards ArchiveCompressor>
+) {
 
     /**
-     * [targetFiles]를 [zipFile]로 압축한다. [zipFile]이 이미 있으면 덮어쓰지 않고 `이름 (n).zip` 형태의 새 이름으로 만든다.
-     * 폴더는 `이름/` 항목으로 함께 담아, 빈 폴더도 압축 해제 시 그대로 복원된다.
+     * [targetFiles]를 [parentPath] 아래 `[baseName][ArchiveFormat.extension]` 아카이브로 압축한다. 그 이름이 이미 있으면 덮어쓰지 않고 `이름 (n).확장자` 형태의 새 이름으로 만든다.
      * @param targetFiles 압축 대상 파일 경로 집합
-     * @param zipFile 생성할 ZIP 파일의 절대 경로(희망 경로)
+     * @param parentPath 아카이브를 만들 디렉터리 경로
+     * @param baseName 만들 아카이브 이름(확장자 제외)
+     * @param format 만들 아카이브 형식
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 압축 결과
+     * @return 압축 결과. [format]을 쓰는 구현이 없으면 아무것도 만들지 않고 실패한다
      */
-    suspend fun zip(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
-        localIo { zipEntries(targetFiles, zipFile, onProgress) }
+    suspend fun compress(
+        targetFiles: Set<String>,
+        parentPath: String,
+        baseName: String,
+        format: ArchiveFormat,
+        onProgress: (ProgressState) -> Unit
+    ): IoResult<Unit> = withContext(Dispatchers.IO) {
+        localIo {
+            val compressor = compressorFor(format) ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${format.extension}")
+            compressEntries(compressor, targetFiles, File(parentPath, "$baseName${format.extension}"), onProgress)
+        }
     }
 
     /**
-     * [zip]의 본체. 입출력 실패는 IOException으로 전파해 [zip]의 [localIo]가 결과로 바꾼다.
+     * [compress]의 본체. 입출력 실패는 IOException으로 전파해 [compress]의 [localIo]가 결과로 바꾼다.
+     * @param compressor 아카이브를 쓸 형식별 구현
      * @param targetFiles 압축 대상 파일 경로 집합
-     * @param zipFile 생성할 ZIP 파일의 절대 경로(희망 경로)
+     * @param desired 만들 아카이브의 희망 경로
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 압축 결과
      */
-    private fun zipEntries(targetFiles: Set<String>, zipFile: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    private fun compressEntries(compressor: ArchiveCompressor, targetFiles: Set<String>, desired: File, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         val roots = targetFiles.map(::File)
         // 위에서 아래로 순회하므로 폴더 항목이 항상 그 하위 항목보다 먼저 온다
-        val allEntries = roots.flatMap { root -> root.walkTopDown().map { root to it }.toList() }
-        if (allEntries.isEmpty()) return IoResult.ItemFailed("압축할 항목이 없습니다.")
-        val allFiles = allEntries.filter { (_, f) -> !f.isDirectory }
-        val totalBytes = allFiles.sumOf { (_, f) -> f.length() }
-        checkDiskSpace(totalBytes, (File(zipFile).parentFile ?: File(zipFile)).freeSpace)
+        val entries = roots.flatMap { root -> root.walkTopDown().map { ArchiveSource(entryNameOf(root, it), it) }.toList() }
+        if (entries.isEmpty()) return IoResult.ItemFailed("압축할 항목이 없습니다.")
+        val files = entries.filter { !it.file.isDirectory }
+        val totalBytes = files.sumOf { it.file.length() }
+        checkDiskSpace(totalBytes, (desired.parentFile ?: desired).freeSpace)
             ?.let { return IoResult.ItemFailed(it) }
-        val tracker = ByteProgressTracker(totalBytes, allFiles.size, onProgress)
+        val tracker = ByteProgressTracker(totalBytes, files.size, onProgress)
         tracker.reportStart()
         // 압축 대상 목록을 만든 뒤에 새 파일을 확보 — 기존 파일(선택 항목 자신 포함)은 절대 열지 않으므로 잘라내기·자기 참조가 생기지 않는다
-        val output = createUniqueFile(File(zipFile))
-
-        ZipOutputStream(output.outputStream()).use { zos ->
-            allEntries.forEach { (root, sFile) ->
-                if (sFile.isDirectory) {
-                    zos.putNextEntry(ZipEntry("${entryNameOf(root, sFile)}/"))
-                    zos.closeEntry()
-                    return@forEach
-                }
-                tracker.startFile()
-                zos.putNextEntry(ZipEntry(entryNameOf(root, sFile)))
-                sFile.inputStream().use { input ->
-                    tracker.pump(input, zos, sFile.name, sFile.length())
-                }
-                zos.closeEntry()
-                tracker.onFileCompleted(sFile.name, sFile.length())
-            }
-        }
+        val output = createUniqueFile(desired)
+        compressor.write(entries, output, tracker)
         tracker.reportComplete()
         return IoResult.Done
     }
 
     /**
-     * [file]의 zip 항목 이름을 선택 항목 [root]의 부모 폴더 기준 상대 경로로 만든다.
+     * [format]을 쓰는 구현을 찾는다.
+     * @param format 만들 아카이브 형식
+     * @return 구현. 없으면 null
+     */
+    private fun compressorFor(format: ArchiveFormat): ArchiveCompressor? = compressors.firstOrNull { it.format == format }
+
+    /**
+     * [file]의 항목 이름을 선택 항목 [root]의 부모 폴더 기준 상대 경로로 만든다.
      * 선택한 파일은 `a.txt`, 선택한 폴더의 하위 파일은 `src/a.txt`처럼 선택 항목 이름부터 시작한다.
      * @param root 사용자가 선택한 압축 대상(파일 또는 폴더)
      * @param file [root] 자신 또는 그 하위 파일
-     * @return `/`로 구분한 zip 항목 이름
+     * @return `/`로 구분한 항목 이름
      */
     private fun entryNameOf(root: File, file: File): String {
         // 부모가 없는 경우는 파일시스템 루트를 선택한 것뿐이므로 루트 자신을 기준으로 한다

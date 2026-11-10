@@ -41,7 +41,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             FileOperationType.DELETE -> showCountProgress(type, state, instanceId)
             FileOperationType.COPY,
             FileOperationType.MOVE,
-            FileOperationType.ZIP,
+            FileOperationType.COMPRESS,
             FileOperationType.UNZIP,
             FileOperationType.DOWNLOAD,
             FileOperationType.UPLOAD,

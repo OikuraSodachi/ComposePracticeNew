@@ -4,8 +4,10 @@ import android.os.Environment
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.datastore.PreferenceFailureNotices
+import com.todokanai.composepracticenew.datasource.ArchiveCompressor
 import com.todokanai.composepracticenew.datasource.ArchiveExtractor
 import com.todokanai.composepracticenew.datasource.RarArchiveExtractor
+import com.todokanai.composepracticenew.datasource.ZipArchiveCompressor
 import com.todokanai.composepracticenew.datasource.ZipArchiveExtractor
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
@@ -106,6 +108,9 @@ abstract class RepositoryModule {
 
     @Binds @IntoSet
     abstract fun bindRarArchiveExtractor(impl: RarArchiveExtractor): ArchiveExtractor
+
+    @Binds @IntoSet
+    abstract fun bindZipArchiveCompressor(impl: ZipArchiveCompressor): ArchiveCompressor
 
     companion object {
         /** 로컬 화면은 로컬 경로만 다룬다. */
