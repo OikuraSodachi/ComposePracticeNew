@@ -23,6 +23,7 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -86,6 +87,9 @@ internal class RecordingFileActionRepository : FileActionRepository {
 
     /** 아카이브 경로와 배치 방식을 받아 해제가 목적지 바로 아래에 만들 이름을 돌려주는 함수. 테스트가 정한다. */
     var extractedNamesOf: (zipFile: String, layout: ExtractLayout) -> Set<String> = { _, _ -> emptySet() }
+
+    /** 정해 두면 압축 해제가 만들 이름을 구하는 호출이 이 값이 완료될 때까지 기다린다 — 아카이브를 읽는 동안의 일시 중단을 흉내 낸다. */
+    var extractedNamesGate: CompletableDeferred<Unit>? = null
     override suspend fun zipAction(targetFiles: Set<String>, parentPath: String, zipName: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "zip" }
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
@@ -93,7 +97,10 @@ internal class RecordingFileActionRepository : FileActionRepository {
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit) =
         IoResult.Done.also { calls += "unzip"; unzipLayouts += layout }
-    override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout) = IoResult.Success(extractedNamesOf(zipFile, layout))
+    override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout): IoResult<Set<String>> {
+        extractedNamesGate?.await()
+        return IoResult.Success(extractedNamesOf(zipFile, layout))
+    }
     override fun canExtract(path: String) = false
     override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
 }
@@ -124,6 +131,7 @@ internal object FixedMessages : OperationMessages {
     override val notiDownloadComplete = "다운로드 완료"
     override val notiUploadComplete = "업로드 완료"
     override val destinationUnverified = "목록 미확인"
+    override val conflictAwaiting = "확인 대기 중"
     override val defaultNewFolderName = "새 폴더"
     override val protectionRefused = "보호 거부"
 }

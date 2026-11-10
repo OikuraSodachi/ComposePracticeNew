@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
-import com.todokanai.composepracticenew.datasource.LocalFileChecks.topLevelNameOf
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
@@ -45,7 +44,7 @@ class LocalArchiveExtraction @Inject constructor(
             var skippedEntries = 0
             archives.forEach { (zipFilePath, extractor) ->
                 val root = rootOf(File(destPath), zipFilePath, layout).also { it.mkdirs() }
-                skippedEntries += extractor.extract(zipFilePath, root, tracker)
+                skippedEntries += extractor.extract(zipFilePath, ExtractionRoot(root), tracker)
             }
             if (skippedEntries > 0) return@localIo IoResult.ItemFailed("경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀")
             tracker.reportComplete()
@@ -67,7 +66,10 @@ class LocalArchiveExtraction @Inject constructor(
             val dest = File(destPath)
             val names = when (layout) {
                 ExtractLayout.IntoArchiveFolder -> setOf(rootOf(dest, zipFile, layout).name)
-                ExtractLayout.IntoDestination -> extractor.entryNames(zipFile).mapNotNullTo(HashSet()) { topLevelNameOf(dest, it) }
+                ExtractLayout.IntoDestination -> {
+                    val root = ExtractionRoot(dest)
+                    extractor.entryNames(zipFile).mapNotNullTo(HashSet()) { root.topLevelNameOf(it) }
+                }
             }
             IoResult.Success(names)
         }

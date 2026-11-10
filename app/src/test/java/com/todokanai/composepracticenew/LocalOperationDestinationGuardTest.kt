@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
@@ -15,12 +16,13 @@ import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
+import com.todokanai.composepracticenew.viewmodel.LocalOperationConfirmer
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
@@ -36,6 +38,7 @@ import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolder
 /**
  * 로컬 복사·이동·압축 해제·이름 변경이 현재 조회 요청의 확인된 목록으로만 이름 충돌을 판정하고,
  * 목록을 확인하지 못했으면 실행하지 않고 알리는지 검증하는 단위 테스트(#215).
+ * 확인한 작업은 확정이므로 판정이 화면 수명과 무관하게 끝까지 진행되는지도 검증한다(#315 리뷰).
  * 파일 작업 저장소 가짜가 일시 중단하지 않으므로 Unconfined 스코프에서 작업이 호출 즉시 끝난다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -61,13 +64,17 @@ class LocalOperationDestinationGuardTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, operationScope)
+        val navigator = FileNavigatorUseCase(nav, nav)
+        val localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), nav)
+        val conflictCheckUseCase = ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified }
         viewModel = FileListViewModel(
-            fileNavigatorUseCase = FileNavigatorUseCase(nav, nav),
+            fileNavigatorUseCase = navigator,
             openFileUseCase = OpenFileUseCase(nav) {},
             sortModeUseCase = SortModeUseCase(InMemorySortPreference()),
-            localFileOperationUseCase = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(), nav),
-            conflictCheckUseCase = ConflictCheckUseCase(notices) { FixedMessages.destinationUnverified },
-            messages = FixedMessages
+            localFileOperationUseCase = localFileOperationUseCase,
+            conflictCheckUseCase = conflictCheckUseCase,
+            messages = FixedMessages,
+            localOperationConfirmer = LocalOperationConfirmer(navigator, localFileOperationUseCase, conflictCheckUseCase, notices, FixedMessages, operationScope)
         )
         request = nav.moveTo("/dest")
     }
@@ -79,12 +86,11 @@ class LocalOperationDestinationGuardTest {
     }
 
     @Test
-    fun `현재 폴더 목록 조회에 실패했으면 복사하지 않고 알리며 선택을 유지한다`() {
+    fun `현재 폴더 목록 조회에 실패했으면 복사하지 않고 알린다`() {
         nav.directoryListing.value = DirectoryListing.Failed(request, ListingFailureReason.UNREADABLE, null)
 
-        val executed = confirm(SelectMode.LocalOperation.Copy)
+        confirm(SelectMode.LocalOperation.Copy)
 
-        assertFalse("실행하지 않았으므로 호출부가 선택 모드를 초기화하지 않아야 함", executed)
         assertTrue(fileActionRepo.calls.isEmpty())
         assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
@@ -93,7 +99,8 @@ class LocalOperationDestinationGuardTest {
     fun `현재 폴더 목록을 조회하는 중이면 이동하지 않는다`() {
         nav.directoryListing.value = DirectoryListing.Loading(request)
 
-        assertFalse(confirm(SelectMode.LocalOperation.Move))
+        confirm(SelectMode.LocalOperation.Move)
+
         assertTrue(fileActionRepo.calls.isEmpty())
     }
 
@@ -102,7 +109,8 @@ class LocalOperationDestinationGuardTest {
         val stale = DirectoryListing.Loaded(ListingRequest("/dest", 0L), emptyList())
         nav.directoryListing.value = DirectoryListing.Loading(request, stale)
 
-        assertFalse(confirm(SelectMode.LocalOperation.Copy))
+        confirm(SelectMode.LocalOperation.Copy)
+
         assertTrue(fileActionRepo.calls.isEmpty())
         assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
     }
@@ -111,7 +119,8 @@ class LocalOperationDestinationGuardTest {
     fun `확인된 목록에 같은 이름이 없으면 바로 복사한다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
 
-        assertTrue(confirm(SelectMode.LocalOperation.Copy))
+        confirm(SelectMode.LocalOperation.Copy)
+
         assertEquals(listOf("copy"), fileActionRepo.calls)
         assertTrue(notices.failures.isEmpty())
     }
@@ -120,7 +129,8 @@ class LocalOperationDestinationGuardTest {
     fun `확인된 목록에 같은 이름이 없으면 바로 이동한다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
 
-        assertTrue(confirm(SelectMode.LocalOperation.Move))
+        confirm(SelectMode.LocalOperation.Move)
+
         assertEquals(listOf("move"), fileActionRepo.calls)
     }
 
@@ -128,8 +138,8 @@ class LocalOperationDestinationGuardTest {
     fun `압축 해제는 작업 종류에 따라 배치 방식을 구분해 실행한다`() {
         nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
 
-        assertTrue(confirm(SelectMode.LocalOperation.Unzip))
-        assertTrue(confirm(SelectMode.LocalOperation.UnzipHere))
+        confirm(SelectMode.LocalOperation.Unzip)
+        confirm(SelectMode.LocalOperation.UnzipHere)
 
         assertEquals(listOf("unzip", "unzip"), fileActionRepo.calls)
         assertEquals(listOf(ExtractLayout.IntoArchiveFolder, ExtractLayout.IntoDestination), fileActionRepo.unzipLayouts)
@@ -140,7 +150,7 @@ class LocalOperationDestinationGuardTest {
         nav.directoryListing.value = DirectoryListing.Loaded(request, listOf(domainItem("/dest/readme.txt")))
         fileActionRepo.extractedNamesOf = { _, layout -> if (layout == ExtractLayout.IntoDestination) setOf("readme.txt") else setOf("a") }
 
-        assertFalse(confirm(SelectMode.LocalOperation.UnzipHere))
+        confirm(SelectMode.LocalOperation.UnzipHere)
 
         assertTrue(fileActionRepo.calls.isEmpty())
         assertEquals(selected, viewModel.pendingConflict.value?.conflicts)
@@ -151,9 +161,37 @@ class LocalOperationDestinationGuardTest {
         nav.directoryListing.value = DirectoryListing.Loaded(request, listOf(domainItem("/dest/a")))
         fileActionRepo.extractedNamesOf = { _, layout -> if (layout == ExtractLayout.IntoDestination) setOf("readme.txt") else setOf("a") }
 
-        assertTrue(confirm(SelectMode.LocalOperation.UnzipHere))
+        confirm(SelectMode.LocalOperation.UnzipHere)
 
         assertEquals(listOf(ExtractLayout.IntoDestination), fileActionRepo.unzipLayouts)
+    }
+
+    @Test
+    fun `확인한 압축 해제는 판정 중에 화면이 정리돼도 판정이 끝나면 실행한다`() {
+        nav.directoryListing.value = DirectoryListing.Loaded(request, emptyList())
+        val archiveRead = CompletableDeferred<Unit>()
+        fileActionRepo.extractedNamesGate = archiveRead
+
+        confirm(SelectMode.LocalOperation.UnzipHere)
+        assertTrue("아카이브를 읽는 중이므로 아직 실행하지 않아야 함", fileActionRepo.calls.isEmpty())
+
+        viewModel.viewModelScope.cancel()
+        archiveRead.complete(Unit)
+
+        assertEquals(listOf("unzip"), fileActionRepo.calls)
+    }
+
+    @Test
+    fun `다른 작업이 충돌 확인을 기다리는 동안 확정한 작업은 실행하지 않고 알리며 기다리는 작업을 바꾸지 않는다`() {
+        nav.directoryListing.value = DirectoryListing.Loaded(request, listOf(domainItem("/dest/a.txt")))
+        confirm(SelectMode.LocalOperation.Copy)
+        val pending = viewModel.pendingConflict.value
+
+        confirm(SelectMode.LocalOperation.Move)
+
+        assertTrue(fileActionRepo.calls.isEmpty())
+        assertEquals(pending, viewModel.pendingConflict.value)
+        assertEquals(listOf(FixedMessages.conflictAwaiting), notices.failures)
     }
 
     @Test
@@ -187,8 +225,8 @@ class LocalOperationDestinationGuardTest {
         assertTrue(notices.failures.isEmpty())
     }
 
-    /** [selected]로 [mode] 작업의 확인을 요청하고 끝날 때까지 기다린다. */
-    private fun confirm(mode: SelectMode.LocalOperation): Boolean = runBlocking { viewModel.requestConfirm(selected, mode) }
+    /** [selected]로 [mode] 작업을 확정한다. 판정이 일시 중단하지 않으면 호출 안에서 끝난다. */
+    private fun confirm(mode: SelectMode.LocalOperation) = viewModel.requestConfirm(selected, mode)
 
     /** [path]의 domain 파일 항목을 만든다. */
     private fun domainItem(path: String) =

@@ -1,12 +1,12 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
-import java.io.File
 
 /**
  * 아카이브 한 형식의 크기 산정과 추출을 담당하는 전략 인터페이스.
  * 구현체는 Hilt `@IntoSet`으로 등록되며 [supports]는 형식 간 서로 배타적이어야 한다.
  * 새 형식은 이 인터페이스 구현과 DI 등록만으로 추가된다.
+ * 읽지 못하는 아카이브(손상, 이름 해석 실패 등)는 [measure]·[entryNames]·[extract] 모두 IOException으로 알린다 — 호출부는 IOException만 실패 결과로 바꾸므로(localIo), 라이브러리가 입력 결함을 다른 예외로 알리면 구현체가 IOException으로 바꾼다.
  */
 interface ArchiveExtractor {
 
@@ -27,7 +27,7 @@ interface ArchiveExtractor {
 
     /**
      * [extract]가 풀어 만드는 항목의 아카이브 안 경로('/' 구분)를 나열한다. 충돌 판정이 추출과 같은 항목으로 판정하도록 [extract]와 같은 기준으로 고른다.
-     * 루트 밖을 가리키는 항목도 그대로 담는다 — 그런 항목을 걸러 내는 일은 위치를 정하는 쪽([LocalFileChecks.entryTargetOf])이 한다.
+     * 루트 밖을 가리키는 항목도 그대로 담는다 — 그런 항목을 걸러 내는 일은 위치를 정하는 쪽([ExtractionRoot.targetOf])이 한다.
      * @param path 아카이브 파일 경로
      * @return 항목 경로 목록
      */
@@ -35,13 +35,13 @@ interface ArchiveExtractor {
 
     /**
      * [path] 아카이브를 [root] 아래로 추출하며 [tracker]로 진행률을 보고한다. [measure]가 크기를 모른다고 센 항목은 크기 없이(null) 보고한다.
-     * 항목의 위치는 [LocalFileChecks.entryTargetOf]로 정한다.
+     * 항목의 위치는 [ExtractionRoot.targetOf]로 정한다.
      * @param path 아카이브 파일 경로
      * @param root 추출 대상 루트 디렉터리
      * @param tracker 누적 진행률 보고기
      * @return 경로 검증 실패 등으로 건너뛴 항목 수
      */
-    fun extract(path: String, root: File, tracker: ByteProgressTracker): Int
+    fun extract(path: String, root: ExtractionRoot, tracker: ByteProgressTracker): Int
 }
 
 /**

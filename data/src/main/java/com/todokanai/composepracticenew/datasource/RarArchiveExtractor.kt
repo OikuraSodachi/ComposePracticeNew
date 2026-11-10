@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
-import com.todokanai.composepracticenew.datasource.LocalFileChecks.entryTargetOf
 import net.sf.sevenzipjbinding.ArchiveFormat
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
@@ -28,7 +27,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             var count = 0
             var unknownSizeCount = 0
             for (i in 0 until archive.numberOfItems) {
-                if (archive.getProperty(i, PropID.IS_FOLDER) as? Boolean == true) continue
+                if (entryKindOf(archive, i) == RarEntryKind.Folder) continue
                 val size = knownSizeOf(archive, i)
                 if (size == null) unknownSizeCount++ else knownBytes += size
                 count++
@@ -36,15 +35,13 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             ArchiveSize(knownBytes, count, unknownSizeCount)
         }
 
-    // 폴더 항목은 extract가 만들지 않으므로(getStream이 건너뜀) 빼고, 경로가 없는 항목도 extract가 건너뛰므로 뺀다
+    // extract가 만드는 항목(Extracted)만 담는다 — 판별은 getStream과 같은 entryKindOf로 한다
     override fun entryNames(path: String): List<String> =
         withArchive(path) { archive ->
-            (0 until archive.numberOfItems)
-                .filterNot { archive.getProperty(it, PropID.IS_FOLDER) as? Boolean == true }
-                .mapNotNull { normalizedPathOf(archive, it) }
+            (0 until archive.numberOfItems).mapNotNull { (entryKindOf(archive, it) as? RarEntryKind.Extracted)?.path }
         }
 
-    override fun extract(path: String, root: File, tracker: ByteProgressTracker): Int =
+    override fun extract(path: String, root: ExtractionRoot, tracker: ByteProgressTracker): Int =
         withArchive(path) { archive ->
             val callback = ExtractCallback(archive, root, tracker)
             archive.extract(null, false, callback)
@@ -71,7 +68,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
      */
     private class ExtractCallback(
         private val archive: IInArchive,
-        private val root: File,
+        private val root: ExtractionRoot,
         private val tracker: ByteProgressTracker
     ) : IArchiveExtractCallback {
         /** 경로 없음·경로 검증 실패·쓰기 실패·추출 오류로 건너뛴 항목 수. */
@@ -89,10 +86,13 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
         override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? {
             skipCurrent = false
             if (extractAskMode != ExtractAskMode.EXTRACT) return null
-            if (archive.getProperty(index, PropID.IS_FOLDER) as? Boolean == true) return null
-            currentNormalizedName = normalizedPathOf(archive, index) ?: return skipEntry()
+            currentNormalizedName = when (val kind = entryKindOf(archive, index)) {
+                RarEntryKind.Folder -> return null
+                RarEntryKind.Unnamed -> return skipEntry()
+                is RarEntryKind.Extracted -> kind.path
+            }
             currentItemSize = knownSizeOf(archive, index)
-            val target = entryTargetOf(root, currentNormalizedName) ?: return skipEntry()
+            val target = root.targetOf(currentNormalizedName) ?: return skipEntry()
             target.parentFile?.mkdirs()
             tracker.startFile()
             return try {
@@ -141,9 +141,39 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
 private fun knownSizeOf(archive: IInArchive, index: Int): Long? = (archive.getProperty(index, PropID.SIZE) as? Long)?.takeIf { it >= 0 }
 
 /**
- * 항목의 아카이브 안 경로를 '/' 구분으로 정규화해 구한다. 나열과 추출이 같은 이름으로 항목을 가리키도록 한 곳에 둔다.
+ * 열린 아카이브의 항목을 추출이 어떻게 다루는지 판별한다.
  * @param archive 열린 아카이브
  * @param index 항목 번호
- * @return '/' 구분 경로, 아카이브가 경로를 알려주지 않으면 null
+ * @return 항목 종류
  */
-private fun normalizedPathOf(archive: IInArchive, index: Int): String? = (archive.getProperty(index, PropID.PATH) as? String)?.replace('\\', '/')
+private fun entryKindOf(archive: IInArchive, index: Int): RarEntryKind =
+    rarEntryKindOf(archive.getProperty(index, PropID.IS_FOLDER), archive.getProperty(index, PropID.PATH))
+
+/**
+ * 항목 속성으로 추출이 그 항목을 어떻게 다루는지 판별한다. 산정·나열·추출이 같은 규칙으로 항목을 고르도록 한 곳에 둔다.
+ * 라이브러리 없이 검증할 수 있도록 속성 값만 받는다.
+ * @param isFolder 항목의 IS_FOLDER 속성 값
+ * @param path 항목의 PATH 속성 값
+ * @return 폴더면 [RarEntryKind.Folder], 경로가 없으면 [RarEntryKind.Unnamed], 그 밖에는 '/' 구분으로 정규화한 경로의 [RarEntryKind.Extracted]
+ */
+internal fun rarEntryKindOf(isFolder: Any?, path: Any?): RarEntryKind = when {
+    isFolder as? Boolean == true -> RarEntryKind.Folder
+    path !is String -> RarEntryKind.Unnamed
+    else -> RarEntryKind.Extracted(path.replace('\\', '/'))
+}
+
+/** 추출이 RAR 항목 하나를 어떻게 다루는지 나타내는 종류. */
+internal sealed interface RarEntryKind {
+
+    /** 폴더 항목 — 추출이 만들지 않고 건너뜀으로도 세지 않는다. */
+    data object Folder : RarEntryKind
+
+    /** 경로가 없는 항목 — 추출이 건너뛰고 건너뜀으로 센다. */
+    data object Unnamed : RarEntryKind
+
+    /**
+     * 추출이 파일로 만드는 항목.
+     * @param path 아카이브 안의 '/' 구분 경로
+     */
+    data class Extracted(val path: String) : RarEntryKind
+}
