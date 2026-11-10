@@ -87,7 +87,7 @@ class LocalTreeTransfer internal constructor(
             roots.forEachIndexed { i, root ->
                 val dest = File(targetPath, root.name)
                 // 입출력 실패에 어느 항목에서 멈췄는지와 이미 옮긴 항목 수를 붙인다 — 두 이동 경로가 같은 문맥을 알린다
-                localIo(describe = { e -> "이동 실패: ${root.name} — ${e.message} (${i}개 항목은 이미 이동됨)" }) step@{
+                localIo(describe = { e -> "이동 실패: ${root.name} — ${ioFailureMessageOf(e)} (${i}개 항목은 이미 이동됨)" }) step@{
                     if (isSamePartition(root, destDir)) {
                         // 동일 파티션: rename syscall로 원자적 이동
                         // REPLACE_EXISTING은 비어있지 않은 디렉터리를 대체하지 못하므로 실패로 알린다

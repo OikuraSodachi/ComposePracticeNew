@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import java.io.InputStream
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipException
 import java.util.zip.ZipFile
@@ -21,26 +23,21 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     // 폴더 항목도 extract가 만들므로 함께 담는다
     override fun entryNames(path: String): List<String> = ZipFile(path).use { zf -> entriesOf(zf).map { it.name } }
 
-    override fun extract(path: String, root: ExtractionRoot, tracker: ByteProgressTracker): Int {
-        var skipped = 0
+    override fun extract(path: String, writer: ArchiveEntryWriter, tracker: ByteProgressTracker) {
         ZipFile(path).use { zf ->
             entriesOf(zf).forEach { entry ->
-                val target = root.targetOf(entry.name) ?: run { skipped++; return@forEach }
                 if (entry.isDirectory) {
-                    target.mkdirs()
-                } else {
-                    target.parentFile?.mkdirs()
-                    tracker.startFile()
-                    zf.getInputStream(entry).use { input ->
-                        target.outputStream().use { output ->
-                            tracker.pump(input, output, entry.name, knownSizeOf(entry))
-                        }
-                    }
-                    tracker.onFileCompleted(entry.name, knownSizeOf(entry))
+                    writer.createFolder(entry.name)
+                    return@forEach
                 }
+                VerifyingZipEntryInputStream(zf.getInputStream(entry), entry).use { input ->
+                    val output = writer.openFile(entry.name) ?: return@forEach
+                    tracker.startFile()
+                    output.use { tracker.pump(input, it, entry.name, knownSizeOf(entry)) }
+                }
+                tracker.onFileCompleted(entry.name, knownSizeOf(entry))
             }
         }
-        return skipped
     }
 
     /**
@@ -57,6 +54,55 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
      * @return 크기(bytes), 아카이브가 알려주지 않으면(-1) null
      */
     private fun knownSizeOf(entry: ZipEntry): Long? = entry.size.takeIf { it >= 0 }
+}
+
+/**
+ * 항목 내용을 읽으며 CRC32와 길이를 누적하고, 끝에 닿으면 central directory에 적힌 값과 비교하는 입력 스트림.
+ * java.util.zip.ZipFile의 입력 스트림은 CRC를 검증하지 않으므로(검증은 ZipInputStream만 한다), 손상된 항목을 성공으로 풀지 않도록 여기서 검증한다.
+ * 끝에서 던지므로 마지막 바이트까지 기록한 뒤 실패하며, 호출부는 그 항목을 완료로 확정하지 않는다.
+ * @param input 항목의 압축 해제된 내용
+ * @param entry 기대 CRC·크기를 담은 central directory 항목
+ */
+internal class VerifyingZipEntryInputStream(
+    private val input: InputStream,
+    private val entry: ZipEntry,
+) : InputStream() {
+
+    /** 지금까지 읽은 내용의 CRC32. */
+    private val crc = CRC32()
+    /** 지금까지 읽은 바이트 수. */
+    private var readBytes = 0L
+    /** 끝에서 검증을 마쳤는지. 끝에 닿은 뒤 다시 읽어도 한 번만 검증한다. */
+    private var verified = false
+
+    override fun read(): Int {
+        val b = input.read()
+        if (b == -1) verifyAtEnd() else { crc.update(b); readBytes++ }
+        return b
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        val n = input.read(b, off, len)
+        if (n == -1) verifyAtEnd() else { crc.update(b, off, n); readBytes += n }
+        return n
+    }
+
+    override fun available(): Int = input.available()
+
+    override fun close() = input.close()
+
+    /** 끝에 닿았을 때 읽은 내용이 항목의 CRC·크기와 맞는지 확인한다. CRC를 모르면 검증할 수 없으므로 같은 실패로 알린다. */
+    private fun verifyAtEnd() {
+        if (verified) return
+        verified = true
+        val reason = when {
+            entry.crc == -1L -> "CRC 없음"
+            entry.crc != crc.value -> "CRC"
+            entry.size >= 0 && entry.size != readBytes -> "크기"
+            else -> return
+        }
+        throw ZipException("풀 수 없는 항목입니다: ${entry.name} ($reason)")
+    }
 }
 
 /** 항목 정보를 해석하지 못한 아카이브의 실패 메시지. */

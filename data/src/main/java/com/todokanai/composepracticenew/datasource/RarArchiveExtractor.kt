@@ -9,7 +9,9 @@ import net.sf.sevenzipjbinding.IInArchive
 import net.sf.sevenzipjbinding.ISequentialOutStream
 import net.sf.sevenzipjbinding.PropID
 import net.sf.sevenzipjbinding.SevenZip
+import net.sf.sevenzipjbinding.SevenZipException
 import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream
+import java.io.Closeable
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
@@ -27,7 +29,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             var count = 0
             var unknownSizeCount = 0
             for (i in 0 until archive.numberOfItems) {
-                if (entryKindOf(archive, i) == RarEntryKind.Folder) continue
+                if (entryKindOf(archive, i) is RarEntryKind.Folder) continue
                 val size = knownSizeOf(archive, i)
                 if (size == null) unknownSizeCount++ else knownBytes += size
                 count++
@@ -35,18 +37,23 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             ArchiveSize(knownBytes, count, unknownSizeCount)
         }
 
-    // extract가 만드는 항목(Extracted)만 담는다 — 판별은 getStream과 같은 entryKindOf로 한다
+    // 폴더 항목도 extract가 만들므로 함께 담는다 — 판별은 getStream과 같은 entryKindOf로 한다
     override fun entryNames(path: String): List<String> =
-        withArchive(path) { archive ->
-            (0 until archive.numberOfItems).mapNotNull { (entryKindOf(archive, it) as? RarEntryKind.Extracted)?.path }
-        }
+        withArchive(path) { archive -> (0 until archive.numberOfItems).map { entryKindOf(archive, it).path } }
 
-    override fun extract(path: String, root: ExtractionRoot, tracker: ByteProgressTracker): Int =
+    override fun extract(path: String, writer: ArchiveEntryWriter, tracker: ByteProgressTracker) {
         withArchive(path) { archive ->
-            val callback = ExtractCallback(archive, root, tracker)
-            archive.extract(null, false, callback)
-            callback.skippedEntries
+            RarExtractCallback({ entryKindOf(archive, it) }, { knownSizeOf(archive, it) }, writer, tracker).use { callback ->
+                try {
+                    archive.extract(null, false, callback)
+                } catch (e: SevenZipException) {
+                    throw callback.failure ?: e
+                }
+                // 라이브러리가 콜백의 실패를 항목 결과로만 바꾸고 계속한 경우에도 성공으로 끝내지 않는다
+                callback.failure?.let { throw it }
+            }
         }
+    }
 
     /** RAR 파일을 열어 [block]에 IInArchive를 넘기고 사용 후 닫는다. 7-Zip은 내용으로 형식을 판별해 다른 형식도 열어 주므로, RAR이 아니면 IOException으로 실패시킨다. */
     private fun <T> withArchive(path: String, block: (IInArchive) -> T): T =
@@ -59,76 +66,98 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     /** [format]이 이 추출기가 다루는 RAR 형식(RAR4·RAR5)인지 판별한다. */
     private fun isRar(format: ArchiveFormat): Boolean = format == ArchiveFormat.RAR || format == ArchiveFormat.RAR5
+}
+
+/**
+ * 항목을 [writer]로 만들고 기록하며 진행률을 보고하는 추출 콜백.
+ * 라이브러리는 콜백이 던진 예외를 받아 추출을 멈추고 자기 예외로 감싸 다시 던지므로, 처음 던진 예외를 [failure]에 보관해 호출부가 원래 예외로 알리게 한다
+ * (입출력 실패는 그 메시지로 작업 실패가 되고, 구현 오류는 결과로 바뀌지 않고 전파된다). 실패한 뒤에 오는 콜백은 같은 예외로 다시 멈춘다.
+ * 라이브러리 없이 검증할 수 있도록 아카이브 대신 항목 판별·크기 함수를 받는다.
+ * @param entryOf 항목 번호로 항목 종류를 구하는 함수
+ * @param sizeOf 항목 번호로 압축 해제 후 크기를 구하는 함수(모르면 null)
+ * @param writer 항목을 추출 루트 아래에 만드는 쓰기 도우미
+ * @param tracker 누적 진행률 보고기
+ */
+internal class RarExtractCallback(
+    private val entryOf: (Int) -> RarEntryKind,
+    private val sizeOf: (Int) -> Long?,
+    private val writer: ArchiveEntryWriter,
+    private val tracker: ByteProgressTracker,
+) : IArchiveExtractCallback, Closeable {
+
+    /** 콜백에서 처음 던진 예외. 없으면 null. */
+    var failure: Throwable? = null
+        private set
+    /** 현재 항목을 쓰고 있는 출력 스트림. 항목 완료 시 닫고 null로 되돌린다. */
+    private var currentOutputStream: OutputStream? = null
+    /** 현재 항목의 '/' 구분 경로. */
+    private var currentPath = ""
+    /** 현재 항목의 압축 해제 후 크기(bytes). 아카이브가 알려주지 않으면 null. */
+    private var currentItemSize: Long? = null
+
+    override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? = recordingFailure {
+        if (extractAskMode != ExtractAskMode.EXTRACT) return@recordingFailure null
+        val entry = entryOf(index)
+        currentPath = entry.path
+        when (entry) {
+            is RarEntryKind.Folder -> { writer.createFolder(entry.path); null }
+            is RarEntryKind.File -> openFile(entry.path, sizeOf(index))
+        }
+    }
+
+    override fun prepareOperation(extractAskMode: ExtractAskMode) {}
+
+    /** 결과는 마지막 [getStream] 항목의 것이다(SevenZipJBinding 계약). OK가 아니면 그 항목에서 멈추고, 출력을 연 항목이 OK로 끝나야 그 몫을 확정한다. */
+    override fun setOperationResult(extractOperationResult: ExtractOperationResult) = recordingFailure {
+        val output = currentOutputStream
+        currentOutputStream = null
+        output?.close()
+        if (extractOperationResult != ExtractOperationResult.OK) throw IOException("풀 수 없는 항목입니다: $currentPath ($extractOperationResult)")
+        if (output != null) tracker.onFileCompleted(currentPath, currentItemSize)
+    }
+
+    override fun setTotal(total: Long) {}
+    override fun setCompleted(complete: Long) {}
+
+    /** 추출이 중간에 멈춰 닫지 못한 출력 스트림을 닫는다. */
+    override fun close() {
+        currentOutputStream?.close()
+        currentOutputStream = null
+    }
 
     /**
-     * 항목별 출력 스트림을 열고 기록하며 진행률을 보고하는 추출 콜백.
-     * @param archive 추출 중인 아카이브
-     * @param root 추출 대상 루트 디렉터리
-     * @param tracker 누적 진행률 보고기
+     * 파일 항목의 출력 스트림을 열고, 기록할 때마다 진행률을 보고하는 스트림을 돌려준다.
+     * @param path 항목의 '/' 구분 경로
+     * @param size 항목의 압축 해제 후 크기(모르면 null)
+     * @return 기록 스트림. [writer]가 건너뛴 항목이면 null(라이브러리에 건너뛰라고 알림)
      */
-    private class ExtractCallback(
-        private val archive: IInArchive,
-        private val root: ExtractionRoot,
-        private val tracker: ByteProgressTracker
-    ) : IArchiveExtractCallback {
-        /** 경로 없음·경로 검증 실패·쓰기 실패·추출 오류로 건너뛴 항목 수. */
-        var skippedEntries = 0
-            private set
-        /** 현재 항목을 쓰고 있는 출력 스트림. 항목 완료 시 닫고 null로 되돌린다. */
-        private var currentOutputStream: OutputStream? = null
-        /** 현재 항목의 '/' 구분 정규화 경로. */
-        private var currentNormalizedName = ""
-        /** 현재 항목의 압축 해제 후 크기(bytes). 아카이브가 알려주지 않으면 null. */
-        private var currentItemSize: Long? = null
-        /** 현재 항목을 건너뛰었는지 여부 — 이미 집계한 항목을 결과 단계에서 중복 집계하지 않기 위해 쓴다. */
-        private var skipCurrent = false
-
-        override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? {
-            skipCurrent = false
-            if (extractAskMode != ExtractAskMode.EXTRACT) return null
-            currentNormalizedName = when (val kind = entryKindOf(archive, index)) {
-                RarEntryKind.Folder -> return null
-                RarEntryKind.Unnamed -> return skipEntry()
-                is RarEntryKind.Extracted -> kind.path
-            }
-            currentItemSize = knownSizeOf(archive, index)
-            val target = root.targetOf(currentNormalizedName) ?: return skipEntry()
-            target.parentFile?.mkdirs()
-            tracker.startFile()
-            return try {
-                val out = target.outputStream()
-                currentOutputStream = out
-                ISequentialOutStream { data ->
-                    out.write(data)
-                    tracker.addBytes(data.size.toLong(), currentNormalizedName, currentItemSize)
-                    data.size
-                }
-            } catch (e: Exception) { skipEntry() }
-        }
-
-        /** 현재 항목을 건너뜀으로 집계하고, 라이브러리에 건너뛰라고 알리는 null을 돌려준다. */
-        private fun skipEntry(): ISequentialOutStream? {
-            skipCurrent = true
-            skippedEntries++
-            return null
-        }
-
-        override fun prepareOperation(extractAskMode: ExtractAskMode) {}
-
-        /** 결과는 마지막 [getStream] 항목의 것이다(SevenZipJBinding 계약). 출력을 연 항목이 OK로 끝나야 그 몫을 확정한다 — 폴더·건너뛴 항목은 출력을 열지 않는다. */
-        override fun setOperationResult(extractOperationResult: ExtractOperationResult) {
-            val wroteEntry = currentOutputStream != null
-            currentOutputStream?.close()
-            currentOutputStream = null
-            if (extractOperationResult == ExtractOperationResult.OK) {
-                if (wroteEntry) tracker.onFileCompleted(currentNormalizedName, currentItemSize)
-            } else if (!skipCurrent) {
-                skippedEntries++
+    private fun openFile(path: String, size: Long?): ISequentialOutStream? {
+        currentItemSize = size
+        val output = writer.openFile(path) ?: return null
+        currentOutputStream = output
+        tracker.startFile()
+        return ISequentialOutStream { data ->
+            recordingFailure {
+                output.write(data)
+                tracker.addBytes(data.size.toLong(), path, size)
+                data.size
             }
         }
+    }
 
-        override fun setTotal(total: Long) {}
-        override fun setCompleted(complete: Long) {}
+    /**
+     * 이미 실패했으면 그 예외로 다시 멈추고, 아니면 [block]을 실행하며 던진 예외를 [failure]에 보관한다.
+     * @param block 콜백 본문
+     * @return [block]의 결과
+     */
+    private inline fun <T> recordingFailure(block: () -> T): T {
+        failure?.let { throw it }
+        return try {
+            block()
+        } catch (t: Throwable) {
+            failure = t
+            throw t
+        }
     }
 }
 
@@ -145,35 +174,44 @@ private fun knownSizeOf(archive: IInArchive, index: Int): Long? = (archive.getPr
  * @param archive 열린 아카이브
  * @param index 항목 번호
  * @return 항목 종류
+ * @throws IOException 경로가 없는 항목일 때
  */
 private fun entryKindOf(archive: IInArchive, index: Int): RarEntryKind =
     rarEntryKindOf(archive.getProperty(index, PropID.IS_FOLDER), archive.getProperty(index, PropID.PATH))
 
 /**
  * 항목 속성으로 추출이 그 항목을 어떻게 다루는지 판별한다. 산정·나열·추출이 같은 규칙으로 항목을 고르도록 한 곳에 둔다.
+ * 경로가 없는 항목은 놓을 위치를 정할 수 없으므로 읽지 못하는 아카이브로 알린다.
  * 라이브러리 없이 검증할 수 있도록 속성 값만 받는다.
  * @param isFolder 항목의 IS_FOLDER 속성 값
  * @param path 항목의 PATH 속성 값
- * @return 폴더면 [RarEntryKind.Folder], 경로가 없으면 [RarEntryKind.Unnamed], 그 밖에는 '/' 구분으로 정규화한 경로의 [RarEntryKind.Extracted]
+ * @return '/' 구분으로 정규화한 경로의 [RarEntryKind.Folder] 또는 [RarEntryKind.File]
+ * @throws IOException 경로가 없는 항목일 때
  */
-internal fun rarEntryKindOf(isFolder: Any?, path: Any?): RarEntryKind = when {
-    isFolder as? Boolean == true -> RarEntryKind.Folder
-    path !is String -> RarEntryKind.Unnamed
-    else -> RarEntryKind.Extracted(path.replace('\\', '/'))
+internal fun rarEntryKindOf(isFolder: Any?, path: Any?): RarEntryKind {
+    if (path !is String) throw IOException(UNNAMED_ENTRY_MESSAGE)
+    val normalized = path.replace('\\', '/')
+    return if (isFolder as? Boolean == true) RarEntryKind.Folder(normalized) else RarEntryKind.File(normalized)
 }
+
+/** 경로가 없는 항목이 있는 아카이브의 실패 메시지. */
+private const val UNNAMED_ENTRY_MESSAGE = "이름 없는 항목이 있는 압축 파일입니다"
 
 /** 추출이 RAR 항목 하나를 어떻게 다루는지 나타내는 종류. */
 internal sealed interface RarEntryKind {
 
-    /** 폴더 항목 — 추출이 만들지 않고 건너뜀으로도 세지 않는다. */
-    data object Folder : RarEntryKind
+    /** 아카이브 안의 '/' 구분 경로. */
+    val path: String
 
-    /** 경로가 없는 항목 — 추출이 건너뛰고 건너뜀으로 센다. */
-    data object Unnamed : RarEntryKind
+    /**
+     * 추출이 디렉터리로 만드는 폴더 항목.
+     * @param path 아카이브 안의 '/' 구분 경로
+     */
+    data class Folder(override val path: String) : RarEntryKind
 
     /**
      * 추출이 파일로 만드는 항목.
      * @param path 아카이브 안의 '/' 구분 경로
      */
-    data class Extracted(val path: String) : RarEntryKind
+    data class File(override val path: String) : RarEntryKind
 }
