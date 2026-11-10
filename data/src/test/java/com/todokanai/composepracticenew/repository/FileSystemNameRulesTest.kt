@@ -42,6 +42,13 @@ class FileSystemNameRulesTest {
         assertTrue(rules.violationsOf("a", "/dir").isEmpty())
     }
 
+    @Test
+    fun `위치를 처리하는 파일 시스템이 없으면 확인할 수 없음으로 거부한다`() {
+        val rules = FileSystemNameRules(setOf(local))
+
+        assertEquals(setOf(FileNameError.UNVERIFIABLE_LOCATION), rules.violationsOf("a", "ftp://host/dir"))
+    }
+
     /**
      * [prefix]로 시작하는 경로만 처리하고 모든 이름을 거부하는 테스트용 파일 시스템. 라우팅을 확인하는 데만 쓴다.
      * @param prefix 처리할 경로의 앞부분

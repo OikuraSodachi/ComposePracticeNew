@@ -130,7 +130,7 @@ class LocalFileOperationUseCase(
      */
     fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsUnsupportedFormat(format)) return
-        if (rejectsInvalidName(validateArchiveName(name, parentPath, format),"$name${format.extension}", "압축 실패")) return
+        if (rejectsInvalidName(validateArchiveName(name, parentPath, format), "$name${format.extension}", "압축 실패")) return
         orchestrator.launch(completionMessage, FileOperationType.COMPRESS, onRefresh) { onProgress ->
             fileActionRepo.compressAction(files, parentPath, name, format, onProgress)
         }

@@ -117,46 +117,56 @@ abstract class RepositoryModule {
     abstract fun bindZipArchiveCompressor(impl: ZipArchiveCompressor): ArchiveCompressor
 
     companion object {
-        /** 로컬 화면은 로컬 경로만 다룬다. */
+        /** 로컬 화면이 다루는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
+        @Provides @LocalScreenFileSystems
+        fun provideLocalScreenFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<PathAwareFileSystem> =
+            setOf(localFileSystem)
+
+        /** 원격 화면이 다루는 파일 시스템 집합. 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */
+        @Provides @RemoteScreenFileSystems
+        fun provideRemoteScreenFileSystems(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): Set<PathAwareFileSystem> =
+            fileSystems
+
+        /** 로컬 화면의 탐색. */
         @Provides @Singleton
         fun provideLocalFileNavigatorRepository(
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            localFileSystem: LocalPathAwareFileSystem
+            @LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(
             converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000),
-            fileSystems = setOf(localFileSystem),
+            fileSystems = fileSystems,
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
-        /** 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */
+        /** 원격 화면의 탐색. */
         @Provides @Singleton @RemoteNavigator
         fun provideRemoteFileNavigatorRepository(
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>
+            @RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems)
 
-        /** 로컬 화면의 경로 규칙. 로컬 탐색과 같은 파일 시스템 집합을 쓴다. */
+        /** 로컬 화면의 경로 규칙. */
         @Provides @Singleton
-        fun provideLocalStoragePathRules(localFileSystem: LocalPathAwareFileSystem): StoragePathRules =
-            FileSystemPathRules(setOf(localFileSystem))
-
-        /** 원격 화면의 경로 규칙. 원격 탐색과 같은 파일 시스템 집합을 쓴다. */
-        @Provides @Singleton @RemoteNavigator
-        fun provideRemoteStoragePathRules(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StoragePathRules =
+        fun provideLocalStoragePathRules(@LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StoragePathRules =
             FileSystemPathRules(fileSystems)
 
-        /** 로컬 화면의 이름 제약. 로컬 탐색과 같은 파일 시스템 집합을 쓴다. */
-        @Provides @Singleton
-        fun provideLocalStorageNameRules(localFileSystem: LocalPathAwareFileSystem): StorageNameRules =
-            FileSystemNameRules(setOf(localFileSystem))
-
-        /** 원격 화면의 이름 제약. 원격 탐색과 같은 파일 시스템 집합을 쓴다. */
+        /** 원격 화면의 경로 규칙. */
         @Provides @Singleton @RemoteNavigator
-        fun provideRemoteStorageNameRules(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameRules =
+        fun provideRemoteStoragePathRules(@RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StoragePathRules =
+            FileSystemPathRules(fileSystems)
+
+        /** 로컬 화면의 이름 제약. */
+        @Provides @Singleton
+        fun provideLocalStorageNameRules(@LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameRules =
+            FileSystemNameRules(fileSystems)
+
+        /** 원격 화면의 이름 제약. */
+        @Provides @Singleton @RemoteNavigator
+        fun provideRemoteStorageNameRules(@RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameRules =
             FileSystemNameRules(fileSystems)
     }
 }

@@ -12,7 +12,7 @@ class FileSystemNameRules(fileSystems: Set<PathAwareFileSystem>) : StorageNameRu
     /** 경로별 파일 시스템을 고르는 라우터. */
     private val router = FileSystemRouter(fileSystems)
 
-    // 처리할 파일 시스템이 없는 위치는 판정할 제약이 없다 — 그 위치의 작업은 저장소가 실패로 알린다
+    // 처리할 파일 시스템이 없는 위치는 제약을 확인할 수 없다 — 확인하지 못한 이름을 유효로 보고하지 않도록 판정 불가를 위반으로 돌려준다
     override fun violationsOf(fullName: String, location: String): Set<FileNameError> =
-        router.resolve(location)?.nameViolationsOf(fullName, location) ?: emptySet()
+        router.find(location)?.nameViolationsOf(fullName, location) ?: setOf(FileNameError.UNVERIFIABLE_LOCATION)
 }
