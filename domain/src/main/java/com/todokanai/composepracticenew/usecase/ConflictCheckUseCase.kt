@@ -26,6 +26,13 @@ class ConflictCheckUseCase(
 ) {
 
     /**
+     * 마지막으로 비교 값을 구한 목록의 이름별 비교 값. 입력 중 미리 보기처럼 같은 목록으로 반복 판정할 때 모든 이름을 다시 구하지 않도록 둔다.
+     * 목록은 불변이고 새 조회마다 새 인스턴스이므로 인스턴스가 같으면 그대로 쓴다. 불변 값 하나만 바꿔 넣으므로 동시에 불려도 두 번 구할 뿐이다.
+     */
+    @Volatile
+    private var lastListingKeys: ListingMatchKeys? = null
+
+    /**
      * 복사·이동·전송 시 [destination]의 현재 폴더에 같은 이름이 이미 있는 항목을 판정한다.
      * @param items 작업 대상 항목
      * @param destination 목적지 폴더를 탐색 중인 FileNavigatorUseCase
@@ -184,12 +191,24 @@ class ConflictCheckUseCase(
     )
 
     /**
-     * [listing] 폴더의 저장소 규칙으로 이름의 비교 값을 구하는 함수를 만든다.
+     * [listing] 폴더의 저장소 규칙으로 이름의 비교 값을 구하는 함수를 만든다. 목록 항목의 이름은 목록마다 한 번만 구한 값을 쓴다.
      * @param listing 이름이 놓인 폴더의 확인된 목록
      * @return 이름을 받아 비교 값을 돌려주는 함수
      */
-    private fun matchKeyIn(listing: DirectoryListing.Loaded): (String) -> String =
-        { name -> nameMatching.matchKeyOf(name, listing.request.path) }
+    private fun matchKeyIn(listing: DirectoryListing.Loaded): (String) -> String {
+        val keys = keysOf(listing)
+        return { name -> keys.byName[name] ?: nameMatching.matchKeyOf(name, listing.request.path) }
+    }
+
+    /**
+     * [listing] 항목 이름들의 비교 값을 돌려준다. 마지막으로 구한 목록과 같은 인스턴스면 다시 구하지 않는다.
+     * @param listing 이름이 놓인 폴더의 확인된 목록
+     * @return [listing]의 이름별 비교 값
+     */
+    private fun keysOf(listing: DirectoryListing.Loaded): ListingMatchKeys =
+        lastListingKeys?.takeIf { it.listing === listing }
+            ?: ListingMatchKeys(listing, listing.items.associate { it.name to nameMatching.matchKeyOf(it.name, listing.request.path) })
+                .also { lastListingKeys = it }
 
     /**
      * 항목들의 이름 목록을 만든다.
@@ -197,4 +216,11 @@ class ConflictCheckUseCase(
      * @return 이름 목록
      */
     private fun namesOf(items: List<FileHolderItem>): List<String> = items.map { it.name }
+
+    /**
+     * 한 목록의 항목 이름별 비교 값.
+     * @param listing 비교 값을 구한 목록
+     * @param byName 항목 이름 → 그 목록 폴더 저장소 규칙의 비교 값
+     */
+    private class ListingMatchKeys(val listing: DirectoryListing.Loaded, val byName: Map<String, String>)
 }

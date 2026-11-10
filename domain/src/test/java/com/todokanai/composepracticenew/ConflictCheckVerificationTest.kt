@@ -64,6 +64,7 @@ class ConflictCheckVerificationTest {
         }
 
         assertEquals(DestinationConflicts("/a", archives), result)
+        assertEquals(setOf("/a"), nameMatching.locations.toSet())
     }
 
     @Test
@@ -72,6 +73,46 @@ class ConflictCheckVerificationTest {
 
         assertEquals(RenameConflict.FILE, useCase.findRenameConflict("/a/x.txt", false, "Y.TXT", navigator))
         assertEquals(RenameConflict.NONE, useCase.findRenameConflict("/a/x.txt", false, "X.TXT", navigator))
+        assertEquals(setOf("/a"), nameMatching.locations.toSet())
+    }
+
+    @Test
+    fun `이름 변경은 이름이 정확히 같은 다른 종류 항목만 막고 비교 값만 같은 다른 종류 항목은 막지 않는다`() {
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), folder("/a/y"))))
+
+        assertEquals(RenameConflict.TYPE_MISMATCH, useCase.findRenameConflict("/a/x.txt", false, "y", navigator))
+        assertEquals(RenameConflict.NONE, useCase.findRenameConflict("/a/x.txt", false, "Y", navigator))
+    }
+
+    @Test
+    fun `입력 중 미리 보기도 그 항목의 폴더 저장소 규칙으로 판정한다`() {
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt"))))
+
+        assertEquals(RenameConflict.FILE, useCase.previewRenameConflict("/a/x.txt", false, "Y.TXT", navigator))
+        assertEquals(setOf("/a"), nameMatching.locations.toSet())
+    }
+
+    @Test
+    fun `같은 목록으로 반복 판정하면 목록 항목의 비교 값을 다시 구하지 않는다`() {
+        val listing = DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")))
+        show(listing)
+
+        useCase.previewRenameConflict("/a/x.txt", false, "Y", navigator)
+        useCase.previewRenameConflict("/a/x.txt", false, "Y.", navigator)
+        // 항목 2개는 한 번만, 입력한 이름은 판정마다 구한다
+        assertEquals(4, nameMatching.locations.size)
+
+        show(DirectoryListing.Loaded(current, listing.items + item("/a/z.txt")))
+        useCase.previewRenameConflict("/a/x.txt", false, "Y.T", navigator)
+        // 새 목록이면 항목 3개의 비교 값을 다시 구한다
+        assertEquals(8, nameMatching.locations.size)
+    }
+
+    @Test
+    fun `옆 항목 기준 이름 제안도 그 폴더 저장소 규칙으로 겹침을 본다`() {
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/X.ZIP"))))
+
+        assertEquals("x (1)", useCase.suggestNameBeside("/a/x.txt", "x", ".zip", navigator))
         assertEquals(setOf("/a"), nameMatching.locations.toSet())
     }
 
@@ -169,6 +210,7 @@ class ConflictCheckVerificationTest {
         show(DirectoryListing.Loaded(current, listOf(item("/a/New folder"), item("/a/new folder (1)"))))
 
         assertEquals("New folder (2)", useCase.suggestNewEntryName("New folder", "", navigator))
+        assertEquals(setOf("/a"), nameMatching.locations.toSet())
         assertTrue(notices.failures.isEmpty())
     }
 
@@ -209,6 +251,9 @@ class ConflictCheckVerificationTest {
     /** [path]의 파일 항목을 만든다. */
     private fun item(path: String) =
         FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), sizeBytes = 1L, lastModifiedMillis = 0L)
+
+    /** [path]의 폴더 항목을 만든다. */
+    private fun folder(path: String) = item(path).copy(isDirectory = true)
 
     private companion object {
         /** 테스트용 미확인 거부 메시지. */
