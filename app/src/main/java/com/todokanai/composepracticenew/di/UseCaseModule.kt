@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileInfoRepository
+import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
@@ -53,8 +54,8 @@ import javax.inject.Singleton
 object UseCaseModule {
 
     @Provides @Singleton
-    fun provideOpenFileUseCase(nav: FileNavigatorRepository) =
-        OpenFileUseCase(nav) { _ -> } // stub — not yet implemented
+    fun provideOpenFileUseCase(nav: FileNavigatorRepository, launcher: FileLauncher, notices: OperationNoticeReporter) =
+        OpenFileUseCase(nav, launcher, notices)
 
     @Provides @Singleton
     fun provideFileInfoUseCase(repo: FileInfoRepository) =

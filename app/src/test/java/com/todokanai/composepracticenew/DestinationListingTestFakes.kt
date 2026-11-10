@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
+import com.todokanai.composepracticenew.model.FileLaunchResult
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
@@ -15,6 +16,7 @@ import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileActionRepository
+import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -154,6 +156,17 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
         return true
     }
     override fun rootPathOf(item: RemoteStorageItem) = "ftp://${item.address}"
+}
+
+/** 열려고 한 경로를 기록하고 언제나 다른 앱으로 넘긴 것으로 답하는 테스트용 파일 열기. */
+internal class RecordingFileLauncher : FileLauncher {
+    /** 열려고 한 경로. 받은 순서대로 쌓는다. */
+    val launched = mutableListOf<String>()
+
+    override fun launch(path: String): FileLaunchResult {
+        launched += path
+        return FileLaunchResult.Launched
+    }
 }
 
 /** 넣은 실패·완료 메시지를 종류별로 기록하는 테스트용 메시지 저장소. */
