@@ -4,29 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A File Manager app built with Jetpack Compose (Android). Package: `com.todokanai.composepracticenew`. minSdk 30, targetSdk 35, compileSdk 34, Java 17 toolchain.
-
-## Build & Test Commands
-
-```bash
-# Debug build
-./gradlew assembleDebug
-
-# Release build
-./gradlew assembleRelease
-
-# Unit tests
-./gradlew test
-
-# Instrumented tests (requires connected device/emulator)
-./gradlew connectedAndroidTest
-
-# Lint
-./gradlew lint
-
-# Run a single unit test class
-./gradlew test --tests "com.todokanai.composepracticenew.ExampleUnitTest"
-```
+A File Manager app built with Jetpack Compose (Android).
 
 ## Architecture
 
@@ -34,7 +12,13 @@ A File Manager app built with Jetpack Compose (Android). Package: `com.todokanai
 
 SOLID 원칙을 준수한다.
 
-`MainActivity` owns six ViewModels and renders `HomeScreen`, which switches between `StorageFrag` (storage picker) and the main file browser (`OptionFrag` + `DirectoryFrag` + `FileListFrag`).
+### Modules
+
+- `domain`: 모델·Repository 인터페이스·UseCase (순수 Kotlin).
+- `data`: domain 인터페이스의 구현과 그 Hilt 모듈.
+- `fileExplorer`: 저장소에서 읽은 항목 모델(`FileEntry`)과 '/' 구분 경로 도우미(`defaultDisplayName`, `defaultParentPath`). data만 의존하는 JVM 모듈이다.
+- `core`: 여러 모듈이 함께 쓰는 DI 한정자(`@ApplicationScope`, `@RemoteNavigator`). javax.inject만 쓰는 JVM 모듈이다.
+- `app`: 화면·서비스·DI 조립. data는 `runtimeOnly`로만 의존한다. Hilt는 집계 태스크로 data의 모듈을 찾으므로, app 코드는 data의 클래스·리소스를 컴파일 단계에서 참조할 수 없다. app과 data가 함께 써야 하는 것은 `domain`이나 `core`에 둔다.
 
 ### Global State — `@Singleton` Repositories
 
@@ -52,7 +36,8 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 - 목록 상태는 `ListingRequest(path, generation)`에 묶인다. 이동·새로고침·재연결·공유 재시작마다 새 요청이 되며, 같은 경로라도 이전 요청의 `Loaded`는 현재 목록이 아니다. 같은 경로를 다시 조회하는 동안의 직전 목록은 `Loading.stale`(표시 전용)이다.
 - 정렬은 조회 결과 위에 적용한다(정렬 변경으로 다시 조회하지 않는다).
-- 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedItems()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
+- 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedListing()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
+- 두 이름이 같은 항목인지는 저장소의 성질이므로 `StorageNameMatching`(구현 `FileSystemNameMatching` → 경로별 `PathAwareFileSystem.nameMatchKeyOf`)의 비교 값으로만 비교한다. 로컬(기기·볼륨마다 비교 방식이 다름)과 FTP(서버 규칙을 물을 표준 명령이 없음)는 대소문자·Unicode 정규형만 다른 이름을 같은 항목으로 묶는다 — 다른 이름으로 잘못 보면 확인 없이 덮어쓰므로. 함께 보내는 항목끼리의 겹침은 아직 판정하지 않는다.
 
 ### Navigation (`navigation/NavController.kt`)
 
@@ -80,61 +65,61 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 - `Receiving(transfer, pending)` — 다른 화면에서 고른 항목을 받는 전송 목적지(`TransferMode`: Download/Upload). 이 화면의 선택은 없고 대기 목록만 있다. 전송을 시작하면 받는 화면에 남아 있던 다중 선택·작업 목적지 확인은 묻지 않고 버린다(의도된 동작 — 새 전송이 우선).
 - `Default` — 선택도 대기 목록도 없다. 취소·뒤로가기·실행 후 모두 여기로 돌아가며 목록은 함께 사라진다.
 
+선택 초기화 규칙(#226): 선택을 대상으로 하는 작업 함수(삭제·압축·복사·이동·압축 해제·이름 변경)는 목록 대신 `SubmittedSelection`만 받고, 이 값은 선택을 꺼내며 같은 갱신에서 기본 모드로 되돌리는 `SelectionStateHolder.submit()`(coordinator의 `submitLocalSelection` / `submitRemoteSelection`)만 만든다 — 선택을 비우지 않고 작업을 부르는 코드는 컴파일되지 않는다. `reset`은 취소·뒤로가기용이다. 비우는 시점은 작업 종류로 정한다:
+- 같은 저장소 작업은 확인을 누를 때 비운다. 충돌·덮어쓰기 확인 창에서 취소해도 선택은 돌아오지 않는다(작업은 확인으로 확정이다).
+- 이름 변경은 이름 입력 창에서 확인할 때 비운다(창을 취소하면 선택 유지).
+- 전송 진입(업로드·다운로드)은 보내는 화면의 선택을 꺼내 받는 화면의 대기 목록으로 넘긴다. 받는 화면의 대기 목록은 실제로 실행될 때 비운다 — 충돌 확인을 취소하면 다시 확인할 수 있도록.
+
 UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedStateOf`로 모드 변경 시에만 리컴포지션), 행 강조는 `selected`만 본다. 원격 같은 저장소 작업(복사·이동)을 추가할 때는 원격의 `Op`(지금 `Nothing`)에 해당 타입을 넣는다.
 
 ### File Operations
 
-- 로컬: `LocalFileOperationUseCase` → `FileActionRepository` → `LocalFileOperationDataSource`. 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalZipCompressor`, `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet), `LocalEntryMutator`)로 나뉜다.
+- 로컬: `LocalFileOperationUseCase` → `FileActionRepository`(`FileActionRepositoryImpl`). 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalArchiveCompression` + 형식별 `ArchiveCompressor`(@IntoMap, 키는 domain `ArchiveFormat`), `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet, 항목 생성·건너뜀 집계는 공통 `ArchiveEntryWriter`로만), `LocalEntryMutator`)로 나뉘고, `FileActionRepositoryImpl`이 이들에 직접 맡긴다(사이에 data source 인터페이스를 두지 않는다 — 교체 지점은 `FileActionRepository` 바인딩).
 - 원격: `RemoteFileOperationUseCase` → `RemoteFileTransferRepository` / `RemoteFileMutationRepository` (FTP 구현: `FtpRepositoryImpl`).
 - 실행·진행 보고·완료/실패 처리는 `FileOperationOrchestrator`가 담당하며, 작업 인스턴스 ID도 여기서만 발급한다.
+- 진행 상태는 `ProgressRepository`(`ProgressTracker`), 사용자에게 알릴 실패·실행 전 거부·완료 메시지는 `OperationNotices`가 맡는다 — 넣는 쪽은 `OperationNoticeReporter`, 꺼내는 쪽은 `OperationNoticeRepository`로만 의존한다. 거부를 알리는 UseCase는 오케스트레이터를 거치지 않고 직접 넣는다. 메시지는 흘려보내지 않고 화면이 꺼낼 때까지 보관하며, `AppNavHost`가 화면이 보이는 동안 `OperationNoticeUseCase.deliver`로 꺼내 Snackbar로 알린다(보이는 화면이 없을 때 끝난 작업의 실패도 잃지 않도록).
+- 알림함(`NoticeInbox`, 구현 `NoticeBox`, 작업 메시지·설정 실패 공용)은 한 번에 하나씩 꺼내 다 보여 준 뒤에 지우고(`complete`), 보여 주는 도중 화면이 사라지면 돌려놓는다(`release`). 표시는 다 보여 줄 때까지 돌아오지 않는 수단(Snackbar)으로 한다 — Toast는 패키지당 대기 한도를 넘으면 말없이 버리므로, 꺼낸 알림을 Toast로 넘기면 잃을 수 있다.
 - 작업 종류는 `FileOperationType` enum이며, 레이어별 표시 문자열은 enum에 대한 exhaustive `when`으로 매핑한다.
 - 파일 입출력(로컬·원격 작업, 목록 조회)의 실패는 예외가 아니라 domain `IoResult`(`Success` / `ItemFailed` / `PartiallyFailed` / `ConnectionLost`)로 돌려준다. 받는 쪽은 exhaustive `when`으로 처리한다. 예외는 취소·구현 오류에만 쓰며, 앱 수명 흐름을 지키기 위해 결과로 바꾸는 곳은 `launchOperation`과 `FileListFlowProducer.load` 두 경계뿐이다.
 - 여러 항목 작업은 `forEachCollectingFailures`로 실패를 모은다. `ConnectionLost`면 남은 항목을 시도하지 않는다.
-- FTP: 서버 응답 해석(명령별 예외 규칙 포함, 예: RMD 거부에 붙이는 숨김 항목 안내)은 `FtpReplyRules`에만 둔다. 목록 조회(LIST·MLSD)의 거부 응답(4xx·5xx)은 모두 조회 실패다 — 지원 범위는 빈 디렉터리에 빈 목록과 226으로 답하는 서버이며, 450(RFC 959의 일시 거부)을 빈 목록으로 보지 않는다(#259). 2xx로 끝난 빈 목록은 빈 폴더로 본다 — 열지 못한 폴더를 2xx로 답하는 서버(vsftpd)는 구분할 수 없다(#266). `FtpSession.withConnectedClient`가 명령 실패의 의미를 정하는 유일한 경계다. 블록이 돌려준 결과는 세션 유지, 던진 IOException은 연결 끊김(세션 종료), 그 밖의 예외는 세션 종료 후 전파한다. 세션을 유지할 실패는 블록 안에서 던지지 말고 결과로 돌려준다. 명령·서버 동작 조합은 `FtpCommandContractTest` 행렬로 검증한다.
-- FTP 연결: `FtpConnector.connect`는 로그인 후 `FtpListingFormat.isReadable`로 목록을 해석할 수 있는지 확인한다(MLSD 미지원 서버가 SYST를 거부하거나 해석기 없는 종류를 알려주면 불가). 불가면 형식을 추측하지 않고 연결을 종료해 `ConnectResult.Failed(LISTING_FORMAT_UNKNOWN)`을 돌려주며, app은 `ConnectFailureNotice`로 다이얼로그를 띄운다. 그래서 연결된 세션의 목록 조회는 해석기를 고르지 못해 실패하지 않는다.
-- FTP 목록 범위: 목록은 서버가 드러내는 항목이다(RFC 3659 §7.1). 서버가 숨긴 항목(유닉스 계열 LIST의 `.` 항목 등)은 지원 범위 밖이며, LIST에 `-a` 같은 비표준 옵션(RFC 959에 없음)을 붙이지 않는다. 숨김 항목 표시가 필요하면 별도 기능으로 제안한다. LIST 서버의 목록은 디렉터리로 이동(CWD)한 뒤 인자 없는 `LIST`를 보낸다(`FtpCommandExecutor.listWithList`)(curl과 같은 방식) — LIST 인자를 옵션으로도 읽는 서버(ProFTPD 등)가 있어 경로 인자의 해석이 서버마다 갈릴 수 있다.
-- FTP 연결 옵션: 연결할 때 `FtpListingFormat.negotiateListingOptions`가 MLSD 서버에만 옵션을 요청한다(트리 수집의 `OPTS MLST`). 요청은 연결을 실패로 만들지 않는다 — 요청이 제어 연결을 쓸 수 없게 만들면(`negotiateListingOptions`가 false) `FtpConnector`가 다시 요청하지 않고 다시 연결해 요청 없이 쓰며, 그 끊김이 앱의 종료 요청(`FtpSession.closeBypassingIoLock`) 때문이면 다시 연결하지 않는다.
-- FTP 현재 디렉터리: LIST 조회는 세션을 조회한 폴더 안에 남긴다(`FtpSession.workingDirectory`). 로그인 직후의 현재 디렉터리(PWD)는 `FtpSession.homeDirectory`로 기록한다. 폴더를 지우거나 이름을 바꾸는 명령은 세션이 그 대상 안에 있으면 같은 잠금 안에서 먼저 대상 밖(상위 폴더, 거부되면 대상 밖의 홈)으로 CWD한 뒤 보낸다(`FtpCommandExecutor.leavingTarget`) — 현재 디렉터리의 삭제를 거부하는 서버(Apache FTP Server, Windows)를 위한 사전 조치이므로, 나가지 못해도 명령은 보내고 서버의 응답을 결과로 삼는다. 새 변경 명령도 이 규칙을 따른다. 목록에 서버가 숨긴 항목이 빠질 수 있어 클라이언트가 누락을 알 수 없으므로, RMD 거부 메시지에는 그 가능성을 덧붙인다(`FtpReplyRules.HIDDEN_ENTRIES_NOTE`).
-- FTP 트리 수집(`FtpCommandExecutor.collectRemoteTree`, 폴더 다운로드·삭제): 수집이 끝나는지를 목록의 정확성에 맡기지 않는다. 서버가 MLSD `unique`(RFC 3659 §7.5.2)를 알려주면 하위 디렉터리의 식별값(상위 목록의 항목 값과, 들어간 뒤 그 목록의 자신 항목 `type=cdir` 값)이 거쳐 온 상위 디렉터리의 식별값과 같으면 순환으로 본다. 연결할 때 `FtpListingFormat.negotiateListingOptions`가 FEAT를 보고, `unique`를 지원하지만 목록에 담지 않는 서버에는 `OPTS MLST`로 요청한다(§7.9, 거부돼도 연결은 그대로). 이와 별개로 경로가 PATH_MAX(4096바이트)에 이르면 식별값이 있든 없든 멈춘다 — 식별값이 없으면(LIST, `unique` 없는 MLSD) 순환과 깊은 트리를 구분할 수 없어 이 상한만이 수집을 끝낸다(이때만 실패 메시지에 판별할 수 없다고 덧붙인다). 어느 쪽이든 일부만 처리하지 않고 실패로 알린다. 상위가 아닌 폴더와 식별값이 같은 것(형제를 가리키는 링크)은 순환이 아니다. 이 상한은 깊이만 막으므로, 식별값이 없는 서버에서 상위를 가리키는 링크가 여럿이면 방문 수가 늘어나는 문제는 남아 있다(#257).
-- FTP 종료: FTPClient는 스레드에 안전하지 않으므로 ioMutex를 쥔 쪽만 명령을 보내고 `disconnect()`한다. 진행 중 I/O를 기다리지 않는 종료(`FtpSession.closeBypassingIoLock`)는 잠금 밖에서 소켓(`AbortableSocketFactory`가 만든 제어·데이터 소켓)만 닫는다 — 막힌 명령은 IOException을 받아 자기 잠금 안에서 정리하고, 진행 중인 명령이 없을 때만 종료 쪽이 잠금을 얻어 QUIT을 보낸다. 연결 작업과 겹친 종료 요청은 `FtpSession.markLoggedIn(closeMark)`가 종료 요청과 같은 잠금 안에서 확인해, 연결 작업이 어느 단계에서 끝났든 연결 성공으로 뒤집히지 않는다.
-- 원격 연결 상태: `RemoteConnectionRepository.connectionState`(`RemoteConnectionState`: `DISCONNECTED` / `CONNECTED` / `LOST`). 예기치 않은 끊김(`FtpSession.markConnectionDropped`, 연결된 세션에서만)은 사건이 아니라 `LOST` 상태로 다음 연결 시도(`beginConnecting`)나 종료 요청까지 남는다 — 끊긴 뒤에 관찰을 시작한 쪽도 알 수 있도록. 앱이 요청한 종료·서버 전환은 `DISCONNECTED`다. 연결 시도는 시작할 때(`beginConnecting`) 이전 세션이 연결돼 있었어도 `DISCONNECTED`로 둔다 — 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도 `LOST`가 되지 않도록. 끊김 처리는 화면 수명과 무관하게 각자 상태를 보고 한다: `FtpForegroundService`는 스스로 멈추고, `FileTransferCoordinatorViewModel`은 끊긴 세션에 기대는 전송 상태(다운로드 대기, 원격 선택·업로드 대기)를 버리고, 원격 화면은 `LOST`면(들어올 때 이미 끊겨 있어도) 저장소 선택으로 나간다. 끊김 Toast는 `MainViewModel.connectionLost`가 끊긴 순간에만 낸다.
+- FTP 프로토콜 규칙(응답 해석, 연결·목록 범위, 현재 디렉터리, 트리 수집, 종료)은 `.claude/rules/ftp.md`에 있다 — FTP 코드·테스트를 다룰 때 자동으로 로드된다.
+- 원격 연결 상태: `RemoteConnectionRepository.connectionState`(sealed `RemoteConnectionState`: `Disconnected` / `Connected(serverName)` / `Lost`). 연결된 상태는 연결한 서버 이름을 함께 담는다(연결 여부와 서버가 어긋나지 않도록 한 값). 예기치 않은 끊김(`FtpSession.markConnectionDropped`, 연결된 세션에서만)은 사건이 아니라 `Lost` 상태로 다음 연결 시도(`beginConnecting`)나 종료 요청까지 남는다 — 끊긴 뒤에 관찰을 시작한 쪽도 알 수 있도록. 앱이 요청한 종료·서버 전환은 `Disconnected`다. 연결 시도는 시작할 때(`beginConnecting`) 이전 세션이 연결돼 있었어도 `Disconnected`로 둔다 — 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도 `Lost`가 되지 않도록. 끊김 처리는 화면 수명과 무관하게 각자 상태를 보고 한다: `FileTransferCoordinatorViewModel`은 끊긴 세션에 기대는 전송 상태(다운로드 대기, 원격 선택·업로드 대기)를 버리고, 원격 화면은 `Lost`면(들어올 때 이미 끊겨 있어도) 저장소 선택으로 나간다. 끊김 Toast는 `MainViewModel.connectionLost`가 끊긴 순간에만 낸다.
+- 연결 유지 서비스(`FtpForegroundService`)는 연결 상태에서 파생한다(규칙은 `ConnectionServicePolicy` 한 곳): `MyApplication.observeRemoteConnection`이 `Connected`가 되거나 서버가 바뀔 때 시작하고(알림에 서버 이름), 서비스는 그 밖의 상태가 되면 `startForeground` 뒤에 스스로 멈춘다(`stopSelf(startId)`) — 밖에서 멈추면 `startForeground` 전에 멈춰 앱이 종료될 수 있다. 연결하는 쪽(ViewModel·UseCase)은 서비스를 부르지 않는다. 서비스는 프로세스 보호 전담이며 연결을 맺거나 끊지 않는다(보호를 줄 수 없게 됐을 때의 종료만 예외, 아래 항목) — 서버 전환 중 잠깐 `Disconnected`가 되어 서비스가 멈춰도 새 연결이 끊기지 않도록. 앱 종료(`AppExitHandler`)는 연결 종료를 요청하고, 서비스는 그 상태 변화로 멈춘다.
+- 포그라운드 서비스(연결 유지·파일 작업 보호)는 `SelfStoppingForegroundService`를 따른다: 시작은 밖(연결 유지는 MyApplication, 파일 작업 보호는 `FileOperationProtection`)에서 받고, 멈춤은 `startForeground` 뒤에 스스로 한다(규칙은 `ConnectionServicePolicy` / `FileOperationServicePolicy`). 두 서비스는 dataSync라 Android 15의 실행 시간 한도(백그라운드 24시간 중 6시간, 같은 유형끼리 공유)를 받으며, `onTimeout`에서 바로 멈춘다. 연결 유지 서비스는 그때 연결된 세션을 끊김(`RemoteConnectionRepository.drop` → `Lost`)으로 종료하고, 끝낸 연결이 있을 때만 시스템 알림으로 알린다. 멈춤은 `onTimeout`이 받은 startId로 한다(아직 전달되지 않은 시작 요청을 무시하지 않도록) — 보호 없이 연결을 남기지 않도록. 이미 시작한 로컬 파일 작업은 보호 없이 계속되고, 끝나지 않은 원격 작업은 그 연결 종료로 남은 명령이 끊김 실패(`ConnectionLost`)로 끝난다(두 서비스가 한도를 함께 쓰므로). 한도 이후 남은 작업의 보호는 앱이 보장하지 않는다(지원 범위 밖). 정상적으로 마무리되지 않은 작업이 남긴 파일의 결함도 보장하지 않는다.
+- 진행 표시가 있는 파일 작업은 보호를 받은 뒤에만 시작한다: `FileOperationOrchestrator.launch`가 블록 실행 전에 domain `OperationProtection.acquire`를 기다리고, 거부되면 블록을 실행하지 않고 실패로 끝낸다(순간 작업은 요청하지 않음). 구현 `FileOperationProtection`은 작업마다 시작 요청(요청 id를 Intent extra로)을 보내고, 서비스가 그 요청으로 포그라운드가 됐는지 거부됐는지를 `report`로 받는다 — 실행 중인 서비스를 믿지 않는 것은 그 서비스가 이전 요청 기준으로 멈추는 중일 수 있어서다.
+- 시스템의 시작 거부(`ForegroundServiceStartNotAllowedException` — `startForegroundService`의 백그라운드 시작 제한, `startForeground`의 같은 제한·한도 소진)는 `isForegroundStartRefusal` 하나로 판별하고 그 밖의 예외는 잡지 않는다. 서비스 안의 거부는 `SelfStoppingForegroundService`가 그 startId로 멈추고(거부된 `startForeground`도 `startForegroundService` 계약을 채운다) `onStartRefused`로 넘긴다. 연결 유지 쪽은 한도·거부 모두 `ConnectionProtectionLoss`(끊김 종료·알림) 하나를 따르며, 서비스와 `FtpServiceController`가 함께 쓴다.
 - 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다.
 
 ### Data Layer
 
-- **Room** (`data/room/`): `MyDatabase` + `UserDao` / `User` entity. Provided as a singleton via `di/DatabaseModule`.
-- **DataStore** (`data/datastore/DataStoreRepository`): Persists `sortBy` (string) and `lastRemoteId` (long) preferences. 소비자는 `SortPreferenceRepository` / `LastConnectionRepository` 인터페이스로만 의존한다.
+- **DataStore** (`data/datastore/DataStoreRepository`): 소비자는 `SortPreferenceRepository` / `LastConnectionRepository` 인터페이스로만 의존한다.
 - **설정 저장소 실패**: DataStore 접근의 실행 위치·재시도·실패 정책은 `PreferencesStore` 한 곳에서 정한다.
   - 결과로 돌려줄 수 없는 실패는 `PreferenceFailureNotices`(domain `PreferenceFailureRepository`)에 알림으로 넣는다. 공유 `data`의 읽기 실패는 기본값으로 대신하고 백오프로 다시 읽으며, 저장 실패는 이전 값을 남기고, 손상 파일 초기화는 `CorruptionReset`이 교체가 쓰인 뒤 알린다.
-  - 화면 호스트는 화면이 보이는 동안 `PreferenceFailureUseCase.deliver`로 알림을 꺼내 Toast로 알린다. 먼저 꺼낸 한 곳만 알리며, 알리기 전에 회복한 읽기 실패는 목록에서 빠진다.
+  - 화면 호스트는 화면이 보이는 동안 `PreferenceFailureUseCase.deliver`로 알림을 꺼내 Snackbar로 알린다. 먼저 꺼낸 한 곳만 알리며, 알리기 전에 회복한 읽기 실패는 목록에서 빠진다.
   - 결과를 받는 읽기(`readOnce` → `SavedRemoteId.Unreadable`)의 실패는 알림에 넣지 않고 결과로 돌려주며, 받은 화면이 알린다.
   - 편집은 대기열 하나로 호출 순서대로 반영하고, `readOnce`는 앞서 호출한 편집이 끝난 뒤 읽는다.
 - **`DataConverter`**: Sorts raw `FileEntry` lists and maps them to domain `FileHolderItem` (원시값만 보유). 크기·날짜 표시 문자열 포맷은 app 레이어 UI 모델(`ui/model/FileHolderItem.from`, `StorageHolderItem.from`)이 담당한다.
 
 ### `MyApplication`
 
-Hilt 진입점(`@HiltAndroidApp`). static `appContext`는 제거됨 — 모든 Context 의존은 Hilt `@ApplicationContext` 주입으로 처리.
+static `appContext`는 제거됨 — 모든 Context 의존은 Hilt `@ApplicationContext` 주입으로 처리.
 
-### Independent Utility Functions (`tools/independent/FileActionModel.kt`)
+### Independent Utility Functions (`tools/independent/`)
 
-Top-level `_td`-suffixed functions (e.g., `dirTree_td`, `readableFileSize_td`, `getTotalSize_td`) are pure/standalone helpers. The `_td` suffix marks them as authored by Todokanai and free of framework dependencies.
+Top-level `_td`-suffixed functions are pure/standalone helpers: 로컬 파일 도우미(`dirTree_td`, `getTotalSize_td` 등)는 data `FileActionModel.kt`, 크기 표시 형식(`readableFileSize_td`)은 app `FileSizeFormat.kt`에 있다. The `_td` suffix marks them as authored by Todokanai and free of framework dependencies.
 
 ## Domain Module Design Principles
 
 - domain 모듈의 Repository 인터페이스와 UseCase는 로컬 파일시스템뿐 아니라 NAS 등 원격 스토리지도 구현체로 교체할 수 있도록 Android/로컬 I/O에 직접 의존하지 않는다.
 - 파일 경로는 `String` (절대 경로 또는 URI 문자열)으로 추상화하여 원격 경로도 동일하게 표현할 수 있도록 한다.
+- domain과 app은 경로를 합성·분해하지 않는다(구분자를 가정하지 않는다). 저장소 계약은 목적지를 "디렉터리 + 이름"으로 받아 경로를 구현이 만들고, 항목 이름은 목록이 준 `FileHolderItem.name`을, 부모·표시 이름은 `StoragePathRules.getParentPath` / `displayNameOf`(탐색 상태와 분리된 경로 규칙, 구현은 저장소별 `PathAwareFileSystem`)를 쓴다. 예외는 실패 메시지용 표시 경로(`FailedItem.path`)뿐이다.
+- 사용자가 입력한 이름의 규칙은 둘로 나뉜다: 앱이 모든 저장소에 강제하는 공통 규칙은 `FileNameUseCase`, 저장소의 파일 시스템이 정하는 제약(길이 한도 등)은 이름이 놓일 위치로 고르는 `StorageNameRules`(구현 `FileSystemNameRules` → 경로별 `PathAwareFileSystem.nameViolationsOf`, 로컬·원격 화면별 바인딩)가 판정한다. 위치는 새 항목이면 만들 폴더, 이름 변경이면 그 항목 자신이다.
 - 원격 스토리지 구현체는 data 모듈에 별도 클래스로 작성하고, Hilt 바인딩만 교체하여 전환 가능하게 유지한다.
+- 저장된 원격 서버는 `RemoteStorageItem.settings`(sealed `RemoteProtocolSettings`)로 프로토콜과 그 프로토콜의 설정을 함께 갖는다. 프로토콜을 추가하면 exhaustive `when`이 처리할 곳을 컴파일 오류로 알려 준다. 여러 프로토콜의 동시 지원은 범위 밖이며, 두 번째 프로토콜을 구현할 때 저장 항목의 프로토콜로 구현을 고르는 라우터를 함께 추가한다.
 
 ## Feature Roadmap
 
 See [ROADMAP.md](ROADMAP.md).
-
-## 해결이 필요한 과잉대응 이슈
-
-비표준 동작 수용이나 정리 범위를 넘는 변경이 쌓인 곳이다(이슈 제목 `[과잉대응]`, 라벨 `refactor`). 아래 이슈는 해결이 필요하며, 해당 영역을 고칠 때 과잉대응을 더 쌓지 않는다.
-
-- #258 LIST `-a` 판정이 비표준 서버 수용의 연쇄로 커짐 — CWD 후 LIST, leavingTarget, 홈 기록
-- #260 트리 수집 순환 감지에 정밀 장치가 먼저 쌓이고 일반 상한(#257)은 미해결
 
 ## Compose Configuration
 
@@ -143,7 +128,7 @@ See [ROADMAP.md](ROADMAP.md).
 ## Key Conventions
 
 - 정렬 모드는 domain `SortMode` enum이다. `SortMode.id`는 DataStore 저장 전용(변경 금지)이며, 표시 문구는 app 레이어 exhaustive `when` → 문자열 리소스로 매핑한다.
-- 작업 종류는 `FileOperationType` enum. 진행 알림 Intent extra `EXTRA_ACTION_KEY`에는 `FileOperationType.id`를, `EXTRA_INSTANCE_ID`와 PendingIntent requestCode에는 작업 인스턴스 ID를 사용한다(알림마다 자기 작업을 가리키도록).
+- 작업 종류는 `FileOperationType` enum. 진행 알림 Intent extra `EXTRA_ACTION_KEY`에는 `FileOperationType.id`를, `EXTRA_INSTANCE_ID`에는 작업 인스턴스 ID를, 알림 id와 PendingIntent requestCode에는 `OperationNotificationIds`가 붙인 알림 id를 사용한다(알림마다 자기 작업을 가리키고, 인스턴스 ID가 프로세스마다 다시 발급돼도 이전 프로세스가 남긴 알림과 겹치지 않도록).
 - 진행률 다이얼로그는 한 번에 한 작업만 띄운다(`ProgressDialogSelection`). 새 작업이 시작되면 가장 나중에 시작한 작업을 띄우고, 닫거나 작업이 끝나도 다른 작업으로 넘어가지 않는다. 앱을 열 때(ViewModel 생성 시) 이미 진행 중인 작업은 새 작업으로 보지 않는다. 알림을 누르면 그 알림의 작업을 띄운다.
 - Compose "fragments" (`*Frag`) are stateless composables that receive a ViewModel; they are not Android `Fragment` classes.
 - Compose "holders" (`*Holder`) are item-level composables for list rows.
