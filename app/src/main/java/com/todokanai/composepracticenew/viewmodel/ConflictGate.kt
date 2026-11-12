@@ -34,7 +34,7 @@ class ConflictGate {
     fun request(
         targets: List<FileHolderItem>,
         conflicts: List<FileHolderItem>,
-        collisions: List<NameCollisionGroup> = emptyList(),
+        collisions: List<NameCollisionGroup>,
         onCancel: () -> Unit,
         execute: (skip: List<FileHolderItem>) -> Unit
     ): Boolean {

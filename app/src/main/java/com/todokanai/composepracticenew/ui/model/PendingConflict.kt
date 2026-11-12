@@ -13,7 +13,7 @@ import com.todokanai.composepracticenew.model.NameCollision
 data class PendingConflict(
     val targets: List<FileHolderItem>,
     val conflicts: List<FileHolderItem>,
-    val collisions: List<NameCollisionGroup> = emptyList(),
+    val collisions: List<NameCollisionGroup>,
 )
 
 /**

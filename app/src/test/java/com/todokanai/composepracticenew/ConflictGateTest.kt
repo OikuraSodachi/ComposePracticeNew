@@ -37,7 +37,7 @@ class ConflictGateTest {
         val executed = request(targets, listOf(targets[0]))
 
         assertFalse(executed)
-        assertEquals(PendingConflict(targets, listOf(targets[0])), gate.pending.value)
+        assertEquals(PendingConflict(targets, listOf(targets[0]), emptyList()), gate.pending.value)
         assertTrue(executions.isEmpty())
     }
 
@@ -86,10 +86,10 @@ class ConflictGateTest {
         request(targets, listOf(targets[0]))
 
         assertFalse(request(later, later))
-        assertEquals(PendingConflict(targets, listOf(targets[0])), gate.pending.value)
+        assertEquals(PendingConflict(targets, listOf(targets[0]), emptyList()), gate.pending.value)
 
         gate.resolve(ConflictResolution.OVERWRITE)
-        assertEquals(PendingConflict(later, later), gate.pending.value)
+        assertEquals(PendingConflict(later, later, emptyList()), gate.pending.value)
 
         gate.resolve(ConflictResolution.SKIP)
         assertEquals(listOf(emptyList(), later), executions)
