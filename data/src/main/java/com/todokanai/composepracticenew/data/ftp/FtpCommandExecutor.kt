@@ -401,7 +401,7 @@ class FtpCommandExecutor internal constructor(
     /**
      * 원격 경로의 파일 목록을 조회한다. 화면 목록([listFiles])과 트리 수집([collectRemoteTree])이 같은 조회를 써서 둘이 보는 항목과 응답 해석이 같다.
      * 서버가 FEAT에 MLST를 알리면(RFC 3659 §7.8: MLSD 지원 포함) MLSD로, 아니면 LIST로 조회한다.
-     * LIST·MLSD 모두 거부 응답은 실패다([FtpReplyRules.isListingCompleted]). 2xx로 끝난 빈 목록은 빈 폴더로 본다 — 열지 못한 폴더를 2xx로 답하는 서버는 구분할 수 없다(#266).
+     * LIST·MLSD 모두 거부 응답은 실패다([FtpReplyRules.isListingCompleted]). 2xx로 끝난 빈 목록은 빈 폴더로 본다 — 열지 못한 폴더를 2xx로 답하는 서버는 응답 코드로 구분할 수 없다(#266).
      * @param path ftp://server/path 형식의 절대 경로
      * @param withIdentities 서버가 알려준 항목 식별값(MLSD `unique`)도 읽으면 true — 트리 수집이 순환 판별에 쓴다
      * @param limit 목록을 받는 동안의 메모리 상한. null이면 두지 않는다(화면 목록)
