@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.model.FailedItem
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -9,7 +10,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
-/** [ArchiveEntryWriter]가 폴더·파일 항목을 루트 아래에 만들고, 만들지 못하면 알리며, 루트 밖 항목만 건너뜀으로 세는지 검증하는 단위 테스트(#235, #317). */
+/** [ArchiveEntryWriter]가 폴더·파일 항목을 루트 아래에 만들고, 만들지 못하면 알리며, 루트 밖 항목만 실패 항목으로 남기는지 검증하는 단위 테스트(#235, #317). */
 class ArchiveEntryWriterTest {
 
     /** 추출 루트를 둘 임시 디렉터리. */
@@ -41,12 +42,12 @@ class ArchiveEntryWriterTest {
     }
 
     @Test
-    fun `루트 밖이나 루트 자신을 가리키는 항목만 건너뜀으로 센다`() {
+    fun `루트 밖이나 루트 자신을 가리키는 항목만 그 이름으로 실패 항목에 남긴다`() {
         assertNull(writer.openFile("../evil.txt", null))
         writer.createFolder("../evil/")
         writer.createFolder("./")
 
-        assertEquals(3, writer.skippedEntries)
+        assertEquals(listOf("../evil.txt", "../evil/", "./").map { FailedItem(it, ArchiveEntryWriter.REJECTED_PATH_REASON) }, writer.failures)
         assertEquals(listOf("out"), dir.list()!!.toList())
     }
 }

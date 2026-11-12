@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.model.FailedItem
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
 import org.junit.After
@@ -77,7 +78,7 @@ class RarExtractCallbackTest {
         val thrown = assertThrows(IOException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
         assertSame(thrown, callback.failure)
-        assertEquals(0, failingWriter.skippedEntries)
+        assertEquals(emptyList<FailedItem>(), failingWriter.failures)
     }
 
     @Test
@@ -91,13 +92,13 @@ class RarExtractCallbackTest {
     }
 
     @Test
-    fun `루트 밖을 가리키는 항목은 쓰지 않고 건너뜀으로만 센다`() {
+    fun `루트 밖을 가리키는 항목은 쓰지 않고 실패 항목으로만 남긴다`() {
         val callback = callbackOf(RarEntryKind.File("../evil.txt"))
 
         assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
         callback.setOperationResult(ExtractOperationResult.OK)
 
-        assertEquals(1, writer.skippedEntries)
+        assertEquals(listOf(FailedItem("../evil.txt", ArchiveEntryWriter.REJECTED_PATH_REASON)), writer.failures)
         assertNull(callback.failure)
     }
 
