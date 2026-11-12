@@ -108,6 +108,8 @@ class LocalTreeTransfer internal constructor(
 
     /**
      * 건너뛴 링크가 있으면 그 목록을 실패로, 없으면 성공을 돌려준다.
+     * 끝까지 처리했을 때만 불린다 — 도중에 입출력 실패로 멈추면 그 실패만 알리고 그때까지 모은 링크는 알리지 않는다
+     * (링크는 원래 자리에 남아 잃는 데이터는 없다. PR #336 리뷰 2번, 고치지 않기로 함).
      * @param skippedLinks 건너뛴 링크의 실패 항목
      * @param failurePrefix 실패 메시지 머리말
      * @return 작업 결과
