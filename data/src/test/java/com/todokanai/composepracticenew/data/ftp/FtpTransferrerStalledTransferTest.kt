@@ -53,7 +53,7 @@ class FtpTransferrerStalledTransferTest {
             exchange.send("426 Transfer aborted")
         })
 
-        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices()).download("ftp://host/a.bin", File(dir, "a.bin").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices()).download(sources = listOf(DownloadSource("ftp://host/a.bin", File(dir, "a.bin").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed("Read timed out"), result)
         assertEquals(DataEnd.RESET, serverEnd.get())

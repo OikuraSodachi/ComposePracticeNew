@@ -61,6 +61,15 @@ class LocalTreeTransferConflictTest {
     }
 
     @Test
+    fun `원본을 열지 못하면 묻지 않고 실패하며 같은 이름의 기존 파일을 비우지 않는다`() {
+        File(dest, "a.txt").writeText("old")
+
+        assertTrue(copy(AnsweringResolver(), "a.txt") !is IoResult.Success)
+
+        assertEquals("old", File(dest, "a.txt").readText())
+    }
+
+    @Test
     fun `복사에서 폴더를 합치면 안쪽 항목을 하나씩 다시 묻는다`() {
         File(src, "dir").mkdir()
         File(src, "dir/same.txt").writeText("new")

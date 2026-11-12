@@ -72,8 +72,8 @@ internal class RecordingProgressRepository : ProgressRepository {
 /** 요청된 다운로드·업로드를 기록하는 테스트용 원격 전송 저장소. */
 internal class RecordingTransferRepository : RemoteFileTransferRepository {
     val calls = mutableListOf<String>()
-    override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
-        calls += "download $remotePath"
+    override suspend fun download(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        items.forEach { calls += "download ${it.path}" }
         return IoResult.Done
     }
     override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {

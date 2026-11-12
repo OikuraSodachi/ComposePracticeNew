@@ -70,6 +70,6 @@ class FtpTransferrerDirectoryProgressTest {
     }
 
     private fun download(): IoResult<Unit> = runBlocking {
-        transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = UnexpectedConflictResolver, onProgress = { reports += it })
+        transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver, onProgress = { reports += it })
     }
 }

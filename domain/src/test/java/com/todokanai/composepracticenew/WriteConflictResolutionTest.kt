@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
-import com.todokanai.composepracticenew.operation.ConflictMemory
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
@@ -74,26 +73,7 @@ class WriteConflictResolutionTest {
     }
 
     @Test
-    fun `기억 범위를 함께 쓰는 작업은 앞 작업에서 나머지에도 적용한 답을 쓴다`() = runTest {
-        val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = true))
-        val memory = ConflictMemory()
-        val choices = mutableListOf<ConflictChoice>()
-        val orchestrator = orchestrator(asker)
-
-        repeat(2) {
-            orchestrator.launchResolvingConflicts("done", FileOperationType.DOWNLOAD, onRefresh = {}, memory = memory) { _, resolve ->
-                choices += resolve.resolve(fileConflict)
-                IoResult.Done
-            }
-        }
-        runCurrent()
-
-        assertEquals(listOf(ConflictChoice.SKIP, ConflictChoice.SKIP), choices)
-        assertEquals(1, asker.asked.size)
-    }
-
-    @Test
-    fun `기억 범위가 다른 작업은 다시 묻는다`() = runTest {
+    fun `나머지에도 적용한 답은 다른 작업에서 쓰지 않고 다시 묻는다`() = runTest {
         val asker = ScriptedAsker(
             ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = true),
             ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = true),

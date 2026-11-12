@@ -71,5 +71,5 @@ class FtpTransferrerInterruptedTransferTest {
     }
 
     /** 원격 파일 하나를 [localFile]로 받는다. */
-    private suspend fun download() = transferrer.download("ftp://host/r/a.txt", localFile.path, isDirectory = false, resolveConflict = UnexpectedConflictResolver)
+    private suspend fun download() = transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", localFile.path, false)), resolveConflict = UnexpectedConflictResolver)
 }

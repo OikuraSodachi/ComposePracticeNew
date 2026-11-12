@@ -65,7 +65,7 @@ class FtpTransferrerLocalFileFailureTest {
     fun `쓸 수 없는 로컬 경로로 받으면 이 항목만 실패하고 세션은 유지된다`() {
         val directoryAsTarget = File(dir, "target").apply { mkdirs() }
 
-        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", directoryAsTarget.path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", directoryAsTarget.path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertTrue("로컬 파일 실패는 이 항목의 실패여야 함: $result", result is IoResult.ItemFailed)
         assertTrue("로컬 파일 실패로 세션이 끝나면 안 됨", runBlocking { session.isReady() })
@@ -84,7 +84,7 @@ class FtpTransferrerLocalFileFailureTest {
         val dataCommands = DataCommandRunner(session)
         val observed = FtpTransferrer(observing, FtpCommandExecutor(session, dataCommands), dataCommands, OperationNotices())
 
-        val result = runBlocking { observed.download("ftp://host/r/a.txt", target.path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { observed.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", target.path, false)), resolveConflict = UnexpectedConflictResolver) }
 
         assertEquals(IoResult.Done, result)
         assertEquals(true, parentExistedAtBlock)

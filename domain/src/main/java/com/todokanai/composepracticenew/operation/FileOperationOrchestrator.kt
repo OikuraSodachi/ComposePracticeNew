@@ -105,11 +105,10 @@ class FileOperationOrchestrator(
      * [launch]와 같이 파일 작업을 실행하되, [block]이 쓰기 중에 만난 같은 이름의 항목을 사용자에게 묻는 통로를 함께 넘긴다.
      * 묻는 동안 작업은 멈추고 진행 알림은 답을 기다리는 상태가 된다. 답을 받으면 마지막 진행 상태로 알림을 되돌린다.
      * 사용자가 질문에서 취소하면 취소로, 질문 하나에 [MAX_CONFLICT_ANSWER_WAIT] 동안 답이 없으면 실패로 끝낸다. 어느 쪽이든 이미 처리한 항목은 그대로 둔다.
-     * "나머지에도 적용"한 답은 [memory] 범위 안에서만 쓴다.
+     * "나머지에도 적용"한 답은 이 작업 안에서만 쓴다.
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param operationType 작업 종류. 묻는 작업은 진행 표시가 있는 작업이다
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @param memory "나머지에도 적용"한 답을 기억하는 범위. 기본은 이 작업 하나다
      * @param block 실제 IO 작업 코드. 진행 보고 콜백과 충돌을 묻는 통로를 받고, 실패는 결과로 돌려준다
      * @return Unit
      */
@@ -117,7 +116,6 @@ class FileOperationOrchestrator(
         completionMessage: String,
         operationType: FileOperationType,
         onRefresh: suspend () -> Unit,
-        memory: ConflictMemory = ConflictMemory(),
         block: suspend (onProgress: (ProgressState) -> Unit, resolveConflict: WriteConflictResolver) -> IoResult<Unit>
     ) {
         val handle = startHandle(operationType)
@@ -127,7 +125,6 @@ class FileOperationOrchestrator(
             val resolver = OperationConflictResolver(
                 operationType = operationType,
                 questions = questions,
-                memory = memory,
                 onAwaiting = { notifier.awaitingAnswerNoti(operationType, handle.instanceId) },
                 onAnswered = { handle.latest?.let { notifier.progressNoti(it, handle.instanceId) } },
             )

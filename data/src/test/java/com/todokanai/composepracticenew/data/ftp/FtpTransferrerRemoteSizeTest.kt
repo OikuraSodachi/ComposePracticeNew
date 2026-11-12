@@ -72,5 +72,5 @@ class FtpTransferrerRemoteSizeTest {
     }
 
     /** 원격 파일 하나를 받는다. */
-    private fun download(): IoResult<Unit> = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
+    private fun download(): IoResult<Unit> = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 }

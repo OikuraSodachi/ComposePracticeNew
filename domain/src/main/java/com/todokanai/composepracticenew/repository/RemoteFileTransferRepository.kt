@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 
@@ -12,19 +13,17 @@ import com.todokanai.composepracticenew.model.ProgressState
 interface RemoteFileTransferRepository {
 
     /**
-     * remotePath의 파일 또는 디렉터리를 localDirPath 아래 name으로 다운로드한다.
-     * 디렉터리는 일부 파일이 실패해도 나머지를 끝까지 받은 뒤 실패한 파일을 모아 알린다. 받다 실패한 로컬 파일은 남겨 둔다.
+     * 원격 항목 [items]를 차례로 localDirPath 아래 각자의 이름으로 다운로드한다. 진행률은 모든 항목을 합쳐 보고한다.
+     * 일부 파일이 실패해도 나머지를 끝까지 받은 뒤 실패한 파일을 모아 알린다(연결이 끊기면 멈춘다). 받다 실패한 로컬 파일은 남겨 둔다.
      * 로컬 항목은 덮어쓰지 않는 쓰기로 먼저 만들고, 이름이 이미 있다고 파일 시스템이 알릴 때만 [resolveConflict]에 묻는다
      * (파일은 덮어쓰기, 폴더는 합치기, 종류가 엇갈리면 건너뛰기만). 묻는 동안 원격 세션을 붙잡지 않는다.
-     * @param remotePath 다운로드할 원격 파일 또는 디렉터리의 절대 경로
+     * @param items 다운로드할 원격 파일 또는 디렉터리 항목
      * @param localDirPath 저장할 로컬 디렉터리의 절대 경로
-     * @param name 저장할 파일 또는 디렉터리의 이름
-     * @param isDirectory remotePath가 디렉터리인 경우 true
      * @param resolveConflict 같은 이름의 로컬 항목을 만났을 때 처리 방법을 묻는 통로
      * @param onProgress 전송 진행 상태를 수신하는 콜백
      * @return 전송 결과
      */
-    suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    suspend fun download(items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     /**
      * localPath의 파일 또는 디렉터리를 remoteDirPath 아래 name으로 업로드한다.

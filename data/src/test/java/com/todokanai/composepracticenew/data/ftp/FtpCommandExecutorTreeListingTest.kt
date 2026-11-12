@@ -210,7 +210,7 @@ class FtpCommandExecutorTreeListingTest {
         try {
             val target = File(dir, "r")
 
-            val result = runBlocking { FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices()).download("ftp://host/r", target.path, isDirectory = true, resolveConflict = UnexpectedConflictResolver) }
+            val result = runBlocking { FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices()).download(sources = listOf(DownloadSource("ftp://host/r", target.path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
             assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
             assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())

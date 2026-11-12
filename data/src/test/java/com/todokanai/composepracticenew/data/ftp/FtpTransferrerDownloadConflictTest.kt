@@ -6,10 +6,12 @@ import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -85,7 +87,7 @@ class FtpTransferrerDownloadConflictTest {
         client.remoteFiles = listOf("a.txt")
         client.streamContent = "new".toByteArray()
 
-        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = answering(ConflictChoice.SKIP)) }
+        val result = runBlocking { transferrer.download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, isDirectory = true)), answering(ConflictChoice.SKIP)) }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf(WriteConflictKind.FOLDER), asked.map { it.kind })
@@ -93,12 +95,31 @@ class FtpTransferrerDownloadConflictTest {
         assertFalse(File(dir, "r/a.txt").exists())
     }
 
+    @Test
+    fun `묶음의 한 항목 질문에서 취소하면 남은 항목을 받지 않는다`() {
+        loggedIn()
+        local.writeText("old")
+        client.streamContent = "new".toByteArray()
+        val sources = listOf(
+            DownloadSource("ftp://host/r/a.txt", local.path, isDirectory = false),
+            DownloadSource("ftp://host/r/b.txt", File(dir, "b.txt").path, isDirectory = false),
+        )
+
+        assertThrows(CancellationException::class.java) {
+            runBlocking { transferrer.download(sources, answering { throw CancellationException("질문에서 취소") }) }
+        }
+
+        assertEquals(emptyList<String>(), client.retrieveRequests)
+        assertEquals("old", local.readText())
+        assertFalse(File(dir, "b.txt").exists())
+    }
+
     /** 세션을 연결된 상태로 둔다. */
     private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
 
     /** 원격 a.txt를 [local]로 받는다. */
     private fun download(resolver: WriteConflictResolver): IoResult<Unit> =
-        runBlocking { transferrer.download("ftp://host/r/a.txt", local.path, isDirectory = false, resolveConflict = resolver) }
+        runBlocking { transferrer.download(listOf(DownloadSource("ftp://host/r/a.txt", local.path, isDirectory = false)), resolver).singleItemResult() }
 
     /** 받은 겹침을 [asked]에 기록하고 [choice]로 답하는 resolver. */
     private fun answering(choice: ConflictChoice) = answering { choice }

@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.withFailureMessage
-import com.todokanai.composepracticenew.operation.ConflictMemory
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -38,8 +37,9 @@ class RemoteFileOperationUseCase(
     fun validateEntryName(name: String, location: String): Set<FileNameError> = fileNameUseCase.validate(name, location)
 
     /**
-     * 원격 항목 [items]를 [localDestPath]에 같은 이름으로 다운로드한다. 항목마다 작업 하나로 실행한다.
-     * 같은 이름의 로컬 항목은 받는 중에 그 항목을 쓰려 할 때 사용자에게 묻고, "나머지에도 적용"한 답은 이번에 띄운 작업들이 함께 쓴다.
+     * 원격 항목 [items]를 [localDestPath]에 같은 이름으로 다운로드한다. 한 번의 확인으로 고른 항목들이므로 작업 하나로 실행한다
+     * (취소·"나머지에도 적용"·진행률이 모두 이 묶음 전체에 걸리도록).
+     * 같은 이름의 로컬 항목은 받는 중에 그 항목을 쓰려 할 때 사용자에게 묻는다.
      * @param items 다운로드할 원격 파일 또는 디렉터리 항목
      * @param localDestPath 로컬 저장 대상 디렉터리의 절대 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
@@ -47,11 +47,8 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun download(items: List<FileHolderItem>, localDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        val memory = ConflictMemory()
-        items.forEach { item ->
-            orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.DOWNLOAD, onRefresh, memory) { onProgress, resolveConflict ->
-                transferRepo.download(item.path, localDestPath, item.name, item.isDirectory, resolveConflict, onProgress)
-            }
+        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.DOWNLOAD, onRefresh) { onProgress, resolveConflict ->
+            transferRepo.download(items, localDestPath, resolveConflict, onProgress)
         }
     }
 

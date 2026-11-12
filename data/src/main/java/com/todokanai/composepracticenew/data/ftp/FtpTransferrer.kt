@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
+import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.composepracticenew.model.valueOr
@@ -47,27 +48,30 @@ class FtpTransferrer @Inject internal constructor(
 ) {
 
     /**
-     * remotePath의 파일 또는 디렉터리를 localPath에 스트리밍 다운로드한다.
-     * isDirectory가 true이면 원격 트리를 재귀 수집 후 각 파일을 순서대로 다운로드하며, 일부 파일이 실패해도 끝까지 진행한 뒤 실패를 모아 알린다.
+     * [sources]를 차례로 로컬에 스트리밍 다운로드한다. 받기 전에 모든 항목의 크기(디렉터리는 원격 트리)를 먼저 구해, 진행률을 묶음 전체로 보고한다.
+     * 일부 항목이 실패해도 끝까지 진행한 뒤 실패를 모아 알리며, 연결이 끊기면 남은 항목을 시도하지 않는다.
      * 받다 실패한 로컬 파일은 남겨 두고, 취소된 경우에만 지운다.
      * 로컬 파일·폴더 자리는 세션 잠금 밖에서 "없을 때만 만들기"로 먼저 확보하고, 이미 있으면 [resolveConflict]에 묻는다 — 답을 기다리는 동안 세션을 붙잡지 않도록.
-     * @param remotePath ftp://server/path 형식의 원격 절대 경로
-     * @param localPath 저장할 로컬 파일 또는 디렉터리의 절대 경로
-     * @param isDirectory remotePath가 디렉터리인 경우 true
+     * @param sources 받을 원격 항목과 저장할 로컬 자리
      * @param resolveConflict 같은 이름의 로컬 항목을 만났을 때 처리 방법을 묻는 통로
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 전송 결과
      */
     suspend fun download(
-        remotePath: String,
-        localPath: String,
-        isDirectory: Boolean,
+        sources: List<DownloadSource>,
         resolveConflict: WriteConflictResolver,
         onProgress: (ProgressState) -> Unit = {}
     ): IoResult<Unit> =
         withContext(Dispatchers.IO) {
-            if (!isDirectory) downloadFile(remotePath, File(localPath), resolveConflict, onProgress)
-            else downloadDirectory(remotePath, localPath, resolveConflict, onProgress)
+            val plans = sources.map { source -> source to planOf(source).also { if (it is IoResult.ConnectionLost) return@withContext it } }
+            val sizes = plans.flatMap { (_, plan) -> (plan as? IoResult.Success)?.value?.fileSizes.orEmpty() }
+            val progress = ByteProgressTracker(transferTotalOf(sizes), sizes.size, onProgress)
+            forEachCollectingFailures(plans, "다운로드 실패", nameOf = { (source, _) -> File(source.localPath).name }) { (_, plan) ->
+                when (val planned = plan.valueOr { return@forEachCollectingFailures it }) {
+                    is DownloadPlan.SingleFile -> downloadFile(planned, resolveConflict, progress)
+                    is DownloadPlan.Tree -> downloadDirectory(planned, resolveConflict, progress)
+                }
+            }.onSuccess { progress.reportComplete() }
         }
 
     /**
@@ -88,55 +92,57 @@ class FtpTransferrer @Inject internal constructor(
         }
 
     /**
-     * 단일 원격 파일을 [localFile]로 다운로드한다. 진행률은 파일 하나짜리 작업으로 보고하며, 크기를 모르면 퍼센트 없이 받은 바이트를 보고한다.
+     * [source]를 받기 전에 크기를 구한다. 파일은 MLST로, 디렉터리는 원격 트리를 재귀 수집해 구한다.
+     * @return 받을 계획, 또는 크기·트리를 구하지 못한 실패
      */
-    private suspend fun downloadFile(
-        remotePath: String,
-        localFile: File,
-        resolveConflict: WriteConflictResolver,
-        onProgress: (ProgressState) -> Unit
-    ): IoResult<Unit> {
-        val ftpPath = extractFtpPath(remotePath)
+    private suspend fun planOf(source: DownloadSource): IoResult<DownloadPlan> =
+        if (source.isDirectory) {
+            cmd.collectRemoteTree(source.remotePath).map { DownloadPlan.Tree(source.remotePath, File(source.localPath), it) }
+        } else {
+            val ftpPath = extractFtpPath(source.remotePath)
+            session.withConnectedClient { client -> IoResult.Success(DownloadPlan.SingleFile(ftpPath, File(source.localPath), remoteFileSize(client, ftpPath))) }
+        }
+
+    /**
+     * 원격 파일 하나를 [plan]의 로컬 파일로 다운로드한다. 진행률은 묶음 전체의 [progress]에 보고한다.
+     */
+    private suspend fun downloadFile(plan: DownloadPlan.SingleFile, resolveConflict: WriteConflictResolver, progress: ByteProgressTracker): IoResult<Unit> {
+        val localFile = plan.localFile
         localFile.parentFile?.mkdirs()
         // 건너뛰면 받을 것이 없으므로 완료다
-        val claimed = claimLocalFile(localFile, resolveConflict).valueOr { return it } ?: return IoResult.Done
+        val claimed = claimLocalFile(localFile, resolveConflict).valueOr { return it }
+            ?: return IoResult.Done.also { progress.passOver(localFile.name, plan.size) }
+        progress.startFile()
         return receivingInto(claimed) { onOpened ->
             session.withConnectedClient { client ->
-                val fileBytes = remoteFileSize(client, ftpPath)
-                val progress = ByteProgressTracker(singleFileTotal(fileBytes), 1, onProgress)
-                progress.startFile()
                 downloadOne(
-                    client, ftpPath, localFile, onOpened,
-                    onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, fileBytes) },
-                    onAcked = { progress.onFileCompleted(localFile.name, fileBytes) }
-                ).onSuccess { progress.reportComplete() }
+                    client, plan.ftpPath, localFile, onOpened,
+                    onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, plan.size) },
+                    onAcked = { progress.onFileCompleted(localFile.name, plan.size) }
+                )
             }
         }
     }
 
     /**
-     * 원격 디렉터리 트리를 [localPath] 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다.
+     * 원격 디렉터리 트리를 [plan]의 로컬 폴더 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다. 진행률은 묶음 전체의 [progress]에 보고한다.
      * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목은 트리에 없어 받지 않으며, 누락을 알리지 않고 완료로 보고한다([FtpCommandExecutor.collectRemoteTree] 참고).
      */
-    private suspend fun downloadDirectory(
-        remotePath: String,
-        localPath: String,
-        resolveConflict: WriteConflictResolver,
-        onProgress: (ProgressState) -> Unit
-    ): IoResult<Unit> {
-        val allEntries = cmd.collectRemoteTree(remotePath).valueOr { return it }
-        val fileEntries = allEntries.filter { !it.isDirectory }
-        val progress = ByteProgressTracker(transferTotalOf(fileEntries), fileEntries.size, onProgress)
-        val localRoot = File(localPath)
+    private suspend fun downloadDirectory(plan: DownloadPlan.Tree, resolveConflict: WriteConflictResolver, progress: ByteProgressTracker): IoResult<Unit> {
+        val remotePath = plan.remotePath
+        val localRoot = plan.localRoot
         localRoot.parentFile?.mkdirs()
         // 받을 폴더 자리에 같은 이름이 있어 건너뛰면 받을 것이 없으므로 완료다
-        if (!claimLocalDirectory(localRoot, resolveConflict).valueOr { return it }) return IoResult.Done
+        if (!claimLocalDirectory(localRoot, resolveConflict).valueOr { return it }) {
+            plan.entries.filter { !it.isDirectory }.forEach { progress.passOver(it.name, it.size) }
+            return IoResult.Done
+        }
         // 건너뛰기로 한 폴더. 그 아래 항목은 묻지 않고 건너뛴다
         val skippedDirs = mutableListOf<File>()
-        return forEachCollectingFailures(allEntries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
-            val localTarget = File(localPath, relativeRemotePath(entry.path, remotePath))
+        return forEachCollectingFailures(plan.entries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
+            val localTarget = File(localRoot, relativeRemotePath(entry.path, remotePath))
             when {
-                skippedDirs.any { localTarget.startsWith(it) } -> IoResult.Done.also { if (!entry.isDirectory) progress.passOver(entry) }
+                skippedDirs.any { localTarget.startsWith(it) } -> IoResult.Done.also { if (!entry.isDirectory) progress.passOver(entry.name, entry.size) }
                 entry.isDirectory -> {
                     if (!claimLocalDirectory(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }) skippedDirs += localTarget
                     IoResult.Done
@@ -144,7 +150,7 @@ class FtpTransferrer @Inject internal constructor(
                 else -> {
                     localTarget.parentFile?.mkdirs()
                     val claimed = claimLocalFile(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }
-                        ?: return@forEachCollectingFailures IoResult.Done.also { progress.passOver(entry) }
+                        ?: return@forEachCollectingFailures IoResult.Done.also { progress.passOver(entry.name, entry.size) }
                     progress.startFile()
                     val entryFtpPath = extractFtpPath(entry.path)
                     receivingInto(claimed) { onOpened ->
@@ -158,13 +164,13 @@ class FtpTransferrer @Inject internal constructor(
                     }
                 }
             }
-        }.onSuccess { progress.reportComplete() }
+        }
     }
 
-    /** 받지 않고 건너뛴 [entry]를 처리한 것으로 진행률에 넘긴다. */
-    private fun ByteProgressTracker.passOver(entry: FileEntry) {
+    /** 받지 않고 건너뛴 파일 [name](크기 [size], 모르면 null)을 처리한 것으로 진행률에 넘긴다. */
+    private fun ByteProgressTracker.passOver(name: String, size: Long?) {
         skipFiles(1)
-        entry.size?.let { addBytes(it, entry.name, fileBytes = null) }
+        size?.let { addBytes(it, name, fileBytes = null) }
     }
 
     /**
@@ -224,6 +230,32 @@ class FtpTransferrer @Inject internal constructor(
      * @param createdHere 빈 파일을 이 다운로드가 만들었으면 true. 덮어쓰기로 한 기존 파일이면 false
      */
     private class ClaimedFile(val file: File, val createdHere: Boolean)
+
+    /** 받기 전에 크기를 구해 둔 다운로드 항목 하나. */
+    private sealed interface DownloadPlan {
+        /** 받을 파일마다의 크기(모르면 null). 묶음 전체의 진행률 합계에 쓴다. */
+        val fileSizes: List<Long?>
+
+        /**
+         * 원격 파일 하나.
+         * @param ftpPath 받을 원격 파일의 FTP 경로
+         * @param localFile 저장할 로컬 파일
+         * @param size 파일 크기. 모르면 null
+         */
+        class SingleFile(val ftpPath: String, val localFile: File, val size: Long?) : DownloadPlan {
+            override val fileSizes: List<Long?> get() = listOf(size)
+        }
+
+        /**
+         * 재귀 수집한 원격 디렉터리 트리.
+         * @param remotePath ftp://server/path 형식의 원격 디렉터리 경로
+         * @param localRoot 트리를 받을 로컬 폴더
+         * @param entries 트리 아래의 모든 항목(폴더 포함)
+         */
+        class Tree(val remotePath: String, val localRoot: File, val entries: List<FileEntry>) : DownloadPlan {
+            override val fileSizes: List<Long?> get() = entries.filter { !it.isDirectory }.map { it.size }
+        }
+    }
 
     /**
      * 단일 로컬 파일을 [ftpPath]로 업로드한다. 진행률은 파일 하나짜리 작업으로 보고한다.
@@ -421,22 +453,14 @@ class FtpTransferrer @Inject internal constructor(
 
     /**
      * 받을 파일들의 전체 크기를 구한다. 크기를 모르는 파일이 하나라도 있으면 전체 크기를 모른다 — 아는 크기만 더한 합계로 퍼센트를 내면
-     * 받는 바이트가 합계를 넘어 진행률이 거짓이 되므로, 아는 크기의 합은 따로 둔다.
-     * @param fileEntries 받을 파일 항목 목록
+     * 받는 바이트가 합계를 넘어 진행률이 거짓이 되므로, 아는 크기의 합은 따로 둔다. 0바이트 파일도 크기를 아는 파일이다.
+     * @param fileSizes 받을 파일마다의 크기. 모르면 null
      * @return 모두 알면 크기 합, 아니면 아는 크기의 합과 모르는 파일 수
      */
-    private fun transferTotalOf(fileEntries: List<FileEntry>): TransferTotal {
-        val knownSizes = fileEntries.mapNotNull { it.size }
-        return TransferTotal.of(knownSizes.sum(), fileEntries.size - knownSizes.size)
+    private fun transferTotalOf(fileSizes: List<Long?>): TransferTotal {
+        val knownSizes = fileSizes.filterNotNull()
+        return TransferTotal.of(knownSizes.sum(), fileSizes.size - knownSizes.size)
     }
-
-    /**
-     * 단일 파일 전송의 전체 크기를 구한다. 0바이트 파일도 크기를 아는 파일이다.
-     * @param fileBytes 파일 크기. 모르면 null
-     * @return 크기를 알면 그 크기, 모르면 크기를 모르는 파일 하나
-     */
-    private fun singleFileTotal(fileBytes: Long?): TransferTotal =
-        TransferTotal.of(knownBytes = fileBytes ?: 0, unknownFileCount = if (fileBytes == null) 1 else 0)
 
     companion object {
         private const val BUFFER_SIZE = 128 * 1024
@@ -444,3 +468,11 @@ class FtpTransferrer @Inject internal constructor(
         private const val TRANSFER_FAILED_MESSAGE = "전송 실패"
     }
 }
+
+/**
+ * [FtpTransferrer.download]로 받을 원격 항목 하나와 저장할 로컬 자리.
+ * @param remotePath ftp://server/path 형식의 원격 절대 경로
+ * @param localPath 저장할 로컬 파일 또는 디렉터리의 절대 경로
+ * @param isDirectory remotePath가 디렉터리인 경우 true
+ */
+class DownloadSource(val remotePath: String, val localPath: String, val isDirectory: Boolean)

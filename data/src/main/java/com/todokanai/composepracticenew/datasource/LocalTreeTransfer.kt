@@ -112,9 +112,10 @@ class LocalTreeTransfer internal constructor(
             if (complete && deleteSource) Files.delete(src.toPath())
             return complete
         }
-        val output = openNewFileResolving(target) { resolveConflict.resolve(it) } ?: return false.also { tracker.passOver(src) }
-        tracker.startFile()
+        // 원본을 먼저 연다 — 덮어쓰기는 출력을 열 때 기존 내용을 비우므로, 원본을 열지 못하면 대상에 손대기 전에 실패해야 한다
         src.inputStream().use { input ->
+            val output = openNewFileResolving(target) { resolveConflict.resolve(it) } ?: return false.also { tracker.passOver(src) }
+            tracker.startFile()
             deletingOnCancel(target) {
                 output.use { tracker.pump(input, it, src.name, src.length()) }
             }

@@ -37,7 +37,7 @@ class FtpControlChannelFailureTest {
         loggedIn()
         client.onCompletePending = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", (result as IoResult.ConnectionLost).message.contains("Read timed out"))
         assertSessionEnded()
@@ -49,7 +49,7 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onCompletePending = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
@@ -60,7 +60,7 @@ class FtpControlChannelFailureTest {
         loggedIn()
         client.onMlst = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
@@ -74,9 +74,9 @@ class FtpControlChannelFailureTest {
         client.streamReadFailure = SocketException("Connection reset")
         client.onCompletePending = { false }
 
-        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
-        assertEquals("다운로드 실패: 2개 항목 (a.txt, b.txt)", (result as IoResult.PartiallyFailed).message)
+        assertEquals("다운로드 실패: 2개 항목 (r/a.txt, r/b.txt)", (result as IoResult.PartiallyFailed).message)
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)
         assertTrue(runBlocking { session.isReady() })
         assertEquals(0, client.disconnectCalls)

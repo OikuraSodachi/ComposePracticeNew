@@ -33,7 +33,7 @@ class FtpTransferrerTransientRefusalTest {
         ).forEach { refusal ->
             val (client, session, transferrer) = connectedTransferrer(refusal)
 
-            val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
+            val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
             assertEquals("${refusal.code}", IoResult.ItemFailed("retrieveFileStream 실패: ${refusal.text}"), result)
             assertTrue("${refusal.code}: 세션이 유지돼야 함", runBlocking { session.isReady() })
@@ -58,9 +58,9 @@ class FtpTransferrerTransientRefusalTest {
         val (client, session, transferrer) = connectedTransferrer(ServerBehavior.Refuse(425, "425 Can't open data connection"))
         client.remoteFiles = listOf("a.txt", "b.txt")
 
-        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
-        assertEquals(setOf("a.txt", "b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path }.toSet())
+        assertEquals(setOf("r/a.txt", "r/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path }.toSet())
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)
         assertTrue(runBlocking { session.isReady() })
         assertEquals(0, client.disconnectCalls)
@@ -72,7 +72,7 @@ class FtpTransferrerTransientRefusalTest {
         client.streamContent = "data".toByteArray()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 File busy"))
 
-        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed("LIST 실패: 450 File busy"), result)
         assertTrue(runBlocking { session.isReady() })

@@ -157,10 +157,10 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
             },
             // 크기 조회는 진행률에만 쓰므로, 거부되면 크기를 모르는 채로 전송을 이어 간다
             CommandRow("MLST", refused = Outcome.CONTINUES, prepare = { it.streamContent = "data".toByteArray() }) {
-                it.transferrer.download("ftp://host/r/a.txt", File(it.dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver)
+                it.transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
             },
             CommandRow("RETR", prepare = { it.streamContent = "data".toByteArray() }) {
-                it.transferrer.download("ftp://host/r/a.txt", File(it.dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver)
+                it.transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
             },
             CommandRow("STOR", prepare = { it.streamContent = "data".toByteArray() }) {
                 val local = File(it.dir, "a.txt").apply { writeText("A") }
