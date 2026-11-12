@@ -16,13 +16,20 @@ import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -142,18 +149,29 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /** 진행 중인 업로드 전 겹침 확인들의 부모 Job. 원격 세션이 끊기면 이 아래의 확인을 모두 멈춘다. */
     private val uploadChecks = SupervisorJob(viewModelScope.coroutineContext[Job])
 
+    /** 진행 중인 업로드 전 겹침 확인(시작한 순서). 맨 앞이 [cancelUploadCheck]의 대상이다. */
+    private val runningChecks = MutableStateFlow<List<RunningCheck>>(emptyList())
+
+    /** 업로드 전 겹침 확인이 진행 중인지. 표시 전용이며, 확인 흐름의 판단에는 쓰지 않는다. */
+    val uploadChecking: StateFlow<Boolean> = runningChecks
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     /**
      * 업로드 대기 목록을 꺼내 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다.
      * 대기 목록은 확인을 누를 때 원격 화면에서 꺼내 이 확인이 직접 들고 간다 — 확인하는 동안 다음 업로드가 원격 화면에 들어와도 이 업로드는 사라지지 않고, 같은 대기를 두 번 확인할 수도 없다.
      * 목적지에 같은 이름이 있거나 함께 올리는 항목끼리(폴더 안쪽 포함) 목적지에서 같은 이름이 될 수 있으면 [uploadConflict]로 확인을 요청한다(여러 업로드의 확인은 차례로 묻는다).
      * 확인을 취소했거나 현재 원격 경로의 목록을 확인하지 못했으면(조회 중·실패 — 거부 알림은 ConflictCheckUseCase가 한다) 실행하지 않고,
      * 원격 화면이 기본 모드일 때만 대기 목록을 돌려놓아 다시 확인할 수 있게 한다. 그사이 다른 선택·대기가 원격 화면을 차지했으면 이 업로드는 끝난다.
+     * 확인하는 동안에는 [uploadChecking]이 true이며, [cancelUploadCheck]로 멈출 수 있다.
      * 원격 화면이 업로드 확인 상태가 아니면 업로드할 대상이 없으므로 아무것도 하지 않는다.
      */
     fun confirmUpload() {
         val waiting = remote.takeReceiving() ?: return
-        viewModelScope.launch(uploadChecks) {
+        val job = viewModelScope.launch(uploadChecks, start = CoroutineStart.LAZY) {
             val checked = uploadConflictCheckUseCase.findConflicts(waiting.pending, remoteNavigator, nameOf = { it.name }, pathOf = { it.path })
+            // 확인을 마친 직후 취소됐을 수 있다 — 취소한 업로드를 묻거나 올리지 않도록 이어 가기 전에 확인한다
+            ensureActive()
             if (checked == null) {
                 remote.restoreReceiving(waiting)
                 return@launch
@@ -165,6 +183,22 @@ class FileTransferCoordinatorViewModel @Inject constructor(
                 onCancel = { remote.restoreReceiving(waiting) },
             ) { skip -> upload(waiting.pending.excluding(skip), checked.destinationPath) }
         }
+        val check = RunningCheck(waiting, job)
+        runningChecks.update { it + check }
+        job.invokeOnCompletion { runningChecks.update { it - check } }
+        job.start()
+    }
+
+    /**
+     * 가장 먼저 시작한 진행 중인 업로드 전 확인을 멈춘다. 확인 창에서 취소할 때와 같이, 원격 화면이 기본 모드일 때만 그 대기 목록을 돌려놓는다.
+     * 대기 목록은 멈춘 확인이 끝나기를 기다리지 않고 여기서 돌려놓는다 — 확인의 정리 코드에서 돌려놓으면 세션 끊김으로 멈춘 확인도 끊긴 뒤에 대기를 되살린다.
+     * 진행 중인 확인이 없으면 아무것도 하지 않는다.
+     */
+    fun cancelUploadCheck() {
+        val front = runningChecks.value.firstOrNull() ?: return
+        front.job.cancel()
+        runningChecks.update { it - front }
+        remote.restoreReceiving(front.waiting)
     }
 
     /** 로컬 화면을 기본 모드로 되돌린다(취소·뒤로가기). 선택 목록·다운로드 대기 목록도 함께 사라진다. */
@@ -180,12 +214,20 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private fun discardRemoteSessionState() {
         local.discardReceiving()
         uploadChecks.cancelChildren()
+        runningChecks.value = emptyList()
         uploadGate.discardAll()
         remote.reset()
     }
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */
     fun resolveUploadConflict(resolution: ConflictResolution) { uploadGate.resolve(resolution) }
+
+    /**
+     * 진행 중인 업로드 전 겹침 확인 하나. 같은 대기 목록을 두 번 확인하지 않으므로 인스턴스로 구분한다.
+     * @param waiting 이 확인이 원격 화면에서 꺼내 들고 간 업로드 대기
+     * @param job 확인을 실행하는 Job
+     */
+    private class RunningCheck(val waiting: SelectionState.Receiving<SelectMode.Upload>, val job: Job)
 
     /** 이 목록에서 [skip]과 경로가 같은 항목을 제외한다. */
     private fun List<FileHolderItem>.excluding(skip: List<FileHolderItem>): List<FileHolderItem> {

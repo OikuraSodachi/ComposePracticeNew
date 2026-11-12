@@ -246,6 +246,52 @@ class TransferDestinationGuardTest {
         assertTrue(transferRepo.calls.isEmpty())
         assertNull(viewModel.uploadConflict.value)
         assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
+        assertTrue(!viewModel.uploadChecking.value)
+    }
+
+    @Test
+    fun `확인하는 동안에만 확인 중으로 보인다`() {
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
+        enterUpload()
+
+        viewModel.confirmUpload()
+        assertTrue(viewModel.uploadChecking.value)
+
+        hold.complete(Unit)
+        assertTrue(!viewModel.uploadChecking.value)
+    }
+
+    @Test
+    fun `확인을 멈추면 올리지 않고 대기 목록을 돌려놓는다`() {
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
+        enterUpload()
+        viewModel.confirmUpload()
+
+        viewModel.cancelUploadCheck()
+        hold.complete(Unit)
+
+        assertTrue(transferRepo.calls.isEmpty())
+        assertTrue(!viewModel.uploadChecking.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
+    }
+
+    @Test
+    fun `확인을 멈추면 가장 먼저 시작한 확인만 멈추고 다음 확인은 이어 간다`() {
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
+        enterUpload()
+        viewModel.confirmUpload()
+        enterUpload(other)
+        viewModel.confirmUpload()
+
+        viewModel.cancelUploadCheck()
+        assertTrue(viewModel.uploadChecking.value)
+        hold.complete(Unit)
+
+        assertEquals(listOf("upload /local/c.txt"), transferRepo.calls)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
     }
 
     /** 로컬 다중 선택 목록([item] 하나)을 업로드 대기 목록으로 옮긴다. */
