@@ -16,6 +16,9 @@ import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
@@ -136,34 +139,31 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         local.reset()
     }
 
-    /** 업로드 전 겹침을 확인하는 중인지. 확인하는 동안 다시 눌린 확인은 무시한다 — 같은 대기 목록을 두 번 확인해 두 번 올리지 않도록. */
-    private var checkingUpload = false
+    /** 진행 중인 업로드 전 겹침 확인들의 부모 Job. 원격 세션이 끊기면 이 아래의 확인을 모두 멈춘다. */
+    private val uploadChecks = SupervisorJob(viewModelScope.coroutineContext[Job])
 
     /**
-     * 업로드 대기 목록을 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다.
-     * 목적지에 같은 이름이 있거나 함께 올리는 항목끼리(폴더 안쪽 포함) 목적지에서 같은 이름이 될 수 있으면 [uploadConflict]로 확인을 요청한다.
-     * 폴더 안쪽 이름을 읽어야 하므로 확인은 비동기로 하며, 그동안 업로드 대기가 바뀌면(끊김·취소·새 전송) 그 확인은 버린다.
-     * 실제로 실행됐을 때만 원격 화면을 기본 모드로 되돌린다(대기 목록도 함께 사라짐).
-     * 확인을 취소하면 업로드 확인 상태(대기 목록 포함)가 유지되어 다시 확인할 수 있다.
-     * 현재 원격 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다). 대기 목록은 유지된다.
+     * 업로드 대기 목록을 꺼내 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다.
+     * 대기 목록은 확인을 누를 때 원격 화면에서 꺼내 이 확인이 직접 들고 간다 — 확인하는 동안 다음 업로드가 원격 화면에 들어와도 이 업로드는 사라지지 않고, 같은 대기를 두 번 확인할 수도 없다.
+     * 목적지에 같은 이름이 있거나 함께 올리는 항목끼리(폴더 안쪽 포함) 목적지에서 같은 이름이 될 수 있으면 [uploadConflict]로 확인을 요청한다(여러 업로드의 확인은 차례로 묻는다).
+     * 확인을 취소했거나 현재 원격 경로의 목록을 확인하지 못했으면(조회 중·실패 — 거부 알림은 ConflictCheckUseCase가 한다) 실행하지 않고,
+     * 원격 화면이 기본 모드일 때만 대기 목록을 돌려놓아 다시 확인할 수 있게 한다. 그사이 다른 선택·대기가 원격 화면을 차지했으면 이 업로드는 끝난다.
      * 원격 화면이 업로드 확인 상태가 아니면 업로드할 대상이 없으므로 아무것도 하지 않는다.
      */
     fun confirmUpload() {
-        val waiting = remote.state.value as? SelectionState.Receiving ?: return
-        if (checkingUpload) return
-        checkingUpload = true
-        viewModelScope.launch {
-            try {
-                val checked = uploadConflictCheckUseCase.findConflicts(waiting.pending, remoteNavigator, nameOf = { it.name }, pathOf = { it.path }) ?: return@launch
-                // 확인하는 동안 대기가 바뀌었으면 이 판정은 지난 대기의 것이다
-                if (remote.state.value !== waiting) return@launch
-                uploadGate.request(waiting.pending, checked.conflicts, checked.collisions.map(NameCollisionGroup::from)) { skip ->
-                    upload(waiting.pending.excluding(skip), checked.destinationPath)
-                    remote.reset()
-                }
-            } finally {
-                checkingUpload = false
+        val waiting = remote.takeReceiving() ?: return
+        viewModelScope.launch(uploadChecks) {
+            val checked = uploadConflictCheckUseCase.findConflicts(waiting.pending, remoteNavigator, nameOf = { it.name }, pathOf = { it.path })
+            if (checked == null) {
+                remote.restoreReceiving(waiting)
+                return@launch
             }
+            uploadGate.request(
+                waiting.pending,
+                checked.conflicts,
+                checked.collisions.map(NameCollisionGroup::from),
+                onCancel = { remote.restoreReceiving(waiting) },
+            ) { skip -> upload(waiting.pending.excluding(skip), checked.destinationPath) }
         }
     }
 
@@ -174,13 +174,14 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun resetRemoteSelection() = remote.reset()
 
     /**
-     * 끊긴 원격 세션에 기대는 상태를 버린다. 로컬의 다운로드 대기(원격 경로 목록)와 원격 화면의 선택·업로드 대기, 업로드 확인을 기다리는 충돌이 해당한다.
+     * 끊긴 원격 세션에 기대는 상태를 버린다. 로컬의 다운로드 대기(원격 경로 목록)와 원격 화면의 선택·업로드 대기, 진행 중인 업로드 전 확인과 확인을 기다리는 충돌이 해당한다.
      * 다시 연결하려면 저장소 선택을 거쳐 새 세션을 열어야 하므로 이 상태로는 어떤 전송도 성공할 수 없다. 로컬의 선택·작업 상태는 로컬 저장소만 쓰므로 그대로 둔다.
      */
     private fun discardRemoteSessionState() {
         local.discardReceiving()
+        uploadChecks.cancelChildren()
+        uploadGate.discardAll()
         remote.reset()
-        uploadGate.resolve(ConflictResolution.CANCEL)
     }
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */
