@@ -74,6 +74,7 @@ class ConnectionLostNoticeTest {
         operationNoticeUseCase = OperationNoticeUseCase(NoOperationNotices),
         exitHandler = NoOpExitHandler,
         connectionStateUseCase = RemoteConnectionStateUseCase(connection),
-        preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures)
+        preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures),
+        cancelOperationUseCase = idleCancelOperationUseCase()
     )
 }

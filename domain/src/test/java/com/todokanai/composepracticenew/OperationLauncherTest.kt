@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -14,12 +15,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
  * [FileOperationOrchestrator.launch]가 작업 결과를 완료·실패 처리로 나누고, 구현 오류 하나로 작업 스코프가 무너지지 않게 그 작업만 실패로 끝내며,
- * 진행·완료·취소 알림을 모두 그 작업에 발급한 인스턴스 ID로 보내는지 검증하는 단위 테스트.
+ * 진행·완료·취소 알림을 모두 그 작업에 발급한 인스턴스 ID로 보내며, 취소 요청([FileOperationOrchestrator.cancel])으로 작업을 멈추고 취소를 알리는지 검증하는 단위 테스트.
  * 작업이 일시 중단하지 않으므로 Unconfined 스코프에서 호출 즉시 끝난다. 첫 작업의 ID는 1이고 시작 순서대로 1씩 커진다.
  */
 class OperationLauncherTest {
@@ -88,6 +90,59 @@ class OperationLauncherTest {
         launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.ItemFailed("실패") }
 
         assertEquals(listOf("completed 1", "progress 2", "cancel 2"), notifier.calls)
+    }
+
+    @Test
+    fun `일시 중단한 작업을 취소하면 완료·실패 대신 취소를 알리고 진행 알림과 진행 상태를 지운다`() {
+        val gate = CompletableDeferred<Unit>()
+        launch(FileOperationType.COPY) { gate.await(); IoResult.Done }
+
+        orchestrator.cancel(1)
+
+        assertEquals(listOf("복사 취소 — 이미 복사한 항목은 그대로 둡니다"), notices.completions)
+        assertTrue(notices.failures.isEmpty())
+        assertEquals(listOf("cancel 1"), notifier.calls)
+        assertEquals(listOf(1), progressRepo.removed)
+    }
+
+    @Test
+    fun `취소된 뒤의 진행 보고는 취소를 던져 작업을 멈춘다`() {
+        var reachedAfterProgress = false
+        launch(FileOperationType.UPLOAD) { onProgress ->
+            orchestrator.cancel(1)
+            onProgress(ProgressState(progress = 10))
+            reachedAfterProgress = true
+            IoResult.Done
+        }
+
+        assertFalse(reachedAfterProgress)
+        assertEquals(listOf("업로드 취소 — 이미 올린 파일은 그대로 둡니다"), notices.completions)
+        // 취소를 확인한 뒤의 진행은 보고하지 않는다
+        assertEquals(listOf("cancel 1"), notifier.calls)
+    }
+
+    @Test
+    fun `작업이 끝난 뒤에 온 취소 요청은 결과 알림과 목록 갱신을 바꾸지 않는다`() {
+        val refreshGate = CompletableDeferred<Unit>()
+        var refreshed = false
+        orchestrator.launch(completionMessage = "done", operationType = FileOperationType.COPY, onRefresh = { refreshGate.await(); refreshed = true }) { IoResult.Done }
+
+        orchestrator.cancel(1)
+        refreshGate.complete(Unit)
+
+        assertEquals(listOf("done"), notices.completions)
+        assertTrue(refreshed)
+        assertEquals(listOf("completed 1"), notifier.calls)
+    }
+
+    @Test
+    fun `끝난 작업이나 없는 작업의 취소 요청은 무시한다`() {
+        launch { IoResult.Done }
+
+        orchestrator.cancel(1)
+        orchestrator.cancel(99)
+
+        assertEquals(listOf("done"), notices.completions)
     }
 
     /**

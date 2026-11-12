@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.IoResult
+import kotlinx.coroutines.CancellationException
+import java.io.File
 import java.io.IOException
 import java.nio.file.AccessDeniedException
 import java.nio.file.DirectoryNotEmptyException
@@ -23,6 +25,21 @@ internal inline fun <T> localIo(describe: (IOException) -> String? = ::ioFailure
         block()
     } catch (e: IOException) {
         IoResult.ItemFailed(describe(e))
+    }
+
+/**
+ * [file]을 쓰는 [block]을 실행하고, 취소로 멈추면 [file]을 지운 뒤 취소를 전파한다 — 쓰다 만 파일이 온전한 파일처럼 남지 않도록.
+ * 입출력 실패로 멈춘 파일은 지우지 않는다(실패는 결과로 알린다). [block]은 [file]의 출력을 닫고 끝나야 한다.
+ * @param file [block]이 쓰는 파일
+ * @param block [file]을 쓰는 작업
+ * @return [block]의 결과
+ */
+internal inline fun <T> deletingOnCancel(file: File, block: () -> T): T =
+    try {
+        block()
+    } catch (e: CancellationException) {
+        file.delete()
+        throw e
     }
 
 /**

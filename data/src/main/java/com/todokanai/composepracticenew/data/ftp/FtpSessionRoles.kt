@@ -38,6 +38,12 @@ internal interface FtpDataCommandSession {
 
     /** 응답 순서를 알 수 없게 된 세션을 끝낸다. */
     suspend fun endUnusableSession()
+
+    /**
+     * 세션이 연결·로그인된 상태인지 판별한다.
+     * @return 명령을 보낼 수 있는 세션이면 true
+     */
+    suspend fun isReady(): Boolean
 }
 
 /** FTP 세션의 연결 수명(접속·로그인·종료)을 다루는 역할. 연결된 세션의 명령은 [FtpCommandSession]으로 보낸다. */

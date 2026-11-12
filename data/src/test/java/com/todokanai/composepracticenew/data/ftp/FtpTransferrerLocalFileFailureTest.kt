@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -27,7 +28,7 @@ class FtpTransferrerLocalFileFailureTest {
     private val session = FtpSession(client)
 
     /** 검증 대상. */
-    private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session))
+    private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
 
     @Before
     fun setUp() {
@@ -80,7 +81,7 @@ class FtpTransferrerLocalFileFailureTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpTransferrer(observing, FtpCommandExecutor(session, dataCommands), dataCommands)
+        val observed = FtpTransferrer(observing, FtpCommandExecutor(session, dataCommands), dataCommands, OperationNotices())
 
         val result = runBlocking { observed.download("ftp://host/r/a.txt", target.path) }
 

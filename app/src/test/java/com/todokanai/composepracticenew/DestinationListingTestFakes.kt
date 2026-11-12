@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileLauncher
@@ -26,7 +27,10 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -157,6 +161,10 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
     }
     override fun rootPathOf(item: RemoteStorageItem) = "ftp://${item.address}"
 }
+
+/** 실행한 작업이 없어 취소할 것이 없는 테스트용 취소 UseCase. 취소를 다루지 않는 화면 테스트가 ViewModel을 만들 때 쓴다. */
+internal fun idleCancelOperationUseCase() =
+    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), RecordingOperationNotices(), GrantedProtection, CoroutineScope(Job())))
 
 /** 열려고 한 경로를 기록하고 언제나 다른 앱으로 넘긴 것으로 답하는 테스트용 파일 열기. */
 internal class RecordingFileLauncher : FileLauncher {

@@ -5,7 +5,10 @@ import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 
-/** Contract for performing file mutations (compress, copy, rename, delete, move). Every operation reports failure as an [IoResult.Failure], never as an exception. */
+/**
+ * Contract for performing file mutations (compress, copy, rename, delete, move). Every operation reports failure as an [IoResult.Failure], never as an exception.
+ * 작업이 취소되면 onProgress가 CancellationException을 던진다. 구현은 그것을 잡아 결과로 바꾸지 않고, 쓰다 만 파일(압축은 만들던 아카이브)을 지운 뒤 전파한다(이미 다 쓴 파일은 남긴다).
+ */
 interface FileActionRepository {
 
     // Compresses [targetFiles] into a new [format] archive named [baseName] + [ArchiveFormat.extension] under [parentPath], reporting progress via [onProgress].

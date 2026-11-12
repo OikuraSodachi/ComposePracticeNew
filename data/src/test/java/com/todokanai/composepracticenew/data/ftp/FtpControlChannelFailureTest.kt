@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -23,7 +24,7 @@ class FtpControlChannelFailureTest {
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     private val session = FtpSession(client)
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
-    private val transferrer = FtpTransferrer(session, commands, DataCommandRunner(session))
+    private val transferrer = FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices())
 
     @After
     fun tearDown() {

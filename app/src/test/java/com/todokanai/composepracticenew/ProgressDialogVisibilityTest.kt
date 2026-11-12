@@ -160,7 +160,8 @@ class ProgressDialogVisibilityTest {
         operationNoticeUseCase = OperationNoticeUseCase(NoOperationNotices),
         exitHandler = NoOpExitHandler,
         connectionStateUseCase = RemoteConnectionStateUseCase(FakeConnectionRepository()),
-        preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures)
+        preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures),
+        cancelOperationUseCase = idleCancelOperationUseCase()
     )
 
     /** 띄울 작업의 ID가 [expected]가 될 때까지 기다린다. 끝내 되지 않으면 runTest 시간 제한으로 실패한다. */

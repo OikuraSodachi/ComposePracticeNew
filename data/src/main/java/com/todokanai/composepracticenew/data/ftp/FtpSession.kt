@@ -76,7 +76,7 @@ internal class FtpSession(
     override val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
 
     /** 소켓 연결과 로그인이 모두 유효하면 true를 반환한다. */
-    suspend fun isReady(): Boolean = stateMutex.withLock { client.isConnected && isLoggedIn }
+    override suspend fun isReady(): Boolean = stateMutex.withLock { client.isConnected && isLoggedIn }
 
     /** 소켓이 열려 있으면 true를 반환한다. 잠금 없이 조회한다. */
     override fun isSocketOpen(): Boolean = client.isConnected

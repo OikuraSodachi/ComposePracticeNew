@@ -5,11 +5,14 @@ import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
+import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.fileexplorer.FileEntry
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -28,12 +31,14 @@ import javax.inject.Singleton
  * @param session 전송에 사용할 FTPClient와 잠금을 소유한 FTP 세션
  * @param cmd 디렉터리 다운로드 시 원격 트리를 수집하고, 폴더 업로드 시 원격 폴더를 만드는 FtpCommandExecutor
  * @param dataCommands 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행하는 실행기
+ * @param notices 취소한 업로드가 서버에 남겼을 수 있는 파일을 알리는 OperationNoticeReporter — 취소는 결과로 돌려줄 수 없으므로 직접 알린다
  */
 @Singleton
 class FtpTransferrer @Inject internal constructor(
     private val session: FtpCommandSession,
     private val cmd: FtpCommandExecutor,
-    private val dataCommands: DataCommandRunner
+    private val dataCommands: DataCommandRunner,
+    private val notices: OperationNoticeReporter
 ) {
 
     /**
@@ -55,6 +60,7 @@ class FtpTransferrer @Inject internal constructor(
     /**
      * localPath의 파일 또는 디렉터리를 remotePath에 스트리밍 업로드한다.
      * localPath가 디렉터리이면 로컬 트리를 walkTopDown으로 수집 후 각 항목을 순서대로 업로드하며, 일부 파일이 실패해도 끝까지 진행한 뒤 실패를 모아 알린다.
+     * 취소되면 올리던 파일을 서버에서 지우기를 시도하고, 이미 다 올린 파일은 남긴다.
      * @param localPath 업로드할 로컬 파일 또는 디렉터리의 절대 경로
      * @param remotePath 저장될 원격 파일 또는 디렉터리의 절대 경로 (ftp://server/path 형식)
      * @param onProgress 진행 상태를 수신하는 콜백
@@ -239,8 +245,29 @@ class FtpTransferrer @Inject internal constructor(
     ): IoResult<Unit> {
         // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
         // ([FtpCommandExecutor.identifiedListing] 참고)
-        val outcome = dataCommands.run(client, open = { client.storeFileStream(ftpPath) }) { stream -> pump(input, stream, onChunk) }
+        val outcome = try {
+            dataCommands.run(client, open = { client.storeFileStream(ftpPath) }) { stream -> pump(input, stream, onChunk) }
+        } catch (e: CancellationException) {
+            discardCancelledUpload(client, ftpPath)
+            throw e
+        }
         return transferResult(FtpCommand.STOR, client, outcome, onAcked)
+    }
+
+    /**
+     * 취소로 멈춘 업로드가 서버에 남겼을 수 있는 받다 만 파일을 DELE로 지운다. 중단된 STOR의 파일을 남길지는 서버마다 다르므로(RFC 959에 정함 없음) 지우기를 시도한다.
+     * 지우지 못하면 남았을 수 있다고 이유(서버의 거부 응답, 세션 종료)와 함께 알린다.
+     * 취소는 결과로 돌려줄 수 없으므로 작업 메시지 알림함에 직접 넣는다.
+     * @param client 잠금을 확보한 FTP 클라이언트
+     * @param ftpPath 취소된 업로드의 원격 파일 FTP 경로
+     */
+    private suspend fun discardCancelledUpload(client: FtpCommandClient, ftpPath: String) {
+        val reason = when (val cleanup = dataCommands.cleanUpAfterCancel(client) { client.deleteFile(ftpPath) }) {
+            CancelCleanup.Done -> return
+            is CancelCleanup.Refused -> FtpReplyRules.refusal(FtpCommand.DELE, cleanup.reply).message
+            CancelCleanup.SessionEnded -> "연결이 끊겨 지우지 못했습니다"
+        }
+        notices.report(OperationNoticeKind.FAILURE, "업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 ($ftpPath) — $reason")
     }
 
     /**
