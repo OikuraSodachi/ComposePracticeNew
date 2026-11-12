@@ -12,7 +12,10 @@ data class WriteConflict(
     val kind: WriteConflictKind,
 )
 
-/** 쓰려던 항목과 이미 있는 항목의 종류 조합. 고를 수 있는 처리 방법이 조합마다 다르다. */
+/**
+ * 쓰려던 항목과 이미 있는 항목의 종류 조합. 고를 수 있는 처리 방법이 조합마다 다르다.
+ * @param canProceed 진행([ConflictChoice.PROCEED])을 고를 수 있는지. false면 건너뛰기만 할 수 있다
+ */
 enum class WriteConflictKind(val canProceed: Boolean) {
     /** 파일 자리에 파일이 있다. 진행하면 덮어쓴다. */
     FILE(canProceed = true),

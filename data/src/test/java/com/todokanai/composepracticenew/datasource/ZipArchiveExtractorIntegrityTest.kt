@@ -64,7 +64,9 @@ class ZipArchiveExtractorIntegrityTest {
     }
 
     /** [zip]을 [out]에 푼다. */
-    private fun extract(zip: File) = ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk), ByteProgressTracker(1, 1, onProgress = {}))
+    private fun extract(zip: File) = ByteProgressTracker(1, 1, onProgress = {}).let { tracker ->
+        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker), tracker)
+    }
 
     /** [content]를 압축하지 않고(STORED) 담은 항목 `a.txt` 하나짜리 ZIP 파일을 만든다. */
     private fun storedZipOf(content: String): File =

@@ -132,14 +132,14 @@ class LocalTreeTransfer internal constructor(
      */
     private suspend fun renameEntry(src: File, target: File, tracker: ByteProgressTracker, resolveConflict: WriteConflictResolver): Boolean {
         if (src.isDirectory) {
-            val total = treeTotalOf(src)
             try {
                 // 덮어쓰지 않는 rename — 확인 뒤에 같은 이름의 빈 폴더가 생겼으면 그 빈 폴더를 대신하고, 비어 있지 않은 폴더나 파일이면 실패한다
                 Files.move(src.toPath(), target.toPath())
-                tracker.passOver(total, src.name)
+                // 옮긴 트리를 그 자리에서 센다 — 합치기로 내려가는 경로는 안쪽 항목이 스스로 세므로 미리 세지 않는다
+                tracker.passOver(target)
                 return true
             } catch (e: FileAlreadyExistsException) {
-                if (resolveConflict.resolve(conflictAt(target, sourceIsDirectory = true)) != ConflictChoice.PROCEED) return false.also { tracker.passOver(total, src.name) }
+                if (resolveConflict.resolve(conflictAt(target, sourceIsDirectory = true)) != ConflictChoice.PROCEED) return false.also { tracker.passOver(src) }
             }
             val complete = childrenOf(src).fold(true) { complete, child ->
                 renameEntry(child, File(target, child.name), tracker, resolveConflict) && complete

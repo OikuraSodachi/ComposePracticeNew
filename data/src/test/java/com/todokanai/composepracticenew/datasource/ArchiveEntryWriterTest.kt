@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -16,7 +17,7 @@ class ArchiveEntryWriterTest {
     /** 추출 루트. */
     private val root = File(dir, "out").also { it.mkdirs() }
     /** 검증 대상. */
-    private val writer = ArchiveEntryWriter(ExtractionRoot(root), UnexpectedConflictAsk)
+    private val writer = ArchiveEntryWriter(ExtractionRoot(root), UnexpectedConflictAsk, ByteProgressTracker(1, 1, onProgress = {}))
 
     @After
     fun tearDown() {
@@ -34,14 +35,14 @@ class ArchiveEntryWriterTest {
 
     @Test
     fun `파일 항목은 부모 디렉터리를 만들고 그 위치에 쓴다`() {
-        writer.openFile("d/e/a.txt")!!.use { it.write("hi".toByteArray()) }
+        writer.openFile("d/e/a.txt", null)!!.use { it.write("hi".toByteArray()) }
 
         assertEquals("hi", File(root, "d/e/a.txt").readText())
     }
 
     @Test
     fun `루트 밖이나 루트 자신을 가리키는 항목만 건너뜀으로 센다`() {
-        assertNull(writer.openFile("../evil.txt"))
+        assertNull(writer.openFile("../evil.txt", null))
         writer.createFolder("../evil/")
         writer.createFolder("./")
 

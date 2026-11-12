@@ -89,7 +89,7 @@ class LocalCompressFormatSupportTest {
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(message: String, instanceId: Int) {}
-        override fun cancelNotification(instanceId: Int) {}
+        override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
 }

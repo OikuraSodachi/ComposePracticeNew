@@ -27,6 +27,7 @@ class ConflictQuestions @Inject constructor() : ConflictQuestionAsker, ConflictQ
     /** 답을 기다리는 질문(맡긴 순서). [lock] 안에서만 읽고 쓴다. */
     private val entries = mutableListOf<Entry>()
 
+    /** 지금 물을 질문([current]의 원본). [publish]만 바꾼다. */
     private val _current = MutableStateFlow<ConflictQuestion?>(null)
     override val current: StateFlow<ConflictQuestion?> = _current.asStateFlow()
 

@@ -163,7 +163,7 @@ class FileOperationOrchestrator(
         "${operationNameOf(operationType)} 중단: '${unanswered.conflict.name}' 충돌 질문에 ${MAX_CONFLICT_ANSWER_WAIT.inWholeHours}시간 동안 답이 없었습니다 — 이미 처리한 항목은 그대로 둡니다"
 
     /**
-     * 메시지에 쓸 작업 이름을 정한다.
+     * 메시지에 쓸 작업 이름을 정한다. 이 클래스의 모든 메시지가 작업 이름을 여기서만 얻는다 — 메시지마다 이름이 어긋나지 않도록.
      * @param operationType 작업 종류
      * @return 작업 이름
      */
@@ -227,15 +227,22 @@ class FileOperationOrchestrator(
      * @param operationType 작업 종류. null이면 순간 작업
      * @return 취소 메시지
      */
-    private fun cancelledMessageOf(operationType: FileOperationType?): String = when (operationType) {
-        FileOperationType.COPY -> "복사 취소 — 이미 복사한 항목은 그대로 둡니다"
-        FileOperationType.MOVE -> "이동 취소 — 이미 이동한 항목은 그대로 둡니다"
-        FileOperationType.DELETE -> "삭제 취소 — 이미 삭제한 항목은 되돌리지 않습니다"
-        FileOperationType.COMPRESS -> "압축 취소 — 끝나지 않은 압축 파일은 지웁니다"
-        FileOperationType.UNZIP -> "압축 해제 취소 — 이미 푼 항목은 그대로 둡니다"
-        FileOperationType.DOWNLOAD -> "다운로드 취소 — 이미 받은 파일은 그대로 둡니다"
-        FileOperationType.UPLOAD -> "업로드 취소 — 이미 올린 파일은 그대로 둡니다"
-        null -> "작업 취소"
+    private fun cancelledMessageOf(operationType: FileOperationType?): String =
+        operationType?.let { "${operationNameOf(it)} 취소 — ${cancelledRemainderOf(it)}" } ?: "작업 취소"
+
+    /**
+     * 작업을 취소했을 때 이미 처리한 항목이 어떻게 남는지 알리는 문구를 정한다.
+     * @param operationType 작업 종류
+     * @return 남는 항목에 대한 문구
+     */
+    private fun cancelledRemainderOf(operationType: FileOperationType): String = when (operationType) {
+        FileOperationType.COPY -> "이미 복사한 항목은 그대로 둡니다"
+        FileOperationType.MOVE -> "이미 이동한 항목은 그대로 둡니다"
+        FileOperationType.DELETE -> "이미 삭제한 항목은 되돌리지 않습니다"
+        FileOperationType.COMPRESS -> "끝나지 않은 압축 파일은 지웁니다"
+        FileOperationType.UNZIP -> "이미 푼 항목은 그대로 둡니다"
+        FileOperationType.DOWNLOAD -> "이미 받은 파일은 그대로 둡니다"
+        FileOperationType.UPLOAD -> "이미 올린 파일은 그대로 둡니다"
     }
 
     /**

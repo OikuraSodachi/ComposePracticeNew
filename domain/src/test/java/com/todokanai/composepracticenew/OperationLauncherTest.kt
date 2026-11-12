@@ -168,7 +168,7 @@ class OperationLauncherTest {
         val calls = mutableListOf<String>()
         override fun progressNoti(state: ProgressState, instanceId: Int) { calls += "progress $instanceId" }
         override fun completedNotification(message: String, instanceId: Int) { calls += "completed $instanceId" }
-        override fun cancelNotification(instanceId: Int) { calls += "cancel $instanceId" }
+        override fun cancelNotification(instanceId: Int) { calls += "cancel $instanceId" }
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
 }

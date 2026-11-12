@@ -132,7 +132,7 @@ internal class RarExtractCallback(
      */
     private fun openFile(path: String, size: Long?): ISequentialOutStream? {
         currentItemSize = size
-        val output = writer.openFile(path) ?: return null
+        val output = writer.openFile(path, size) ?: return null
         currentOutputStream = output
         tracker.startFile()
         return ISequentialOutStream { data ->

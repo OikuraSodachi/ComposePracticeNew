@@ -30,7 +30,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
                     return@forEach
                 }
                 VerifyingZipEntryInputStream(zf.getInputStream(entry), entry).use { input ->
-                    val output = writer.openFile(entry.name) ?: return@forEach
+                    val output = writer.openFile(entry.name, knownSizeOf(entry)) ?: return@forEach
                     tracker.startFile()
                     try {
                         output.use { tracker.pump(input, it, entry.name, knownSizeOf(entry)) }

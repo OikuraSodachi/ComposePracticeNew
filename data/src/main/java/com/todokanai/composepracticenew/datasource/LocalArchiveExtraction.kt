@@ -65,7 +65,7 @@ class LocalArchiveExtraction @Inject constructor(
                     tracker.addBytes(sizes[i].knownBytes, root.name, fileBytes = null)
                     return@forEachIndexed
                 }
-                val writer = ArchiveEntryWriter(ExtractionRoot(root), ask)
+                val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker)
                 extractor.extract(zipFilePath, writer, tracker)
                 skippedEntries += writer.skippedEntries
             }

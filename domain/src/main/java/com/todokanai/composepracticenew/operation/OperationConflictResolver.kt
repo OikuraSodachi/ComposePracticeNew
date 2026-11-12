@@ -22,15 +22,13 @@ internal val MAX_CONFLICT_ANSWER_WAIT: Duration = 6.hours
  * @param questions 질문을 맡기고 답을 기다리는 통로
  * @param onAwaiting 질문을 맡기기 직전에 부르는 함수(알림을 답을 기다리는 상태로 바꾼다)
  * @param onAnswered 답을 받은 직후에 부르는 함수(진행 알림을 되돌린다)
- * @param maxWait 질문 하나에 답을 기다리는 최대 시간
  */
 internal class OperationConflictResolver(
     private val operationType: FileOperationType,
     private val questions: ConflictQuestionAsker,
     private val onAwaiting: () -> Unit,
     private val onAnswered: () -> Unit,
-    private val maxWait: Duration = MAX_CONFLICT_ANSWER_WAIT,
-) : WriteConflictResolver {
+): WriteConflictResolver {
 
     /** "나머지에도 적용"으로 고른 처리 방법(겹침 종류별). */
     private val remembered = mutableMapOf<WriteConflictKind, ConflictChoice>()
@@ -42,12 +40,12 @@ internal class OperationConflictResolver(
      * [conflict]를 묻고 답을 처리 방법으로 바꾼다. "나머지에도 적용"이면 [remembered]에 기억한다.
      * @param conflict 겹친 항목
      * @return 사용자가 고른 처리 방법
-     * @throws UnansweredConflict [maxWait] 동안 답이 없을 때
+     * @throws UnansweredConflict [MAX_CONFLICT_ANSWER_WAIT] 동안 답이 없을 때
      * @throws CancellationException 사용자가 질문에서 취소했을 때
      */
     private suspend fun choiceFromUser(conflict: WriteConflict): ConflictChoice {
         onAwaiting()
-        val answer = withTimeoutOrNull(maxWait) { questions.ask(operationType, conflict) } ?: throw UnansweredConflict(conflict)
+        val answer = withTimeoutOrNull(MAX_CONFLICT_ANSWER_WAIT) { questions.ask(operationType, conflict) } ?: throw UnansweredConflict(conflict)
         onAnswered()
         return when (answer) {
             ConflictAnswer.Cancel -> throw CancellationException("충돌 질문에서 작업을 취소함")
