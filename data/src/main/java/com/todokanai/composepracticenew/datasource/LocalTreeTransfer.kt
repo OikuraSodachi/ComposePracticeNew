@@ -14,6 +14,7 @@ import javax.inject.Inject
 
 /**
  * 로컬 파일 트리의 복사와 이동(동일 파티션 rename / 교차 파티션 copy+delete)을 수행한다. 실패는 결과로 알린다.
+ * 목적지가 원본 자신이거나 그 안쪽인 요청은 받지 않는다 — 이 위치 관계는 `LocalFileOperationUseCase`가 실행 전에 거부한다.
  * @param isSamePartition 두 경로가 같은 파티션에 있는지 판별하는 함수. 앱에서는 OS 디바이스 ID로,
  * 테스트에서는 Android 프레임워크 없이 두 이동 경로를 고르도록 넘긴다
  * @param freeSpaceOf 경로가 속한 파티션의 여유 공간(bytes)을 돌려주는 함수. 테스트에서는 공간 부족을 재현하도록 넘긴다
@@ -67,7 +68,7 @@ class LocalTreeTransfer internal constructor(
 
             // 이동 전에 모든 트리를 미리 탐색해 크기를 확보 (rename 후에는 원본이 사라지므로)
             val treeEntries = roots.map { root ->
-                root.walkTopDown().onEnter { it != File(targetPath, root.name) }.toList()
+                root.walkTopDown().toList()
             }
             val leafSizes = treeEntries.map { list -> list.filter { !it.isDirectory }.sumOf { it.length() } }
             val leafCounts = treeEntries.map { list -> list.count { !it.isDirectory } }
@@ -113,7 +114,7 @@ class LocalTreeTransfer internal constructor(
      * 입출력 실패는 IOException으로 전파해 호출부의 [localIo]가 결과로 바꾼다. 취소되면 쓰던 파일만 지우고, 이미 다 쓴 파일은 남긴다.
      */
     private fun copyTree(root: File, dest: File, tracker: ByteProgressTracker, entries: List<File>? = null) {
-        val walk = entries?.asSequence() ?: root.walkTopDown().onEnter { it != dest }
+        val walk = entries?.asSequence() ?: root.walkTopDown()
         walk.forEach { src ->
             val target = dest.toPath().resolve(root.toPath().relativize(src.toPath())).toFile()
             if (src.isDirectory) {

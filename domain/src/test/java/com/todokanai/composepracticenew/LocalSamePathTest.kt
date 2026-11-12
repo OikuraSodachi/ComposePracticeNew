@@ -22,7 +22,7 @@ import org.junit.Test
 
 /**
  * 로컬 복사·이동이 출발지와 목적지의 위치 관계를 경로 문자열이 아니라 저장소의 부모 규칙으로 판정해,
- * 목적지가 원본의 부모(제자리)이거나 원본 안쪽이면 실행 전에 거부하는지 검증하는 단위 테스트(#228).
+ * 목적지가 원본의 부모(제자리)이거나 원본 자신·그 안쪽이면 실행 전에 사유별 메시지로 거부하는지 검증하는 단위 테스트(#228, #302).
  * 부모 규칙을 '/'와 무관한 표로 두어, 판정이 경로를 직접 쪼개지 않음을 함께 확인한다.
  */
 class LocalSamePathTest {
@@ -52,17 +52,38 @@ class LocalSamePathTest {
     }
 
     @Test
+    fun `목적지가 원본 자신이면 복사를 거부한다`() {
+        local.copy(setOf("src"), "src", "done") {}
+
+        assertEquals(listOf("복사 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+    }
+
+    @Test
+    fun `목적지가 원본 자신이면 이동을 거부한다`() {
+        local.move(setOf("src"), "src", "done") {}
+
+        assertEquals(listOf("이동 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+    }
+
+    @Test
     fun `목적지가 원본 안쪽이면 이동을 거부한다`() {
         local.move(setOf("src"), "inner", "done") {}
 
-        assertEquals(listOf("이동 실패: 출발지와 목적지가 동일합니다."), notices.failures)
+        assertEquals(listOf("이동 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
     }
 
     @Test
     fun `목적지가 원본보다 여러 단계 안쪽이어도 이동을 거부한다`() {
         local.move(setOf("src"), "deep", "done") {}
 
-        assertEquals(listOf("이동 실패: 출발지와 목적지가 동일합니다."), notices.failures)
+        assertEquals(listOf("이동 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+    }
+
+    @Test
+    fun `여러 원본 중 하나라도 목적지를 안에 품으면 그 원본 이름으로 거부한다`() {
+        local.copy(setOf("other", "src"), "inner", "done") {}
+
+        assertEquals(listOf("복사 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
     }
 
     @Test

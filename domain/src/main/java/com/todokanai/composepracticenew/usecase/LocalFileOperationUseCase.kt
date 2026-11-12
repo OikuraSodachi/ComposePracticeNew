@@ -48,26 +48,45 @@ class LocalFileOperationUseCase(
         fileNameUseCase.validate(name, location, format.extension)
 
     /**
-     * 목적지가 원본 중 하나의 부모(제자리 복사·이동)이거나 그 안쪽인지 판별한다.
+     * 목적지가 원본 중 하나와 맞지 않는 위치면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다.
+     * 맞지 않는 위치는 원본의 부모(제자리)와 원본 자신이거나 그 안쪽(자기 안으로) 두 가지이며, 사유마다 다른 메시지로 알린다.
      * @param files 복사·이동할 원본 경로 집합
      * @param destPath 목적지 디렉터리 경로
-     * @return [destPath]가 [files] 중 하나의 부모이거나 그 안쪽이면 true
+     * @param failurePrefix 오류 메시지 머리말(예: "복사 실패")
+     * @return 맞지 않는 위치라 작업을 실행하지 않아야 하면 true
      */
-    private fun isSamePath(files: Set<String>, destPath: String): Boolean =
-        files.any { srcPath -> paths.getParentPath(srcPath) == destPath || isInside(destPath, srcPath) }
+    private fun rejectsDestination(files: Set<String>, destPath: String, failurePrefix: String): Boolean {
+        files.firstOrNull { isIntoItself(it, destPath) }?.let { srcPath ->
+            notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 대상 폴더가 원본 폴더 안에 있습니다 (${paths.displayNameOf(srcPath)})")
+            return true
+        }
+        if (files.any { isInPlace(it, destPath) }) {
+            notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 출발지와 목적지가 동일합니다.")
+            return true
+        }
+        return false
+    }
 
     /**
-     * [path]가 [ancestor]의 안쪽(자기 자신은 제외)인지 [StoragePathRules.getParentPath]를 따라 올라가며 판별한다.
-     * 부모는 항상 위의 경로이므로 루트(null)에서 멈춘다.
-     * @param path 판별할 경로
-     * @param ancestor 바깥 경로
-     * @return [path]의 상위 경로 중 [ancestor]가 있으면 true
+     * [destPath]가 [srcPath]의 부모(제자리 복사·이동)인지 판별한다.
+     * @param srcPath 원본 경로
+     * @param destPath 목적지 디렉터리 경로
+     * @return [destPath]가 [srcPath]의 부모면 true
      */
-    private fun isInside(path: String, ancestor: String): Boolean =
-        generateSequence(paths.getParentPath(path)) { paths.getParentPath(it) }.any { it == ancestor }
+    private fun isInPlace(srcPath: String, destPath: String): Boolean = paths.getParentPath(srcPath) == destPath
 
     /**
-     * [files]를 [destPath]에 복사한다.
+     * [destPath]가 [srcPath] 자신이거나 그 안쪽인지 [destPath]에서 [StoragePathRules.getParentPath]를 따라 올라가며 판별한다.
+     * 자기 자신에서 시작해 올라가므로 경계(자기 자신)가 따로 빠지지 않는다. 부모는 항상 위의 경로이므로 루트(null)에서 멈춘다.
+     * @param srcPath 원본 경로
+     * @param destPath 목적지 디렉터리 경로
+     * @return [destPath] 자신이나 그 상위 경로 중 [srcPath]가 있으면 true
+     */
+    private fun isIntoItself(srcPath: String, destPath: String): Boolean =
+        generateSequence(destPath) { paths.getParentPath(it) }.any { it == srcPath }
+
+    /**
+     * [files]를 [destPath]에 복사한다. 목적지가 원본의 부모이거나 원본 자신·그 안쪽이면 실행하지 않고 거부를 알린다.
      * @param files 복사할 파일의 절대 경로 집합
      * @param destPath 복사 대상 디렉터리의 절대 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
@@ -75,10 +94,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (isSamePath(files, destPath)) {
-            notices.report(OperationNoticeKind.FAILURE, "복사 실패: 출발지와 목적지가 동일합니다.")
-            return
-        }
+        if (rejectsDestination(files, destPath, "복사 실패")) return
         orchestrator.launch(completionMessage, FileOperationType.COPY, onRefresh) { onProgress ->
             fileActionRepo.copyAction(files, destPath, onProgress)
         }
@@ -100,7 +116,7 @@ class LocalFileOperationUseCase(
     }
 
     /**
-     * [files]를 [destPath]로 이동한다.
+     * [files]를 [destPath]로 이동한다. 목적지가 원본의 부모이거나 원본 자신·그 안쪽이면 실행하지 않고 거부를 알린다.
      * @param files 이동할 파일의 절대 경로 집합
      * @param destPath 이동 대상 디렉터리의 절대 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
@@ -108,10 +124,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun move(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (isSamePath(files, destPath)) {
-            notices.report(OperationNoticeKind.FAILURE, "이동 실패: 출발지와 목적지가 동일합니다.")
-            return
-        }
+        if (rejectsDestination(files, destPath, "이동 실패")) return
         orchestrator.launch(completionMessage, FileOperationType.MOVE, onRefresh) { onProgress ->
             fileActionRepo.moveFile(files, destPath, onProgress)
         }
@@ -201,7 +214,7 @@ class LocalFileOperationUseCase(
     }
 
     /**
-     * 검증 결과에 위반이 있으면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다. 메시지는 copy·move의 동일 경로 거부와 같은 경로로 표시된다.
+     * 검증 결과에 위반이 있으면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다. 메시지는 copy·move의 목적지 거부와 같은 경로로 표시된다.
      * @param errors [FileNameUseCase.validate]가 반환한 위반 규칙 집합
      * @param displayName 오류 메시지에 표시할 이름
      * @param failurePrefix 오류 메시지 머리말(예: "이름 변경 실패")
