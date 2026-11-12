@@ -48,8 +48,9 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      */
     private fun renameEntry(source: File, newName: String, overwrite: Boolean): IoResult<Unit> {
         val dest = File(source.parentFile, newName)
-        // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다
-        if (isSameEntry(source, dest)) {
+        // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다.
+        // 어느 쪽이 링크면 같은 항목 판정이 링크를 따라가 링크와 그 대상을 같은 항목으로 보므로, 이 지름길을 타지 않는다(대상을 링크로 대신하지 않도록)
+        if (source.entryKind != LocalEntryKind.LINK && dest.entryKind != LocalEntryKind.LINK && isSameEntry(source, dest)) {
             return if (source.renameTo(dest)) IoResult.Done else IoResult.ItemFailed("이름 변경 실패: ${source.name} → $newName")
         }
         if (!dest.exists()) {

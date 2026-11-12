@@ -127,6 +127,19 @@ class LocalTreeSymlinkTest {
     }
 
     @Test
+    fun `링크의 이름을 그 링크가 가리키는 파일 이름으로 바꾸면 파일을 링크로 대신하지 않고 실패한다`() = runBlocking {
+        val file = File(dir, "a.txt").apply { writeText("A") }
+        val link = File(dir, "b")
+        assumeSymlink(link, file.absoluteFile)
+
+        val result = LocalEntryMutator().rename(link.path, file.name, overwrite = false)
+
+        assertTrue("$result", result is IoResult.ItemFailed)
+        assertFalse(Files.isSymbolicLink(file.toPath()))
+        assertEquals("A", file.readText())
+    }
+
+    @Test
     fun `압축은 링크를 넣지 않고 나머지로 만든 뒤 넣지 못한 링크를 알린다`() = runBlocking {
         assumeSymlink(File(source, "loop"), source)
         val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()))
