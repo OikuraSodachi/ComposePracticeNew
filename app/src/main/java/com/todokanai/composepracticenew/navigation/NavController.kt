@@ -299,6 +299,7 @@ private fun RemoteFileListDestination(
     uploadConflict?.let { conflict ->
         FileConflictDialog(
             conflictingFiles = conflict.conflicts,
+            collisions = conflict.collisions,
             totalCount = conflict.targets.size,
             onOverwrite = { coordinator.resolveUploadConflict(ConflictResolution.OVERWRITE) },
             onSkip = { coordinator.resolveUploadConflict(ConflictResolution.SKIP) },

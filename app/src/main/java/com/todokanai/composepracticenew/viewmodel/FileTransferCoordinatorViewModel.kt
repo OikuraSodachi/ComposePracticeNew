@@ -7,18 +7,20 @@ import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
-import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
+import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
@@ -27,7 +29,7 @@ import javax.inject.Inject
  * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 완료 후 새로고침을 제공하는 UseCase
  * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록을 제공하는 UseCase
  * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
- * @param conflictCheckUseCase 업로드 목적지의 이름 충돌을 판별하는 UseCase
+ * @param uploadConflictCheckUseCase 업로드 전에 확인할 겹침(목적지에 이미 있는 이름, 함께 올리는 항목끼리)을 모으는 UseCase
  * @param messages 작업 완료 메시지 제공자
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  */
@@ -36,7 +38,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private val localNavigator: FileNavigatorUseCase,
     @RemoteNavigator private val remoteNavigator: FileNavigatorUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
-    private val conflictCheckUseCase: ConflictCheckUseCase,
+    private val uploadConflictCheckUseCase: UploadConflictCheckUseCase,
     private val messages: OperationMessages,
     connectionStateUseCase: RemoteConnectionStateUseCase,
 ) : ViewModel() {
@@ -134,19 +136,34 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         local.reset()
     }
 
+    /** 업로드 전 겹침을 확인하는 중인지. 확인하는 동안 다시 눌린 확인은 무시한다 — 같은 대기 목록을 두 번 확인해 두 번 올리지 않도록. */
+    private var checkingUpload = false
+
     /**
-     * 업로드 대기 목록을 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다. 이름 충돌이 있으면 [uploadConflict]로 확인을 요청한다.
+     * 업로드 대기 목록을 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다.
+     * 목적지에 같은 이름이 있거나 함께 올리는 항목끼리(폴더 안쪽 포함) 목적지에서 같은 이름이 될 수 있으면 [uploadConflict]로 확인을 요청한다.
+     * 폴더 안쪽 이름을 읽어야 하므로 확인은 비동기로 하며, 그동안 업로드 대기가 바뀌면(끊김·취소·새 전송) 그 확인은 버린다.
      * 실제로 실행됐을 때만 원격 화면을 기본 모드로 되돌린다(대기 목록도 함께 사라짐).
      * 확인을 취소하면 업로드 확인 상태(대기 목록 포함)가 유지되어 다시 확인할 수 있다.
      * 현재 원격 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다). 대기 목록은 유지된다.
      * 원격 화면이 업로드 확인 상태가 아니면 업로드할 대상이 없으므로 아무것도 하지 않는다.
      */
     fun confirmUpload() {
-        val pending = (remote.state.value as? SelectionState.Receiving)?.pending ?: return
-        val checked = conflictCheckUseCase.findCopyMoveConflicts(pending, remoteNavigator) { it.name } ?: return
-        uploadGate.request(pending, checked.conflicts) { skip ->
-            upload(pending.excluding(skip), checked.destinationPath)
-            remote.reset()
+        val waiting = remote.state.value as? SelectionState.Receiving ?: return
+        if (checkingUpload) return
+        checkingUpload = true
+        viewModelScope.launch {
+            try {
+                val checked = uploadConflictCheckUseCase.findConflicts(waiting.pending, remoteNavigator, nameOf = { it.name }, pathOf = { it.path }) ?: return@launch
+                // 확인하는 동안 대기가 바뀌었으면 이 판정은 지난 대기의 것이다
+                if (remote.state.value !== waiting) return@launch
+                uploadGate.request(waiting.pending, checked.conflicts, checked.collisions.map(NameCollisionGroup::from)) { skip ->
+                    upload(waiting.pending.excluding(skip), checked.destinationPath)
+                    remote.reset()
+                }
+            } finally {
+                checkingUpload = false
+            }
         }
     }
 

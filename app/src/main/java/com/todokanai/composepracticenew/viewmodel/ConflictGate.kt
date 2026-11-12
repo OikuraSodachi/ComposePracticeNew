@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -21,25 +22,27 @@ class ConflictGate {
     private var pendingExecution: ((skip: List<FileHolderItem>) -> Unit)? = null
 
     /**
-     * 충돌이 없으면 즉시 [execute]를 실행하고, 있으면 확인 대기 상태로 둔다.
+     * 충돌도 겹칠 수 있는 이름도 없으면 즉시 [execute]를 실행하고, 있으면 확인 대기 상태로 둔다.
      * 이미 확인을 기다리는 충돌이 있으면 새 요청은 실행하지도 대기시키지도 않고 거부한다 — 대기 중인 작업이 사용자 확인 없이 덮어써지지 않게 한다.
      * @param targets 작업 대상 전체 항목
      * @param conflicts 목적지와 이름이 겹치는 항목
+     * @param collisions 함께 보내는 항목끼리 목적지에서 같은 항목이 될 수 있는 이름 묶음
      * @param execute 건너뛸 항목 목록을 받아 작업을 실행하는 함수
      * @return 즉시 실행했으면 true, 확인 대기로 전환했거나 거부했으면 false
      */
     fun request(
         targets: List<FileHolderItem>,
         conflicts: List<FileHolderItem>,
+        collisions: List<NameCollisionGroup> = emptyList(),
         execute: (skip: List<FileHolderItem>) -> Unit
     ): Boolean {
         if (_pending.value != null) return false
-        if (conflicts.isEmpty()) {
+        if (conflicts.isEmpty() && collisions.isEmpty()) {
             execute(emptyList())
             return true
         }
         pendingExecution = execute
-        _pending.value = PendingConflict(targets, conflicts)
+        _pending.value = PendingConflict(targets, conflicts, collisions)
         return false
     }
 

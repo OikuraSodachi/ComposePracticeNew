@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
@@ -133,5 +134,7 @@ class FileInfoViewModelTest {
         override suspend fun measureSize(paths: List<String>): IoResult<SizeMeasurement> = size.await()
 
         override suspend fun countChildren(path: String): IoResult<Int> = childCount.await()
+
+        override suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = emptyList()
     }
 }

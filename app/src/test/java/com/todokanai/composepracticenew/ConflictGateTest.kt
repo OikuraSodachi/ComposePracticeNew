@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.viewmodel.ConflictGate
 import org.junit.Assert.assertEquals
@@ -35,6 +36,17 @@ class ConflictGateTest {
 
         assertFalse(executed)
         assertEquals(PendingConflict(targets, listOf(targets[0])), gate.pending.value)
+        assertTrue(executions.isEmpty())
+    }
+
+    @Test
+    fun `충돌이 없어도 함께 보내는 항목끼리 겹칠 수 있으면 확인을 기다린다`() {
+        val collisions = listOf(NameCollisionGroup(null, listOf("a.txt", "A.txt")))
+
+        val executed = gate.request(targets, emptyList(), collisions) { executions += it }
+
+        assertFalse(executed)
+        assertEquals(PendingConflict(targets, emptyList(), collisions), gate.pending.value)
         assertTrue(executions.isEmpty())
     }
 

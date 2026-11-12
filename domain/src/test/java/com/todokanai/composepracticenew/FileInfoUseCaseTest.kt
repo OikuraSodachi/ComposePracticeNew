@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
@@ -67,5 +68,7 @@ class FileInfoUseCaseTest {
         }
 
         override suspend fun countChildren(path: String): IoResult<Int> = IoResult.Success(0)
+
+        override suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = emptyList()
     }
 }

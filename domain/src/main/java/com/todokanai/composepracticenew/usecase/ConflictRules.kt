@@ -24,6 +24,15 @@ internal object ConflictRules {
     }
 
     /**
+     * 같은 폴더에 함께 쓸 이름 중 목적지 저장소에서 같은 항목이 될 수 있는 이름끼리 묶는다.
+     * @param names 같은 폴더에 함께 쓸 이름
+     * @param matchKeyOf 이름의 비교 값을 구하는 함수(목적지 저장소의 규칙)
+     * @return 두 개 이상 묶인 이름 묶음(묶음과 그 안의 이름 모두 처음 나온 순서)
+     */
+    fun sameItemNameGroups(names: List<String>, matchKeyOf: (String) -> String): List<List<String>> =
+        names.groupBy(matchKeyOf).values.filter { it.size > 1 }
+
+    /**
      * [targetPath] 항목의 이름을 [newName]으로 바꿀 때 같은 폴더의 기존 항목과 어떻게 겹치는지 판정한다.
      * 이름을 바꿀 항목 자신은 비교에서 제외하므로, 대소문자·정규형만 바꾸는 이름 변경은 충돌이 아니다.
      * 이름이 정확히 같은 항목은 어느 저장소에서든 같은 항목이므로 그 종류로 정한다. 비교 값만 같은 항목은 같은 항목일 수도 있을 뿐이므로,

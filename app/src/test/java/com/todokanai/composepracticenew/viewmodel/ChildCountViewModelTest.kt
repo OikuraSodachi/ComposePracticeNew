@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
@@ -200,5 +201,7 @@ class ChildCountViewModelTest {
             requests[path] = requestCount(path) + 1
             return CompletableDeferred<IoResult<Int>>().also { pending[path] = it }.await()
         }
+
+        override suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = emptyList()
     }
 }

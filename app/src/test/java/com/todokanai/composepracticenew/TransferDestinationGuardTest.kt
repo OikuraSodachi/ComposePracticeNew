@@ -1,10 +1,14 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
+import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
+import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
@@ -12,6 +16,7 @@ import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
+import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +49,9 @@ class TransferDestinationGuardTest {
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
+
+    /** 업로드 전 겹침 확인이 읽을 폴더 안 항목 이름. */
+    private val folderEntries = FolderEntriesInfoRepository()
     private val transferRepo = RecordingTransferRepository()
     private lateinit var viewModel: FileTransferCoordinatorViewModel
     private lateinit var localRequest: ListingRequest
@@ -67,7 +75,7 @@ class TransferDestinationGuardTest {
             FileNavigatorUseCase(localNav, localNav),
             FileNavigatorUseCase(remoteNav, remoteNav),
             remoteOps,
-            ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified },
+            UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified }, folderEntries, ExactNameMatching),
             FixedMessages,
             RemoteConnectionStateUseCase(FakeConnectionRepository())
         )
@@ -135,6 +143,30 @@ class TransferDestinationGuardTest {
 
         assertEquals(listOf("upload /local/a.txt"), transferRepo.calls)
         assertTrue(notices.failures.isEmpty())
+    }
+
+    @Test
+    fun `함께 올리는 폴더 안 항목끼리 목적지에서 같은 이름이 될 수 있으면 올리지 않고 확인을 기다린다(#323)`() {
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        folderEntries.entries = listOf(FolderEntryNames("photos", listOf("x.jpg", "x.jpg")))
+        enterUpload()
+
+        viewModel.confirmUpload()
+
+        assertTrue(transferRepo.calls.isEmpty())
+        assertEquals(PendingConflict(listOf(upload), emptyList(), listOf(NameCollisionGroup("photos", listOf("x.jpg", "x.jpg")))), viewModel.uploadConflict.value)
+    }
+
+    @Test
+    fun `함께 올리는 항목끼리의 겹침을 확인하고 계속하면 모두 올린다(#323)`() {
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        folderEntries.entries = listOf(FolderEntryNames("photos", listOf("x.jpg", "x.jpg")))
+        enterUpload()
+        viewModel.confirmUpload()
+
+        viewModel.resolveUploadConflict(ConflictResolution.OVERWRITE)
+
+        assertEquals(listOf("upload /local/a.txt"), transferRepo.calls)
     }
 
     /** 로컬 다중 선택 목록을 업로드 대기 목록으로 옮긴다. */
