@@ -47,6 +47,7 @@ import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
+import com.todokanai.composepracticenew.viewmodel.ConflictQuestionViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
@@ -64,6 +65,8 @@ fun AppNavHost(
     // activity-scoped: MainActivity.handleProgressIntent와 동일 인스턴스를 공유하기 위해 Activity를 owner로 지정
     // coordinator는 FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     val mainViewModel: MainViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
+    // activity-scoped: 충돌 질문은 화면 이동과 무관하게 하나만 묻는다
+    val conflictQuestionViewModel: ConflictQuestionViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
 
     // mainViewModel.exit()이 서비스 중단 후 emit — View는 호스트 종료 콜백 호출만 담당
     LaunchedEffect(Unit) {
@@ -138,6 +141,8 @@ fun AppNavHost(
                 }
             }
         }
+        // 화면 이동과 무관하게 하나만 둔다. 다이얼로그 등록부 안에 두어, 묻는 동안 진행률 다이얼로그가 질문을 덮지 않고 비켜난다
+        ConflictQuestionSection(conflictQuestionViewModel)
     }
 
     NoticeSnackbarHost(snackbarHostState)
@@ -180,7 +185,6 @@ private fun FileListDestination(
     val localSelectMode by remember(localSelection) { derivedStateOf { localSelection.value.localMode() } }
     // 선택 요약도 State 객체만 보관 — 값은 다이얼로그 호스트에서만 읽어, 계산 결과가 올 때 이 destination 전체가 리컴포지션되지 않도록
     val selectionSummary = infoViewModel.summary.collectAsStateWithLifecycle()
-    val downloadConflict by coordinator.downloadConflict.collectAsStateWithLifecycle()
 
     /** 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음. */
     // infoViewModel·selectionSummary를 키로 — 리컴포지션마다 새 묶음을 만들어 FileListFrag의 건너뛰기가 깨지지 않도록 이 둘이 같은 동안 유지한다
@@ -237,16 +241,6 @@ private fun FileListDestination(
         viewModel = viewModel,
         searchViewModel = searchViewModel
     )
-
-    downloadConflict?.let { conflict ->
-        FileConflictDialog(
-            conflictingFiles = conflict.conflicts,
-            totalCount = conflict.targets.size,
-            onOverwrite = { coordinator.resolveDownloadConflict(ConflictResolution.OVERWRITE) },
-            onSkip = { coordinator.resolveDownloadConflict(ConflictResolution.SKIP) },
-            onCancel = { coordinator.resolveDownloadConflict(ConflictResolution.CANCEL) }
-        )
-    }
 }
 
 /** REMOTE_FILE_LIST destination의 UI와 상태를 담당한다. */

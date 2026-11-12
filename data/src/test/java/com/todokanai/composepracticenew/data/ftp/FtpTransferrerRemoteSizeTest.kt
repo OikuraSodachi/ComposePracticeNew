@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -44,6 +45,8 @@ class FtpTransferrerRemoteSizeTest {
     @Test
     fun `항목 줄의 사실 값을 해석할 수 없으면 크기를 모르는 채로 전송하고 세션을 유지한다`() {
         listOf(" size=abc;type=file; a.txt", " type=file;unix.mode=7; a.txt").forEach { entryLine ->
+            // 앞 회차가 받은 파일을 지운다 — 남아 있으면 같은 이름의 파일로 충돌을 묻는다
+            File(dir, "a.txt").delete()
             client.onMlst = { listOf("250-Listing a.txt", entryLine, "250 End") }
 
             assertEquals(entryLine, IoResult.Done, download())
@@ -69,5 +72,5 @@ class FtpTransferrerRemoteSizeTest {
     }
 
     /** 원격 파일 하나를 받는다. */
-    private fun download(): IoResult<Unit> = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
+    private fun download(): IoResult<Unit> = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
 }

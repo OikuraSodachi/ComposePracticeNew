@@ -68,7 +68,7 @@ internal fun multiSelectMoreActions(
  * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수
  * @param archiveFolderOf 선택 목록으로 압축 파일을 만들 폴더를 정하는 함수. 정할 수 없으면 null이며 압축 메뉴를 두지 않는다
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
- * @param onConfirmWithConflictCheck 로컬 작업 실행을 요청하는 콜백 — 충돌 판단은 ViewModel이 수행한다
+ * @param onConfirmOperation 로컬 작업 실행을 요청하는 콜백 — 같은 이름의 항목은 작업이 쓰는 중에 묻는다
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 선택 모드·선택 목록을 초기화하는 콜백 — 확인 단계의 취소도 선택을 비운다
  * @param onShowInfo 현재 선택 항목의 정보 다이얼로그를 여는 콜백
@@ -82,7 +82,7 @@ fun ModeAwareButtons(
     canUnzip: (FileHolderItem) -> Boolean,
     archiveFolderOf: (List<FileHolderItem>) -> String?,
     dialogState: BottomButtonDialogState,
-    onConfirmWithConflictCheck: (SelectMode.LocalOperation) -> Unit,
+    onConfirmOperation: (SelectMode.LocalOperation) -> Unit,
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
     onShowInfo: () -> Unit,
@@ -110,7 +110,7 @@ fun ModeAwareButtons(
         }
         is SelectMode.LocalOperation -> ConfirmButtons(
             modifier = modifier,
-            confirm = { onConfirmWithConflictCheck(selectMode) },
+            confirm = { onConfirmOperation(selectMode) },
             cancel = onResetSelection,
             mode = selectMode
         )

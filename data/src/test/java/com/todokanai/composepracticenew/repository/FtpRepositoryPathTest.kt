@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.data.ftp.DataCommandRunner
 import com.todokanai.composepracticenew.data.ftp.FakeFtpClient
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
@@ -63,7 +64,7 @@ class FtpRepositoryPathTest {
 
     @Test
     fun `다운로드는 로컬 대상 디렉터리 아래 같은 이름의 파일로 받는다`() {
-        assertEquals(IoResult.Done, runBlocking { repo.download("ftp://host/r/a.txt", dir.path, "a.txt") {} })
+        assertEquals(IoResult.Done, runBlocking { repo.download("ftp://host/r/a.txt", dir.path, "a.txt", false, UnexpectedConflictResolver) {} })
 
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
         assertEquals("data", File(dir, "a.txt").readText())

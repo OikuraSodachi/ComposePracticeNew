@@ -43,7 +43,7 @@ class CancelledLocalWriteTest {
     fun `복사를 취소하면 쓰던 파일만 지우고 이미 복사한 파일은 남긴다`() {
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE })
 
-        assertThrows(CancellationException::class.java) { runBlocking { transfer.copy(linkedSetOf(a.path, b.path), out.path, cancelOnB) } }
+        assertThrows(CancellationException::class.java) { runBlocking { transfer.copy(linkedSetOf(a.path, b.path), out.path, UnexpectedConflictResolver, cancelOnB) } }
 
         assertEquals("AAAA", File(out, "a.txt").readText())
         assertFalse(File(out, "b.txt").exists())
@@ -87,7 +87,7 @@ class CancelledLocalWriteTest {
         }
 
         assertThrows(CancellationException::class.java) {
-            ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out)), ByteProgressTracker(8, 2, cancelOnB))
+            ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk), ByteProgressTracker(8, 2, cancelOnB))
         }
 
         assertEquals("AAAA", File(out, "a.txt").readText())
@@ -96,7 +96,7 @@ class CancelledLocalWriteTest {
 
     @Test
     fun `RAR 해제를 취소하면 닫을 때 쓰던 항목을 지운다`() {
-        val callback = RarExtractCallback({ RarEntryKind.File("b.txt") }, { 4L }, ArchiveEntryWriter(ExtractionRoot(out)), ByteProgressTracker(4, 1, cancelOnB))
+        val callback = RarExtractCallback({ RarEntryKind.File("b.txt") }, { 4L }, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk), ByteProgressTracker(4, 1, cancelOnB))
 
         // 라이브러리처럼 기록 중 던진 예외를 받아 추출을 멈추고 콜백을 닫는다
         val stream = callback.getStream(0, ExtractAskMode.EXTRACT)!!

@@ -22,12 +22,12 @@ import kotlinx.coroutines.flow.onEach
 import javax.inject.Inject
 
 /**
- * 로컬·원격 파일 탐색기의 선택 상태([SelectionState] — 전송 대기 목록 포함)를 조율하고, 대기 목록의 다운로드·업로드(충돌 확인 포함)를 실행하는 ViewModel.
+ * 로컬·원격 파일 탐색기의 선택 상태([SelectionState] — 전송 대기 목록 포함)를 조율하고, 대기 목록의 다운로드·업로드(업로드는 확인할 때의 충돌 확인 포함)를 실행하는 ViewModel.
  * FILE_BROWSER_GRAPH에 scoped된다.
- * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 로컬 목록을 제공하는 UseCase
+ * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 완료 후 새로고침을 제공하는 UseCase
  * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록을 제공하는 UseCase
  * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
- * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
+ * @param conflictCheckUseCase 업로드 목적지의 이름 충돌을 판별하는 UseCase
  * @param messages 작업 완료 메시지 제공자
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  */
@@ -51,11 +51,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** 원격 파일 목록 화면의 선택 상태(모드와 선택·업로드 대기 목록). */
     val remoteSelection: StateFlow<SelectionState<Nothing, SelectMode.Upload>> = remote.state
-
-    /** 다운로드의 "충돌 검사 → 즉시 실행 / 사용자 확인 대기" 흐름을 관리한다. */
-    private val downloadGate = ConflictGate()
-    /** 다운로드 실행 전 사용자 확인을 기다리는 충돌. */
-    val downloadConflict: StateFlow<PendingConflict?> = downloadGate.pending
 
     /** 업로드의 "충돌 검사 → 즉시 실행 / 사용자 확인 대기" 흐름을 관리한다. */
     private val uploadGate = ConflictGate()
@@ -128,19 +123,15 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     }
 
     /**
-     * 다운로드 대기 목록을 현재 로컬 경로(충돌을 판정한 확인된 목록의 경로)로 다운로드한다. 이름 충돌이 있으면 [downloadConflict]로 확인을 요청한다.
-     * 실제로 실행됐을 때만 로컬 화면을 기본 모드로 되돌린다(대기 목록도 함께 사라짐).
-     * 확인을 취소하면 다운로드 확인 상태(대기 목록 포함)가 유지되어 다시 확인할 수 있다.
-     * 현재 로컬 경로의 목록을 확인하지 못했으면(조회 중·실패) 충돌을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다). 대기 목록은 유지된다.
-     * 로컬 화면이 다운로드 확인 상태가 아니면 다운로드할 대상이 없으므로 아무것도 하지 않는다.
+     * 다운로드 대기 목록을 현재 로컬 경로로 다운로드하고 로컬 화면을 기본 모드로 되돌린다(대기 목록도 함께 사라짐).
+     * 같은 이름의 로컬 항목은 다운로드가 그 항목을 쓰려 할 때 묻는다(전역 충돌 질문).
+     * 로컬 화면이 다운로드 확인 상태가 아니거나 현재 로컬 경로가 없으면 다운로드할 대상·자리가 없으므로 아무것도 하지 않는다.
      */
     fun confirmDownload() {
         val pending = (local.state.value as? SelectionState.Receiving)?.pending ?: return
-        val checked = conflictCheckUseCase.findCopyMoveConflicts(pending, localNavigator) { it.name } ?: return
-        downloadGate.request(pending, checked.conflicts) { skip ->
-            download(pending.excluding(skip), checked.destinationPath)
-            local.reset()
-        }
+        val destPath = localNavigator.currentPath.value ?: return
+        download(pending, destPath)
+        local.reset()
     }
 
     /**
@@ -166,18 +157,14 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun resetRemoteSelection() = remote.reset()
 
     /**
-     * 끊긴 원격 세션에 기대는 상태를 버린다. 로컬의 다운로드 대기(원격 경로 목록)와 원격 화면의 선택·업로드 대기, 그 확인을 기다리는 충돌이 해당한다.
+     * 끊긴 원격 세션에 기대는 상태를 버린다. 로컬의 다운로드 대기(원격 경로 목록)와 원격 화면의 선택·업로드 대기, 업로드 확인을 기다리는 충돌이 해당한다.
      * 다시 연결하려면 저장소 선택을 거쳐 새 세션을 열어야 하므로 이 상태로는 어떤 전송도 성공할 수 없다. 로컬의 선택·작업 상태는 로컬 저장소만 쓰므로 그대로 둔다.
      */
     private fun discardRemoteSessionState() {
         local.discardReceiving()
-        downloadGate.resolve(ConflictResolution.CANCEL)
         remote.reset()
         uploadGate.resolve(ConflictResolution.CANCEL)
     }
-
-    /** 대기 중인 다운로드 충돌을 사용자 선택대로 처리한다. */
-    fun resolveDownloadConflict(resolution: ConflictResolution) { downloadGate.resolve(resolution) }
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */
     fun resolveUploadConflict(resolution: ConflictResolution) { uploadGate.resolve(resolution) }
@@ -190,14 +177,12 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** items를 [localDestPath]에 다운로드한다. */
     private fun download(items: List<FileHolderItem>, localDestPath: String) {
-        items.forEach { item ->
-            remoteFileOperationUseCase.download(
-                item = item.toDomain(),
-                localDestPath = localDestPath,
-                completionMessage = messages.notiDownloadComplete,
-                onRefresh = { localNavigator.refresh() }
-            )
-        }
+        remoteFileOperationUseCase.download(
+            items = items.map { it.toDomain() },
+            localDestPath = localDestPath,
+            completionMessage = messages.notiDownloadComplete,
+            onRefresh = { localNavigator.refresh() }
+        )
     }
 
     /** items를 [remoteDestPath]에 업로드한다. */

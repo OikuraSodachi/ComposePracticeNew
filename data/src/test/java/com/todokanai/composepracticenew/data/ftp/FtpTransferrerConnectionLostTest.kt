@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -33,7 +34,7 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onCompletePending = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertFalse(runBlocking { session.isReady() })
@@ -57,7 +58,7 @@ class FtpTransferrerConnectionLostTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onCompletePending = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
+        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
@@ -68,7 +69,7 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onMlst = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
@@ -80,7 +81,7 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onCompletePending = { false }
 
-        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path) }
+        val result = runBlocking { transferrer.download("ftp://host/r/a.txt", File(dir, "a.txt").path, isDirectory = false, resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("전송 미완료"))
         assertTrue(runBlocking { session.isReady() })

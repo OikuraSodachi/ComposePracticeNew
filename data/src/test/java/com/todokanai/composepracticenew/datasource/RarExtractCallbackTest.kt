@@ -25,7 +25,7 @@ class RarExtractCallbackTest {
     /** 추출 루트. */
     private val root = File(dir, "out").also { it.mkdirs() }
     /** 항목을 루트 아래에 만드는 쓰기 도우미. */
-    private val writer = ArchiveEntryWriter(ExtractionRoot(root))
+    private val writer = ArchiveEntryWriter(ExtractionRoot(root), UnexpectedConflictAsk)
 
     @After
     fun tearDown() {
@@ -70,12 +70,14 @@ class RarExtractCallbackTest {
     @Test
     fun `파일을 만들지 못하면 건너뛰지 않고 그 IOException을 보관한다`() {
         File(root, "p").writeText("file")
-        val callback = callbackOf(RarEntryKind.File("p/a.txt"))
+        // 폴더 자리의 파일로 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던지게 해 writer가 IOException을 내는 상황을 만든다
+        val failingWriter = ArchiveEntryWriter(ExtractionRoot(root)) { throw IOException("만들 수 없음") }
+        val callback = RarExtractCallback({ RarEntryKind.File("p/a.txt") }, { null }, failingWriter, tracker())
 
         val thrown = assertThrows(IOException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
         assertSame(thrown, callback.failure)
-        assertEquals(0, writer.skippedEntries)
+        assertEquals(0, failingWriter.skippedEntries)
     }
 
     @Test

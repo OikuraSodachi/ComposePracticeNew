@@ -3,11 +3,16 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
+import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.WriteConflict
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.job
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -25,10 +30,20 @@ class LocalArchiveExtraction @Inject constructor(
      * @param zipFiles 압축 해제할 아카이브 파일 경로 집합
      * @param destPath 압축 해제 대상 디렉터리 경로
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
+     * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로. 폴더끼리는 묻지 않고 합친다
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 압축 해제 결과. 지원하지 않는 형식이 있으면 아무것도 해제하지 않고 실패한다
      */
-    suspend fun unzip(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
+    suspend fun unzip(
+        zipFiles: Set<String>,
+        destPath: String,
+        layout: ExtractLayout,
+        resolveConflict: WriteConflictResolver,
+        onProgress: (ProgressState) -> Unit
+    ): IoResult<Unit> = withContext(Dispatchers.IO) {
+        // 추출 라이브러리의 콜백은 일시 중단할 수 없으므로 그 자리에서 답을 기다린다. 이 작업의 Job을 부모로 두어 작업 취소가 기다림을 끝낸다
+        val job = coroutineContext.job
+        val ask: (WriteConflict) -> ConflictChoice = { conflict -> runBlocking(job) { resolveConflict.resolve(conflict) } }
         localIo {
             val archives = zipFiles.map { path ->
                 path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${File(path).name}"))
@@ -42,38 +57,21 @@ class LocalArchiveExtraction @Inject constructor(
             tracker.reportStart()
 
             var skippedEntries = 0
-            archives.forEach { (zipFilePath, extractor) ->
-                val root = rootOf(File(destPath), zipFilePath, layout).also(::createDirectories)
-                val writer = ArchiveEntryWriter(ExtractionRoot(root))
+            archives.forEachIndexed { i, (zipFilePath, extractor) ->
+                val root = rootOf(File(destPath), zipFilePath, layout)
+                // 아카이브 폴더 자리에 파일이 있어 건너뛰면 그 아카이브의 항목을 모두 처리한 것으로 넘긴다
+                if (!mergeDirectoryResolving(root, ask)) {
+                    tracker.skipFiles(sizes[i].fileCount)
+                    tracker.addBytes(sizes[i].knownBytes, root.name, fileBytes = null)
+                    return@forEachIndexed
+                }
+                val writer = ArchiveEntryWriter(ExtractionRoot(root), ask)
                 extractor.extract(zipFilePath, writer, tracker)
                 skippedEntries += writer.skippedEntries
             }
             if (skippedEntries > 0) return@localIo IoResult.ItemFailed("경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀")
             tracker.reportComplete()
             IoResult.Done
-        }
-    }
-
-    /**
-     * [zipFile]을 [destPath]에 [layout]으로 압축 해제할 때 [destPath] 바로 아래에 생기는(또는 덮어쓰는) 이름을 구한다.
-     * [unzip]과 같은 [rootOf]·항목 위치 규칙으로 구하므로, 이 이름으로 충돌을 판정하면 해제가 [destPath]에서 건드리는 이름을 빠뜨리지 않는다.
-     * @param zipFile 아카이브 파일 경로
-     * @param destPath 압축 해제 대상 디렉터리 경로
-     * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
-     * @return [destPath] 바로 아래 이름 집합, 또는 지원하지 않는 형식이거나 아카이브를 읽지 못한 실패
-     */
-    suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout): IoResult<Set<String>> = withContext(Dispatchers.IO) {
-        localIo {
-            val extractor = extractorFor(zipFile) ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${File(zipFile).name}")
-            val dest = File(destPath)
-            val names = when (layout) {
-                ExtractLayout.IntoArchiveFolder -> setOf(rootOf(dest, zipFile, layout).name)
-                ExtractLayout.IntoDestination -> {
-                    val root = ExtractionRoot(dest)
-                    extractor.entryNames(zipFile).mapNotNullTo(HashSet()) { root.topLevelNameOf(it) }
-                }
-            }
-            IoResult.Success(names)
         }
     }
 

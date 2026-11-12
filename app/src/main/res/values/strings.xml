@@ -82,6 +82,14 @@
     <string name="dialog_rename_conflict_remote">“%1$s”과(와) 같은 이름으로 처리될 수 있는 항목이 이미 있습니다. 덮어쓰시겠습니까? 결과는 서버 동작에 따라 다르며, 서버가 거부하면 실패합니다.</string>
     <string name="btn_merge">합치기</string>
 
+    <!-- Write conflict question (작업 도중 같은 이름의 항목을 만났을 때) -->
+    <string name="dialog_write_conflict_title">%1$s — 같은 이름의 항목</string>
+    <string name="dialog_write_conflict_file">“%1$s” 파일이 %2$s에 이미 있습니다. 덮어쓰시겠습니까?</string>
+    <string name="dialog_write_conflict_folder">“%1$s” 폴더가 %2$s에 이미 있습니다. 두 폴더를 합치면 안쪽에서 겹치는 항목은 하나씩 다시 묻습니다.</string>
+    <string name="dialog_write_conflict_type_mismatch">%2$s에 “%1$s”이(가) 이미 있지만 파일과 폴더로 종류가 달라 바꿀 수 없습니다. 이 항목은 건너뛰기만 할 수 있습니다.</string>
+    <string name="dialog_write_conflict_apply_to_rest">남은 같은 종류의 충돌에도 적용</string>
+    <string name="noti_write_conflict_awaiting">확인 필요 — 같은 이름의 항목을 어떻게 할지 골라 주세요</string>
+
     <!-- File list -->
     <string name="empty_directory">Empty Directory</string>
     <string name="listing_failed_unreadable">폴더를 열 수 없습니다</string>
@@ -92,7 +100,6 @@
     <string name="child_count">%d 개 항목</string>
     <string name="read_failed">읽지 못함</string>
     <string name="error_destination_unverified">폴더 목록을 확인하지 못해 작업을 실행하지 않았습니다. 목록을 다시 불러온 뒤 시도하세요.</string>
-    <string name="error_conflict_awaiting">이름 충돌 확인을 기다리는 다른 작업이 있어 작업을 실행하지 않았습니다. 그 작업을 처리한 뒤 다시 시도하세요.</string>
     <string name="error_protection_refused">시스템이 백그라운드 실행을 허락하지 않아 작업을 시작하지 않았습니다. 앱을 연 상태에서 다시 시도하세요.</string>
     <string name="tab_local">로컬</string>
     <string name="tab_remote">원격</string>

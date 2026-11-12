@@ -87,6 +87,7 @@ class LocalFileOperationUseCase(
 
     /**
      * [files]를 [destPath]에 복사한다. 목적지가 원본의 부모이거나 원본 자신·그 안쪽이면 실행하지 않고 거부를 알린다.
+     * 같은 이름의 항목은 복사하는 중에 그 항목을 쓰려 할 때 사용자에게 묻는다.
      * @param files 복사할 파일의 절대 경로 집합
      * @param destPath 복사 대상 디렉터리의 절대 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
@@ -95,8 +96,8 @@ class LocalFileOperationUseCase(
      */
     fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsDestination(files, destPath, "복사 실패")) return
-        orchestrator.launch(completionMessage, FileOperationType.COPY, onRefresh) { onProgress ->
-            fileActionRepo.copyAction(files, destPath, onProgress)
+        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.COPY, onRefresh) { onProgress, resolveConflict ->
+            fileActionRepo.copyAction(files, destPath, resolveConflict, onProgress)
         }
     }
 
@@ -117,6 +118,7 @@ class LocalFileOperationUseCase(
 
     /**
      * [files]를 [destPath]로 이동한다. 목적지가 원본의 부모이거나 원본 자신·그 안쪽이면 실행하지 않고 거부를 알린다.
+     * 같은 이름의 항목은 이동하는 중에 그 항목을 쓰려 할 때 사용자에게 묻는다. 건너뛴 항목은 원래 자리에 남는다.
      * @param files 이동할 파일의 절대 경로 집합
      * @param destPath 이동 대상 디렉터리의 절대 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
@@ -125,8 +127,8 @@ class LocalFileOperationUseCase(
      */
     fun move(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsDestination(files, destPath, "이동 실패")) return
-        orchestrator.launch(completionMessage, FileOperationType.MOVE, onRefresh) { onProgress ->
-            fileActionRepo.moveFile(files, destPath, onProgress)
+        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.MOVE, onRefresh) { onProgress, resolveConflict ->
+            fileActionRepo.moveFile(files, destPath, resolveConflict, onProgress)
         }
     }
 
@@ -150,7 +152,7 @@ class LocalFileOperationUseCase(
     }
 
     /**
-     * [zipFiles]를 [destPath]에 압축 해제한다.
+     * [zipFiles]를 [destPath]에 압축 해제한다. 같은 이름의 파일은 그 항목을 풀려 할 때 사용자에게 묻고, 폴더는 묻지 않고 합친다.
      * @param zipFiles 압축 해제할 zip/rar 파일의 절대 경로 집합
      * @param destPath 압축 해제 대상 디렉터리의 절대 경로
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
@@ -159,20 +161,10 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun unzip(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, FileOperationType.UNZIP, onRefresh) { onProgress ->
-            fileActionRepo.unzipAction(zipFiles, destPath, layout, onProgress)
+        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.UNZIP, onRefresh) { onProgress, resolveConflict ->
+            fileActionRepo.unzipAction(zipFiles, destPath, layout, resolveConflict, onProgress)
         }
     }
-
-    /**
-     * [zipFile]을 [destPath]에 [layout]으로 압축 해제할 때 [destPath] 바로 아래에 생기는(또는 덮어쓰는) 이름을 구한다. [unzip]과 같은 배치 규칙을 따르므로 충돌 판정에 쓴다.
-     * @param zipFile 압축 해제할 zip/rar 파일의 절대 경로
-     * @param destPath 압축 해제 대상 디렉터리의 절대 경로
-     * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
-     * @return [destPath] 바로 아래에 생기는 이름 집합, 또는 아카이브를 읽지 못한 실패
-     */
-    suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout): IoResult<Set<String>> =
-        fileActionRepo.extractedNames(zipFile, destPath, layout)
 
     /**
      * [item]을 [unzip]으로 압축 해제할 수 있는지 판별한다. 형식은 압축 해제 구현이 지원하는 것으로만 정한다.

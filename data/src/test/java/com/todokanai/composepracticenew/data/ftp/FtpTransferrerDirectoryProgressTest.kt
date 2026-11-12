@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.KnownSizeProgress
@@ -69,6 +70,6 @@ class FtpTransferrerDirectoryProgressTest {
     }
 
     private fun download(): IoResult<Unit> = runBlocking {
-        transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, onProgress = { reports += it })
+        transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true, resolveConflict = UnexpectedConflictResolver, onProgress = { reports += it })
     }
 }

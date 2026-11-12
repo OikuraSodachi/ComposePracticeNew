@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.repository.OperationNotices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -70,5 +71,5 @@ class FtpTransferrerInterruptedTransferTest {
     }
 
     /** 원격 파일 하나를 [localFile]로 받는다. */
-    private suspend fun download() = transferrer.download("ftp://host/r/a.txt", localFile.path)
+    private suspend fun download() = transferrer.download("ftp://host/r/a.txt", localFile.path, isDirectory = false, resolveConflict = UnexpectedConflictResolver)
 }

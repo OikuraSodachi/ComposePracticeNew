@@ -55,7 +55,7 @@ class TransferDestinationGuardTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, operationScope)
         val remoteOps = RemoteFileOperationUseCase(
             orchestrator,
             notices,
@@ -135,19 +135,6 @@ class TransferDestinationGuardTest {
 
         assertEquals(listOf("upload /local/a.txt"), transferRepo.calls)
         assertTrue(notices.failures.isEmpty())
-    }
-
-    @Test
-    fun `다운로드 대상 로컬 목록 조회에 실패했으면 다운로드하지 않고 대기 목록을 유지한다`() {
-        localNav.directoryListing.value = DirectoryListing.Failed(localRequest, ListingFailureReason.UNREADABLE, null)
-        viewModel.startRemoteMultiSelect(download)
-        viewModel.enterDownloadMode()
-
-        viewModel.confirmDownload()
-
-        assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(download)), viewModel.localSelection.value)
     }
 
     /** 로컬 다중 선택 목록을 업로드 대기 목록으로 옮긴다. */

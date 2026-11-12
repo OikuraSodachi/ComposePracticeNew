@@ -32,7 +32,6 @@ class ExtractionRootTest {
         val root = ExtractionRoot(dest)
 
         assertNull(root.targetOf("../evil.txt"))
-        assertNull(root.topLevelNameOf("a/../../evil.txt"))
     }
 
     @Test
@@ -40,11 +39,4 @@ class ExtractionRootTest {
         assertNull(ExtractionRoot(dest).targetOf("a/.."))
     }
 
-    @Test
-    fun `루트 바로 아래에 생기는 이름은 경로를 정리한 뒤의 첫 성분이다`() {
-        val root = ExtractionRoot(dest)
-
-        assertEquals("a", root.topLevelNameOf("a/b/c.txt"))
-        assertEquals("y.txt", root.topLevelNameOf("x/../y.txt"))
-    }
 }

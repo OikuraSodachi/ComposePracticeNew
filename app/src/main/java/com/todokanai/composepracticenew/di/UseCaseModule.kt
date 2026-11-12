@@ -3,6 +3,8 @@ package com.todokanai.composepracticenew.di
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
+import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
+import com.todokanai.composepracticenew.repository.ConflictQuestionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.FileLauncher
@@ -25,6 +27,7 @@ import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
+import com.todokanai.composepracticenew.usecase.ConflictQuestionUseCase
 import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
@@ -130,8 +133,13 @@ object UseCaseModule {
         progressRepo: ProgressRepository,
         notices: OperationNoticeReporter,
         protection: OperationProtection,
+        questions: ConflictQuestionAsker,
         @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressRepo, notices, protection, appScope)
+    ) = FileOperationOrchestrator(notifier, progressRepo, notices, protection, questions, appScope)
+
+    @Provides @Singleton
+    fun provideConflictQuestionUseCase(questions: ConflictQuestionRepository) =
+        ConflictQuestionUseCase(questions)
 
     @Provides @Singleton
     fun provideCancelOperationUseCase(orchestrator: FileOperationOrchestrator) =

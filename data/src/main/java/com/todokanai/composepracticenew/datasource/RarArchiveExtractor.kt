@@ -38,10 +38,6 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
             ArchiveSize(knownBytes, count, unknownSizeCount)
         }
 
-    // 폴더 항목도 extract가 만들므로 함께 담는다 — 판별은 getStream과 같은 entryKindOf로 한다
-    override fun entryNames(path: String): List<String> =
-        withArchive(path) { archive -> (0 until archive.numberOfItems).map { entryKindOf(archive, it).path } }
-
     override fun extract(path: String, writer: ArchiveEntryWriter, tracker: ByteProgressTracker) {
         withArchive(path) { archive ->
             RarExtractCallback({ entryKindOf(archive, it) }, { knownSizeOf(archive, it) }, writer, tracker).use { callback ->

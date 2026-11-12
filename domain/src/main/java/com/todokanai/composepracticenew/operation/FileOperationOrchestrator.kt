@@ -5,8 +5,10 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
+import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -30,6 +32,7 @@ private const val UNKNOWN_FAILURE_MESSAGE = "알 수 없는 오류"
  * @param progressRepo 작업 진행 상태를 저장하는 ProgressRepository
  * @param notices 작업의 완료·실패 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param protection 진행 표시가 있는 작업이 시작 전에 받는 프로세스 보호
+ * @param questions 쓰기 충돌을 사용자에게 묻고 답을 기다리는 통로
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
@@ -37,6 +40,7 @@ class FileOperationOrchestrator(
     private val progressRepo: ProgressRepository,
     private val notices: OperationNoticeReporter,
     private val protection: OperationProtection,
+    private val questions: ConflictQuestionAsker,
     private val appScope: CoroutineScope
 ) {
     /** ID 발급과 진행 상태 등록을 한 단위로 묶는 잠금. 동시에 시작한 작업들이 progressMap에 ID 순서대로 나타나게 한다. */
@@ -93,15 +97,87 @@ class FileOperationOrchestrator(
         val callback = OperationCallback(completionMessage, cancelledMessageOf(operationType), onRefresh)
         launchOperation(handle, callback) {
             if (operationType != null) protection.acquire().valueOr { return@launchOperation it }
-            // 진행 보고는 작업이 고른 스레드에서 일시 중단 없이 부르므로, 이 작업의 Job을 잡아 두고 그것으로 취소를 확인한다
-            val job = currentCoroutineContext().job
-            block { state ->
-                job.ensureActive()
-                val stateWithType = state.copy(operationType = operationType)
-                handle.set(stateWithType)
-                notifier.progressNoti(stateWithType, handle.instanceId)
+            block(progressReporterOf(handle, operationType))
+        }
+    }
+
+    /**
+     * [launch]와 같이 파일 작업을 실행하되, [block]이 쓰기 중에 만난 같은 이름의 항목을 사용자에게 묻는 통로를 함께 넘긴다.
+     * 묻는 동안 작업은 멈추고 진행 알림은 답을 기다리는 상태가 된다. 답을 받으면 마지막 진행 상태로 알림을 되돌린다.
+     * 사용자가 질문에서 취소하면 취소로, 질문 하나에 [MAX_CONFLICT_ANSWER_WAIT] 동안 답이 없으면 실패로 끝낸다. 어느 쪽이든 이미 처리한 항목은 그대로 둔다.
+     * "나머지에도 적용"한 답은 [memory] 범위 안에서만 쓴다.
+     * @param completionMessage 작업 완료 시 표시할 메시지
+     * @param operationType 작업 종류. 묻는 작업은 진행 표시가 있는 작업이다
+     * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
+     * @param memory "나머지에도 적용"한 답을 기억하는 범위. 기본은 이 작업 하나다
+     * @param block 실제 IO 작업 코드. 진행 보고 콜백과 충돌을 묻는 통로를 받고, 실패는 결과로 돌려준다
+     * @return Unit
+     */
+    fun launchResolvingConflicts(
+        completionMessage: String,
+        operationType: FileOperationType,
+        onRefresh: suspend () -> Unit,
+        memory: ConflictMemory = ConflictMemory(),
+        block: suspend (onProgress: (ProgressState) -> Unit, resolveConflict: WriteConflictResolver) -> IoResult<Unit>
+    ) {
+        val handle = startHandle(operationType)
+        val callback = OperationCallback(completionMessage, cancelledMessageOf(operationType), onRefresh)
+        launchOperation(handle, callback) {
+            protection.acquire().valueOr { return@launchOperation it }
+            val resolver = OperationConflictResolver(
+                operationType = operationType,
+                questions = questions,
+                memory = memory,
+                onAwaiting = { notifier.awaitingAnswerNoti(operationType, handle.instanceId) },
+                onAnswered = { handle.latest?.let { notifier.progressNoti(it, handle.instanceId) } },
+            )
+            try {
+                block(progressReporterOf(handle, operationType), resolver)
+            } catch (e: UnansweredConflict) {
+                IoResult.ItemFailed(unansweredMessageOf(operationType, e))
             }
         }
+    }
+
+    /**
+     * [handle] 작업의 진행 보고 콜백을 만든다. 보고마다 취소를 확인하고, 진행 상태와 진행 알림을 갱신한다.
+     * 진행 보고는 작업이 고른 스레드에서 일시 중단 없이 부르므로, 이 작업의 Job을 잡아 두고 그것으로 취소를 확인한다.
+     * @param handle 작업 인스턴스의 진행 상태 핸들
+     * @param operationType 작업 종류. 보고한 상태에 붙인다
+     * @return 진행 보고 콜백. 취소된 뒤에 부르면 CancellationException을 던진다
+     */
+    private suspend fun progressReporterOf(handle: ProgressHandle, operationType: FileOperationType?): (ProgressState) -> Unit {
+        val job = currentCoroutineContext().job
+        return { state ->
+            job.ensureActive()
+            val stateWithType = state.copy(operationType = operationType)
+            handle.set(stateWithType)
+            notifier.progressNoti(stateWithType, handle.instanceId)
+        }
+    }
+
+    /**
+     * 충돌 질문에 답이 없어 멈춘 작업의 실패 메시지를 만든다.
+     * @param operationType 작업 종류
+     * @param unanswered 답을 받지 못한 질문
+     * @return 실패 메시지
+     */
+    private fun unansweredMessageOf(operationType: FileOperationType, unanswered: UnansweredConflict): String =
+        "${operationNameOf(operationType)} 중단: '${unanswered.conflict.name}' 충돌 질문에 ${MAX_CONFLICT_ANSWER_WAIT.inWholeHours}시간 동안 답이 없었습니다 — 이미 처리한 항목은 그대로 둡니다"
+
+    /**
+     * 메시지에 쓸 작업 이름을 정한다.
+     * @param operationType 작업 종류
+     * @return 작업 이름
+     */
+    private fun operationNameOf(operationType: FileOperationType): String = when (operationType) {
+        FileOperationType.COPY -> "복사"
+        FileOperationType.MOVE -> "이동"
+        FileOperationType.DELETE -> "삭제"
+        FileOperationType.COMPRESS -> "압축"
+        FileOperationType.UNZIP -> "압축 해제"
+        FileOperationType.DOWNLOAD -> "다운로드"
+        FileOperationType.UPLOAD -> "업로드"
     }
 
     /**
@@ -174,8 +250,16 @@ class FileOperationOrchestrator(
         val instanceId: Int,
         private val progressRepo: ProgressRepository
     ) {
+        /** 마지막으로 [set]한 진행 상태. 충돌 질문에 답한 뒤 진행 알림을 되돌릴 때 쓴다. 작업 스레드에서 쓰고 다른 스레드에서도 읽으므로 @Volatile이다. */
+        @Volatile
+        var latest: ProgressState? = null
+            private set
+
         /** [state]를 이 인스턴스의 진행 상태로 업데이트한다. */
-        fun set(state: ProgressState) = progressRepo.setProgressState(instanceId, state)
+        fun set(state: ProgressState) {
+            latest = state
+            progressRepo.setProgressState(instanceId, state)
+        }
 
         /** 이 인스턴스의 진행 상태를 제거한다. */
         fun clear() = progressRepo.removeProgress(instanceId)

@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
@@ -47,6 +48,23 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             FileOperationType.UPLOAD,
             null -> showPercentProgress(type, state, instanceId)
         }
+    }
+
+    /**
+     * 진행 알림을 지우고 답을 기다리는 알림을 새로 띄운다. 누르면 앱만 연다 — 질문은 화면이 보이면 화면 호스트가 띄우고, 진행률 다이얼로그를 함께 열면 질문과 겹친다.
+     * 덮어쓰지 않고 지운 뒤 새로 띄우는 것은 [completedNotification]과 같은 이유다(직전 진행 갱신이 몰렸으면 갱신이 버려질 수 있음).
+     * 답한 뒤의 진행 보고가 같은 알림을 진행 알림으로 되돌린다.
+     */
+    override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {
+        cancelProgress(instanceId)
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(icon)
+            .setContentTitle(titleFor(operationType))
+            .setContentText(context.getString(R.string.noti_write_conflict_awaiting))
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(buildAppOnlyClickIntent(instanceId))
+        notifyIfPermitted(PROGRESS_TAG, instanceId, builder)
     }
 
     /** 처리한 항목 수 / 전체 항목 수로 진행 알림을 표시한다. 항목 수 정보가 없으면 표시하지 않는다. */
@@ -94,10 +112,10 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     /**
-     * 완료 알림 클릭 시 앱만 여는 PendingIntent를 만든다. 끝난 작업은 진행 상태가 지워져 띄울 진행률 다이얼로그가 없으므로 작업을 가리키지 않는다.
+     * 앱만 여는 PendingIntent를 만든다(완료 알림, 답을 기다리는 알림). 끝난 작업은 진행 상태가 지워져 띄울 진행률 다이얼로그가 없고, 답을 기다리는 작업은 질문이 진행률 다이얼로그와 겹치므로 작업을 가리키지 않는다.
      * requestCode는 진행 알림과 같은 그 작업의 알림 id라 같은 PendingIntent를 덮어쓴다 — 완료 때 진행 알림은 취소되므로 그 작업 extras를 쓰는 알림은 남지 않는다.
      */
-    private fun buildCompletedClickIntent(instanceId: Int): PendingIntent? =
+    private fun buildAppOnlyClickIntent(instanceId: Int): PendingIntent? =
         launchIntent()?.let { activityPendingIntent(instanceId, it) }
 
     /** 앱의 시작 Activity를 여는 intent. 앱이 이미 열려 있으면 새로 쌓지 않고 그 Activity로 돌아간다. */
@@ -141,7 +159,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setOngoing(false)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(buildCompletedClickIntent(instanceId))
+            .setContentIntent(buildAppOnlyClickIntent(instanceId))
             .setAutoCancel(true)
         notifyIfPermitted(COMPLETED_TAG, instanceId, builder)
         ids.release(instanceId)

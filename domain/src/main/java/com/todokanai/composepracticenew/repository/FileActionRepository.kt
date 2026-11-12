@@ -20,7 +20,11 @@ interface FileActionRepository {
     fun supportedArchiveFormats(): Set<ArchiveFormat>
 
     // Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
-    suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    // Never replaces an existing entry without asking: each entry is first written in a way that fails if the name is taken,
+    // and only when the file system reports the name as taken is [resolveConflict] asked. PROCEED replaces a file, or merges a
+    // folder into a folder (its entries are then judged one by one); a file/folder type mismatch can only be skipped.
+    // SKIP leaves the existing entry (and, for a folder, everything beneath the source folder) untouched.
+    suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Renames the file at [targetFile] to [newName].
     // If another entry already has [newName]: fails unless [overwrite]. With [overwrite], a file replaces a file and a folder
@@ -32,15 +36,14 @@ interface FileActionRepository {
     suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Moves [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
-    suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    // Name clashes are resolved through [resolveConflict] exactly as in [copyAction]. Skipped entries stay at their source;
+    // a merged source folder is removed only once everything in it has been moved.
+    suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Extracts [zipFiles] into [destPath], placing the entries as [layout] says, reporting progress via [onProgress].
-    suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
-
-    // Returns the names that extracting [zipFile] into [destPath] with [layout] creates (or overwrites) directly under [destPath]:
-    // the archive folder for [ExtractLayout.IntoArchiveFolder], the archive's top-level entries for [ExtractLayout.IntoDestination].
-    // [unzipAction] places entries by the same rule, so a conflict check on these names covers everything the extraction can overwrite there.
-    suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout): IoResult<Set<String>>
+    // Folders are merged into existing folders without asking. A file entry whose name is taken is resolved through
+    // [resolveConflict] (PROCEED replaces the file); an entry whose type differs from the existing one can only be skipped.
+    suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Returns true if [unzipAction] supports the archive format of [path].
     fun canExtract(path: String): Boolean

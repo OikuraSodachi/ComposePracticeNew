@@ -34,7 +34,7 @@ class OperationProtectionGateTest {
     /** 테스트가 결과를 정하는 작업 보호. */
     private val protection = GatedProtection()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, protection, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, protection, UnexpectedConflictQuestions, scope)
 
     @After
     fun tearDown() = scope.cancel()
@@ -110,6 +110,7 @@ class OperationProtectionGateTest {
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(message: String, instanceId: Int) {}
-        override fun cancelNotification(instanceId: Int) {}
+        override fun cancelNotification(instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
 }

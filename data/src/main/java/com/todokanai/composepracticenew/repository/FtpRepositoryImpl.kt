@@ -47,8 +47,8 @@ class FtpRepositoryImpl @Inject internal constructor(
     override fun rootPathOf(item: RemoteStorageItem): String =
         ftpUriOf(item.address)
 
-    override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) =
-        transferrer.download(remotePath, File(localDirPath, name).path, isDirectory, onProgress)
+    override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
+        transferrer.download(remotePath, File(localDirPath, name).path, isDirectory, resolveConflict, onProgress)
 
     override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit) =
         transferrer.upload(localPath, childFtpUri(remoteDirPath, name), onProgress)
