@@ -254,6 +254,25 @@ class LocalTreeSymlinkTest {
     }
 
     @Test
+    fun `압축 해제는 링크 자리와 루트 밖 항목을 함께 만나면 둘 다 항목 이름으로 알린다`() = runBlocking {
+        val archive = File(dir, "in.zip")
+        ZipOutputStream(archive.outputStream()).use { zos ->
+            listOf("d/new.txt", "../evil.txt").forEach { name ->
+                zos.putNextEntry(ZipEntry(name))
+                zos.write("N".toByteArray())
+                zos.closeEntry()
+            }
+        }
+        assumeSymlink(File(target, "d"), outside.absoluteFile)
+
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
+
+        val expected = listOf(FailedItem("d", UNSUPPORTED_LINK_REASON), FailedItem("../evil.txt", ArchiveEntryWriter.REJECTED_PATH_REASON))
+        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", expected), result)
+        assertFalse(File(outside, "new.txt").exists())
+    }
+
+    @Test
     fun `바로 풀기는 링크로 들어온 목적지 폴더 자신에는 그대로 푼다`() = runBlocking {
         val archive = File(dir, "in.zip")
         ZipOutputStream(archive.outputStream()).use { zos ->

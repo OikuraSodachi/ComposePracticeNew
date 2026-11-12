@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
+import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
@@ -9,6 +10,7 @@ import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -62,6 +64,19 @@ class LocalArchiveExtractionLayoutTest {
         assertEquals(IoResult.Done, result)
         assertEquals(listOf(WriteConflict("a", dest.canonicalPath, WriteConflictKind.TYPE_MISMATCH)), asked.map { it.copy(folderPath = File(it.folderPath).canonicalPath) })
         assertEquals("file", File(dest, "a").readText())
+    }
+
+    @Test
+    fun `루트 밖을 가리키는 항목은 풀지 않고 아카이브 폴더 기준 이름으로 실패를 알리며 나머지는 푼다`() {
+        val zip = zipOf("a.zip", "../evil.txt", "ok.txt")
+
+        val result = runBlocking {
+            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(mutableListOf())) {}
+        }
+
+        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("a/../evil.txt", ArchiveEntryWriter.REJECTED_PATH_REASON))), result)
+        assertEquals("x", File(dest, "a/ok.txt").readText())
+        assertFalse(File(dest, "evil.txt").exists())
     }
 
     /** 받은 겹침을 [asked]에 기록하고 건너뛰는 resolver. */
