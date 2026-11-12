@@ -185,6 +185,33 @@ class PreferencesStoreTest {
     }
 
     @Test
+    fun `IOException이 아닌 편집 예외는 소비자를 끝내 스코프로 전파되고, 그 뒤의 편집과 한 번 읽기는 그 예외로 실패한다`() = runTest {
+        // StoreScopeRule의 스코프는 예외 처리기가 있어 소비자가 끝나도 테스트가 계속된다 — 대기열이 열린 채 남던 이전 구현에서는 편집이 말없이 버려지고 한 번 읽기가 끝나지 않는다
+        val store = storeOf(FakePreferencesDataStore(stored))
+
+        store.launchEdit { throw IllegalStateException("x") }
+        runCurrent()
+
+        assertTrue(storeScopes.takeUncaught().single() is IllegalStateException)
+        assertTrue(runCatching { store.launchEdit { it[key] = "w" } }.exceptionOrNull() is IllegalStateException)
+        assertTrue(runCatching { store.readOnce() }.exceptionOrNull() is IllegalStateException)
+    }
+
+    @Test
+    fun `소비자가 끝날 때 대기열에 남은 한 번 읽기는 기다리지 않고 그 예외로 실패한다`() = runTest {
+        // 편집이 반영 전 100ms를 기다리는 동안 한 번 읽기의 장벽이 그 뒤에 쌓인다
+        val store = storeOf(FakePreferencesDataStore(stored, writeDelays = mutableListOf(100L)))
+        store.launchEdit { throw IllegalStateException("x") }
+        val read = async { runCatching { store.readOnce() } }
+        runCurrent()
+
+        advanceUntilIdle()
+
+        assertTrue(read.await().exceptionOrNull() is IllegalStateException)
+        assertTrue(storeScopes.takeUncaught().single() is IllegalStateException)
+    }
+
+    @Test
     fun `한 번 읽기는 지금 값을 돌려준다`() = runTest {
         val store = storeOf(FakePreferencesDataStore(stored))
         assertEquals(stored, store.readOnce())

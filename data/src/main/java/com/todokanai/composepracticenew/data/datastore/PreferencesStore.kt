@@ -125,17 +125,36 @@ class PreferencesStore @Inject constructor(
 
     /**
      * 처리를 기다리는 편집·장벽 대기열. [launchEdit]·[readOnce]가 호출 스레드에서 바로 넣고, [appScope]의 소비자 코루틴 하나가 넣은 순서대로 꺼내 처리한다.
-     * 용량 제한이 없어 넣기가 일시 중단되거나 실패하지 않는다.
+     * 용량 제한이 없어 소비자가 살아 있는 동안 넣기가 일시 중단되거나 실패하지 않는다. 소비자가 끝나면 그 원인으로 닫힌다([failPendingWork]).
      */
     private val pendingWork = Channel<PendingWork>(Channel.UNLIMITED)
 
     init {
         // 소비자는 하나뿐이고 앞선 edit이 끝나야 다음을 꺼내므로, 반영 순서가 대기열에 넣은 순서(= launchEdit 호출 순서)와 같고, 장벽에 닿으면 그 앞의 편집은 모두 끝난 것이다
         appScope.launch {
-            for (work in pendingWork) when (work) {
-                is PendingWork.Edit -> applyEdit(work.transform)
-                is PendingWork.Barrier -> work.reached.complete(Unit)
+            try {
+                for (work in pendingWork) when (work) {
+                    is PendingWork.Edit -> applyEdit(work.transform)
+                    is PendingWork.Barrier -> work.reached.complete(Unit)
+                }
+            } catch (e: Throwable) {
+                failPendingWork(e)
+                throw e
             }
+        }
+    }
+
+    /**
+     * 소비자가 끝났음을 대기열에 드러낸다(#211). [cause]로 대기열을 닫아 이후 [launchEdit]·[readOnce]가 넣기에서 그 원인으로 실패하게 하고,
+     * 이미 넣었지만 처리하지 못한 장벽도 그 원인으로 실패시킨다 — 받기만 하고 반영되지 않는 저장, 영영 닿지 않는 장벽을 기다리는 읽기가 남지 않도록.
+     * 처리하지 못한 편집은 반영되지 않는다. [cause]는 소비자를 끝낸 예외(구현 오류, 또는 [appScope] 취소)이며 호출부가 다시 던져 [appScope]로 전파한다.
+     * @param cause 소비자를 끝낸 예외
+     */
+    private fun failPendingWork(cause: Throwable) {
+        pendingWork.close(cause)
+        while (true) {
+            val work = pendingWork.tryReceive().getOrNull() ?: break
+            if (work is PendingWork.Barrier) work.reached.completeExceptionally(cause)
         }
     }
 
@@ -144,16 +163,20 @@ class PreferencesStore @Inject constructor(
      * 호출 스레드에서 즉시 대기열에 넣으므로, 먼저 호출한 편집이 나중 편집을 덮어쓰지 않는다.
      * 조건에 따라 값을 바꾸는 편집은 [transform] 안에서 현재 값을 확인해야 한다 — 그래야 직전 편집이 반영된 값을 기준으로 판단한다.
      * 저장 실패(IOException) 시 이 편집만 반영되지 않고 이전 값이 남으며, [PreferenceFailure.SAVE]를 알린다.
+     * IOException이 아닌 예외(구현 오류)는 소비자를 끝내 [appScope]로 전파되며, 그 뒤의 호출은 그 예외를 던진다([failPendingWork]).
      * @param transform 저장할 값을 MutablePreferences에 기록하는 편집 람다
      */
     fun launchEdit(transform: (MutablePreferences) -> Unit) {
-        pendingWork.trySend(PendingWork.Edit(transform))
+        pendingWork.trySend(PendingWork.Edit(transform)).getOrThrow()
     }
 
-    /** 지금까지 [launchEdit]로 넣은 편집이 모두 반영되거나 저장 실패로 끝날 때까지 기다린다. 대기열에 장벽을 넣고 소비자가 거기에 닿기를 기다린다. */
+    /**
+     * 지금까지 [launchEdit]로 넣은 편집이 모두 반영되거나 저장 실패로 끝날 때까지 기다린다. 대기열에 장벽을 넣고 소비자가 거기에 닿기를 기다린다.
+     * 소비자가 끝났으면 그 원인을 던진다([failPendingWork]).
+     */
     private suspend fun awaitEarlierEdits() {
         val barrier = CompletableDeferred<Unit>()
-        pendingWork.trySend(PendingWork.Barrier(barrier))
+        pendingWork.trySend(PendingWork.Barrier(barrier)).getOrThrow()
         barrier.await()
     }
 
