@@ -489,6 +489,7 @@ class FtpCommandExecutor internal constructor(
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
                 else IoResult.ItemFailed("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}")
+            is DataCommandOutcome.NotConnected -> IoResult.ItemFailed("${command.label} 실패: ${dataConnectionFailure(outcome.cause)}")
             is DataCommandOutcome.Finished ->
                 if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(received(engine.files), path))
                 else FtpReplyRules.refusal(command, client.getReplyString())

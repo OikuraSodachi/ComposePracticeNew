@@ -25,7 +25,21 @@ internal sealed interface DataCommandOutcome {
      * @param cause 데이터를 주고받다 난 실패
      */
     data class DataFailed(val cause: IOException) : DataCommandOutcome
+
+    /**
+     * 데이터 소켓을 연결하지 못해 명령을 보내지 않았다([DataConnectionOpening.NotConnected]). 기다릴 완료 응답이 없으며, 이 명령만의 실패다.
+     * @param cause 데이터 소켓을 연결하지 못한 실패
+     */
+    data class NotConnected(val cause: IOException) : DataCommandOutcome
 }
+
+/**
+ * 데이터 소켓을 연결하지 못한 실패([DataCommandOutcome.NotConnected])를 사용자에게 보여줄 메시지로 바꾼다.
+ * @param cause 데이터 소켓을 연결하지 못한 실패
+ * @return 표시할 메시지
+ */
+internal fun dataConnectionFailure(cause: IOException): String =
+    "데이터 연결을 열지 못했습니다 (${cause.message ?: cause.javaClass.simpleName})"
 
 /** 취소로 멈춘 명령 뒤의 정리 명령([DataCommandRunner.cleanUpAfterCancel])의 결과. */
 internal sealed interface CancelCleanup {
@@ -55,6 +69,7 @@ internal class DataCommandRunner @Inject constructor(private val session: FtpDat
     /**
      * [open]으로 데이터 연결을 열어 [exchange]로 데이터를 주고받고, 연결을 닫은 뒤 완료 응답을 읽는다. 세션 잠금을 쥔 블록 안에서 호출한다.
      * 완료 응답을 읽다 실패하면 제어 채널을 더 쓸 수 없으므로 그 예외를 전파해 [FtpSession.withConnectedClient]가 세션을 끝내게 한다(데이터 연결의 실패는 suppressed로 붙인다).
+     * 데이터 소켓을 연결하지 못했으면 명령을 보내지 않은 것이므로 이 명령만의 실패([DataCommandOutcome.NotConnected])다. 단, 세션이 그사이 끝났으면(잠금 밖 종료) 그 예외를 전파한다.
      * 취소와 구현 오류는 결과로 바꾸지 않고 전파한다. 구현 오류는 [FtpSession.withConnectedClient]가 세션을 끝내므로 데이터 연결만 닫는다.
      * 취소는 세션을 끝내지 않고 전파되므로, [onCancel]을 실행하고 완료 응답을 기다려 응답 순서를 맞춘다. 완료 응답을 읽지 못했으면 여기서 세션을 끝낸다.
      * @param client 잠금을 확보한 FTP 클라이언트
@@ -72,7 +87,15 @@ internal class DataCommandRunner @Inject constructor(private val session: FtpDat
     ): DataCommandOutcome {
         // 스트림을 열지 못했으면 응답을 끝까지 읽은 것이다 — 응답 코드와 관계없이 이 명령만 실패다.
         // 기다릴 응답이 없으므로 completePendingCommand는 부르지 않는다. 부르면 오지 않을 응답을 상한까지 기다리며 세션 잠금을 쥔다
-        val connection = session.openDataConnection(open) ?: return DataCommandOutcome.Refused
+        val connection = when (val opening = session.openDataConnection(open)) {
+            is DataConnectionOpening.Opened -> opening.connection
+            DataConnectionOpening.Refused -> return DataCommandOutcome.Refused
+            is DataConnectionOpening.NotConnected -> {
+                // 잠금 밖 종료가 소켓을 닫아 연결하지 못한 것이면 세션이 끝난 것이다 — 이 명령만의 실패로 보지 않고 경계가 끊김으로 알리게 한다
+                if (!session.isReady()) throw opening.cause
+                return DataCommandOutcome.NotConnected(opening.cause)
+            }
+        }
         val dataFailure = try {
             exchange(connection.stream)
             connection.finish()

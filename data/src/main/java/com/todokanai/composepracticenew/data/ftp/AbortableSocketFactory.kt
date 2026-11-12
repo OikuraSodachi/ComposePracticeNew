@@ -45,16 +45,16 @@ internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : So
     }
 
     /**
-     * [open]을 실행하는 동안 이 스레드에서 만든 소켓을 모아 [open]의 결과와 함께 돌려준다.
+     * [open]을 실행하는 동안 이 스레드에서 만든 소켓을 [opened]에 모은다. [open]이 예외로 끝나도 그때까지 만든 소켓은 [opened]에 남는다.
      * 전송 명령이 데이터 스트림을 열며 만든 데이터 소켓을 집어내는 데 쓴다 — FTPClient는 데이터 소켓을 내주지 않는다.
+     * @param opened 만든 소켓을 모을 목록
      * @param open 소켓을 만들 수 있는 동작. 스레드를 바꾸지 않고 끝까지 실행된다
-     * @return [open]의 결과와, 그동안 만든 소켓
+     * @return [open]의 결과
      */
-    fun <T> capturing(open: () -> T): Pair<T, List<WriteBoundedSocket>> {
-        val opened = mutableListOf<WriteBoundedSocket>()
+    fun <T> capturing(opened: MutableList<WriteBoundedSocket>, open: () -> T): T {
         captured.set(opened)
         try {
-            return open() to opened
+            return open()
         } finally {
             captured.remove()
         }

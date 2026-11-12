@@ -32,9 +32,9 @@ internal interface FtpDataCommandSession {
     /**
      * 데이터 연결을 쓰는 명령의 데이터 스트림을 연다.
      * @param open 데이터 스트림을 여는 명령. 서버가 거부하면 null을 돌려준다
-     * @return 열린 데이터 연결, 서버가 거부했으면 null
+     * @return 열린 데이터 연결, 서버의 거부, 또는 데이터 소켓을 연결하지 못함
      */
-    fun <S : Closeable> openDataConnection(open: () -> S?): DataConnection<S>?
+    fun <S : Closeable> openDataConnection(open: () -> S?): DataConnectionOpening<S>
 
     /** 응답 순서를 알 수 없게 된 세션을 끝낸다. */
     suspend fun endUnusableSession()

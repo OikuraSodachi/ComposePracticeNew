@@ -90,7 +90,7 @@ internal class FtpSession(
 
     /**
      * 연결된 상태에서만 [withClient]로 [block]을 실행한다. FTP 명령 실패의 의미를 정하는 경계이며, 규칙은 다음 하나뿐이다.
-     * - [block]이 돌려준 결과: 서버 거부 응답·데이터 스트림·로컬 파일 실패처럼 제어 채널의 응답 순서가 유지된 결과다. 그대로 돌려준다
+     * - [block]이 돌려준 결과: 서버 거부 응답·데이터 소켓 연결([openDataConnection])·데이터 스트림·로컬 파일 실패처럼 제어 채널의 응답 순서가 유지된 결과다. 그대로 돌려준다
      * - [block]이 던진 IOException: 서버가 연결을 닫았거나([FTPConnectionClosedException]) 응답을 읽다 실패(타임아웃 등)한 것이다.
      *   늦게 온 응답이 다음 명령의 응답으로 읽혀 순서가 어긋날 수 있고 commons-net에는 이를 다시 맞출 방법이 없으므로, 세션을 종료하고 [IoResult.ConnectionLost]를 돌려준다
      * - 그 밖의 예외(구현 오류): 명령이 어디까지 진행됐는지 알 수 없어 응답 순서를 보장할 수 없으므로, 세션을 종료하고 그대로 전파한다
@@ -118,14 +118,33 @@ internal class FtpSession(
     /**
      * [open]으로 데이터 연결을 쓰는 명령의 데이터 스트림을 열어, 정상 끝과 중단을 구분해 닫을 수 있는 [DataConnection]으로 돌려준다.
      * ioMutex를 쥔 [withConnectedClient]의 블록 안에서 호출한다. 명령의 실행 규칙은 [DataCommandRunner]가 정한다.
+     * 데이터 소켓을 연결하지 못한 실패만 결과([DataConnectionOpening.NotConnected])로 돌려준다 — 그 실패는 명령을 보내기 전이라 응답 순서가 유지된다(#267).
+     * 데이터 소켓을 연결한 뒤의 실패(REST·명령의 응답, 원격 주소 확인)는 명령의 응답이 남았을 수 있으므로 예외로 전파한다.
      * @param open 데이터 스트림을 여는 명령(`retrieveFileStream`·`storeFileStream`, [SessionFtpClient]의 목록 조회). 서버가 거부하면 null을 돌려준다
-     * @return 열린 데이터 연결, 서버가 거부했으면 null
-     * @throws IOException 명령의 응답을 읽지 못한 경우
+     * @return 열린 데이터 연결, 서버의 거부, 또는 데이터 소켓을 연결하지 못함
+     * @throws IOException 명령의 응답을 읽지 못했거나 데이터 소켓을 연결한 뒤에 실패한 경우
      */
-    override fun <S : Closeable> openDataConnection(open: () -> S?): DataConnection<S>? {
-        val (stream, opened) = sockets.capturing(open)
-        return stream?.let { DataConnection(it, opened) }
+    override fun <S : Closeable> openDataConnection(open: () -> S?): DataConnectionOpening<S> {
+        val opened = mutableListOf<WriteBoundedSocket>()
+        val stream = try {
+            sockets.capturing(opened, open)
+        } catch (e: IOException) {
+            if (!isDataSocketUnconnected(opened)) throw e
+            // commons-net은 연결하지 못한 데이터 소켓을 닫지 않는다
+            opened.forEach { runCatching { it.close() } }
+            return DataConnectionOpening.NotConnected(e)
+        }
+        return if (stream == null) DataConnectionOpening.Refused else DataConnectionOpening.Opened(DataConnection(stream, opened))
     }
+
+    /**
+     * 데이터 스트림을 열다 난 실패가 데이터 소켓을 연결하기 전의 것인지 판별한다. 소켓을 만들기 전의 실패(PASV 응답을 읽지 못함)는 해당하지 않는다.
+     * 한 번 연결된 소켓은 닫혀도 연결된 것으로 남으므로([java.net.Socket.isConnected]), 연결한 뒤의 실패와 섞이지 않는다.
+     * @param opened 실패한 명령이 그때까지 만든 데이터 소켓
+     * @return 데이터 소켓을 만들었으나 하나도 연결하지 못했으면 true
+     */
+    private fun isDataSocketUnconnected(opened: List<WriteBoundedSocket>): Boolean =
+        opened.isNotEmpty() && opened.none { it.isConnected }
 
     /**
      * 응답 순서를 알 수 없게 된 세션을 끊김 상태로 바꾸고, 그 제어 채널을 다시 쓰지 않도록 소켓을 닫는다.
