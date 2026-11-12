@@ -12,13 +12,12 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
-import java.io.IOException
 import java.net.SocketTimeoutException
 import java.nio.file.Files
 
 /**
  * 업로드가 취소되면 [FtpTransferrer]가 완료 응답을 읽은 뒤 서버에 남았을 수 있는 받다 만 파일을 DELE로 지우고,
- * 지우지 못하면 남았을 수 있다고 알리며, 취소는 결과로 바꾸지 않고 전파하는지 검증하는 단위 테스트(#236).
+ * 지우지 못하면 이유(거부 응답, 세션 종료)와 함께 남았을 수 있다고 알리며, 세션이 이미 끝났으면 지우기를 보내지 않고, 취소는 결과로 바꾸지 않고 전파하는지 검증하는 단위 테스트(#236).
  * 취소는 오케스트레이터처럼 진행 보고 콜백이 CancellationException을 던지는 것으로 흉내 낸다.
  */
 class FtpTransferrerCancelledUploadTest {
@@ -53,24 +52,42 @@ class FtpTransferrerCancelledUploadTest {
     }
 
     @Test
-    fun `서버가 지우기를 거부하면 받다 만 파일이 남았을 수 있다고 알린다`() {
+    fun `서버가 지우기를 거부하면 받다 만 파일이 남았을 수 있다고 거부 응답과 함께 알린다`() {
         client.onDeleteFile = { false }
 
         assertThrows(CancellationException::class.java) { runBlocking { uploadCancelledMidway() } }
 
-        assertEquals(listOf("업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (${client.storeRequests.single()})"), notices.failures)
+        assertEquals(
+            listOf("업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (${client.storeRequests.single()}) — DELE 실패: 550 Permission denied"),
+            notices.failures
+        )
         assertTrue(runBlocking { session.isReady() })
     }
 
     @Test
-    fun `완료 응답을 읽지 못해 세션을 끝냈으면 지우지 못하므로 남았을 수 있다고 알린다`() {
+    fun `완료 응답을 읽지 못해 세션을 끝냈으면 지우기를 보내지 않고 남았을 수 있다고 알린다`() {
         client.onCompletePending = { throw SocketTimeoutException("Read timed out") }
-        // 닫힌 클라이언트에 보낸 명령은 commons-net처럼 IOException으로 실패한다
-        client.onDeleteFile = { throw IOException("Connection is not open") }
 
         assertThrows(CancellationException::class.java) { runBlocking { uploadCancelledMidway() } }
 
-        assertEquals(1, notices.failures.size)
+        assertTrue(client.deleteRequests.isEmpty())
+        assertEquals(
+            listOf("업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (${client.storeRequests.single()}) — 연결이 끊겨 지우지 못했습니다"),
+            notices.failures
+        )
+        assertFalse(runBlocking { session.isReady() })
+    }
+
+    @Test
+    fun `지우기의 응답을 읽지 못하면 세션을 끝내고 남았을 수 있다고 알린다`() {
+        client.onDeleteFile = { throw SocketTimeoutException("Read timed out") }
+
+        assertThrows(CancellationException::class.java) { runBlocking { uploadCancelledMidway() } }
+
+        assertEquals(
+            listOf("업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (${client.storeRequests.single()}) — 연결이 끊겨 지우지 못했습니다"),
+            notices.failures
+        )
         assertFalse(runBlocking { session.isReady() })
     }
 

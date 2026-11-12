@@ -61,6 +61,21 @@ class CancelledLocalWriteTest {
     }
 
     @Test
+    fun `압축을 다 쓴 직후의 완료 보고에서 취소돼도 압축 파일을 지운다`() {
+        val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()))
+
+        assertThrows(CancellationException::class.java) {
+            runBlocking {
+                compression.compress(linkedSetOf(a.path, b.path), out.path, "archive", ArchiveFormat.ZIP) {
+                    if (it.progress == 100) throw CancellationException("취소")
+                }
+            }
+        }
+
+        assertFalse(File(out, "archive.zip").exists())
+    }
+
+    @Test
     fun `ZIP 해제를 취소하면 쓰던 항목만 지우고 이미 푼 항목은 남긴다`() {
         val zip = File(dir, "src.zip")
         ZipOutputStream(zip.outputStream()).use { zos ->

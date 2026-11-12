@@ -27,6 +27,22 @@ internal sealed interface DataCommandOutcome {
     data class DataFailed(val cause: IOException) : DataCommandOutcome
 }
 
+/** 취소로 멈춘 명령 뒤의 정리 명령([DataCommandRunner.cleanUpAfterCancel])의 결과. */
+internal sealed interface CancelCleanup {
+
+    /** 서버가 정리 명령을 받아들였다. */
+    data object Done : CancelCleanup
+
+    /**
+     * 서버가 정리 명령을 거부했다. 세션은 그대로다.
+     * @param reply 서버가 보낸 거부 응답 문자열
+     */
+    data class Refused(val reply: String) : CancelCleanup
+
+    /** 세션이 이미 끝났거나 정리 명령의 응답을 읽지 못해 세션을 끝내, 정리 명령이 처리되지 않았다. */
+    data object SessionEnded : CancelCleanup
+}
+
 /**
  * 데이터 연결을 쓰는 명령(RETR·STOR·LIST·MLSD)을 한 규칙으로 실행한다. 데이터 연결의 실패는 그 명령만의 실패이고, 완료 응답을 읽지 못한 실패는 세션 종료다.
  * 데이터 연결은 제어 채널과 따로 오가므로, 그 실패 뒤에도 완료 응답까지 읽으면 응답 순서가 유지된다.
@@ -88,15 +104,19 @@ internal class DataCommandRunner @Inject constructor(private val session: FtpDat
 
     /**
      * 취소로 멈춘 명령([run]이 취소를 전파함)이 서버에 남긴 것을 [cleanup] 명령 하나로 정리한다. 같은 잠금 안에서 [run] 바로 뒤에 호출한다.
-     * 취소 정리에서 세션을 끝냈으면 소켓이 닫혀 있어 명령을 보내지 못하고 실패한다. 정리 명령의 응답을 읽지 못하면 응답 순서를 알 수 없으므로 세션을 끝낸다.
+     * 취소는 [FtpSession.withConnectedClient]를 그대로 지나가므로, 취소 뒤의 정리 명령이 실패한 의미는 그 경계 대신 여기서 같은 규칙으로 정한다.
+     * [run]의 취소 정리에서 세션을 끝냈으면 명령을 보내지 않는다. 정리 명령의 응답을 읽지 못하면 응답 순서를 알 수 없으므로 세션을 끝낸다.
+     * @param client 잠금을 확보한 FTP 클라이언트
      * @param cleanup 정리 명령을 보내고 서버가 받아들였는지(2xx)를 돌려주는 동작
-     * @return 서버가 정리 명령을 받아들였으면 true
+     * @return 정리 명령의 결과
      */
-    suspend fun cleanUpAfterCancel(cleanup: () -> Boolean): Boolean =
-        try {
-            cleanup()
+    suspend fun cleanUpAfterCancel(client: FtpCommandClient, cleanup: () -> Boolean): CancelCleanup {
+        if (!session.isReady()) return CancelCleanup.SessionEnded
+        return try {
+            if (cleanup()) CancelCleanup.Done else CancelCleanup.Refused(client.getReplyString())
         } catch (_: IOException) {
             session.endUnusableSession()
-            false
+            CancelCleanup.SessionEnded
         }
+    }
 }

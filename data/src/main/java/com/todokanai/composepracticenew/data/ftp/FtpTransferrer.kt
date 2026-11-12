@@ -256,13 +256,18 @@ class FtpTransferrer @Inject internal constructor(
 
     /**
      * 취소로 멈춘 업로드가 서버에 남겼을 수 있는 받다 만 파일을 DELE로 지운다. 중단된 STOR의 파일을 남길지는 서버마다 다르므로(RFC 959에 정함 없음) 지우기를 시도한다.
-     * 지우지 못하면(거부, 세션 종료) 남았을 수 있다고 알린다.
+     * 지우지 못하면 남았을 수 있다고 이유(서버의 거부 응답, 세션 종료)와 함께 알린다.
+     * 취소는 결과로 돌려줄 수 없으므로 작업 메시지 알림함에 직접 넣는다.
      * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 취소된 업로드의 원격 파일 FTP 경로
      */
     private suspend fun discardCancelledUpload(client: FtpCommandClient, ftpPath: String) {
-        if (dataCommands.cleanUpAfterCancel { client.deleteFile(ftpPath) }) return
-        notices.report(OperationNoticeKind.FAILURE, "업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 ($ftpPath)")
+        val reason = when (val cleanup = dataCommands.cleanUpAfterCancel(client) { client.deleteFile(ftpPath) }) {
+            CancelCleanup.Done -> return
+            is CancelCleanup.Refused -> FtpReplyRules.refusal(FtpCommand.DELE, cleanup.reply).message
+            CancelCleanup.SessionEnded -> "연결이 끊겨 지우지 못했습니다"
+        }
+        notices.report(OperationNoticeKind.FAILURE, "업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 ($ftpPath) — $reason")
     }
 
     /**
