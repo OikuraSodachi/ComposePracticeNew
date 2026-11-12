@@ -137,6 +137,7 @@ class LocalArchiveCompression @Inject constructor(
         return File(desired.parentFile, FileNameParts.numbered(desired.name.substring(0, baseNameEnd), desired.name.substring(baseNameEnd), index))
     }
 
+    /** 압축 결과 메시지에 쓰는 상수를 둔다. */
     private companion object {
         /** 아카이브에 넣지 못한 링크를 알리는 실패 메시지 머리말. */
         const val SKIPPED_LINK_PREFIX = "압축에 넣지 못함"

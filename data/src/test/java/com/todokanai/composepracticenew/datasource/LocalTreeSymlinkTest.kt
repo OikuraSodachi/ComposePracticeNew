@@ -140,6 +140,43 @@ class LocalTreeSymlinkTest {
     }
 
     @Test
+    fun `링크를 같은 이름의 파일 위에 덮어쓰는 이름 변경은 파일을 바꾸지 않고 실패한다`() = runBlocking {
+        val file = File(dir, "c.txt").apply { writeText("C") }
+        val link = File(dir, "link")
+        assumeSymlink(link, File(outside, "keep.txt").absoluteFile)
+
+        val result = LocalEntryMutator().rename(link.path, file.name, overwrite = true)
+
+        assertEquals(IoResult.ItemFailed("이름 변경 실패: $UNSUPPORTED_LINK_REASON (c.txt)"), result)
+        assertEquals("C", file.readText())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+    }
+
+    @Test
+    fun `파일을 같은 이름의 링크 위에 덮어쓰는 이름 변경은 링크와 그 대상을 바꾸지 않고 실패한다`() = runBlocking {
+        val file = File(dir, "c.txt").apply { writeText("C") }
+        val link = File(dir, "link")
+        assumeSymlink(link, File(outside, "keep.txt").absoluteFile)
+
+        val result = LocalEntryMutator().rename(file.path, link.name, overwrite = true)
+
+        assertEquals(IoResult.ItemFailed("이름 변경 실패: $UNSUPPORTED_LINK_REASON (link)"), result)
+        assertEquals("C", file.readText())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+        assertEquals("K", File(outside, "keep.txt").readText())
+    }
+
+    @Test
+    fun `지우지 못한 끊긴 링크는 없는 항목으로 보지 않고 실패로 알린다`() = runBlocking {
+        val link = File(dir, "dangling")
+        assumeSymlink(link, File(dir, "missing"))
+
+        val result = LocalEntryMutator { false }.delete(link.path) {}
+
+        assertEquals(IoResult.PartiallyFailed("삭제하지 못함", listOf(FailedItem("", null))), result)
+    }
+
+    @Test
     fun `압축은 링크를 넣지 않고 나머지로 만든 뒤 넣지 못한 링크를 알린다`() = runBlocking {
         assumeSymlink(File(source, "loop"), source)
         val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()))

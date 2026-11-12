@@ -95,7 +95,7 @@ UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedSt
 - 포그라운드 서비스(연결 유지·파일 작업 보호)는 `SelfStoppingForegroundService`를 따른다: 시작은 밖(연결 유지는 MyApplication, 파일 작업 보호는 `FileOperationProtection`)에서 받고, 멈춤은 `startForeground` 뒤에 스스로 한다(규칙은 `ConnectionServicePolicy` / `FileOperationServicePolicy`). 두 서비스는 dataSync라 Android 15의 실행 시간 한도(백그라운드 24시간 중 6시간, 같은 유형끼리 공유)를 받으며, `onTimeout`에서 바로 멈춘다. 연결 유지 서비스는 그때 연결된 세션을 끊김(`RemoteConnectionRepository.drop` → `Lost`)으로 종료하고, 끝낸 연결이 있을 때만 시스템 알림으로 알린다. 멈춤은 `onTimeout`이 받은 startId로 한다(아직 전달되지 않은 시작 요청을 무시하지 않도록) — 보호 없이 연결을 남기지 않도록. 이미 시작한 로컬 파일 작업은 보호 없이 계속되고, 끝나지 않은 원격 작업은 그 연결 종료로 남은 명령이 끊김 실패(`ConnectionLost`)로 끝난다(두 서비스가 한도를 함께 쓰므로). 한도 이후 남은 작업의 보호는 앱이 보장하지 않는다(지원 범위 밖). 정상적으로 마무리되지 않은 작업이 남긴 파일의 결함도 보장하지 않는다.
 - 진행 표시가 있는 파일 작업은 보호를 받은 뒤에만 시작한다: `FileOperationOrchestrator.launch`가 블록 실행 전에 domain `OperationProtection.acquire`를 기다리고, 거부되면 블록을 실행하지 않고 실패로 끝낸다(순간 작업은 요청하지 않음). 구현 `FileOperationProtection`은 작업마다 시작 요청(요청 id를 Intent extra로)을 보내고, 서비스가 그 요청으로 포그라운드가 됐는지 거부됐는지를 `report`로 받는다 — 실행 중인 서비스를 믿지 않는 것은 그 서비스가 이전 요청 기준으로 멈추는 중일 수 있어서다.
 - 시스템의 시작 거부(`ForegroundServiceStartNotAllowedException` — `startForegroundService`의 백그라운드 시작 제한, `startForeground`의 같은 제한·한도 소진)는 `isForegroundStartRefusal` 하나로 판별하고 그 밖의 예외는 잡지 않는다. 서비스 안의 거부는 `SelfStoppingForegroundService`가 그 startId로 멈추고(거부된 `startForeground`도 `startForegroundService` 계약을 채운다) `onStartRefused`로 넘긴다. 연결 유지 쪽은 한도·거부 모두 `ConnectionProtectionLoss`(끊김 종료·알림) 하나를 따르며, 서비스와 `FtpServiceController`가 함께 쓴다.
-- 로컬 작업의 트리 순회는 `localTreeTopDown`/`localTreeBottomUp`(`LocalTree.kt`)로만 하고, 항목 종류는 `entryKind`(링크를 따라가지 않음)로 정한다 — `File.walk*`·`File.isDirectory`는 링크를 따라가 선택하지 않은 데이터를 지우거나 옮기고 순환 링크에서 끝나지 않는다(#320). 심볼릭 링크는 지원 범위 밖이다: 삭제는 링크 자신만 지우고, 항목을 하나씩 다루는 작업(복사·이동·이름 변경의 합치기·압축·업로드)은 링크(선택한 항목 자신 포함)를 건너뛰어 실패로 알린다(`UNSUPPORTED_LINK_REASON`). 폴더를 통째로 rename하는 이동·이름 변경은 안쪽을 훑지 않으므로 안쪽 링크도 링크 그대로 함께 옮겨진다. 읽기 전용인 검색·크기 측정은 `walkFileTree`로 훑고 루트 링크만 푼다(`walkRootOf`).
+- 로컬 작업의 트리 순회는 `localTreeTopDown`/`localTreeBottomUp`(`LocalTree.kt`)로만 하고, 항목 종류는 `entryKind`(링크를 따라가지 않음)로 정한다 — `File.walk*`·`File.isDirectory`는 링크를 따라가 선택하지 않은 데이터를 지우거나 옮기고 순환 링크에서 끝나지 않는다(#320). 심볼릭 링크는 지원 범위 밖이다: 삭제는 링크 자신만 지우고, 항목을 하나씩 다루는 작업(복사·이동·압축·업로드)은 링크(선택한 항목 자신 포함)를 건너뛰어 실패로 알린다(`UNSUPPORTED_LINK_REASON`). 이름 변경은 링크를 건너뛰지 않고 바꾸기 전에 실패한다 — 원본·대상이 링크이거나 합칠 폴더 안(겹치는 자리의 대상 포함)에 링크가 있으면 아무것도 옮기지 않는다(합치기에서 링크만 남기면 원래 폴더를 지울 수 없어 이름 변경이 절반만 된다). 폴더를 통째로 rename하는 이동·이름 변경은 안쪽을 훑지 않으므로 안쪽 링크도 링크 그대로 함께 옮겨진다. 읽기 전용인 검색·크기 측정은 `walkFileTree`로 훑고 루트 링크만 푼다(`walkRootOf`).
 - 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다.
 
 ### Data Layer
@@ -114,7 +114,7 @@ static `appContext`는 제거됨 — 모든 Context 의존은 Hilt `@Application
 
 ### Independent Utility Functions (`tools/independent/`)
 
-Top-level `_td`-suffixed functions are pure/standalone helpers: 로컬 파일 도우미(`dirTree_td`, `getTotalSize_td` 등)는 data `FileActionModel.kt`, 크기 표시 형식(`readableFileSize_td`)은 app `FileSizeFormat.kt`에 있다. The `_td` suffix marks them as authored by Todokanai and free of framework dependencies.
+Top-level `_td`-suffixed functions are pure/standalone helpers: 로컬 파일 도우미(`dirTree_td`, `getPhysicalStorage_td` 등)는 data `FileActionModel.kt`, 크기 표시 형식(`readableFileSize_td`)은 app `FileSizeFormat.kt`에 있다. The `_td` suffix marks them as authored by Todokanai and free of framework dependencies.
 
 ## Domain Module Design Principles
 
