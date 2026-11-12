@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -208,7 +209,7 @@ class FtpCommandExecutorTreeListingTest {
         try {
             val target = File(dir, "r")
 
-            val result = runBlocking { FtpTransferrer(session, commands, DataCommandRunner(session)).download("ftp://host/r", target.path, isDirectory = true) }
+            val result = runBlocking { FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices()).download("ftp://host/r", target.path, isDirectory = true) }
 
             assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
             assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())

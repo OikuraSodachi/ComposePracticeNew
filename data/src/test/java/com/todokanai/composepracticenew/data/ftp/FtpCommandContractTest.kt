@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.net.ftp.FTPConnectionClosedException
@@ -33,7 +34,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /** 검증 대상 파일 명령 실행기. */
     private val executor = FtpCommandExecutor(session, DataCommandRunner(session))
     /** 검증 대상 전송기. */
-    private val transferrer = FtpTransferrer(session, executor, DataCommandRunner(session))
+    private val transferrer = FtpTransferrer(session, executor, DataCommandRunner(session), OperationNotices())
 
     @After
     fun tearDown() {

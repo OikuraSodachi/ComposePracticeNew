@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.ProgressState
  * 원격 스토리지와 로컬 파일시스템 사이의 파일 전송 계약.
  * 목적지는 디렉터리와 이름으로 받고, 그 안의 경로는 구현이 각 저장소의 경로 규칙으로 만든다.
  * 실패는 결과로 알린다. 연결이 없거나 전송 중 끊기면 [IoResult.ConnectionLost]를 돌려준다.
+ * 작업이 취소되면 onProgress가 CancellationException을 던진다. 구현은 그것을 잡아 결과로 바꾸지 않고, 쓰다 만 파일을 지운 뒤 전파한다(이미 다 보낸 파일은 남긴다).
  */
 interface RemoteFileTransferRepository {
 

@@ -37,6 +37,14 @@ class ArchiveEntryWriter(private val root: ExtractionRoot) {
     }
 
     /**
+     * 취소로 멈춘 파일 항목을 지운다 — 쓰다 만 파일이 온전한 파일처럼 남지 않도록. 그 항목의 출력 스트림을 닫은 뒤에 호출한다.
+     * @param entryName [openFile]로 연 항목의 '/' 구분 경로
+     */
+    fun discardFile(entryName: String) {
+        root.targetOf(entryName)?.delete()
+    }
+
+    /**
      * [entryName]을 풀 위치를 정하고, 풀지 않는 항목이면 건너뜀으로 센다.
      * @param entryName 아카이브 안의 '/' 구분 항목 경로
      * @return 풀 위치. 건너뛴 항목이면 null

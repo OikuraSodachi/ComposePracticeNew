@@ -85,4 +85,18 @@ internal class DataCommandRunner @Inject constructor(private val session: FtpDat
         }
         return if (dataFailure != null) DataCommandOutcome.DataFailed(dataFailure) else DataCommandOutcome.Finished(acknowledged)
     }
+
+    /**
+     * 취소로 멈춘 명령([run]이 취소를 전파함)이 서버에 남긴 것을 [cleanup] 명령 하나로 정리한다. 같은 잠금 안에서 [run] 바로 뒤에 호출한다.
+     * 취소 정리에서 세션을 끝냈으면 소켓이 닫혀 있어 명령을 보내지 못하고 실패한다. 정리 명령의 응답을 읽지 못하면 응답 순서를 알 수 없으므로 세션을 끝낸다.
+     * @param cleanup 정리 명령을 보내고 서버가 받아들였는지(2xx)를 돌려주는 동작
+     * @return 서버가 정리 명령을 받아들였으면 true
+     */
+    suspend fun cleanUpAfterCancel(cleanup: () -> Boolean): Boolean =
+        try {
+            cleanup()
+        } catch (_: IOException) {
+            session.endUnusableSession()
+            false
+        }
 }

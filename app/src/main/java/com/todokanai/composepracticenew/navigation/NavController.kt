@@ -147,8 +147,7 @@ fun AppNavHost(
         shownProgress = mainViewModel.shownProgress,
         openDialogRegistry = openDialogRegistry,
         onDismiss = mainViewModel::dismissProgressDialog,
-        // TODO: 작업 취소 연결 예정
-        onCancel = {}
+        onCancel = mainViewModel::cancelOperation
     )
 }
 

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import kotlinx.coroutines.CancellationException
 import java.io.InputStream
 import java.util.zip.CRC32
 import java.util.zip.ZipEntry
@@ -33,7 +34,12 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
                 VerifyingZipEntryInputStream(zf.getInputStream(entry), entry).use { input ->
                     val output = writer.openFile(entry.name) ?: return@forEach
                     tracker.startFile()
-                    output.use { tracker.pump(input, it, entry.name, knownSizeOf(entry)) }
+                    try {
+                        output.use { tracker.pump(input, it, entry.name, knownSizeOf(entry)) }
+                    } catch (e: CancellationException) {
+                        writer.discardFile(entry.name)
+                        throw e
+                    }
                 }
                 tracker.onFileCompleted(entry.name, knownSizeOf(entry))
             }

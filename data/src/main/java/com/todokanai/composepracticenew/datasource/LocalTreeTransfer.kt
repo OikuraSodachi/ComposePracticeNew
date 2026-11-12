@@ -110,7 +110,7 @@ class LocalTreeTransfer internal constructor(
 
     /**
      * [root] 트리를 [dest]로 재귀 복사하며 [tracker]로 진행률을 보고한다. [entries]가 주어지면 재탐색 없이 그 목록을 사용한다.
-     * 입출력 실패는 IOException으로 전파해 호출부의 [localIo]가 결과로 바꾼다.
+     * 입출력 실패는 IOException으로 전파해 호출부의 [localIo]가 결과로 바꾼다. 취소되면 쓰던 파일만 지우고, 이미 다 쓴 파일은 남긴다.
      */
     private fun copyTree(root: File, dest: File, tracker: ByteProgressTracker, entries: List<File>? = null) {
         val walk = entries?.asSequence() ?: root.walkTopDown().onEnter { it != dest }
@@ -122,8 +122,10 @@ class LocalTreeTransfer internal constructor(
                 target.parentFile?.mkdirs()
                 tracker.startFile()
                 src.inputStream().use { input ->
-                    target.outputStream().use { output ->
-                        tracker.pump(input, output, src.name, src.length())
+                    deletingOnCancel(target) {
+                        target.outputStream().use { output ->
+                            tracker.pump(input, output, src.name, src.length())
+                        }
                     }
                 }
                 tracker.onFileCompleted(src.name, src.length())

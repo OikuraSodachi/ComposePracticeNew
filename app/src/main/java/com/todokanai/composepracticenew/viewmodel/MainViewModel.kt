@@ -10,6 +10,7 @@ import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.tools.AppExitHandler
+import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
@@ -44,6 +45,7 @@ import javax.inject.Inject
  * @param exitHandler 원격 연결을 종료하고 앱 종료 이벤트를 발행하는 핸들러
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  * @param preferenceFailureUseCase 설정 저장소의 읽기·저장 실패와 손상 초기화를 알려주는 UseCase
+ * @param cancelOperationUseCase 진행 중인 작업을 취소하는 UseCase
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -52,7 +54,8 @@ class MainViewModel @Inject constructor(
     private val operationNoticeUseCase: OperationNoticeUseCase,
     private val exitHandler: AppExitHandler,
     connectionStateUseCase: RemoteConnectionStateUseCase,
-    private val preferenceFailureUseCase: PreferenceFailureUseCase
+    private val preferenceFailureUseCase: PreferenceFailureUseCase,
+    private val cancelOperationUseCase: CancelOperationUseCase
 ) : ViewModel() {
 
     /**
@@ -145,6 +148,14 @@ class MainViewModel @Inject constructor(
      */
     fun dismissProgressDialog(instanceId: Int) {
         dialogSelection.update { it.dismiss(instanceId) }
+    }
+
+    /**
+     * [instanceId] 작업을 취소한다. 다이얼로그는 작업이 멈춰 진행 상태가 지워질 때 함께 사라진다.
+     * @param instanceId 화면이 띄우고 있던 다이얼로그의 작업 인스턴스 ID
+     */
+    fun cancelOperation(instanceId: Int) {
+        cancelOperationUseCase.cancel(instanceId)
     }
 
     /** 연결 서비스를 중단하고 앱 종료 이벤트를 발행한다. */

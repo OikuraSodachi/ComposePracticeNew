@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import kotlinx.coroutines.CancellationException
 import net.sf.sevenzipjbinding.ArchiveFormat
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
@@ -119,10 +120,12 @@ internal class RarExtractCallback(
     override fun setTotal(total: Long) {}
     override fun setCompleted(complete: Long) {}
 
-    /** 추출이 중간에 멈춰 닫지 못한 출력 스트림을 닫는다. */
+    /** 추출이 중간에 멈춰 닫지 못한 출력 스트림을 닫는다. 취소로 멈췄으면 그 쓰다 만 파일을 지운다. */
     override fun close() {
-        currentOutputStream?.close()
+        val output = currentOutputStream ?: return
         currentOutputStream = null
+        output.close()
+        if (failure is CancellationException) writer.discardFile(currentPath)
     }
 
     /**

@@ -23,6 +23,7 @@ import com.todokanai.composepracticenew.repository.StorageNameRules
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
@@ -131,6 +132,10 @@ object UseCaseModule {
         protection: OperationProtection,
         @ApplicationScope appScope: CoroutineScope
     ) = FileOperationOrchestrator(notifier, progressRepo, notices, protection, appScope)
+
+    @Provides @Singleton
+    fun provideCancelOperationUseCase(orchestrator: FileOperationOrchestrator) =
+        CancelOperationUseCase(orchestrator)
 
     /** 이름 규칙은 로컬 화면이 다루는 저장소의 제약으로 판정한다. */
     @Provides @Singleton

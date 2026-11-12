@@ -68,7 +68,8 @@ class LocalArchiveCompression @Inject constructor(
         tracker.reportStart()
         // 압축 대상 목록을 만든 뒤에 새 파일을 확보 — 기존 파일(선택 항목 자신 포함)은 절대 열지 않으므로 잘라내기·자기 참조가 생기지 않는다
         val output = createUniqueFile(desired)
-        compressor.write(entries, output, tracker)
+        // 취소로 멈춘 아카이브는 일부 항목만 담긴 깨진 파일이므로 통째로 지운다 — 이 호출이 새로 만든 파일이라 기존 파일을 건드리지 않는다
+        deletingOnCancel(output) { compressor.write(entries, output, tracker) }
         tracker.reportComplete()
         return IoResult.Done
     }
