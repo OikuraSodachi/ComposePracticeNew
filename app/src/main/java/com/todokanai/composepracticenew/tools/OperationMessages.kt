@@ -18,10 +18,8 @@ interface OperationMessages {
     val notiDownloadComplete: String
     /** 업로드 완료 메시지. */
     val notiUploadComplete: String
-    /** 대상 폴더의 목록을 확인하지 못해 이름 충돌을 판정할 수 없어 작업을 실행하지 않았다는 메시지. */
+    /** 대상 폴더의 목록을 확인하지 못해 이름 충돌을 판정할 수 없어 작업(업로드·이름 변경)을 실행하지 않았다는 메시지. */
     val destinationUnverified: String
-    /** 다른 작업이 이름 충돌 확인을 기다리고 있어 작업을 실행하지 않았다는 메시지. */
-    val conflictAwaiting: String
     /** 새 폴더 다이얼로그에 미리 채울 기본 폴더 이름. */
     val defaultNewFolderName: String
     /** 시스템이 프로세스 보호를 거부해 작업을 시작하지 않았다는 메시지. */
@@ -42,7 +40,6 @@ class CompletionMessageProvider @Inject constructor(
     override val notiDownloadComplete: String get() = context.getString(R.string.noti_download_complete)
     override val notiUploadComplete: String get() = context.getString(R.string.noti_upload_complete)
     override val destinationUnverified: String get() = context.getString(R.string.error_destination_unverified)
-    override val conflictAwaiting: String get() = context.getString(R.string.error_conflict_awaiting)
     override val defaultNewFolderName: String get() = context.getString(R.string.default_new_folder_name)
     override val protectionRefused: String get() = context.getString(R.string.error_protection_refused)
 }

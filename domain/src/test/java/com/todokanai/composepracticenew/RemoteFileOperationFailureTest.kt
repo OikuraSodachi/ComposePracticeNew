@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
@@ -35,7 +37,7 @@ class RemoteFileOperationFailureTest {
     private val notices = RecordingOperationNotices()
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope)
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase(NoStorageNameRules))
 
     @After
@@ -45,7 +47,7 @@ class RemoteFileOperationFailureTest {
     fun `다운로드가 실패하면 완료 대신 오류를 알린다`() {
         transferRepo.failure = IoResult.ItemFailed("retrieveFileStream 실패: 550 No such file")
 
-        remote.download(item("ftp://h/r/a.txt", isDirectory = false), "/local", completionMessage = "done") {}
+        remote.download(listOf(item("ftp://h/r/a.txt", isDirectory = false)), "/local", completionMessage = "done") {}
 
         assertEquals(listOf("retrieveFileStream 실패: 550 No such file"), notices.failures)
         assertTrue(notices.completions.isEmpty())
@@ -63,10 +65,20 @@ class RemoteFileOperationFailureTest {
 
     @Test
     fun `전송이 성공하면 완료를 알린다`() {
-        remote.download(item("ftp://h/r/a.txt", isDirectory = false), "/local", completionMessage = "done") {}
+        remote.download(listOf(item("ftp://h/r/a.txt", isDirectory = false)), "/local", completionMessage = "done") {}
 
         assertEquals(listOf("done"), notices.completions)
         assertTrue(notices.failures.isEmpty())
+    }
+
+    @Test
+    fun `한 번에 고른 여러 항목은 작업 하나로 저장소에 함께 맡긴다`() {
+        val items = listOf(item("ftp://h/r/a.txt", isDirectory = false), item("ftp://h/r/d", isDirectory = true))
+
+        remote.download(items, "/local", completionMessage = "done") {}
+
+        assertEquals(listOf(items), transferRepo.downloads)
+        assertEquals(listOf("done"), notices.completions)
     }
 
     @Test
@@ -132,10 +144,13 @@ class RemoteFileOperationFailureTest {
         override fun removeProgress(instanceId: Int) {}
     }
 
-    /** [failure]가 있으면 전송 시 그 실패를 돌려주는 테스트용 원격 전송 저장소. */
+    /** [failure]가 있으면 전송 시 그 실패를 돌려주고, 다운로드 요청을 [downloads]에 기록하는 테스트용 원격 전송 저장소. */
     private class FakeTransferRepository : RemoteFileTransferRepository {
         var failure: IoResult.Failure? = null
-        override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        /** 다운로드 요청마다 받은 항목 목록(요청 순서). */
+        val downloads = mutableListOf<List<FileHolderItem>>()
+        override suspend fun download(items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+            downloads += items
             return failure ?: IoResult.Done
         }
         override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
@@ -168,5 +183,6 @@ class RemoteFileOperationFailureTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(message: String, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
 }

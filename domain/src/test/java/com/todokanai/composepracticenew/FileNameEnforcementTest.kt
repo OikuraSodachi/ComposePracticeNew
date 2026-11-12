@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
@@ -38,7 +40,7 @@ class FileNameEnforcementTest {
     private val notices = RecordingOperationNotices()
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope)
     /** 저장소의 제약을 물은 이름과 위치를 기록하는 이름 규칙. */
     private val storageNames = RecordingStorageNameRules()
     private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(storageNames), LocalPathRules())
@@ -118,12 +120,11 @@ class FileNameEnforcementTest {
         val calls = mutableListOf<String>()
         override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
         override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
-        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
+        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
-        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
-        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip" }
-        override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout) = IoResult.Success(emptySet<String>())
+        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
+        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip" }
         override fun canExtract(path: String) = false
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
     }
@@ -139,7 +140,7 @@ class FileNameEnforcementTest {
 
     /** 전송을 수행하지 않는 테스트용 원격 전송 저장소. 이 테스트의 대상 작업은 전송을 쓰지 않는다. */
     private object NoOpTransferRepository : RemoteFileTransferRepository {
-        override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun download(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
     }
 
@@ -148,5 +149,6 @@ class FileNameEnforcementTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(message: String, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
 }

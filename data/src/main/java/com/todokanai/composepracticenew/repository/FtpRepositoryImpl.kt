@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.data.ftp.DownloadSource
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionStatus
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
@@ -8,6 +9,7 @@ import com.todokanai.composepracticenew.data.ftp.childFtpUri
 import com.todokanai.composepracticenew.data.ftp.ftpUriOf
 import com.todokanai.composepracticenew.data.ftp.siblingFtpUri
 import com.todokanai.composepracticenew.model.ConnectResult
+import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
@@ -47,8 +49,8 @@ class FtpRepositoryImpl @Inject internal constructor(
     override fun rootPathOf(item: RemoteStorageItem): String =
         ftpUriOf(item.address)
 
-    override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit) =
-        transferrer.download(remotePath, File(localDirPath, name).path, isDirectory, onProgress)
+    override suspend fun download(items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
+        transferrer.download(items.map { DownloadSource(it.path, File(localDirPath, it.name).path, it.isDirectory) }, resolveConflict, onProgress)
 
     override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit) =
         transferrer.upload(localPath, childFtpUri(remoteDirPath, name), onProgress)

@@ -43,13 +43,8 @@ class ZipUndecodableEntryTest {
     }
 
     @Test
-    fun `UTF-8이 아닌 이름의 ZIP은 풀 이름을 구하지 않고 실패 결과로 돌려준다`() {
-        assertTrue(runBlocking { extraction.extractedNames(cp949Zip().path, dest.path, ExtractLayout.IntoDestination) } is IoResult.ItemFailed)
-    }
-
-    @Test
     fun `UTF-8이 아닌 이름의 ZIP은 풀지 않고 실패 결과로 돌려준다`() {
-        val result = runBlocking { extraction.unzip(setOf(cp949Zip().path), dest.path, ExtractLayout.IntoDestination) {} }
+        val result = runBlocking { extraction.unzip(setOf(cp949Zip().path), dest.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {} }
 
         assertTrue(result !is IoResult.Success)
         assertTrue(dest.list()!!.isEmpty())

@@ -36,7 +36,7 @@ class OperationLauncherTest {
     /** 받은 알림 요청을 기록하는 알림기. */
     private val notifier = RecordingNotifier()
     /** 검증 대상. */
-    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, scope)
+    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope)
 
     @After
     fun tearDown() = scope.cancel()
@@ -169,5 +169,6 @@ class OperationLauncherTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) { calls += "progress $instanceId" }
         override fun completedNotification(message: String, instanceId: Int) { calls += "completed $instanceId" }
         override fun cancelNotification(instanceId: Int) { calls += "cancel $instanceId" }
+        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
 }

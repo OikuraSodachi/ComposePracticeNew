@@ -36,8 +36,14 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 - 목록 상태는 `ListingRequest(path, generation)`에 묶인다. 이동·새로고침·재연결·공유 재시작마다 새 요청이 되며, 같은 경로라도 이전 요청의 `Loaded`는 현재 목록이 아니다. 같은 경로를 다시 조회하는 동안의 직전 목록은 `Loading.stale`(표시 전용)이다.
 - 정렬은 조회 결과 위에 적용한다(정렬 변경으로 다시 조회하지 않는다).
-- 이름 충돌 판정은 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedListing()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다.
-- 두 이름이 같은 항목인지는 저장소의 성질이므로 `StorageNameMatching`(구현 `FileSystemNameMatching` → 경로별 `PathAwareFileSystem.nameMatchKeyOf`)의 비교 값으로만 비교한다. 로컬(기기·볼륨마다 비교 방식이 다름)과 FTP(서버 규칙을 물을 표준 명령이 없음)는 대소문자·Unicode 정규형만 다른 이름을 같은 항목으로 묶는다 — 다른 이름으로 잘못 보면 확인 없이 덮어쓰므로. 함께 보내는 항목끼리의 겹침은 아직 판정하지 않는다.
+- 로컬에 쓰는 작업(복사·이동·압축 해제·다운로드)의 이름 충돌은 목록이 아니라 쓰는 시점의 파일 시스템 결과로 판정한다(#316). 덮어쓰지 않는 쓰기(`CREATE_NEW`·`createDirectory`, 같은 파티션 이동은 빈 파일로 자리를 확보한 뒤 rename으로 대신)를 먼저 시도하고, 이미 있다고 알릴 때만(`FileAlreadyExistsException`) 저장소 계약이 받은 `WriteConflictResolver`로 묻는다(`LocalConflictWrites.kt`). 같은 항목인지도 파일 시스템이 정하므로, 함께 보내는 항목끼리의 겹침도 같은 길로 묻는다.
+  - 처리: 파일은 덮어쓰기(지우지 않고 한 번에 비우며 연다), 폴더끼리는 합치기(안쪽 항목을 다시 하나씩 판정), 파일·폴더가 엇갈리면 건너뛰기만. 압축 해제는 폴더를 묻지 않고 합친다. 이동에서 건너뛴 항목은 원래 자리에 남는다.
+  - 묻기: `FileOperationOrchestrator.launchResolvingConflicts`가 질문함(`ConflictQuestionAsker`/`ConflictQuestionRepository`, 구현 `ConflictQuestions`)에 맡기고, 화면 호스트의 `ConflictQuestionSection`이 어느 화면에서든 하나씩 묻는다. 보이는 화면이 없으면 질문은 남아 다시 보일 때 묻고, 그동안 진행 알림은 '확인 필요'가 된다. 묻는 동안 작업은 멈춘다.
+  - 끝내는 길: 질문에서 취소하면 작업 취소, 질문 하나에 6시간 동안 답이 없으면 실패(`UnansweredConflict`)로 끝난다. 이미 처리한 항목은 그대로 둔다.
+  - "나머지에도 적용"은 겹침 종류별로, 그 작업 안에서만 쓴다. 한 번의 확인으로 고른 항목들은 작업 하나로 실행한다(다운로드 포함) — 질문의 취소·진행 다이얼로그의 취소·"나머지에도 적용"이 모두 같은 범위에 걸리도록.
+  - 다운로드는 로컬 자리를 FTP 세션 잠금 밖에서 확보한다(답을 기다리는 동안 세션을 붙잡지 않도록). 받기 시작하지 못하면 이 다운로드가 만든 빈 파일만 지운다.
+- 업로드와 이름 변경(입력 중 미리 보기·제안 이름 포함)의 충돌은 목록으로 판정하며 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedListing()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. ViewModel은 UI 상태로 충돌을 판정하지 않는다. 업로드는 FTP에 "지정한 이름으로, 없을 때만 만들기"가 없어 확인할 때의 목록으로 판정하며, 그 뒤 서버에 생긴 같은 이름의 파일을 덮어쓰는 틈은 지원 범위 밖이다.
+- 목록으로 판정할 때 두 이름이 같은 항목인지는 저장소의 성질이므로 `StorageNameMatching`(구현 `FileSystemNameMatching` → 경로별 `PathAwareFileSystem.nameMatchKeyOf`)의 비교 값으로만 비교한다. 로컬(기기·볼륨마다 비교 방식이 다름)과 FTP(서버 규칙을 물을 표준 명령이 없음)는 대소문자·Unicode 정규형만 다른 이름을 같은 항목으로 묶는다 — 다른 이름으로 잘못 보면 확인 없이 덮어쓰므로. 업로드에서 함께 보내는 항목끼리의 겹침은 아직 판정하지 않는다.
 
 ### Navigation (`navigation/NavController.kt`)
 
@@ -54,7 +60,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 ```
 SelectMode.Default / MultiSelect          — 두 화면 공통 (일반 탐색 / 다중 선택)
-SelectMode.LocalOperation.Copy/Move/Unzip/UnzipHere — 로컬 화면, 목적지 확인 후 실행 (충돌 검사)
+SelectMode.LocalOperation.Copy/Move/Unzip/UnzipHere — 로컬 화면, 목적지 확인 후 실행 (같은 이름은 실행 중에 묻는다)
 SelectMode.Download                       — 로컬 화면, 다운로드 목적지 확인
 SelectMode.Upload                         — 원격 화면, 업로드 목적지 확인
 ```
@@ -66,9 +72,9 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 - `Default` — 선택도 대기 목록도 없다. 취소·뒤로가기·실행 후 모두 여기로 돌아가며 목록은 함께 사라진다.
 
 선택 초기화 규칙(#226): 선택을 대상으로 하는 작업 함수(삭제·압축·복사·이동·압축 해제·이름 변경)는 목록 대신 `SubmittedSelection`만 받고, 이 값은 선택을 꺼내며 같은 갱신에서 기본 모드로 되돌리는 `SelectionStateHolder.submit()`(coordinator의 `submitLocalSelection` / `submitRemoteSelection`)만 만든다 — 선택을 비우지 않고 작업을 부르는 코드는 컴파일되지 않는다. `reset`은 취소·뒤로가기용이다. 비우는 시점은 작업 종류로 정한다:
-- 같은 저장소 작업은 확인을 누를 때 비운다. 충돌·덮어쓰기 확인 창에서 취소해도 선택은 돌아오지 않는다(작업은 확인으로 확정이다).
+- 같은 저장소 작업은 확인을 누를 때 비운다. 실행 중 충돌 질문에서 취소해도 선택은 돌아오지 않는다(작업은 확인으로 확정이다).
 - 이름 변경은 이름 입력 창에서 확인할 때 비운다(창을 취소하면 선택 유지).
-- 전송 진입(업로드·다운로드)은 보내는 화면의 선택을 꺼내 받는 화면의 대기 목록으로 넘긴다. 받는 화면의 대기 목록은 실제로 실행될 때 비운다 — 충돌 확인을 취소하면 다시 확인할 수 있도록.
+- 전송 진입(업로드·다운로드)은 보내는 화면의 선택을 꺼내 받는 화면의 대기 목록으로 넘긴다. 다운로드 대기 목록은 확인할 때 비운다(충돌은 실행 중에 묻는다). 업로드 대기 목록은 실제로 실행될 때 비운다 — 확인할 때의 충돌 확인을 취소하면 다시 확인할 수 있도록.
 
 UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedStateOf`로 모드 변경 시에만 리컴포지션), 행 강조는 `selected`만 본다. 원격 같은 저장소 작업(복사·이동)을 추가할 때는 원격의 `Op`(지금 `Nothing`)에 해당 타입을 넣는다.
 

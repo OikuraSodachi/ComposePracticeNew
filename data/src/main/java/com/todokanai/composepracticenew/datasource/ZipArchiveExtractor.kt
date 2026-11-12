@@ -21,8 +21,6 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
             ArchiveSize(knownBytes = knownSizes.sum(), fileCount = files.size, unknownSizeCount = files.size - knownSizes.size)
         }
 
-    // 폴더 항목도 extract가 만들므로 함께 담는다
-    override fun entryNames(path: String): List<String> = ZipFile(path).use { zf -> entriesOf(zf).map { it.name } }
 
     override fun extract(path: String, writer: ArchiveEntryWriter, tracker: ByteProgressTracker) {
         ZipFile(path).use { zf ->
@@ -32,7 +30,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
                     return@forEach
                 }
                 VerifyingZipEntryInputStream(zf.getInputStream(entry), entry).use { input ->
-                    val output = writer.openFile(entry.name) ?: return@forEach
+                    val output = writer.openFile(entry.name, knownSizeOf(entry)) ?: return@forEach
                     tracker.startFile()
                     try {
                         output.use { tracker.pump(input, it, entry.name, knownSizeOf(entry)) }
@@ -47,7 +45,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     }
 
     /**
-     * 아카이브의 항목을 모두 읽는다. [measure]·[entryNames]·[extract]가 항목 정보를 해석하지 못한 아카이브를 같은 실패로 알리도록 한 곳에 둔다.
+     * 아카이브의 항목을 모두 읽는다. [measure]·[extract]가 항목 정보를 해석하지 못한 아카이브를 같은 실패로 알리도록 한 곳에 둔다.
      * @param zf 연 ZIP 파일
      * @return 아카이브에 담긴 순서의 항목 목록
      * @throws ZipException 항목 이름이나 설명을 해석하지 못했을 때

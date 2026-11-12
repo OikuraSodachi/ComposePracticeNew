@@ -1,7 +1,11 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.WriteConflict
+import com.todokanai.composepracticenew.model.WriteConflictKind
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -31,73 +35,40 @@ class LocalArchiveExtractionLayoutTest {
     }
 
     @Test
-    fun `목적지에 바로 풀면 항목 경로를 정규화한 최상위 이름을 돌려주고 루트 밖 항목은 뺀다`() {
-        val zip = zipOf("a.zip", "readme.txt", "docs/", "docs/a.txt", "./b.txt", "../evil.txt")
-
-        assertEquals(IoResult.Success(setOf("readme.txt", "docs", "b.txt")), names(zip, ExtractLayout.IntoDestination))
-    }
-
-    @Test
-    fun `아카이브 폴더에 풀면 확장자를 뗀 아카이브 이름 하나를 돌려준다`() {
-        assertEquals(IoResult.Success(setOf("a")), names(zipOf("a.zip", "readme.txt"), ExtractLayout.IntoArchiveFolder))
-    }
-
-    @Test
-    fun `숨김 표시 점으로 시작하는 아카이브는 이름 전체를 폴더 이름으로 써 목적지에 바로 풀리지 않는다`() {
-        val zip = zipOf(".zip", "readme.txt")
-
-        assertEquals(IoResult.Success(setOf(".zip")), names(zip, ExtractLayout.IntoArchiveFolder))
-    }
-
-    @Test
-    fun `목적지에 바로 풀어 생긴 이름은 미리 구한 이름과 같다`() {
-        val zip = zipOf("a.zip", "readme.txt", "docs/a.txt", "./b.txt", "empty/")
-        val expected = names(zip, ExtractLayout.IntoDestination)
-
-        runBlocking { extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoDestination) {} }
-
-        assertEquals(expected, IoResult.Success(dest.list()!!.toSet()))
-    }
-
-    @Test
-    fun `아카이브 폴더에 풀어 생긴 이름은 미리 구한 이름과 같다`() {
-        val zip = zipOf("a.zip", "readme.txt")
-        val expected = names(zip, ExtractLayout.IntoArchiveFolder)
-
-        runBlocking { extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder) {} }
-
-        assertEquals(expected, IoResult.Success(dest.list()!!.toSet()))
-    }
-
-    @Test
-    fun `지원하지 않는 형식이면 이름을 구하지 않고 실패한다`() {
-        val other = File(dir, "a.7z").apply { writeText("x") }
-
-        assertTrue(names(other, ExtractLayout.IntoDestination) is IoResult.ItemFailed)
-    }
-
-    @Test
-    fun `폴더 항목 자리에 같은 이름의 파일이 있어 폴더를 만들지 못하면 실패로 끝난다`() {
-        val zip = zipOf("a.zip", "empty/")
+    fun `폴더 항목 자리에 같은 이름의 파일이 있으면 종류가 엇갈린 겹침으로 묻고 건너뛰면 그 파일을 그대로 둔다`() {
+        val zip = zipOf("a.zip", "empty/", "empty/inner.txt")
         File(dest, "empty").writeText("file")
+        val asked = mutableListOf<WriteConflict>()
 
-        val result = runBlocking { extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoDestination) {} }
+        val result = runBlocking {
+            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoDestination, skipping(asked)) {}
+        }
 
-        assertTrue((result as IoResult.ItemFailed).message!!.endsWith("같은 이름의 항목이 이미 있음"))
+        assertEquals(IoResult.Done, result)
+        assertEquals(listOf(WriteConflictKind.TYPE_MISMATCH), asked.map { it.kind })
+        assertEquals("file", File(dest, "empty").readText())
     }
 
     @Test
-    fun `아카이브 폴더 자리에 같은 이름의 파일이 있어 폴더를 만들지 못하면 실패로 끝난다`() {
+    fun `아카이브 폴더 자리에 같은 이름의 파일이 있으면 묻고 건너뛰면 그 아카이브를 풀지 않는다`() {
         val zip = zipOf("a.zip", "empty/")
         File(dest, "a").writeText("file")
+        val asked = mutableListOf<WriteConflict>()
 
-        val result = runBlocking { extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder) {} }
+        val result = runBlocking {
+            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(asked)) {}
+        }
 
-        assertTrue(result is IoResult.ItemFailed)
+        assertEquals(IoResult.Done, result)
+        assertEquals(listOf(WriteConflict("a", dest.canonicalPath, WriteConflictKind.TYPE_MISMATCH)), asked.map { it.copy(folderPath = File(it.folderPath).canonicalPath) })
+        assertEquals("file", File(dest, "a").readText())
     }
 
-    /** [zip]을 [dest]에 [layout]으로 풀 때 생길 이름을 구한다. */
-    private fun names(zip: File, layout: ExtractLayout): IoResult<Set<String>> = runBlocking { extraction.extractedNames(zip.path, dest.path, layout) }
+    /** 받은 겹침을 [asked]에 기록하고 건너뛰는 resolver. */
+    private fun skipping(asked: MutableList<WriteConflict>) = WriteConflictResolver { conflict ->
+        asked += conflict
+        ConflictChoice.SKIP
+    }
 
     /** [entryNames]를 담은(폴더 항목은 `/`로 끝남) [name] ZIP 파일을 목적지 밖에 만든다. */
     private fun zipOf(name: String, vararg entryNames: String): File =

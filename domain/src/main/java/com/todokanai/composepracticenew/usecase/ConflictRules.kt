@@ -24,24 +24,6 @@ internal object ConflictRules {
     }
 
     /**
-     * 압축 해제가 목적지 바로 아래에 만들 이름 중 하나라도 목적지에 이미 있는 아카이브 항목을 반환한다.
-     * @param items 압축 해제 대상 아카이브 항목
-     * @param destinationNames 목적지 디렉터리의 기존 항목 이름
-     * @param extractedNamesOf 항목을 압축 해제할 때 목적지 바로 아래에 생기는 이름 집합을 꺼내는 함수(배치 방식에 따라 구현이 정한다)
-     * @param matchKeyOf 이름의 비교 값을 구하는 함수(목적지 저장소의 규칙)
-     * @return [items] 중 충돌하는 항목(원래 순서 유지)
-     */
-    fun <T> unzipConflicts(
-        items: List<T>,
-        destinationNames: List<String>,
-        extractedNamesOf: (T) -> Set<String>,
-        matchKeyOf: (String) -> String,
-    ): List<T> {
-        val destinationKeys = destinationNames.mapTo(HashSet(), matchKeyOf)
-        return items.filter { item -> extractedNamesOf(item).any { matchKeyOf(it) in destinationKeys } }
-    }
-
-    /**
      * [targetPath] 항목의 이름을 [newName]으로 바꿀 때 같은 폴더의 기존 항목과 어떻게 겹치는지 판정한다.
      * 이름을 바꿀 항목 자신은 비교에서 제외하므로, 대소문자·정규형만 바꾸는 이름 변경은 충돌이 아니다.
      * 이름이 정확히 같은 항목은 어느 저장소에서든 같은 항목이므로 그 종류로 정한다. 비교 값만 같은 항목은 같은 항목일 수도 있을 뿐이므로,

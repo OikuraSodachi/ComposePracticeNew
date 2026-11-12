@@ -46,7 +46,7 @@ class TransferSelectionTransitionTest {
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
         val notices = RecordingOperationNotices()
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), notices, GrantedProtection, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), notices, GrantedProtection, UnexpectedConflictQuestions, operationScope)
         viewModel = FileTransferCoordinatorViewModel(
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             FakeNavigator().let { FileNavigatorUseCase(it, it) },

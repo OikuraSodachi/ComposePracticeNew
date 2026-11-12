@@ -1,10 +1,12 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileLaunchResult
+import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
@@ -13,9 +15,11 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SortMode
+import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
+import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
@@ -26,6 +30,7 @@ import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.tools.OperationMessages
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import kotlinx.coroutines.CompletableDeferred
@@ -67,8 +72,8 @@ internal class RecordingProgressRepository : ProgressRepository {
 /** 요청된 다운로드·업로드를 기록하는 테스트용 원격 전송 저장소. */
 internal class RecordingTransferRepository : RemoteFileTransferRepository {
     val calls = mutableListOf<String>()
-    override suspend fun download(remotePath: String, localDirPath: String, name: String, isDirectory: Boolean, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
-        calls += "download $remotePath"
+    override suspend fun download(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        items.forEach { calls += "download ${it.path}" }
         return IoResult.Done
     }
     override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
@@ -92,23 +97,14 @@ internal class RecordingFileActionRepository : FileActionRepository {
     /** 압축 해제 호출마다 넘어온 배치 방식. */
     val unzipLayouts = mutableListOf<ExtractLayout>()
 
-    /** 아카이브 경로와 배치 방식을 받아 해제가 목적지 바로 아래에 만들 이름을 돌려주는 함수. 테스트가 정한다. */
-    var extractedNamesOf: (zipFile: String, layout: ExtractLayout) -> Set<String> = { _, _ -> emptySet() }
-
-    /** 정해 두면 압축 해제가 만들 이름을 구하는 호출이 이 값이 완료될 때까지 기다린다 — 아카이브를 읽는 동안의 일시 중단을 흉내 낸다. */
-    var extractedNamesGate: CompletableDeferred<Unit>? = null
     override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
     override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
-    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
+    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
     override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
-    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit) =
+    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
         IoResult.Done.also { calls += "unzip"; unzipLayouts += layout }
-    override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout): IoResult<Set<String>> {
-        extractedNamesGate?.await()
-        return IoResult.Success(extractedNamesOf(zipFile, layout))
-    }
     override fun canExtract(path: String) = false
     override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
 }
@@ -124,6 +120,7 @@ internal object NoOpNotifier : FileOperationNotifier {
     override fun progressNoti(state: ProgressState, instanceId: Int) {}
     override fun completedNotification(message: String, instanceId: Int) {}
     override fun cancelNotification(instanceId: Int) {}
+    override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
 }
 
 /** 언제나 바로 보호를 주는 테스트용 작업 보호. */
@@ -139,7 +136,6 @@ internal object FixedMessages : OperationMessages {
     override val notiDownloadComplete = "다운로드 완료"
     override val notiUploadComplete = "업로드 완료"
     override val destinationUnverified = "목록 미확인"
-    override val conflictAwaiting = "확인 대기 중"
     override val defaultNewFolderName = "새 폴더"
     override val protectionRefused = "보호 거부"
 }
@@ -164,7 +160,7 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
 
 /** 실행한 작업이 없어 취소할 것이 없는 테스트용 취소 UseCase. 취소를 다루지 않는 화면 테스트가 ViewModel을 만들 때 쓴다. */
 internal fun idleCancelOperationUseCase() =
-    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), RecordingOperationNotices(), GrantedProtection, CoroutineScope(Job())))
+    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), RecordingOperationNotices(), GrantedProtection, UnexpectedConflictQuestions, CoroutineScope(Job())))
 
 /** 열려고 한 경로를 기록하고 언제나 다른 앱으로 넘긴 것으로 답하는 테스트용 파일 열기. */
 internal class RecordingFileLauncher : FileLauncher {
@@ -191,4 +187,9 @@ internal class RecordingOperationNotices : OperationNoticeReporter {
             OperationNoticeKind.COMPLETION -> completions += message
         }
     }
+}
+
+/** 충돌 질문이 오면 테스트를 실패시키는 질문 통로. */
+internal object UnexpectedConflictQuestions : ConflictQuestionAsker {
+    override suspend fun ask(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer = throw AssertionError("예상하지 못한 충돌 질문: $conflict")
 }

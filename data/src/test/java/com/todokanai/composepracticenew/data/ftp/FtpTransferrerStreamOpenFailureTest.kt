@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -32,9 +33,9 @@ class FtpTransferrerStreamOpenFailureTest {
         runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
         client.remoteFiles = listOf("a.txt", "b.txt")
 
-        val result = runBlocking { transferrer.download("ftp://host/r", File(dir, "r").path, isDirectory = true) }
+        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
-        assertEquals("다운로드 실패: 2개 항목 (a.txt, b.txt)", (result as IoResult.PartiallyFailed).message)
+        assertEquals("다운로드 실패: 2개 항목 (r/a.txt, r/b.txt)", (result as IoResult.PartiallyFailed).message)
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)
         assertEquals(0, client.completePendingCalls)
         assertTrue("5xx는 연결 끊김이 아니므로 세션이 유지돼야 함", runBlocking { session.isReady() })

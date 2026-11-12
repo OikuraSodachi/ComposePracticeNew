@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -8,6 +9,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 
 /**
@@ -32,7 +34,7 @@ class LocalTreeTransferTest {
     fun `복사할 크기보다 여유 공간이 작으면 아무것도 복사하지 않고 공간 부족으로 실패한다`() {
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 1L })
 
-        val result = runBlocking { transfer.copy(setOf(source.path), target.path) {} }
+        val result = runBlocking { transfer.copy(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
         assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("디스크 공간 부족: 필요"))
         assertFalse(File(target, "src").exists())
@@ -42,7 +44,7 @@ class LocalTreeTransferTest {
     fun `다른 파티션으로 옮길 때 대상에 여유 공간이 없으면 원본을 그대로 두고 실패한다`() {
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 0L })
 
-        val result = runBlocking { transfer.move(setOf(source.path), target.path) {} }
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
         assertEquals(IoResult.ItemFailed("디스크 공간 부족: 여유 공간 없음"), result)
         assertTrue(File(source, "a.txt").exists())
@@ -53,7 +55,7 @@ class LocalTreeTransferTest {
     fun `다른 파티션으로 옮길 때 여유 공간이 있지만 모자라면 원본을 그대로 두고 필요한 공간과 함께 실패한다`() {
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 1L })
 
-        val result = runBlocking { transfer.move(setOf(source.path), target.path) {} }
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
         assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("디스크 공간 부족: 필요"))
         assertTrue(File(source, "a.txt").exists())
@@ -62,11 +64,11 @@ class LocalTreeTransferTest {
 
     @Test
     fun `다른 파티션으로 복사해 옮기다 실패하면 어느 항목인지와 함께 실패를 알리고 원본을 남긴다`() {
-        // 같은 이름의 파일이 대상에 있어 그 아래로 복사할 수 없다
+        // 같은 이름의 파일이 대상에 있어 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던져 항목 중간의 실패를 만든다
         File(target, "src").writeText("file")
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE })
 
-        val result = runBlocking { transfer.move(setOf(source.path), target.path) {} }
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
 
         val message = (result as IoResult.ItemFailed).message.orEmpty()
         assertTrue(message, message.startsWith("이동 실패: src — "))
@@ -75,11 +77,11 @@ class LocalTreeTransferTest {
     }
 
     @Test
-    fun `같은 파티션에서 비어 있지 않은 같은 이름 폴더로는 옮기지 못하고 어느 항목인지와 함께 실패를 알린다`() {
+    fun `같은 파티션 이동이 입출력 실패로 멈추면 어느 항목인지와 함께 실패를 알리고 원본을 남긴다`() {
         File(target, "src").apply { mkdirs(); File(this, "b.txt").writeText("B") }
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE })
 
-        val result = runBlocking { transfer.move(setOf(source.path), target.path) {} }
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
 
         val message = (result as IoResult.ItemFailed).message.orEmpty()
         assertTrue(message, message.startsWith("이동 실패: src — "))
@@ -91,10 +93,13 @@ class LocalTreeTransferTest {
     fun `같은 파티션 이동은 원본을 대상 아래로 옮긴다`() {
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE })
 
-        val result = runBlocking { transfer.move(setOf(source.path), target.path) {} }
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals("AAAA", File(target, "src/a.txt").readText())
         assertFalse(source.exists())
     }
+
+    /** 묻는 순간 입출력 실패를 던지는 resolver. 이동 중간의 입출력 실패를 만든다. */
+    private val failingResolver = WriteConflictResolver { throw IOException("만들 수 없음") }
 }

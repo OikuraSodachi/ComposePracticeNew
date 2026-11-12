@@ -3,15 +3,14 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ArchiveFormat
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.tools.OperationMessages
-import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
-import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -34,14 +33,13 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * 로컬 파일 목록 화면의 탐색·목록 상태와 로컬 파일 작업(충돌 확인 포함)을 담당하는 ViewModel.
+ * 로컬 파일 목록 화면의 탐색·목록 상태와 로컬 파일 작업을 담당하는 ViewModel.
  * @param fileNavigatorUseCase 로컬 디렉터리 탐색 상태를 제공하는 UseCase
  * @param openFileUseCase 항목 열기(디렉터리 진입 포함)를 수행하는 UseCase
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
  * @param messages 작업 완료 메시지 제공자
- * @param localOperationConfirmer 확인한 복사·이동·압축 해제를 화면 수명과 무관하게 끝까지 진행하는 확인 흐름
  */
 @HiltViewModel
 class FileListViewModel @Inject constructor(
@@ -51,7 +49,6 @@ class FileListViewModel @Inject constructor(
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: OperationMessages,
-    private val localOperationConfirmer: LocalOperationConfirmer,
 ) : ViewModel() {
 
     /**
@@ -79,9 +76,6 @@ class FileListViewModel @Inject constructor(
 
     /** 경로 breadcrumb 상태와 그 항목으로의 이동. */
     val dirTreeStateHolder = DirTreeStateHolder(fileNavigatorUseCase, viewModelScope)
-
-    /** 복사·이동·압축 해제 실행 전 사용자 확인을 기다리는 충돌. 이 화면을 떠난 사이 생긴 충돌도 다시 보일 때 묻는다. */
-    val pendingConflict: StateFlow<PendingConflict?> = localOperationConfirmer.pendingConflict
 
     /** 이름 변경의 "충돌 판정 → 즉시 실행 / 덮어쓰기 확인 대기" 흐름을 관리한다. */
     private val renameGate = RenameConfirmGate()
@@ -209,17 +203,22 @@ class FileListViewModel @Inject constructor(
     }
 
     /**
-     * 확인한 [mode] 작업을 확정해 [LocalOperationConfirmer]에 넘긴다. 판정·실행은 이 화면의 수명과 무관하게 끝까지 진행된다.
+     * 확인한 [mode] 작업을 현재 경로에 실행한다. 같은 이름의 항목은 작업이 그 항목을 쓰려 할 때 묻는다(전역 충돌 질문).
+     * 현재 경로가 없으면 실행할 곳이 없으므로 아무것도 하지 않는다.
      * @param selection 로컬 화면의 선택에서 꺼낸 작업 대상
      * @param mode 실행할 로컬 작업 모드
      */
-    fun requestConfirm(selection: SubmittedSelection, mode: SelectMode.LocalOperation) = localOperationConfirmer.confirm(selection.items, mode)
-
-    /**
-     * 대기 중인 충돌을 사용자의 선택대로 처리한다.
-     * @param resolution 덮어쓰기·건너뛰기·취소 중 사용자 선택
-     */
-    fun resolveConflict(resolution: ConflictResolution) = localOperationConfirmer.resolveConflict(resolution)
+    fun requestConfirm(selection: SubmittedSelection, mode: SelectMode.LocalOperation) {
+        val destPath = fileNavigatorUseCase.currentPath.value ?: return
+        val targets = selection.items.mapTo(LinkedHashSet()) { it.path }
+        val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
+        when (mode) {
+            SelectMode.LocalOperation.Copy -> localFileOperationUseCase.copy(targets, destPath, messages.notiComplete, onRefresh)
+            SelectMode.LocalOperation.Move -> localFileOperationUseCase.move(targets, destPath, messages.notiMoveComplete, onRefresh)
+            SelectMode.LocalOperation.Unzip -> localFileOperationUseCase.unzip(targets, destPath, ExtractLayout.IntoArchiveFolder, messages.notiComplete, onRefresh)
+            SelectMode.LocalOperation.UnzipHere -> localFileOperationUseCase.unzip(targets, destPath, ExtractLayout.IntoDestination, messages.notiComplete, onRefresh)
+        }
+    }
 
     /**
      * selection의 파일들을 [folder]에 [name]+[archiveFormat]의 확장자 이름의 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.

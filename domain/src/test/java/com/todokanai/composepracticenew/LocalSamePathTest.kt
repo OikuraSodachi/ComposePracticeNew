@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.IoResult
@@ -37,7 +39,7 @@ class LocalSamePathTest {
         mapOf("deep" to "inner", "inner" to "src", "src" to "root", "otherInner" to "other", "other" to "root")
     )
     private val local = LocalFileOperationUseCase(
-        FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, GrantedProtection, scope),
+        FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, notices, GrantedProtection, UnexpectedConflictQuestions, scope),
         notices, NoOpFileActionRepository, FileNameUseCase(NoStorageNameRules), paths
     )
 
@@ -110,12 +112,11 @@ class LocalSamePathTest {
     private object NoOpFileActionRepository : FileActionRepository {
         override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
-        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun extractedNames(zipFile: String, destPath: String, layout: ExtractLayout) = IoResult.Success(emptySet<String>())
+        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override fun canExtract(path: String) = false
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
@@ -132,5 +133,6 @@ class LocalSamePathTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(message: String, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
 }
