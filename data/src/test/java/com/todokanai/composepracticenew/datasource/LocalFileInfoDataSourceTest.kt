@@ -15,7 +15,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
-import java.io.IOException
 import java.nio.file.Files
 
 /** [LocalFileInfoDataSource]가 위치·속성을 구하고, 하위 항목까지 크기를 더하며, 읽지 못한 항목을 하한으로 구분하고, 링크 순환에서도 끝나는지 검증하는 단위 테스트. */
@@ -181,18 +180,5 @@ class LocalFileInfoDataSourceTest {
             mapOf("photos" to setOf("sub", "x.jpg"), "photos/sub" to setOf("deeper", "y.jpg")),
             result.associate { it.folderLabel to it.names.toSet() },
         )
-    }
-
-    /** [link]에 [target]을 가리키는 심볼릭 링크를 만든다. 링크를 만들 수 없는 환경(권한 없는 Windows 등)이면 테스트를 건너뛴다. */
-    private fun assumeSymlink(link: File, target: File) {
-        val created = try {
-            Files.createSymbolicLink(link.toPath(), target.toPath())
-            true
-        } catch (e: IOException) {
-            false
-        } catch (e: UnsupportedOperationException) {
-            false
-        }
-        assumeTrue(created)
     }
 }

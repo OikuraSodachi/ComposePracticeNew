@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 
@@ -47,8 +48,9 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      */
     private fun renameEntry(source: File, newName: String, overwrite: Boolean): IoResult<Unit> {
         val dest = File(source.parentFile, newName)
-        // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다
-        if (isSameEntry(source, dest)) {
+        // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다.
+        // 어느 쪽이 링크면 같은 항목 판정이 링크를 따라가 링크와 그 대상을 같은 항목으로 보므로, 이 지름길을 타지 않는다(대상을 링크로 대신하지 않도록)
+        if (source.entryKind != LocalEntryKind.LINK && dest.entryKind != LocalEntryKind.LINK && isSameEntry(source, dest)) {
             return if (source.renameTo(dest)) IoResult.Done else IoResult.ItemFailed("이름 변경 실패: ${source.name} → $newName")
         }
         if (!dest.exists()) {
@@ -57,9 +59,13 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
             return IoResult.Done
         }
         if (!overwrite) return IoResult.ItemFailed("이름 변경 실패: 같은 이름의 항목이 이미 있습니다 ($newName)")
+        val sourceKind = source.entryKind
+        val destKind = dest.entryKind
         return when {
-            source.isDirectory && dest.isDirectory -> mergeDirectory(source, dest)
-            !source.isDirectory && !dest.isDirectory -> {
+            // 링크를 합치거나 덮어쓰면 링크가 가리키는 폴더 안을 옮기거나, 폴더로 보이던 링크를 말없이 바꾼다
+            sourceKind == LocalEntryKind.LINK || destKind == LocalEntryKind.LINK -> IoResult.ItemFailed("이름 변경 실패: $UNSUPPORTED_LINK_REASON ($newName)")
+            sourceKind == LocalEntryKind.DIRECTORY && destKind == LocalEntryKind.DIRECTORY -> mergeDirectory(source, dest)
+            sourceKind == LocalEntryKind.FILE && destKind == LocalEntryKind.FILE -> {
                 Files.move(source.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 IoResult.Done
             }
@@ -69,28 +75,32 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
 
     /**
      * [source] 폴더의 내용을 [dest] 폴더에 합친 뒤 비게 된 [source]를 지운다. 겹치는 파일은 덮어쓰고 겹치지 않는 [dest]의 항목은 유지한다.
-     * 하위 어디에서든 파일↔폴더 종류가 겹치면 아무것도 바꾸기 전에 실패한다.
+     * 하위 어디에서든 파일↔폴더 종류가 겹치거나 링크가 있으면 아무것도 바꾸기 전에 실패한다.
      * @param source 이름을 바꿀 폴더
      * @param dest 같은 이름의 기존 폴더
      * @return 합치기 결과
      */
     private fun mergeDirectory(source: File, dest: File): IoResult<Unit> {
-        findTypeMismatch(source, dest)?.let { relative ->
-            return IoResult.ItemFailed("이름 변경 실패: 종류가 다른 항목이 같은 이름으로 있습니다 (${dest.name}/$relative)")
-        }
+        findMergeBlocker(source, dest)?.let { reason -> return IoResult.ItemFailed("이름 변경 실패: $reason") }
         return mergeInto(source, dest)
     }
 
     /**
-     * [source] 트리를 [dest]에 겹쳐 보았을 때 파일↔폴더 종류가 다른 첫 항목을 찾는다.
+     * [source] 트리를 [dest]에 겹쳐 보았을 때 합칠 수 없는 첫 항목을 찾는다. [source]의 링크와, 겹치는 자리의 [dest] 링크는 합칠 수 없다.
      * @param source 합칠 폴더
      * @param dest 합쳐질 기존 폴더
-     * @return 종류가 겹치는 항목의 [source] 기준 상대 경로, 없으면 null
+     * @return 합칠 수 없는 원인과 그 항목의 경로, 없으면 null
      */
-    private fun findTypeMismatch(source: File, dest: File): String? =
-        source.walkTopDown().drop(1).firstNotNullOfOrNull { entry ->
-            val counterpart = dest.toPath().resolve(source.toPath().relativize(entry.toPath())).toFile()
-            source.slashRelativePathOf(entry).takeIf { counterpart.exists() && counterpart.isDirectory != entry.isDirectory }
+    private fun findMergeBlocker(source: File, dest: File): String? =
+        source.localTreeTopDown().drop(1).firstNotNullOfOrNull { entry ->
+            val counterpart = dest.toPath().resolve(source.toPath().relativize(entry.file.toPath()))
+            val counterpartKind = counterpart.toFile().entryKind.takeIf { Files.exists(counterpart, LinkOption.NOFOLLOW_LINKS) }
+            val location = "${dest.name}/${source.slashRelativePathOf(entry.file)}"
+            when {
+                entry.kind == LocalEntryKind.LINK || counterpartKind == LocalEntryKind.LINK -> "$UNSUPPORTED_LINK_REASON ($location)"
+                counterpartKind != null && counterpartKind != entry.kind -> "종류가 다른 항목이 같은 이름으로 있습니다 ($location)"
+                else -> null
+            }
         }
 
     /**
@@ -104,7 +114,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
             val target = File(dest, child.name)
             when {
                 !target.exists() -> Files.move(child.toPath(), target.toPath())
-                child.isDirectory -> mergeInto(child, target).valueOr { return it }
+                child.entryKind == LocalEntryKind.DIRECTORY -> mergeInto(child, target).valueOr { return it }
                 else -> Files.move(child.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
         }
@@ -130,6 +140,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * [targetFile]과 하위 항목을 리프부터 삭제하며 항목 수 기준으로 진행률을 보고한다.
      * 지우지 못한 항목이 있어도 나머지를 끝까지 삭제한 뒤 지우지 못한 항목을 모아 알린다.
      * 지우지 못한 항목을 품은 상위 폴더는 비울 수 없으므로 시도하지도, 실패로 세지도 않는다(GNU rm과 같은 방식).
+     * 링크는 따라가지 않고 링크 자신만 지운다 — 링크가 가리키는 대상은 선택한 항목이 아니다([targetFile] 자신이 링크여도 같다).
      * @param targetFile 삭제할 파일 또는 디렉터리의 절대 경로
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 삭제 결과. 일부 항목을 지우지 못하면 [IoResult.PartiallyFailed]
@@ -137,7 +148,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
     suspend fun delete(targetFile: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
         val root = File(targetFile)
-        val files = root.walkBottomUp().toList()
+        val files = root.localTreeBottomUp().map { it.file }.toList()
         val total = files.size.coerceAtLeast(1)
         var processed = 0
         forEachCollectingFailures(
@@ -162,10 +173,11 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
 
     /**
      * 항목 하나를 삭제한다. 이미 없는 항목은 삭제된 것으로 본다.
-     * @param file 삭제할 파일 또는 빈 디렉터리
+     * 남아 있는지는 링크를 따라가지 않고 본다 — 지우지 못한 끊긴 링크를 없는 항목으로 보지 않도록.
+     * @param file 삭제할 파일, 빈 디렉터리 또는 링크
      * @return 삭제했거나 이미 없으면 true
      */
-    private fun deleteEntry(file: File): Boolean = removeEntry(file) || !file.exists()
+    private fun deleteEntry(file: File): Boolean = removeEntry(file) || Files.notExists(file.toPath(), LinkOption.NOFOLLOW_LINKS)
 
     /**
      * 이 항목이 [entry]를 하위 항목으로 품는 폴더인지 판별한다.
