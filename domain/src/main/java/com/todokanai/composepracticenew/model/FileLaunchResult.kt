@@ -10,4 +10,7 @@ sealed interface FileLaunchResult {
 
     /** 이 형식을 여는 앱이 없다. */
     data object NoHandler : FileLaunchResult
+
+    /** 이 형식을 여는 앱이 있지만 이 앱이 여는 것을 허용하지 않았다(권한 요구·비공개 등). */
+    data object Refused : FileLaunchResult
 }

@@ -51,6 +51,13 @@ class OpenFileUseCaseTest {
         assertEquals(listOf("열기 실패: 이 파일을 열 수 있는 앱이 없습니다 (song.mp3)"), notices.failures)
     }
 
+    @Test
+    fun `여는 앱이 열기를 거부하면 그 이유를 알린다`() = runBlocking {
+        OpenFileUseCase(nav, RecordingFileLauncher(FileLaunchResult.Refused), notices).open(file)
+
+        assertEquals(listOf("열기 실패: 이 파일을 여는 앱이 열기를 허용하지 않습니다 (song.mp3)"), notices.failures)
+    }
+
     /**
      * 열려고 한 경로를 기록하고 언제나 [result]로 답하는 가짜 파일 열기.
      * @param result 여는 요청에 돌려줄 결과

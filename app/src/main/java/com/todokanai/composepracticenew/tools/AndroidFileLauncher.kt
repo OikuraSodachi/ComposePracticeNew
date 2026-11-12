@@ -34,6 +34,9 @@ class AndroidFileLauncher @Inject constructor(
             FileLaunchResult.Launched
         } catch (_: ActivityNotFoundException) {
             FileLaunchResult.NoHandler
+        } catch (_: SecurityException) {
+            // 받는 Activity가 이 앱에 없는 권한을 요구하거나 공개되지 않았으면 시스템이 시작을 거부한다(#329)
+            FileLaunchResult.Refused
         }
     }
 
