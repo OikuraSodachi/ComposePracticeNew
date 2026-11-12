@@ -2,8 +2,12 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.TransferTotal
+import com.todokanai.composepracticenew.datasource.LocalEntryKind
+import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
 import com.todokanai.composepracticenew.datasource.conflictAt
+import com.todokanai.composepracticenew.datasource.entryKind
 import com.todokanai.composepracticenew.datasource.localIo
+import com.todokanai.composepracticenew.datasource.localTreeTopDown
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.IoResult
@@ -76,7 +80,8 @@ class FtpTransferrer @Inject internal constructor(
 
     /**
      * localPath의 파일 또는 디렉터리를 remotePath에 스트리밍 업로드한다.
-     * localPath가 디렉터리이면 로컬 트리를 walkTopDown으로 수집 후 각 항목을 순서대로 업로드하며, 일부 파일이 실패해도 끝까지 진행한 뒤 실패를 모아 알린다.
+     * localPath가 디렉터리이면 로컬 트리를 링크를 따라가지 않고 수집 후 각 항목을 순서대로 업로드하며, 일부 파일이 실패해도 끝까지 진행한 뒤 실패를 모아 알린다.
+     * 링크(localPath 자신 포함)는 올리지 않고 실패로 알린다.
      * 취소되면 올리던 파일을 서버에서 지우기를 시도하고, 이미 다 올린 파일은 남긴다.
      * @param localPath 업로드할 로컬 파일 또는 디렉터리의 절대 경로
      * @param remotePath 저장될 원격 파일 또는 디렉터리의 절대 경로 (ftp://server/path 형식)
@@ -87,8 +92,11 @@ class FtpTransferrer @Inject internal constructor(
         withContext(Dispatchers.IO) {
             val localFile = File(localPath)
             val ftpPath = extractFtpPath(remotePath)
-            if (!localFile.isDirectory) uploadFile(localFile, ftpPath, onProgress)
-            else uploadDirectory(localFile, ftpPath, onProgress)
+            when (localFile.entryKind) {
+                LocalEntryKind.LINK -> IoResult.ItemFailed(UNSUPPORTED_LINK_REASON)
+                LocalEntryKind.DIRECTORY -> uploadDirectory(localFile, ftpPath, onProgress)
+                LocalEntryKind.FILE -> uploadFile(localFile, ftpPath, onProgress)
+            }
         }
 
     /**
@@ -288,24 +296,27 @@ class FtpTransferrer @Inject internal constructor(
         ftpPath: String,
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> {
-        val allEntries = localDir.walkTopDown().toList()
-        val fileEntries = allEntries.filter { it.isFile }
+        val allEntries = localDir.localTreeTopDown().toList()
+        val fileEntries = allEntries.filter { it.kind == LocalEntryKind.FILE && it.file.isFile }.map { it.file }
         val progress = ByteProgressTracker(fileEntries.sumOf { it.length() }, fileEntries.size, onProgress)
-        return forEachCollectingFailures(allEntries, "업로드 실패", nameOf = { localDir.slashRelativePathOf(it).ifEmpty { it.name } }) { entry ->
+        return forEachCollectingFailures(allEntries, "업로드 실패", nameOf = { localDir.slashRelativePathOf(it.file).ifEmpty { it.file.name } }) { treeEntry ->
+            val entry = treeEntry.file
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
-            if (entry.isDirectory) {
-                cmd.ensureDirectory(entryFtpPath)
-            } else {
-                progress.startFile()
-                val entryBytes = entry.length()
-                uploadingFrom(entry) { input ->
-                    session.withConnectedClient { client ->
-                        uploadOne(
-                            client, entryFtpPath, input,
-                            onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
-                            onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
-                        )
+            when (treeEntry.kind) {
+                LocalEntryKind.LINK -> IoResult.ItemFailed(UNSUPPORTED_LINK_REASON)
+                LocalEntryKind.DIRECTORY -> cmd.ensureDirectory(entryFtpPath)
+                LocalEntryKind.FILE -> {
+                    progress.startFile()
+                    val entryBytes = entry.length()
+                    uploadingFrom(entry) { input ->
+                        session.withConnectedClient { client ->
+                            uploadOne(
+                                client, entryFtpPath, input,
+                                onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
+                                onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
+                            )
+                        }
                     }
                 }
             }

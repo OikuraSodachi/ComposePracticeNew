@@ -75,14 +75,14 @@ class LocalFileInfoDataSource @Inject constructor() {
 
     /**
      * [paths] 중 폴더마다 그 아래 모든 폴더(자신 포함)의 바로 안 항목 이름을 읽는다. 폴더가 아닌 경로는 건너뛰고, 코루틴이 취소되면 멈춘다.
-     * 폴더 업로드(`FtpTransferrer.uploadDirectory`)와 같은 순회(walkTopDown)로 읽어 업로드가 함께 올릴 이름을 그대로 얻는다 —
-     * 그래서 크기 측정과 달리 링크 폴더를 따라 들어가고, 나열하지 못한 폴더는 업로드처럼 그 안을 건너뛴다.
+     * 폴더 업로드(`FtpTransferrer.uploadDirectory`)와 같은 순회(`localTreeTopDown`)로 읽어 업로드가 함께 올릴 이름을 그대로 얻는다 —
+     * 그래서 업로드가 올리지 않는 링크(경로 자신 포함)는 이름에 넣지 않고 따라 들어가지도 않으며, 나열하지 못한 폴더는 업로드처럼 그 안을 건너뛴다.
      * @param paths 항목의 절대 경로 목록
      * @return 폴더별 항목 이름(바로 안에 항목이 있는 폴더만, 위 폴더부터)
      */
     suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = withContext(Dispatchers.IO) {
         val job = coroutineContext.job
-        paths.map(::File).filter { it.isDirectory }.flatMap { root -> entryNamesUnder(root, job) }
+        paths.map(::File).filter { it.entryKind == LocalEntryKind.DIRECTORY }.flatMap { root -> entryNamesUnder(root, job) }
     }
 
     /**
@@ -93,9 +93,9 @@ class LocalFileInfoDataSource @Inject constructor() {
      */
     private fun entryNamesUnder(root: File, job: Job): List<FolderEntryNames> {
         val namesByFolder = LinkedHashMap<File, MutableList<String>>()
-        root.walkTopDown().drop(1).forEach { entry ->
+        root.localTreeTopDown().drop(1).forEach { entry ->
             job.ensureActive()
-            namesByFolder.getOrPut(entry.parentFile) { mutableListOf() } += entry.name
+            if (entry.kind != LocalEntryKind.LINK) namesByFolder.getOrPut(entry.file.parentFile) { mutableListOf() } += entry.file.name
         }
         return namesByFolder.map { (folder, names) -> FolderEntryNames(folderLabelOf(root, folder), names) }
     }
