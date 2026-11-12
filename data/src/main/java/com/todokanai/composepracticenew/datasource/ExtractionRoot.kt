@@ -16,9 +16,11 @@ class ExtractionRoot(root: File) {
     private val childPrefix: String = directory.path.let { if (it.endsWith(File.separator)) it else it + File.separator }
 
     /**
-     * 아카이브 항목 [entryName]을 풀 위치를 정한다. 판정에 쓴 정규 경로를 그대로 돌려주므로, 추출은 검증한 바로 그 경로에 쓴다.
+     * 아카이브 항목 [entryName]을 풀 위치를 정한다. 판정에 쓴 경로를 그대로 돌려주므로, 추출은 검증한 바로 그 경로에 쓴다.
+     * `.`·`..`는 글자로만 정리하고 링크는 풀지 않는다 — 링크를 풀면 루트 안의 링크가 가리키는 다른 자리를 돌려주어,
+     * 쓰는 쪽이 그 자리의 링크를 알아보지 못하고 링크가 가리키는 파일에 쓴다(#338). 루트 아래 자리의 링크는 쓰는 쪽([ArchiveEntryWriter])이 건너뛴다.
      * @param entryName 아카이브 안의 '/' 구분 항목 경로
-     * @return 풀 위치(정규 경로). 루트 밖이나 루트 자신을 가리키면(Zip Slip 등) null
+     * @return 풀 위치. 루트 밖이나 루트 자신을 가리키면(Zip Slip 등) null
      */
-    fun targetOf(entryName: String): File? = directory.resolve(entryName).canonicalFile.takeIf { it.path.startsWith(childPrefix) }
+    fun targetOf(entryName: String): File? = directory.resolve(entryName).normalize().takeIf { it.path.startsWith(childPrefix) }
 }

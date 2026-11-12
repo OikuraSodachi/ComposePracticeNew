@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ConflictChoice
+import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.WriteConflict
 import java.io.File
 import java.io.OutputStream
@@ -10,6 +11,7 @@ import java.nio.file.Files
 /**
  * 아카이브 항목을 추출 루트 아래에 만드는 쓰기 도우미. 형식과 무관한 규칙(위치 검증, 폴더 생성, 파일 생성, 겹침 처리, 건너뜀 집계)을 한 곳에 두어 [ArchiveExtractor] 구현체마다 같은 항목을 다르게 다루지 않도록 한다.
  * 폴더는 이미 있으면 묻지 않고 합친다. 파일 자리에 같은 이름의 항목이 있거나 폴더 자리에 파일이 있으면 [ask]에 묻는다(`LocalConflictWrites.kt`).
+ * 자리에 심볼릭 링크가 있으면 묻지 않고 건너뛰어(폴더면 그 아래 항목 전체) [skippedLinks]로 알린다.
  * 건너뜀으로 세는 항목은 루트 밖이나 루트 자신을 가리키는 항목뿐이며, 묻고 건너뛴 항목은 세지 않는다. 만들지 못한 폴더·파일은 IOException으로 알린다.
  * 쓰지 않은 파일 항목은 이유와 무관하게 진행률에서 처리한 것으로 넘긴다 — 진행률이 멈춰 있다가 완료 때 건너뛰지 않도록.
  * @param root 항목의 위치를 정하는 추출 루트
@@ -26,7 +28,14 @@ class ArchiveEntryWriter(
     var skippedEntries = 0
         private set
 
-    /** 폴더 자리에 파일이 있어 건너뛰기로 한 자리. 그 아래 항목은 다시 묻지 않고 건너뛴다. */
+    /** 자리에 심볼릭 링크가 있어 풀지 않은 항목. 루트 기준 '/' 구분 경로와 [UNSUPPORTED_LINK_REASON]을 담는다. */
+    val skippedLinks: List<FailedItem>
+        get() = linkFailures
+
+    /** [skippedLinks]를 모으는 목록. */
+    private val linkFailures = mutableListOf<FailedItem>()
+
+    /** 폴더 자리에 파일이 있어 건너뛰기로 했거나 링크가 있는 자리. 그 아래 항목은 다시 묻지 않고 건너뛴다. */
     private val skippedFolders = mutableSetOf<File>()
 
     /**
@@ -58,7 +67,11 @@ class ArchiveEntryWriter(
         val target = targetOrSkip(entryName) ?: return null
         val parent = target.parentFile ?: return null
         if (!folderReady(parent)) return null
-        return openNewFileResolving(target, ask)
+        return when (val slot = openNewFileResolving(target, ask)) {
+            is WriteSlot.Ready -> slot.value
+            WriteSlot.Skipped -> null
+            WriteSlot.Link -> null.also { linkFailures += linkFailureAt(target) }
+        }
     }
 
     /**
@@ -71,16 +84,40 @@ class ArchiveEntryWriter(
 
     /**
      * [dir]과 루트까지의 그 상위 폴더가 모두 폴더로 있게 한다. 이미 있는 폴더는 합치고, 폴더 자리에 파일이 있으면 [ask]에 묻는다(건너뛰기만 가능).
+     * 루트 아래 자리에 링크가 있으면 따라가지 않고 건너뛰어 [skippedLinks]에 넣는다. 루트 자신은 링크여도 그대로 쓴다 —
+     * 바로 풀기의 루트는 사용자가 고른 목적지 폴더이고(링크로 들어온 폴더일 수 있다), 아카이브 폴더는 [LocalArchiveExtraction]이 이미 확인했다.
      * @param dir 루트 아래(루트 포함)의 폴더 자리
-     * @return [dir]에 쓸 수 있으면 true. 그 자리나 상위 자리를 건너뛰기로 했으면 false
+     * @return [dir]에 쓸 수 있으면 true. 그 자리나 상위 자리를 건너뛰었으면 false
      * @throws java.io.IOException 폴더를 만들지 못했을 때
      */
     private fun folderReady(dir: File): Boolean {
         if (skippedFolders.any { dir.startsWith(it) }) return false
         return foldersFromRootTo(dir).all { folder ->
-            folder.isDirectory || mergeDirectoryResolving(folder, ask) || false.also { skippedFolders += folder }
+            if (folder == root.directory) folder.isDirectory || createdFolder(folder) else createdFolder(folder)
         }
     }
+
+    /**
+     * 루트 아래의 폴더 자리 [folder]를 폴더로 있게 한다. 쓸 수 없으면 그 자리를 [skippedFolders]에 넣는다.
+     * @param folder 루트 아래(루트 포함)의 폴더 자리
+     * @return [folder]에 쓸 수 있으면 true
+     * @throws java.io.IOException 폴더를 만들지 못했을 때
+     */
+    private fun createdFolder(folder: File): Boolean {
+        if (folder.entryKind == LocalEntryKind.DIRECTORY) return true
+        return when (mergeDirectoryResolving(folder, ask)) {
+            is WriteSlot.Ready -> true
+            WriteSlot.Skipped -> false.also { skippedFolders += folder }
+            WriteSlot.Link -> false.also { skippedFolders += folder; linkFailures += linkFailureAt(folder) }
+        }
+    }
+
+    /**
+     * 링크가 있어 풀지 않은 자리 [target]의 실패 항목을 만든다.
+     * @param target 루트 아래의 자리
+     * @return 루트 기준 경로와 [UNSUPPORTED_LINK_REASON]을 담은 실패
+     */
+    private fun linkFailureAt(target: File): FailedItem = FailedItem(root.directory.slashRelativePathOf(target), UNSUPPORTED_LINK_REASON)
 
     /**
      * 루트부터 [dir]까지의 폴더 자리를 위에서부터 차례로 돌려준다.

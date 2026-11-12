@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ConflictChoice
+import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
@@ -14,11 +15,14 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
+import java.util.zip.ZipOutputStream
 
 /**
  * 로컬 작업이 심볼릭 링크를 따라가지 않는지 검증하는 단위 테스트(#320).
  * 삭제는 링크 자신만 지우고, 항목을 하나씩 다루는 작업(복사·이동·이름 변경의 합치기·압축·업로드 전 이름 읽기)은 링크를 건너뛰어 실패로 알린다.
+ * 복사·이동·압축 해제는 목적지 자리의 같은 이름 링크도 따라가지 않고 건너뛰어 실패로 알린다(#338).
  * 링크를 만들 수 없는 환경에서는 건너뛴다.
  */
 class LocalTreeSymlinkTest {
@@ -194,6 +198,76 @@ class LocalTreeSymlinkTest {
         val result = LocalFileInfoDataSource().folderEntryNames(listOf(source.path))
 
         assertEquals(mapOf("src" to listOf("a.txt")), result.associate { it.folderLabel to it.names })
+    }
+
+    @Test
+    fun `복사 목적지의 같은 이름 폴더가 원본을 가리키는 링크면 따라가 합치지 않고 원본을 비우지 않는다`() = runBlocking {
+        val link = File(target, "src")
+        assumeSymlink(link, source.absoluteFile)
+
+        val result = transfer(samePartition = false).copy(setOf(source.path), target.path, ProceedingConflictResolver) {}
+
+        assertEquals(IoResult.PartiallyFailed("복사하지 못함", listOf(FailedItem("src", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals("A", File(source, "a.txt").readText())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+    }
+
+    @Test
+    fun `복사 목적지의 같은 이름 파일이 링크면 덮어쓰지 않고 링크가 가리키는 파일을 비우지 않는다`() = runBlocking {
+        val link = File(target, "a.txt")
+        assumeSymlink(link, File(outside, "keep.txt").absoluteFile)
+
+        val result = transfer(samePartition = false).copy(setOf(File(source, "a.txt").path), target.path, ProceedingConflictResolver) {}
+
+        assertEquals(IoResult.PartiallyFailed("복사하지 못함", listOf(FailedItem("a.txt", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals("K", File(outside, "keep.txt").readText())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+    }
+
+    @Test
+    fun `같은 파티션에서 합치며 이동할 때 목적지 안의 링크 자리는 건너뛰고 원본을 남긴다`() = runBlocking {
+        val merged = File(target, "src").apply { mkdirs() }
+        assumeSymlink(File(merged, "a.txt"), File(outside, "keep.txt").absoluteFile)
+
+        val result = transfer(samePartition = true).move(setOf(source.path), target.path, ProceedingConflictResolver) {}
+
+        assertEquals(IoResult.PartiallyFailed("이동하지 못함", listOf(FailedItem("src/a.txt", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals("A", File(source, "a.txt").readText())
+        assertTrue(Files.isSymbolicLink(File(merged, "a.txt").toPath()))
+        assertEquals("K", File(outside, "keep.txt").readText())
+    }
+
+    @Test
+    fun `압축 해제는 목적지의 같은 이름 폴더 링크 안에 풀지 않고 실패로 알린다`() = runBlocking {
+        val archive = File(dir, "in.zip")
+        ZipOutputStream(archive.outputStream()).use { zos ->
+            zos.putNextEntry(ZipEntry("d/new.txt"))
+            zos.write("N".toByteArray())
+            zos.closeEntry()
+        }
+        assumeSymlink(File(target, "d"), outside.absoluteFile)
+
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
+
+        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("d", UNSUPPORTED_LINK_REASON))), result)
+        assertFalse(File(outside, "new.txt").exists())
+    }
+
+    @Test
+    fun `바로 풀기는 링크로 들어온 목적지 폴더 자신에는 그대로 푼다`() = runBlocking {
+        val archive = File(dir, "in.zip")
+        ZipOutputStream(archive.outputStream()).use { zos ->
+            zos.putNextEntry(ZipEntry("new.txt"))
+            zos.write("N".toByteArray())
+            zos.closeEntry()
+        }
+        val linkedDest = File(dir, "linkedDest")
+        assumeSymlink(linkedDest, target.absoluteFile)
+
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), linkedDest.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
+
+        assertEquals(IoResult.Done, result)
+        assertEquals("N", File(target, "new.txt").readText())
     }
 
     /** 같은 이름의 항목을 만나면 언제나 진행(폴더는 합치기)을 고르는 충돌 판정자. */

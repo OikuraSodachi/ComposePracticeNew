@@ -4,12 +4,12 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalEntryKind
 import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
-import com.todokanai.composepracticenew.datasource.conflictAt
+import com.todokanai.composepracticenew.datasource.WriteSlot
 import com.todokanai.composepracticenew.datasource.entryKind
 import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.localTreeTopDown
+import com.todokanai.composepracticenew.datasource.resolveExisting
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
-import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.map
@@ -117,9 +117,12 @@ class FtpTransferrer @Inject internal constructor(
     private suspend fun downloadFile(plan: DownloadPlan.SingleFile, resolveConflict: WriteConflictResolver, progress: ByteProgressTracker): IoResult<Unit> {
         val localFile = plan.localFile
         localFile.parentFile?.mkdirs()
-        // 건너뛰면 받을 것이 없으므로 완료다
-        val claimed = claimLocalFile(localFile, resolveConflict).valueOr { return it }
-            ?: return IoResult.Done.also { progress.passOver(localFile.name, plan.size) }
+        // 건너뛰면 받을 것이 없으므로 완료다. 자리에 링크가 있으면 받지 않고 실패한다
+        val claimed = when (val slot = claimLocalFile(localFile, resolveConflict).valueOr { return it }) {
+            is WriteSlot.Ready -> slot.value
+            WriteSlot.Skipped -> return IoResult.Done.also { progress.passOver(localFile.name, plan.size) }
+            WriteSlot.Link -> return IoResult.ItemFailed(UNSUPPORTED_LINK_REASON).also { progress.passOver(localFile.name, plan.size) }
+        }
         progress.startFile()
         return receivingInto(claimed) { onOpened ->
             session.withConnectedClient { client ->
@@ -140,25 +143,32 @@ class FtpTransferrer @Inject internal constructor(
         val remotePath = plan.remotePath
         val localRoot = plan.localRoot
         localRoot.parentFile?.mkdirs()
-        // 받을 폴더 자리에 같은 이름이 있어 건너뛰면 받을 것이 없으므로 완료다
-        if (!claimLocalDirectory(localRoot, resolveConflict).valueOr { return it }) {
-            plan.entries.filter { !it.isDirectory }.forEach { progress.passOver(it.name, it.size) }
-            return IoResult.Done
+        // 받을 폴더 자리에 같은 이름이 있어 건너뛰면 받을 것이 없으므로 완료다. 링크가 있으면 받지 않고 실패한다
+        when (val slot = claimLocalDirectory(localRoot, resolveConflict).valueOr { return it }) {
+            is WriteSlot.Ready -> Unit
+            WriteSlot.Skipped, WriteSlot.Link -> {
+                plan.entries.filter { !it.isDirectory }.forEach { progress.passOver(it.name, it.size) }
+                return if (slot == WriteSlot.Link) IoResult.ItemFailed(UNSUPPORTED_LINK_REASON) else IoResult.Done
+            }
         }
-        // 건너뛰기로 한 폴더. 그 아래 항목은 묻지 않고 건너뛴다
+        // 건너뛰기로 했거나 링크가 있는 폴더. 그 아래 항목은 묻지 않고 건너뛴다 — 링크 아래에 만들면 링크가 가리키는 곳에 쓰므로
         val skippedDirs = mutableListOf<File>()
         return forEachCollectingFailures(plan.entries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
             val localTarget = File(localRoot, relativeRemotePath(entry.path, remotePath))
             when {
                 skippedDirs.any { localTarget.startsWith(it) } -> IoResult.Done.also { if (!entry.isDirectory) progress.passOver(entry.name, entry.size) }
-                entry.isDirectory -> {
-                    if (!claimLocalDirectory(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }) skippedDirs += localTarget
-                    IoResult.Done
+                entry.isDirectory -> when (claimLocalDirectory(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }) {
+                    is WriteSlot.Ready -> IoResult.Done
+                    WriteSlot.Skipped -> IoResult.Done.also { skippedDirs += localTarget }
+                    WriteSlot.Link -> IoResult.ItemFailed(UNSUPPORTED_LINK_REASON).also { skippedDirs += localTarget }
                 }
                 else -> {
                     localTarget.parentFile?.mkdirs()
-                    val claimed = claimLocalFile(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }
-                        ?: return@forEachCollectingFailures IoResult.Done.also { progress.passOver(entry.name, entry.size) }
+                    val claimed = when (val slot = claimLocalFile(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }) {
+                        is WriteSlot.Ready -> slot.value
+                        WriteSlot.Skipped -> return@forEachCollectingFailures IoResult.Done.also { progress.passOver(entry.name, entry.size) }
+                        WriteSlot.Link -> return@forEachCollectingFailures IoResult.ItemFailed(UNSUPPORTED_LINK_REASON).also { progress.passOver(entry.name, entry.size) }
+                    }
                     progress.startFile()
                     val entryFtpPath = extractFtpPath(entry.path)
                     receivingInto(claimed) { onOpened ->
@@ -182,27 +192,33 @@ class FtpTransferrer @Inject internal constructor(
     }
 
     /**
-     * 받을 로컬 폴더 [dir] 자리를 확보한다. 같은 이름의 항목이 있으면 [resolveConflict]에 묻는다(폴더는 합치기, 파일이면 건너뛰기만).
-     * @return 그 폴더에 받을 수 있으면 true, 건너뛰기로 했으면 false, 또는 폴더를 만들지 못한 실패
+     * 받을 로컬 폴더 [dir] 자리를 확보한다. 같은 이름의 항목이 있으면 [resolveConflict]에 묻는다(폴더는 합치기, 파일이면 건너뛰기만). 링크면 묻지 않는다.
+     * @return 그 폴더에 받을 수 있으면 [WriteSlot.Ready], 건너뛰기로 했으면 [WriteSlot.Skipped], 링크가 있으면 [WriteSlot.Link], 또는 폴더를 만들지 못한 실패
      */
-    private suspend fun claimLocalDirectory(dir: File, resolveConflict: WriteConflictResolver): IoResult<Boolean> {
+    private suspend fun claimLocalDirectory(dir: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<Unit>> {
         val created = localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(createdNew { Files.createDirectory(dir.toPath()) }) }
             .valueOr { return it }
-        return IoResult.Success(created || resolveConflict.resolve(conflictAt(dir, sourceIsDirectory = true)) == ConflictChoice.PROCEED)
+        if (created) return IoResult.Success(WriteSlot.Ready(Unit))
+        return IoResult.Success(resolveExisting(dir, sourceIsDirectory = true) { resolveConflict.resolve(it) })
     }
 
     /**
-     * 받을 로컬 파일 [file] 자리를 확보한다. 없으면 빈 파일을 만들어 이름을 잡아 두고, 있으면 [resolveConflict]에 묻는다.
+     * 받을 로컬 파일 [file] 자리를 확보한다. 없으면 빈 파일을 만들어 이름을 잡아 두고, 있으면 [resolveConflict]에 묻는다. 링크면 묻지 않는다.
      * 세션 잠금 밖에서 부른다 — 답을 기다리는 동안 다른 원격 작업이 세션을 쓸 수 있도록.
      * 덮어쓰기로 한 기존 파일은 여기서 비우지 않는다 — 서버가 전송을 받아들인 뒤에 연다(거부되면 기존 파일을 비우지 않도록).
-     * @return 받을 자리. 건너뛰기로 했으면 null. 또는 자리를 만들지 못한 실패
+     * @return 받을 자리를 담은 [WriteSlot.Ready], 건너뛰기로 했으면 [WriteSlot.Skipped], 링크가 있으면 [WriteSlot.Link], 또는 자리를 만들지 못한 실패
      */
-    private suspend fun claimLocalFile(file: File, resolveConflict: WriteConflictResolver): IoResult<ClaimedFile?> {
+    private suspend fun claimLocalFile(file: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<ClaimedFile>> {
         val created = localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(createdNew { Files.createFile(file.toPath()) }) }
             .valueOr { return it }
-        if (created) return IoResult.Success(ClaimedFile(file, createdHere = true))
-        if (resolveConflict.resolve(conflictAt(file, sourceIsDirectory = false)) != ConflictChoice.PROCEED) return IoResult.Success(null)
-        return IoResult.Success(ClaimedFile(file, createdHere = false))
+        if (created) return IoResult.Success(WriteSlot.Ready(ClaimedFile(file, createdHere = true)))
+        return IoResult.Success(
+            when (resolveExisting(file, sourceIsDirectory = false) { resolveConflict.resolve(it) }) {
+                is WriteSlot.Ready -> WriteSlot.Ready(ClaimedFile(file, createdHere = false))
+                WriteSlot.Skipped -> WriteSlot.Skipped
+                WriteSlot.Link -> WriteSlot.Link
+            }
+        )
     }
 
     /**

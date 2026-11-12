@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
+import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -32,7 +33,7 @@ class LocalArchiveExtraction @Inject constructor(
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
      * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로. 폴더끼리는 묻지 않고 합친다
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 압축 해제 결과. 지원하지 않는 형식이 있으면 아무것도 해제하지 않고 실패한다
+     * @return 압축 해제 결과. 지원하지 않는 형식이 있으면 아무것도 해제하지 않고 실패한다. 자리에 심볼릭 링크가 있어 풀지 않은 항목이 있으면 [IoResult.PartiallyFailed]
      */
     suspend fun unzip(
         zipFiles: Set<String>,
@@ -57,10 +58,14 @@ class LocalArchiveExtraction @Inject constructor(
             tracker.reportStart()
 
             var skippedEntries = 0
+            val skippedLinks = mutableListOf<FailedItem>()
             archives.forEachIndexed { i, (zipFilePath, extractor) ->
                 val root = rootOf(File(destPath), zipFilePath, layout)
-                // 아카이브 폴더 자리에 파일이 있어 건너뛰면 그 아카이브의 항목을 모두 처리한 것으로 넘긴다
-                if (!mergeDirectoryResolving(root, ask)) {
+                // 바로 풀기의 루트는 사용자가 고른 목적지 폴더라 확인하지 않는다(링크로 들어온 폴더일 수 있다). 아카이브 폴더는 새로 놓는 자리라 확인한다
+                val slot = if (layout == ExtractLayout.IntoDestination) WriteSlot.Ready(Unit) else mergeDirectoryResolving(root, ask)
+                // 아카이브 폴더 자리에 파일이나 링크가 있어 건너뛰면 그 아카이브의 항목을 모두 처리한 것으로 넘긴다
+                if (slot !is WriteSlot.Ready) {
+                    if (slot == WriteSlot.Link) skippedLinks += FailedItem(root.name, UNSUPPORTED_LINK_REASON)
                     tracker.skipFiles(sizes[i].fileCount)
                     tracker.addBytes(sizes[i].knownBytes, root.name, fileBytes = null)
                     return@forEachIndexed
@@ -68,10 +73,11 @@ class LocalArchiveExtraction @Inject constructor(
                 val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker)
                 extractor.extract(zipFilePath, writer, tracker)
                 skippedEntries += writer.skippedEntries
+                skippedLinks += writer.skippedLinks.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
             }
-            if (skippedEntries > 0) return@localIo IoResult.ItemFailed("경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀")
+            if (skippedEntries > 0) return@localIo pathSkippedResult(skippedEntries, skippedLinks)
             tracker.reportComplete()
-            IoResult.Done
+            if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(SKIPPED_LINK_PREFIX, skippedLinks)
         }
     }
 
@@ -107,4 +113,22 @@ class LocalArchiveExtraction @Inject constructor(
      * @return 추출기. 지원하지 않는 형식이면 null
      */
     private fun extractorFor(path: String): ArchiveExtractor? = extractors.firstOrNull { it.supports(path) }
+
+    /**
+     * 경로 검증 실패로 건너뛴 항목이 있을 때의 결과를 만든다. 링크로 건너뛴 항목이 함께 있으면 둘 다 알린다.
+     * @param skippedEntries 루트 밖이나 루트 자신을 가리켜 건너뛴 항목 수. 0보다 크다
+     * @param skippedLinks 자리에 링크가 있어 풀지 않은 항목
+     * @return 실패 결과
+     */
+    private fun pathSkippedResult(skippedEntries: Int, skippedLinks: List<FailedItem>): IoResult<Unit> {
+        val message = "경로 검증 실패로 ${skippedEntries}개 항목을 건너뜀"
+        return if (skippedLinks.isEmpty()) IoResult.ItemFailed(message)
+               else IoResult.PartiallyFailed(SKIPPED_LINK_PREFIX, skippedLinks + FailedItem("", message))
+    }
+
+    /** 압축 해제 결과 메시지에 쓰는 상수를 둔다. */
+    private companion object {
+        /** 자리에 링크가 있어 풀지 못한 항목을 알리는 실패 메시지 머리말. */
+        const val SKIPPED_LINK_PREFIX = "압축을 풀지 못함"
+    }
 }
