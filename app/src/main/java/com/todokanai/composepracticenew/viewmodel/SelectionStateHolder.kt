@@ -65,6 +65,24 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
         SelectionState.Default, is SelectionState.Receiving -> null
     }
 
+    /**
+     * 전송 목적지 확인 중이면 그 대기를 꺼내고, 같은 갱신에서 기본 모드로 되돌린다 — 꺼낸 대기는 꺼낸 쪽만 가지므로 다음 전송이 그 자리를 써도 사라지지 않는다.
+     * @return 꺼낸 대기. 전송 목적지 확인 중이 아니면 상태를 바꾸지 않고 null
+     */
+    fun takeReceiving(): SelectionState.Receiving<T>? {
+        var taken: SelectionState.Receiving<T>? = null
+        _state.update { current ->
+            taken = current as? SelectionState.Receiving
+            if (taken == null) current else SelectionState.Default
+        }
+        return taken
+    }
+
+    /** 이 화면이 기본 모드(선택도 대기도 없음)일 때만 [receiving]을 다시 전송 목적지 확인으로 둔다. 그사이 다른 선택·대기가 자리를 차지했으면 그대로 둔다. */
+    fun restoreReceiving(receiving: SelectionState.Receiving<T>) {
+        _state.update { current -> if (current == SelectionState.Default) receiving else current }
+    }
+
     /** 기본 모드로 되돌린다. 선택 목록과 전송 대기 목록도 함께 사라진다. */
     fun reset() { _state.value = SelectionState.Default }
 

@@ -167,6 +167,22 @@ class LocalFileInfoDataSourceTest {
         assertEquals(IoResult.ItemFailed("디렉터리가 아닙니다"), dataSource.countChildren(file.absolutePath))
     }
 
+    @Test
+    fun `폴더마다 바로 안 항목 이름을 올리는 폴더 이름부터 이은 표시용 경로와 함께 돌려주고 파일 경로는 건너뛴다(#323)`() = runTest {
+        val root = temp.newFolder("photos")
+        root.resolve("sub/deeper").mkdirs()
+        root.resolve("x.jpg").writeText("x")
+        root.resolve("sub/y.jpg").writeText("y")
+        val file = temp.newFile("alone.txt")
+
+        val result = dataSource.folderEntryNames(listOf(root.absolutePath, file.absolutePath))
+
+        assertEquals(
+            mapOf("photos" to setOf("sub", "x.jpg"), "photos/sub" to setOf("deeper", "y.jpg")),
+            result.associate { it.folderLabel to it.names.toSet() },
+        )
+    }
+
     /** [link]에 [target]을 가리키는 심볼릭 링크를 만든다. 링크를 만들 수 없는 환경(권한 없는 Windows 등)이면 테스트를 건너뛴다. */
     private fun assumeSymlink(link: File, target: File) {
         val created = try {

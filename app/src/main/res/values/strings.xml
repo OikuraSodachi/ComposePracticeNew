@@ -72,6 +72,10 @@
     <!-- File conflict dialog -->
     <string name="dialog_file_conflict_title">파일 충돌</string>
     <string name="dialog_file_conflict_message">같은 이름으로 처리될 수 있는 항목(대소문자·표기만 다른 이름 포함)이 이미 있습니다. 덮어쓰시겠습니까?</string>
+    <string name="dialog_name_collision_message">함께 보내는 항목 중 목적지에서 같은 이름으로 처리될 수 있는 항목(대소문자·표기만 다른 이름)이 있습니다. 서버에 따라 따로 저장되거나, 하나로 합쳐지거나 덮어써질 수 있고, 올리지 못할 수도 있습니다. 계속하시겠습니까?</string>
+    <string name="dialog_name_collision_in_folder">%1$s: %2$s</string>
+    <string name="btn_continue">계속</string>
+    <string name="dialog_upload_checking_message">업로드할 항목을 확인하는 중…</string>
     <string name="dialog_unreadable_server_title">서버 목록을 읽을 수 없음</string>
     <string name="dialog_unreadable_server_message">이 서버는 파일 목록 형식을 알려주지 않거나, 앱이 해석할 수 없는 형식을 사용합니다. 폴더 내용을 볼 수 없어 연결을 종료했습니다.</string>
 

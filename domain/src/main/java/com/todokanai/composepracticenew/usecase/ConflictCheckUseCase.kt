@@ -33,7 +33,7 @@ class ConflictCheckUseCase(
     /**
      * 업로드 시 [destination]의 현재 폴더에 같은 이름이 이미 있는 항목을 판정한다.
      * 로컬에 쓰는 작업(복사·이동·압축 해제·다운로드)은 목록으로 판정하지 않고 쓰는 시점에 파일 시스템 결과로 묻는다(FileActionRepository·RemoteFileTransferRepository.download).
-     * 업로드만 원격에 "없을 때만 만들기"가 없어 이 판정을 쓴다.
+     * 업로드만 원격에 "없을 때만 만들기"가 없어 이 판정을 쓴다. 함께 올리는 항목끼리의 겹침은 [UploadConflictCheckUseCase]가 더해 판정한다.
      * @param items 작업 대상 항목
      * @param destination 목적지 폴더를 탐색 중인 FileNavigatorUseCase
      * @param nameOf 항목에서 파일 이름을 꺼내는 함수

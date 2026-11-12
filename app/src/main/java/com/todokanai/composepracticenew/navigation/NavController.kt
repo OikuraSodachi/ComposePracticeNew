@@ -30,6 +30,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
+import com.todokanai.composepracticenew.compose.dialog.UploadCheckingDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
@@ -257,6 +258,7 @@ private fun RemoteFileListDestination(
     // remoteSelection을 추적하되 모드가 바뀔 때만 이 destination을 리컴포지션 — 선택 목록만 바뀐 경우는 무시
     val remoteSelectMode by remember(remoteSelection) { derivedStateOf { remoteSelection.value.remoteMode() } }
     val uploadConflict by coordinator.uploadConflict.collectAsStateWithLifecycle()
+    val uploadChecking by coordinator.uploadChecking.collectAsStateWithLifecycle()
 
     BackHandler {
         remoteViewModel.onBackPressed { navController.popBackStack() }
@@ -296,9 +298,12 @@ private fun RemoteFileListDestination(
         viewModel = remoteViewModel
     )
 
+    UploadCheckingDialog(checking = uploadChecking, onCancel = coordinator::cancelUploadCheck)
+
     uploadConflict?.let { conflict ->
         FileConflictDialog(
             conflictingFiles = conflict.conflicts,
+            collisions = conflict.collisions,
             totalCount = conflict.targets.size,
             onOverwrite = { coordinator.resolveUploadConflict(ConflictResolution.OVERWRITE) },
             onSkip = { coordinator.resolveUploadConflict(ConflictResolution.SKIP) },

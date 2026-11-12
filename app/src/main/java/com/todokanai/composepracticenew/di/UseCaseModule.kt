@@ -45,6 +45,7 @@ import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
+import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -126,6 +127,10 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideConflictCheckUseCase(notices: OperationNoticeReporter, nameMatching: StorageNameMatching, messages: OperationMessages) =
         ConflictCheckUseCase(notices, nameMatching) { messages.destinationUnverified }
+
+    @Provides @Singleton
+    fun provideUploadConflictCheckUseCase(conflictCheck: ConflictCheckUseCase, sourceInfo: FileInfoRepository, nameMatching: StorageNameMatching) =
+        UploadConflictCheckUseCase(conflictCheck, sourceInfo, nameMatching)
 
     @Provides @Singleton
     fun provideFileOperationOrchestrator(
