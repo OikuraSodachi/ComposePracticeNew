@@ -25,6 +25,7 @@ import java.nio.file.Files
  */
 class FtpDataConnectFailureTest {
 
+    /** 테스트마다 만드는 임시 로컬 디렉터리. 테스트가 끝나면 지운다. */
     private val dir: File = Files.createTempDirectory("ftp-data-connect-test").toFile()
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
     private val client = SessionFtpClient().apply { defaultTimeout = TIMEOUT_MILLIS }
