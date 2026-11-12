@@ -447,6 +447,7 @@ class FtpTransferrer @Inject internal constructor(
     ): IoResult<Unit> = when (outcome) {
         DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.getReplyString())
         is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(outcome.cause.message ?: TRANSFER_FAILED_MESSAGE)
+        is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(dataConnectionFailure(outcome.cause))
         is DataCommandOutcome.Finished ->
             if (!outcome.acknowledged) FtpReplyRules.unacknowledgedTransfer(client.getReplyString())
             else {

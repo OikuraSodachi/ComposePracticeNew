@@ -1,6 +1,30 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import java.io.Closeable
+import java.io.IOException
+
+/**
+ * 데이터 연결을 쓰는 명령의 데이터 스트림을 열어 본 결과([FtpSession.openDataConnection]). 어느 결과든 제어 채널의 응답은 끝까지 읽은 것이다.
+ * 응답을 읽지 못했거나 명령을 보낸 뒤에 실패한 것은 결과가 아니라 예외로 전파된다.
+ */
+internal sealed interface DataConnectionOpening<out S : Closeable> {
+
+    /**
+     * 서버가 전송을 시작해 데이터 연결이 열렸다.
+     * @param connection 열린 데이터 연결
+     */
+    data class Opened<S : Closeable>(val connection: DataConnection<S>) : DataConnectionOpening<S>
+
+    /** 서버가 데이터 연결을 열기 전에 명령을 거부했다(PASV·REST 실패, 명령의 1xx 아닌 응답). 거부 응답은 FTPClient에 남아 있다. */
+    data object Refused : DataConnectionOpening<Nothing>
+
+    /**
+     * 수동 모드 데이터 소켓을 서버가 알려준 주소에 연결하지 못했다(방화벽·NAT가 막은 경우 등).
+     * commons-net은 데이터 소켓을 연결한 뒤에야 명령을 보내므로(`FTPClient._openDataConnection_`), 명령은 보내지 않았고 기다릴 응답도 없다.
+     * @param cause 연결하지 못한 실패
+     */
+    data class NotConnected(val cause: IOException) : DataConnectionOpening<Nothing>
+}
 
 /**
  * 데이터 연결을 쓰는 명령(전송·목록 조회) 하나가 연 데이터 연결. 닫는 방법을 데이터를 끝까지 주고받은 경우([finish])와 중단한 경우([abort])로 나눈다.
