@@ -83,17 +83,14 @@ class ArchiveEntryWriter(
 
     /**
      * [dir]과 루트까지의 그 상위 폴더가 모두 폴더로 있게 한다. 이미 있는 폴더는 합치고, 폴더 자리에 파일이 있으면 [ask]에 묻는다(건너뛰기만 가능).
-     * 루트 아래 자리에 링크가 있으면 따라가지 않고 건너뛰어 [failures]에 넣는다. 루트 자신은 링크여도 그대로 쓴다 —
-     * 바로 풀기의 루트는 사용자가 고른 목적지 폴더이고(링크로 들어온 폴더일 수 있다), 아카이브 폴더는 [LocalArchiveExtraction]이 이미 확인했다.
+     * 루트 아래 자리에 링크가 있으면 따라가지 않고 건너뛰어 [failures]에 넣는다. 루트는 [ExtractionRoot]가 링크를 푼 정규 경로이므로 링크로 보이지 않는다.
      * @param dir 루트 아래(루트 포함)의 폴더 자리
      * @return [dir]에 쓸 수 있으면 true. 그 자리나 상위 자리를 건너뛰었으면 false
      * @throws java.io.IOException 폴더를 만들지 못했을 때
      */
     private fun folderReady(dir: File): Boolean {
         if (skippedFolders.any { dir.startsWith(it) }) return false
-        return foldersFromRootTo(dir).all { folder ->
-            if (folder == root.directory) folder.isDirectory || createdFolder(folder) else createdFolder(folder)
-        }
+        return foldersFromRootTo(dir).all(::createdFolder)
     }
 
     /**

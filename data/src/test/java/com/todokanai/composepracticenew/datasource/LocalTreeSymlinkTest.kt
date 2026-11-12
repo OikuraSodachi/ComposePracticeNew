@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -288,6 +289,93 @@ class LocalTreeSymlinkTest {
         assertEquals(IoResult.Done, result)
         assertEquals("N", File(target, "new.txt").readText())
     }
+
+    @Test
+    fun `아카이브 폴더 자리가 링크면 그 아카이브를 풀지 않고 실패로 알리며 진행률은 끝까지 간다`() = runBlocking {
+        val archive = zipOf("in.zip", "new.txt")
+        val link = File(target, "in")
+        assumeSymlink(link, outside.absoluteFile)
+        val states = mutableListOf<ProgressState>()
+
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver) { states += it }
+
+        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("in", UNSUPPORTED_LINK_REASON))), result)
+        assertFalse(File(outside, "new.txt").exists())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+        assertCompleted(states)
+    }
+
+    @Test
+    fun `아카이브 폴더 안의 링크 자리는 아카이브 폴더 이름을 붙여 실패로 알린다`() = runBlocking {
+        val archive = zipOf("in.zip", "d/new.txt")
+        val link = File(target, "in/d")
+        link.parentFile!!.mkdirs()
+        assumeSymlink(link, outside.absoluteFile)
+        val states = mutableListOf<ProgressState>()
+
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver) { states += it }
+
+        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("in/d", UNSUPPORTED_LINK_REASON))), result)
+        assertFalse(File(outside, "new.txt").exists())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+        assertCompleted(states)
+    }
+
+    @Test
+    fun `압축 해제의 파일 항목 자리가 파일 링크면 덮어쓰지 않고 링크가 가리키는 파일을 비우지 않는다`() = runBlocking {
+        val archive = zipOf("in.zip", "a.txt")
+        val link = File(target, "a.txt")
+        assumeSymlink(link, File(outside, "keep.txt").absoluteFile)
+        val states = mutableListOf<ProgressState>()
+
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) { states += it }
+
+        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("a.txt", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals("K", File(outside, "keep.txt").readText())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+        assertCompleted(states)
+    }
+
+    @Test
+    fun `같은 파티션 이동에서 최상위 폴더 자리가 링크면 옮기지 않고 원본을 남기며 실패로 알린다`() = runBlocking {
+        val link = File(target, "src")
+        assumeSymlink(link, outside.absoluteFile)
+        val states = mutableListOf<ProgressState>()
+
+        val result = transfer(samePartition = true).move(setOf(source.path), target.path, ProceedingConflictResolver) { states += it }
+
+        assertEquals(IoResult.PartiallyFailed("이동하지 못함", listOf(FailedItem("src", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals("A", File(source, "a.txt").readText())
+        assertTrue(Files.isSymbolicLink(link.toPath()))
+        assertEquals(listOf("keep.txt"), outside.list()!!.toList())
+        assertCompleted(states)
+    }
+
+    /**
+     * 마지막 진행 상태가 모든 파일을 처리한 100%인지 확인한다.
+     * @param states 작업이 보고한 진행 상태
+     */
+    private fun assertCompleted(states: List<ProgressState>) {
+        val last = states.last()
+        assertEquals(100, last.progress)
+        assertEquals(last.listSize, last.currentIndex)
+    }
+
+    /**
+     * [entryNames]를 담은 [name] ZIP 파일을 목적지 밖에 만든다. 항목 내용은 "N"이다.
+     * @param name 아카이브 파일 이름
+     * @param entryNames 담을 '/' 구분 항목 경로
+     */
+    private fun zipOf(name: String, vararg entryNames: String): File =
+        File(dir, name).also { file ->
+            ZipOutputStream(file.outputStream()).use { zos ->
+                entryNames.forEach { entryName ->
+                    zos.putNextEntry(ZipEntry(entryName))
+                    zos.write("N".toByteArray())
+                    zos.closeEntry()
+                }
+            }
+        }
 
     /** 같은 이름의 항목을 만나면 언제나 진행(폴더는 합치기)을 고르는 충돌 판정자. */
     private val ProceedingConflictResolver = WriteConflictResolver { ConflictChoice.PROCEED }
