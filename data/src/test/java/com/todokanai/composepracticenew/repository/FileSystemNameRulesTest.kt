@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.data.ftp.FtpSession
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.fileexplorer.FileEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -55,7 +54,7 @@ class FileSystemNameRulesTest {
      */
     private class RejectingFileSystem(private val prefix: String) : PathAwareFileSystem {
         override fun handles(path: String) = path.startsWith(prefix)
-        override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = IoResult.ItemFailed(null)
+        override suspend fun listFiles(path: String): IoResult<ListedDirectory> = IoResult.ItemFailed(null)
         override fun getParent(path: String): String? = null
         override fun displayName(path: String) = path
         override fun nameViolationsOf(fullName: String, location: String) = setOf(FileNameError.RESERVED_NAME)

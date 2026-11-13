@@ -39,7 +39,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `현재 요청의 조회를 마친 목록이면 같은 이름의 항목을 충돌로 판정하고 그 목록의 경로를 목적지로 돌려준다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")), isComplete = true))
 
         assertEquals(DestinationConflicts("/a", incoming), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
         assertTrue(notices.failures.isEmpty())
@@ -47,7 +47,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `복사·이동은 목적지 저장소가 같은 항목으로 다루는 이름도 충돌로 판정하고 판정한 목록의 경로로 규칙을 고른다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/readme.txt"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/readme.txt")), isComplete = true))
         val upperCase = listOf(item("/src/README.TXT"))
 
         assertEquals(DestinationConflicts("/a", upperCase), useCase.findCopyMoveConflicts(upperCase, navigator) { it.name })
@@ -56,7 +56,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `이름 변경은 그 폴더 저장소가 같은 항목으로 다루는 다른 항목과 겹치면 충돌로 판정한다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")), isComplete = true))
 
         assertEquals(RenameConflict.FILE, useCase.findRenameConflict("/a/x.txt", false, "Y.TXT", navigator))
         assertEquals(RenameConflict.NONE, useCase.findRenameConflict("/a/x.txt", false, "X.TXT", navigator))
@@ -65,7 +65,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `이름 변경은 이름이 정확히 같은 다른 종류 항목만 막고 비교 값만 같은 다른 종류 항목은 막지 않는다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), folder("/a/y"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), folder("/a/y")), isComplete = true))
 
         assertEquals(RenameConflict.TYPE_MISMATCH, useCase.findRenameConflict("/a/x.txt", false, "y", navigator))
         assertEquals(RenameConflict.NONE, useCase.findRenameConflict("/a/x.txt", false, "Y", navigator))
@@ -73,7 +73,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `입력 중 미리 보기도 그 항목의 폴더 저장소 규칙으로 판정한다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")), isComplete = true))
 
         assertEquals(RenameConflict.FILE, useCase.previewRenameConflict("/a/x.txt", false, "Y.TXT", navigator))
         assertEquals(setOf("/a"), nameMatching.locations.toSet())
@@ -81,7 +81,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `같은 목록으로 반복 판정하면 목록 항목의 비교 값을 다시 구하지 않는다`() {
-        val listing = DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")))
+        val listing = DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")), isComplete = true)
         show(listing)
 
         useCase.previewRenameConflict("/a/x.txt", false, "Y", navigator)
@@ -89,7 +89,7 @@ class ConflictCheckVerificationTest {
         // 항목 2개는 한 번만, 입력한 이름은 판정마다 구한다
         assertEquals(4, nameMatching.locations.size)
 
-        show(DirectoryListing.Loaded(current, listing.items + item("/a/z.txt")))
+        show(DirectoryListing.Loaded(current, listing.items + item("/a/z.txt"), isComplete = true))
         useCase.previewRenameConflict("/a/x.txt", false, "Y.T", navigator)
         // 새 목록이면 항목 3개의 비교 값을 다시 구한다
         assertEquals(8, nameMatching.locations.size)
@@ -97,7 +97,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `옆 항목 기준 이름 제안도 그 폴더 저장소 규칙으로 겹침을 본다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/X.ZIP"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/X.ZIP")), isComplete = true))
 
         assertEquals("x (1)", useCase.suggestNameBeside("/a/x.txt", "x", ".zip", navigator))
         assertEquals(setOf("/a"), nameMatching.locations.toSet())
@@ -105,7 +105,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `조회를 마친 빈 폴더면 충돌이 없다`() {
-        show(DirectoryListing.Loaded(current, emptyList()))
+        show(DirectoryListing.Loaded(current, emptyList(), isComplete = true))
 
         assertEquals(DestinationConflicts("/a", emptyList<FileHolderItem>()), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
     }
@@ -118,29 +118,37 @@ class ConflictCheckVerificationTest {
     }
 
     @Test
+    fun `읽지 못한 항목이 있는 목록이면 판정하지 않고 거부를 알린다`() {
+        // 빠진 항목과 같은 이름을 묻지 않고 덮어쓰지 않도록(#255)
+        show(DirectoryListing.Loaded(current, listOf(item("/a/y.txt")), isComplete = false))
+
+        assertUnverified(useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+    }
+
+    @Test
     fun `같은 경로를 다시 조회하는 중이면 직전 목록이 있어도 판정하지 않는다`() {
-        show(DirectoryListing.Loading(current, stale = DirectoryListing.Loaded(previous, listOf(item("/a/old.txt")))))
+        show(DirectoryListing.Loading(current, stale = DirectoryListing.Loaded(previous, listOf(item("/a/old.txt")), isComplete = true)))
 
         assertUnverified(useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
     }
 
     @Test
     fun `이름 변경도 확인된 목록이 없으면 판정하지 않고 거부를 알린다`() {
-        show(DirectoryListing.Loaded(previous, listOf(item("/a/y.txt"))))
+        show(DirectoryListing.Loaded(previous, listOf(item("/a/y.txt")), isComplete = true))
 
         assertUnverified(useCase.findRenameConflict("/a/x.txt", false, "y.txt", navigator))
     }
 
     @Test
     fun `이름 변경은 현재 요청의 목록으로 겹치는 방식을 판정한다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")), isComplete = true))
 
         assertEquals(RenameConflict.FILE, useCase.findRenameConflict("/a/x.txt", false, "y.txt", navigator))
     }
 
     @Test
     fun `이름을 바꿀 항목이 확인된 목록에 없으면 다른 폴더의 목록이므로 판정하지 않는다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/y.txt"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/y.txt")), isComplete = true))
 
         assertUnverified(useCase.findRenameConflict("/other/x.txt", false, "y.txt", navigator))
     }
@@ -155,7 +163,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `새 항목 이름 제안은 겹치는 이름이 있으면 압축 저장소와 같은 형식으로 번호를 붙인다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/New folder"), item("/a/new folder (1)"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/New folder"), item("/a/new folder (1)")), isComplete = true))
 
         assertEquals("New folder (2)", useCase.suggestNewEntryName("New folder", "", navigator))
         assertEquals(setOf("/a"), nameMatching.locations.toSet())
@@ -164,14 +172,14 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `확장자를 붙여 겹침을 보고 제안은 확장자를 뺀 이름으로 돌려준다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/x.zip"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/x.zip")), isComplete = true))
 
         assertEquals("x (1)", useCase.suggestNameBeside("/a/x.txt", "x", ".zip", navigator))
     }
 
     @Test
     fun `이름 제안은 확인된 목록이 없으면 번호 없이 제안하고 거부를 알리지 않는다`() {
-        show(DirectoryListing.Loading(current, stale = DirectoryListing.Loaded(previous, listOf(item("/a/New folder")))))
+        show(DirectoryListing.Loading(current, stale = DirectoryListing.Loaded(previous, listOf(item("/a/New folder")), isComplete = true)))
 
         assertEquals("New folder", useCase.suggestNewEntryName("New folder", "", navigator))
         assertTrue(notices.failures.isEmpty())
@@ -179,7 +187,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `옆 항목 기준 이름 제안은 그 항목이 목록에 없으면 다른 폴더의 목록이므로 번호 없이 제안한다`() {
-        show(DirectoryListing.Loaded(current, listOf(item("/a/x.zip"))))
+        show(DirectoryListing.Loaded(current, listOf(item("/a/x.zip")), isComplete = true))
 
         assertEquals("x", useCase.suggestNameBeside("/b/x.txt", "x", ".zip", navigator))
     }

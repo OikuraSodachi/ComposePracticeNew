@@ -11,7 +11,6 @@ import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.map
-import com.todokanai.fileexplorer.FileEntry
 import com.todokanai.fileexplorer.defaultDisplayName
 import javax.inject.Inject
 
@@ -26,12 +25,12 @@ class FtpPathAwareFileSystem @Inject constructor(
 ) : PathAwareFileSystem {
     override fun handles(path: String): Boolean = isFtpUri(path)
 
-    // 해석하지 못한 줄은 목록에서 빼고 읽은 항목만 보여 주되, 빠진 줄이 있음을 알린다(#255)
-    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> =
+    // 해석하지 못한 줄은 목록에서 빼고 읽은 항목만 보여 주되, 빠진 줄이 있음을 알리고 불완전한 목록으로 돌려준다(#255)
+    override suspend fun listFiles(path: String): IoResult<ListedDirectory> =
         ftpCommands.listFiles(path).map { items ->
             val unreadable = items.filterIsInstance<ListedItem.Unreadable>()
             if (unreadable.isNotEmpty()) notices.report(OperationNoticeKind.FAILURE, unreadableNotice(path, unreadable))
-            items.mapNotNull { (it as? ListedItem.Entry)?.entry }
+            ListedDirectory(items.mapNotNull { (it as? ListedItem.Entry)?.entry }, isComplete = unreadable.isEmpty())
         }
 
     override fun getParent(path: String): String? = parentFtpUri(path)

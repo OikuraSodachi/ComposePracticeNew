@@ -38,7 +38,7 @@ class FileListFlowProducerTest {
     private val producer = FileListFlowProducer(DataConverter(), sortPreference)
     private val requests = MutableStateFlow<ListingRequest?>(null)
     /** 경로 → 조회 동작. 등록되지 않은 경로는 빈 폴더로 본다. */
-    private val responses = mutableMapOf<String, suspend () -> IoResult<List<FileEntry>>>()
+    private val responses = mutableMapOf<String, suspend () -> IoResult<ListedDirectory>>()
     /** 경로별 조회 횟수. */
     private val fetchCounts = mutableMapOf<String, Int>()
     /** 공유가 멈춘 횟수. */
@@ -66,7 +66,7 @@ class FileListFlowProducerTest {
         val request = request("/a")
         runCurrent()
 
-        assertEquals(DirectoryListing.Loaded(request, emptyList()), listing.value)
+        assertEquals(DirectoryListing.Loaded(request, emptyList(), isComplete = true), listing.value)
     }
 
     @Test
@@ -105,7 +105,7 @@ class FileListFlowProducerTest {
 
         val next = request("/b")
         runCurrent()
-        assertEquals(DirectoryListing.Loaded(next, emptyList()), listing.value)
+        assertEquals(DirectoryListing.Loaded(next, emptyList(), isComplete = true), listing.value)
     }
 
     @Test
@@ -143,7 +143,7 @@ class FileListFlowProducerTest {
 
         gate.complete(Unit)
         runCurrent()
-        assertEquals(DirectoryListing.Loaded(refresh, DataConverter().fileHolderItemList(listOf(entry("/a/new.txt")), SortMode.BY_DEFAULT)), listing.value)
+        assertEquals(DirectoryListing.Loaded(refresh, DataConverter().fileHolderItemList(listOf(entry("/a/new.txt")), SortMode.BY_DEFAULT), isComplete = true), listing.value)
     }
 
     @Test
@@ -248,5 +248,5 @@ class FileListFlowProducerTest {
         FileEntry(name = path.substringAfterLast('/'), path = path, isDirectory = false, size = 1L, lastModified = 0L)
 
     /** [entries]를 담은 조회 성공 결과를 만든다. */
-    private fun ok(vararg entries: FileEntry): IoResult<List<FileEntry>> = IoResult.Success(entries.toList())
+    private fun ok(vararg entries: FileEntry): IoResult<ListedDirectory> = IoResult.Success(ListedDirectory(entries.toList(), isComplete = true))
 }

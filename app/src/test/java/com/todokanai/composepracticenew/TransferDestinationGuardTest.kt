@@ -123,7 +123,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `목록이 아직 이전 경로의 것이면 업로드하지 않는다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(ListingRequest("ftp://h/old", 0L), emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(ListingRequest("ftp://h/old", 0L), emptyList(), isComplete = true)
         enterUpload()
 
         viewModel.confirmUpload()
@@ -134,7 +134,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인된 대상 목록에 같은 이름이 있으면 덮어쓰기 확인을 기다린다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, listOf(domainItem("ftp://h/r/a.txt")))
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, listOf(domainItem("ftp://h/r/a.txt")), isComplete = true)
         enterUpload()
 
         viewModel.confirmUpload()
@@ -145,7 +145,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인된 대상 목록에 같은 이름이 없으면 업로드한다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         enterUpload()
 
         viewModel.confirmUpload()
@@ -156,7 +156,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `함께 올리는 폴더 안 항목끼리 목적지에서 같은 이름이 될 수 있으면 올리지 않고 확인을 기다린다(#323)`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         folderEntries.entries = listOf(FolderEntryNames("photos", listOf("x.jpg", "x.jpg")))
         enterUpload()
 
@@ -168,7 +168,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `함께 올리는 항목끼리의 겹침을 확인하고 계속하면 모두 올린다(#323)`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         folderEntries.entries = listOf(FolderEntryNames("photos", listOf("x.jpg", "x.jpg")))
         enterUpload()
         viewModel.confirmUpload()
@@ -180,7 +180,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인하는 동안 다음 업로드가 들어와도 앞의 업로드는 사라지지 않고 둘 다 올라간다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
         enterUpload()
         viewModel.confirmUpload()
@@ -195,7 +195,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인하는 동안 다시 누른 확인은 같은 대기를 두 번 올리지 않는다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
         enterUpload()
 
@@ -208,7 +208,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `충돌 확인을 취소하면 대기 목록을 돌려놓아 다시 확인할 수 있다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, listOf(domainItem("ftp://h/r/a.txt")))
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, listOf(domainItem("ftp://h/r/a.txt")), isComplete = true)
         enterUpload()
         viewModel.confirmUpload()
 
@@ -220,7 +220,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `충돌 확인을 취소했을 때 다음 업로드가 원격 화면을 차지했으면 그대로 둔다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, listOf(domainItem("ftp://h/r/a.txt")))
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, listOf(domainItem("ftp://h/r/a.txt")), isComplete = true)
         val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
         enterUpload()
         viewModel.confirmUpload()
@@ -235,7 +235,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인하는 동안 원격 세션이 끊기면 그 확인을 멈추고 올리지 않는다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
         enterUpload()
         viewModel.confirmUpload()
@@ -251,7 +251,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인하는 동안에만 확인 중으로 보인다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
         enterUpload()
 
@@ -264,7 +264,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인을 멈추면 올리지 않고 대기 목록을 돌려놓는다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
         enterUpload()
         viewModel.confirmUpload()
@@ -279,7 +279,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `확인을 멈추면 가장 먼저 시작한 확인만 멈추고 다음 확인은 이어 간다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList())
+        remoteNav.directoryListing.value = DirectoryListing.Loaded(remoteRequest, emptyList(), isComplete = true)
         val hold = CompletableDeferred<Unit>().also { folderEntries.hold = it }
         enterUpload()
         viewModel.confirmUpload()

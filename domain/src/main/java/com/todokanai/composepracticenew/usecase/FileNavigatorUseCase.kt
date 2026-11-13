@@ -37,7 +37,7 @@ class FileNavigatorUseCase(
 
     /**
      * 현재 조회 요청에 대해 조회를 마친 목록을 반환한다. 이름 충돌 판정처럼 목적지의 실제 항목이 필요한 판정 전용이다.
-     * 조회 중(다시 조회하기 전 목록을 표시 중인 경우 포함)·조회 실패이거나 목록이 이전 요청의 것이면 실제 항목을 알 수 없으므로 null을 반환한다.
+     * 조회 중(다시 조회하기 전 목록을 표시 중인 경우 포함)·조회 실패이거나, 목록이 이전 요청의 것이거나, 읽지 못한 항목이 있는 목록([DirectoryListing.Loaded.isComplete]가 false)이면 실제 항목을 알 수 없으므로 null을 반환한다.
      * 판정한 목록의 경로([DirectoryListing.Loaded.request])를 그대로 실행 목적지로 쓰게 하려고 항목과 요청을 함께 반환한다.
      * 판정과 거부 알림을 [ConflictCheckUseCase] 한 곳에서만 하도록 domain 모듈 밖에는 공개하지 않는다.
      * @return 현재 요청의 조회 완료 상태. 확인된 목록이 없으면 null
@@ -45,7 +45,7 @@ class FileNavigatorUseCase(
     internal fun verifiedListing(): DirectoryListing.Loaded? {
         // 목록을 요청보다 먼저 읽는다 — 목록은 요청이 바뀐 뒤에 만들어지므로, 이 순서에서 둘이 같으면 현재 요청의 목록이다
         val listing = nav.directoryListing.value as? DirectoryListing.Loaded ?: return null
-        return listing.takeIf { it.request == nav.listingRequest.value }
+        return listing.takeIf { it.request == nav.listingRequest.value && it.isComplete }
     }
 
     /**

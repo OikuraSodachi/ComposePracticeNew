@@ -10,6 +10,7 @@ import com.todokanai.composepracticenew.repository.OperationNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -64,7 +65,8 @@ class FtpListingInterpretationTest {
 
         val result = runBlocking { FtpPathAwareFileSystem(commands, notices).listFiles("ftp://host/r") }
 
-        assertEquals(listOf("a.txt"), (result as IoResult.Success).value.map { it.name })
+        assertEquals(listOf("a.txt"), (result as IoResult.Success).value.entries.map { it.name })
+        assertFalse("빠진 항목이 있는 목록은 이름 충돌 판정에 쓰이지 않도록 불완전으로 돌려줘야 함", result.value.isComplete)
         assertEquals(listOf("/r: 목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE 외 2개 — 읽은 항목만 표시합니다"), notices.failures)
     }
 
@@ -72,9 +74,10 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄이 없으면 화면 목록은 알리지 않는다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 
-        runBlocking { FtpPathAwareFileSystem(commands, notices).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(commands, notices).listFiles("ftp://host/r") }
 
         assertTrue(notices.failures.isEmpty())
+        assertTrue((result as IoResult.Success).value.isComplete)
     }
 
     @Test

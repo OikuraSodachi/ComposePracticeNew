@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.repository
 import android.util.Log
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.onSuccess
-import com.todokanai.fileexplorer.FileEntry
 
 /**
  * 경로를 처리하는 파일 시스템을 골라 그 경로의 목록 조회를 맡기는 라우터.
@@ -40,11 +39,11 @@ internal class FileSystemRouter(private val fileSystems: Set<PathAwareFileSystem
      * @param path 조회할 디렉터리 경로
      * @return 항목 목록. 처리할 파일 시스템이 없거나 읽을 수 없으면 실패 결과
      */
-    suspend fun listFiles(path: String): IoResult<List<FileEntry>> {
+    suspend fun listFiles(path: String): IoResult<ListedDirectory> {
         Log.d(TAG, "fileList 갱신 — path=$path")
         val fileSystem = resolve(path) ?: return IoResult.ItemFailed(UNSUPPORTED_PATH_MESSAGE)
         return fileSystem.listFiles(path).onSuccess {
-            Log.d(TAG, "fileList 결과 — path=$path size=${it.size}")
+            Log.d(TAG, "fileList 결과 — path=$path size=${it.entries.size} complete=${it.isComplete}")
         }
     }
 }
