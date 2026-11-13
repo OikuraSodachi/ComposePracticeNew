@@ -14,7 +14,7 @@ import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 
 /**
- * 단일 로컬 항목의 이름변경·삭제·폴더 생성을 수행한다. 실패는 결과로 알린다.
+ * 로컬 항목의 이름변경·삭제(여러 대상을 하나의 작업으로)·폴더 생성을 수행한다. 실패는 결과로 알린다.
  * @param removeEntry 파일 또는 빈 폴더 하나를 지우고 성공 여부를 돌려주는 함수. 앱에서는 [File.delete]를,
  * 테스트에서는 OS·권한과 무관하게 삭제 실패를 재현하는 함수를 넘긴다
  */
