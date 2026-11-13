@@ -31,7 +31,7 @@ class FileActionRepositoryImpl @Inject constructor(
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
         treeTransfer.copy(targetFiles, targetPath, resolveConflict, onProgress)
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = entryMutator.rename(targetFile, newName, overwrite)
-    override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFile, onProgress)
+    override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFiles, onProgress)
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
         treeTransfer.move(targetFiles, targetPath, resolveConflict, onProgress)
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =

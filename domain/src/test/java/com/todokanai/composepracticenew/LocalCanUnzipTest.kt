@@ -56,7 +56,7 @@ class LocalCanUnzipTest {
 
     /** `.zip`으로 끝나는 경로만 압축 해제할 수 있다고 답하는 테스트용 저장소. 다른 작업은 쓰지 않는다. */
     private object ZipOnlyRepository : FileActionRepository {
-        override suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done

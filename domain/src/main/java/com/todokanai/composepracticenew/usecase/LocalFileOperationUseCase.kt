@@ -8,7 +8,6 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.StoragePathRules
@@ -110,9 +109,7 @@ class LocalFileOperationUseCase(
      */
     fun delete(files: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
-            forEachCollectingFailures(files, "삭제 실패", nameOf = { it.name }) { item ->
-                fileActionRepo.deleteFile(item.path, onProgress)
-            }
+            fileActionRepo.deleteFiles(files.mapTo(LinkedHashSet()) { it.path }, onProgress)
         }
     }
 

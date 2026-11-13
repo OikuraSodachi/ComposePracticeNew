@@ -137,39 +137,44 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
         }
 
     /**
-     * [targetFile]과 하위 항목을 리프부터 삭제하며 항목 수 기준으로 진행률을 보고한다.
+     * [targetFiles]와 각 하위 항목을 하나의 작업으로 리프부터 삭제하며, 모든 대상의 항목 수 합계 기준으로 진행률을 보고한다.
+     * 대상을 한 번에 받는 것은 진행을 작업 전체 기준으로 보고하기 위해서다 — 대상마다 따로 계산하면 진행이 대상마다 0%로 돌아간다(#355).
      * 지우지 못한 항목이 있어도 나머지를 끝까지 삭제한 뒤 지우지 못한 항목을 모아 알린다.
      * 지우지 못한 항목을 품은 상위 폴더는 비울 수 없으므로 시도하지도, 실패로 세지도 않는다(GNU rm과 같은 방식).
-     * 링크는 따라가지 않고 링크 자신만 지운다 — 링크가 가리키는 대상은 선택한 항목이 아니다([targetFile] 자신이 링크여도 같다).
-     * @param targetFile 삭제할 파일 또는 디렉터리의 절대 경로
+     * 링크는 따라가지 않고 링크 자신만 지운다 — 링크가 가리키는 대상은 선택한 항목이 아니다(대상 자신이 링크여도 같다).
+     * @param targetFiles 삭제할 파일 또는 디렉터리의 절대 경로
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 삭제 결과. 일부 항목을 지우지 못하면 [IoResult.PartiallyFailed]
+     * @return 삭제 결과. 일부 항목을 지우지 못하면 대상 이름 아래 실패를 모은 [IoResult.PartiallyFailed]
      */
-    suspend fun delete(targetFile: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
+    suspend fun delete(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
         onProgress(ProgressState(progress = 0))
-        val root = File(targetFile)
-        val files = root.localTreeBottomUp().map { it.file }.toList()
-        val total = files.size.coerceAtLeast(1)
-        var processed = 0
+        val trees = targetFiles.map { File(it).let { root -> root to root.localTreeBottomUp().map { entry -> entry.file }.toList() } }
+        val progress = LocalDeletionProgress(trees.sumOf { (_, files) -> files.size }, onProgress)
+        forEachCollectingFailures(trees, "삭제 실패", nameOf = { (root, _) -> root.name }) { (root, files) ->
+            deleteTree(root, files, progress)
+        }
+    }
+
+    /**
+     * [root]의 트리 항목 [files]를 리프부터 삭제한다. 지우지 못한 항목을 품은 상위 폴더는 시도하지 않는다.
+     * @param root 삭제 대상
+     * @param files [root]와 하위 항목, 리프부터의 순서
+     * @param progress 작업 전체의 삭제 진행
+     * @return 삭제 결과. 지우지 못한 항목은 [root] 기준 상대 경로로 모은다(대상 자신은 빈 경로)
+     */
+    private suspend fun deleteTree(root: File, files: List<File>, progress: LocalDeletionProgress): IoResult<Unit> =
         forEachCollectingFailures(
             files,
-            "삭제하지 못함",
+            "삭제 실패",
             // 대상 자신은 빈 경로 — 바깥 작업이 실패를 평탄화할 때 대상 이름 아래로 옮기므로 대상 이름 그대로 표시된다
             nameOf = { root.slashRelativePathOf(it) },
             isBlockedBy = { file, failed -> file.isAncestorOf(failed) }
         ) { file ->
             val deleted = deleteEntry(file)
-            processed++
-            onProgress(ProgressState(
-                progress = processed * 100 / total,
-                listSize = total,
-                currentIndex = processed,
-                currentFileName = file.name
-            ))
+            progress.afterDeleting(file.name)
             // File.delete는 실패 원인을 알려주지 않는다
             if (deleted) IoResult.Done else IoResult.ItemFailed(null)
         }
-    }
 
     /**
      * 항목 하나를 삭제한다. 이미 없는 항목은 삭제된 것으로 본다.
@@ -194,5 +199,24 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      */
     suspend fun makeDirectory(parentPath: String, name: String): IoResult<Unit> = withContext(Dispatchers.IO) {
         if (File(parentPath, name).mkdir()) IoResult.Done else IoResult.ItemFailed("폴더 생성 실패: $name")
+    }
+}
+
+/**
+ * 삭제 작업 하나의 진행을 모든 대상의 항목 수 합계 기준으로 보고한다.
+ * @param total 작업 전체에서 지울 항목 수. 0이면 1로 본다
+ * @param onProgress 진행 상태를 수신하는 콜백
+ */
+private class LocalDeletionProgress(total: Int, private val onProgress: (ProgressState) -> Unit) {
+    /** 진행률을 나눌 항목 수. */
+    private val total = total.coerceAtLeast(1)
+
+    /** 삭제를 시도한 항목 수. */
+    private var processed = 0
+
+    /** [name]의 삭제를 시도한 뒤 진행을 보고한다. */
+    fun afterDeleting(name: String) {
+        processed++
+        onProgress(ProgressState(progress = processed * 100 / total, listSize = total, currentIndex = processed, currentFileName = name))
     }
 }
