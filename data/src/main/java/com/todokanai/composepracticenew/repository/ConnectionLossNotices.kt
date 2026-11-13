@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.ConnectionLossNotice
 import com.todokanai.composepracticenew.model.PendingNotice
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -17,6 +18,8 @@ class ConnectionLossNotices @Inject constructor() : ConnectionLossNoticeReposito
     private val box = NoticeBox<ConnectionLossNotice>()
 
     override val pending: StateFlow<List<PendingNotice<ConnectionLossNotice>>> get() = box.pending
+
+    override val claimedIds: Flow<Set<Long>> get() = box.claimedIds
 
     /** 연결된 세션이 끊겼을 때 부른다. 호출 스레드에서 바로 반환한다. */
     fun report() = box.report(ConnectionLossNotice)
