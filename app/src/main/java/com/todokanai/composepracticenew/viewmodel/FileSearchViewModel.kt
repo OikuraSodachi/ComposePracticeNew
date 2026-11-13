@@ -19,14 +19,12 @@ import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -61,13 +59,6 @@ class FileSearchViewModel @Inject constructor(
      */
     var query by mutableStateOf("")
         private set
-
-    /**
-     * [unopenableFolder]의 원본. 화면이 다시 만들어지는 동안(회전 등) 보낸 알림도 잃지 않도록 받을 때까지 보관하며, 연달아 거부되면 한 번만 알린다.
-     */
-    private val _unopenableFolder = Channel<Unit>(Channel.CONFLATED)
-    /** 결과의 폴더나 위치로 이동하려 했지만 거부됐음을 알리는 일회성 알림. 검색은 열린 채로 남는다. */
-    val unopenableFolder: Flow<Unit> = _unopenableFolder.receiveAsFlow()
 
     /** 지금 검색어의 검색. 검색어가 바뀌거나 검색을 닫으면 취소한다. */
     private var searchJob: Job? = null
@@ -170,15 +161,12 @@ class FileSearchViewModel @Inject constructor(
     }
 
     /**
-     * [navigate]로 다른 폴더로 이동하고, 이동했을 때만 검색을 닫는다. 거부되면 검색과 결과를 그대로 두고 [unopenableFolder]로 알린다 —
-     * 이동하지 못했는데 검색만 닫혀 결과를 잃고 아무 일도 없었던 것처럼 보이지 않도록.
+     * [navigate]로 다른 폴더로 이동하고, 이동했을 때만 검색을 닫는다. 거부되면 검색과 결과를 그대로 둔다 —
+     * 이동하지 못했는데 검색만 닫혀 결과를 잃고 아무 일도 없었던 것처럼 보이지 않도록. 거부는 탐색 저장소가 알린다.
      */
     private fun navigateAndClose(navigate: suspend () -> NavigateResult) {
         viewModelScope.launch {
-            when (navigate()) {
-                NavigateResult.Navigated -> close()
-                NavigateResult.Rejected -> _unopenableFolder.trySend(Unit)
-            }
+            if (navigate() == NavigateResult.Navigated) close()
         }
     }
 

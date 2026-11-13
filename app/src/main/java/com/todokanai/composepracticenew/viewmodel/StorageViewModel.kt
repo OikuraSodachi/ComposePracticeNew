@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ConnectResult
+import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
@@ -13,6 +14,8 @@ import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -20,6 +23,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -91,10 +95,20 @@ class StorageViewModel @Inject constructor(
         initialValue = UiState()
     )
 
-    /** 선택한 로컬 스토리지 루트([path])로 파일 탐색기의 현재 경로를 설정한다. */
+    /**
+     * [localStorageOpened]의 원본. 화면이 다시 만들어지는 동안(회전 등) 보낸 이벤트도 잃지 않도록 받을 때까지 보관한다.
+     */
+    private val _localStorageOpened = Channel<Unit>(Channel.CONFLATED)
+    /** 고른 로컬 스토리지 루트로 이동했음을 알리는 일회성 이벤트. 이동이 거부되면 보내지 않는다. */
+    val localStorageOpened: Flow<Unit> = _localStorageOpened.receiveAsFlow()
+
+    /**
+     * 선택한 로컬 스토리지 루트([path])로 파일 탐색기의 현재 경로를 설정하고, 이동했을 때만 [localStorageOpened]를 보낸다 —
+     * 이동이 거부됐는데 목록 화면으로 넘어가 이전 폴더를 고른 저장소처럼 보이지 않도록. 거부는 탐색 저장소가 알린다.
+     */
     fun openLocalStorage(path: String) {
         viewModelScope.launch {
-            localNavigator.setPath(path)
+            if (localNavigator.setPath(path) == NavigateResult.Navigated) _localStorageOpened.trySend(Unit)
         }
     }
 

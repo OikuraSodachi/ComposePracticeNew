@@ -1,7 +1,8 @@
 package com.todokanai.composepracticenew.model
 
 /**
- * 경로 이동 요청의 결과. 거부된 이동을 이동한 것으로 보지 않도록, 이동 뒤에 할 일(검색 닫기 등)은 [Navigated]일 때만 한다.
+ * 경로 이동 요청의 결과. 거부된 이동을 이동한 것으로 보지 않도록, 이동 뒤에 할 일(검색 닫기, 목록 화면으로 넘어가기 등)은 [Navigated]일 때만 한다.
+ * 거부를 알리는 것은 이동을 처리한 저장소가 하므로 받는 쪽은 알리지 않는다.
  */
 enum class NavigateResult {
     /** 현재 경로가 요청한 경로로 바뀌었다. */

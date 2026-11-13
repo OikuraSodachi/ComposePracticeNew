@@ -30,21 +30,24 @@ import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import kotlinx.coroutines.launch
 
 /**
- * 원격 스토리지 연결 결과 Flow를 수집하고 부수 효과를 실행한다.
+ * 원격 스토리지 연결 결과와 로컬 스토리지 열기 결과 Flow를 수집하고 부수 효과를 실행한다.
  *
- * @param viewModel 연결 결과 Flow를 제공하는 ViewModel
+ * @param viewModel 연결·열기 결과 Flow를 제공하는 ViewModel
  * @param onConnectionFailed 연결 실패 시 실행할 콜백
  * @param onConnectionSucceeded 연결 성공 시 실행할 콜백
+ * @param onLocalStorageOpened 로컬 스토리지 루트로 이동했을 때 실행할 콜백
  */
 @Composable
 private fun StorageConnectionEffects(
     viewModel: StorageViewModel,
     onConnectionFailed: () -> Unit,
     onConnectionSucceeded: () -> Unit,
+    onLocalStorageOpened: () -> Unit,
 ) {
     LaunchedEffect(Unit) {
         launch { viewModel.connectionFailed.collect    { onConnectionFailed()    } }
         launch { viewModel.connectionSucceeded.collect { onConnectionSucceeded() } }
+        launch { viewModel.localStorageOpened.collect  { onLocalStorageOpened()  } }
     }
 }
 
@@ -97,7 +100,7 @@ private fun List<RemoteStorageItem>.findById(id: Long?): RemoteStorageItem? =
 /**
  * 스토리지 선택 화면. 로컬/원격 스토리지 목록을 표시하고 탐색 진입점을 제공한다.
  * @param modifier 레이아웃 수정자
- * @param exitStorageFrag 로컬 스토리지 선택 후 파일 목록 화면으로 이동하는 콜백
+ * @param exitStorageFrag 고른 로컬 스토리지 루트로 이동한 뒤 파일 목록 화면으로 넘어가는 콜백
  * @param exitToRemoteFileFrag 원격 스토리지 연결 성공 후 원격 파일 목록 화면으로 이동하는 콜백
  * @param onExit 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거).
  * @param viewModel 스토리지 선택 화면의 ViewModel
@@ -120,6 +123,7 @@ fun StorageFrag(
         viewModel = viewModel,
         onConnectionFailed    = { Toast.makeText(context, R.string.toast_connection_failed, Toast.LENGTH_SHORT).show() },
         onConnectionSucceeded = exitToRemoteFileFrag,
+        onLocalStorageOpened  = exitStorageFrag,
     )
     StorageDialogHost(
         dialogState = dialogState,
@@ -146,10 +150,7 @@ fun StorageFrag(
             LazyColumn(modifier = modifier.fillMaxSize()) {
                 items(uiState.value.storageList, key = { it.absolutePath }) { storage ->
                     StorageHolder(
-                        modifier = Modifier.clickable(enabled = listEnabled) {
-                            viewModel.openLocalStorage(storage.absolutePath)
-                            exitStorageFrag()
-                        },
+                        modifier = Modifier.clickable(enabled = listEnabled) { viewModel.openLocalStorage(storage.absolutePath) },
                         storage = storage
                     )
                 }

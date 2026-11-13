@@ -32,6 +32,8 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 `navigate(path)` is the canonical way to navigate — it sets `currentPath` (and thus `dirTree`) and a new `ListingRequest`; `directoryListing` follows asynchronously as the result of that request.
 
+읽을 수 없는 경로로의 이동은 현재 경로를 바꾸지 않고 `NavigateResult.Rejected`를 돌려주며, 거부는 탐색 저장소(`FileExplorerRepositoryImpl`)가 `OperationNoticeReporter`로 직접 알린다(#279) — 부르는 곳마다 거부를 확인하지 않아도 알림이 빠지지 않도록. 부르는 곳은 알리지 않고, 이동 뒤에 할 일(저장소 화면에서 목록으로 넘어가기, 검색 닫기)이 있을 때만 `Navigated`인지 본다.
+
 `directoryListing` is a `DirectoryListing` state (`NoPath` / `Loading` / `Loaded` / `Failed`), never a bare list: a listing failure must not appear as an empty directory.
 
 - 목록 상태는 `ListingRequest(path, generation)`에 묶인다. 이동·새로고침·재연결·공유 재시작마다 새 요청이 되며, 같은 경로라도 이전 요청의 `Loaded`는 현재 목록이 아니다. 같은 경로를 다시 조회하는 동안의 직전 목록은 `Loading.stale`(표시 전용)이다.

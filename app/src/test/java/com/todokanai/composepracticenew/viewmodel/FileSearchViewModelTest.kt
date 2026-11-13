@@ -173,28 +173,28 @@ class FileSearchViewModelTest {
     }
 
     @Test
-    fun `폴더 결과로 이동이 거부되면 검색과 결과를 그대로 두고 열 수 없음을 알린다`() {
+    fun `폴더 결과로 이동이 거부되면 검색과 결과를 그대로 둔다`() {
         nav.rejected += music.path
         val result = searchedResults().first { it.isDirectory }
         val before = viewModel.state.value
 
         viewModel.onResultClick(result, SelectMode.Default)
 
-        awaitUnopenableFolder()
+        awaitRejection()
         assertEquals(emptyList<String>(), nav.navigated)
         assertEquals(before, viewModel.state.value)
         assertEquals("mus", viewModel.query)
     }
 
     @Test
-    fun `위치 열기가 거부되면 검색과 결과를 그대로 두고 열 수 없음을 알린다`() {
+    fun `위치 열기가 거부되면 검색과 결과를 그대로 둔다`() {
         nav.rejected += "/storage/0/music"
         val file = searchedResults().first { !it.isDirectory }
         val before = viewModel.state.value
 
         viewModel.onOpenLocation(file)
 
-        awaitUnopenableFolder()
+        awaitRejection()
         assertEquals(before, viewModel.state.value)
     }
 
@@ -262,9 +262,9 @@ class FileSearchViewModelTest {
         withTimeout(5_000) { viewModel.state.first { it != null && predicate(it) }!! }
     }
 
-    /** 이동이 거부됐다는 알림이 올 때까지 기다린다. 오지 않으면 시간 초과로 실패한다. */
-    private fun awaitUnopenableFolder() = runBlocking {
-        withTimeout(5_000) { viewModel.unopenableFolder.first() }
+    /** 탐색 저장소가 이동을 한 번 거부할 때까지 기다린다. 거부하지 않으면 시간 초과로 실패한다. */
+    private fun awaitRejection() = runBlocking {
+        withTimeout(5_000) { nav.rejections.first { it > 0 } }
     }
 
     /**
@@ -297,13 +297,15 @@ class FileSearchViewModelTest {
         val navigated = mutableListOf<String>()
         /** 읽을 수 없는 폴더처럼 이동을 거부할 경로. */
         val rejected = mutableSetOf<String>()
+        /** [navigate]가 이동을 거부한 횟수. */
+        val rejections = MutableStateFlow(0)
 
         override val currentPath = MutableStateFlow<String?>(null)
         override val listingRequest = MutableStateFlow<ListingRequest?>(null)
         override val directoryListing = MutableStateFlow<DirectoryListing>(DirectoryListing.NoPath)
 
         override suspend fun navigate(path: String): NavigateResult {
-            if (path in rejected) return NavigateResult.Rejected
+            if (path in rejected) return NavigateResult.Rejected.also { rejections.value++ }
             navigated += path
             return NavigateResult.Navigated
         }

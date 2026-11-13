@@ -144,10 +144,12 @@ abstract class RepositoryModule {
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            @LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>
+            @LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>,
+            notices: OperationNoticeReporter
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(
             converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000),
             fileSystems = fileSystems,
+            notices = notices,
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
@@ -157,8 +159,9 @@ abstract class RepositoryModule {
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            @RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems)
+            @RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>,
+            notices: OperationNoticeReporter
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems, notices)
 
         /** 로컬 화면의 경로 규칙. */
         @Provides @Singleton
