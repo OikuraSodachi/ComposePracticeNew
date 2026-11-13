@@ -129,6 +129,32 @@ class FtpTransferrerLocalFileFailureTest {
     }
 
     @Test
+    fun `폴더 자신을 만들지 못하면 올린 폴더 이름으로 실패를 알린다`() {
+        // 폴더 자신의 실패는 안쪽에서 빈 경로로 모이고, 바깥 묶음이 항목 이름 아래로 옮긴다
+        val folder = File(dir, "r").apply { mkdirs() }
+        client.serverBehaviors = mapOf("MKD" to ServerBehavior.Refuse(550, "550 No write access"))
+        client.onChangeWorkingDirectory = { false }
+
+        val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))) }
+
+        val failure = (result as IoResult.PartiallyFailed).failures.single()
+        assertEquals(folder.name, failure.path)
+        assertTrue("MKD의 거부 응답을 알려야 함: $failure", failure.reason.orEmpty().contains("No write access"))
+    }
+
+    @Test
+    fun `여러 항목 중 열 수 없는 파일이 있으면 그 항목만 실패로 알리고 나머지를 올린다`() {
+        val local = File(dir, "b.txt").apply { writeText("B") }
+
+        val result = runBlocking {
+            transferrer.upload(listOf(UploadSource(File(dir, "missing.txt").path, "ftp://host/r/missing.txt"), UploadSource(local.path, "ftp://host/r/b.txt")))
+        }
+
+        assertEquals(listOf("missing.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
+        assertEquals(listOf("/r/b.txt"), client.storeRequests)
+    }
+
+    @Test
     fun `폴더 생성 거부를 확인하는 중 연결이 끊기면 남은 항목을 시도하지 않는다`() {
         val folder = File(dir, "r").apply { mkdirs() }
         File(folder, "a.txt").writeText("A")

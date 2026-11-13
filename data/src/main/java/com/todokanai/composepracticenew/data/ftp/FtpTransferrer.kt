@@ -352,17 +352,18 @@ class FtpTransferrer @Inject internal constructor(
     }
 
     /**
-     * 단일 로컬 파일을 [ftpPath]로 업로드한다. 진행률은 묶음 전체의 [progress]에 보고한다.
+     * 로컬 파일 하나를 [ftpPath]로 업로드한다. 단일 파일·폴더 안쪽 파일이 공유하며, 진행률은 묶음 전체의 [progress]에 보고한다.
+     * 파일 순번은 열기 전에 올린다 — 열지 못한 파일도 한 파일로 세어 다음 파일의 순번이 밀리지 않도록.
      */
     private suspend fun uploadFile(
         localFile: File,
         ftpPath: String,
         progress: ByteProgressTracker
     ): IoResult<Unit> {
+        progress.startFile()
         val fileBytes = localFile.length()
         return uploadingFrom(localFile) { input ->
             session.withConnectedClient { client ->
-                progress.startFile()
                 uploadOne(
                     client, ftpPath, input,
                     onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, fileBytes) },
@@ -387,19 +388,7 @@ class FtpTransferrer @Inject internal constructor(
             when (treeEntry.kind) {
                 LocalEntryKind.LINK -> IoResult.ItemFailed(UNSUPPORTED_LINK_REASON)
                 LocalEntryKind.DIRECTORY -> cmd.ensureDirectory(entryFtpPath)
-                LocalEntryKind.FILE -> {
-                    progress.startFile()
-                    val entryBytes = entry.length()
-                    uploadingFrom(entry) { input ->
-                        session.withConnectedClient { client ->
-                            uploadOne(
-                                client, entryFtpPath, input,
-                                onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
-                                onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
-                            )
-                        }
-                    }
-                }
+                LocalEntryKind.FILE -> uploadFile(entry, entryFtpPath, progress)
             }
         }
     }

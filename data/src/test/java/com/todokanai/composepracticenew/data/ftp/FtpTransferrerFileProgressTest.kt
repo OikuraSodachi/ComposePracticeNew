@@ -93,6 +93,21 @@ class FtpTransferrerFileProgressTest {
         assertEquals(100, progresses.last())
     }
 
+    @Test
+    fun `여러 항목을 올릴 때 앞 파일을 열지 못해도 다음 파일은 자기 순번으로 보고한다`() {
+        // 열지 못한 파일을 세지 않으면 다음 파일부터 순번이 하나씩 밀린다
+        val missing = File(dir, "missing.txt")
+        val second = File(dir, "b.txt").apply { writeBytes(ByteArray(4)) }
+
+        runBlocking {
+            transferrer.upload(listOf(UploadSource(missing.path, "ftp://host/r/missing.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
+        }
+
+        val secondReports = reports.filter { it.currentFileName == "b.txt" }
+        assertTrue(reports.toString(), secondReports.isNotEmpty())
+        assertTrue(reports.toString(), secondReports.all { it.currentIndex == 2 && it.listSize == 2 })
+    }
+
     /** [size] 바이트 파일을 알리는 MLST 응답 줄을 만든다. */
     private fun mlstReply(size: Long) = listOf("250-Listing a.txt", " type=file;size=$size; a.txt", "250 End")
 
