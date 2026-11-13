@@ -147,7 +147,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 it.executor.listFiles("ftp://host/r")
             },
             CommandRow("RENAME") { it.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") },
-            CommandRow("DELE") { it.executor.deleteFile("ftp://host/r/a.txt") {} },
+            CommandRow("DELE") { it.executor.delete(listOf(fileTarget("ftp://host/r/a.txt"))) {}.singleItemResult() },
             CommandRow("MKD") { it.executor.makeDirectory("ftp://host/r/new") },
             // MLSD 목록은 숨김 항목을 빠뜨릴 수 있어, 그 항목이 남아 거부됐을 가능성을 덧붙인다
             CommandRow(
@@ -155,7 +155,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 refusalNote = FtpReplyRules.HIDDEN_ENTRIES_NOTE,
                 prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r/d" to emptyList()) }
             ) {
-                it.executor.removeDirectoryRecursive("ftp://host/r/d") {}
+                it.executor.delete(listOf(directoryTarget("ftp://host/r/d"))) {}.singleItemResult()
             },
             // 크기 조회는 진행률에만 쓰므로, 거부되면 크기를 모르는 채로 전송을 이어 간다
             CommandRow("MLST", refused = Outcome.CONTINUES, prepare = { it.streamContent = "data".toByteArray() }) {

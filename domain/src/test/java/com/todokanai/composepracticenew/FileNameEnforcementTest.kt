@@ -133,9 +133,8 @@ class FileNameEnforcementTest {
     private class RecordingMutationRepository : RemoteFileMutationRepository {
         val calls = mutableListOf<String>()
         override suspend fun rename(path: String, newName: String) = IoResult.Done.also { calls += "rename" }
-        override suspend fun deleteFile(path: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
+        override suspend fun delete(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
-        override suspend fun removeDirectoryRecursive(path: String, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "rmdir" }
     }
 
     /** 전송을 수행하지 않는 테스트용 원격 전송 저장소. 이 테스트의 대상 작업은 전송을 쓰지 않는다. */

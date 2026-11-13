@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.withFailureMessage
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
@@ -92,11 +91,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun deleteRemote(targets: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
-            forEachCollectingFailures(targets, "삭제 실패", nameOf = { it.name }) { item ->
-                if (item.isDirectory) mutationRepo.removeDirectoryRecursive(item.path, onProgress) else mutationRepo.deleteFile(item.path, onProgress)
-            }
-        }
+        orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress -> mutationRepo.delete(targets, onProgress) }
     }
 
     /**

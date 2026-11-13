@@ -27,9 +27,9 @@ class FtpRemoveDirectoryRecursiveTest {
         )
         client.onDeleteFile = { path -> path != "/r/sub/x.txt" }
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
-        assertEquals("하위 항목 삭제 실패: sub/x.txt (DELE 실패: 550 Permission denied)", (result as IoResult.PartiallyFailed).message)
+        assertEquals("삭제 실패: r/sub/x.txt (DELE 실패: 550 Permission denied)", (result as IoResult.PartiallyFailed).message)
         assertEquals(listOf("/r/other/y.txt", "/r/sub/x.txt"), client.deleteRequests.sorted())
         assertEquals("실패를 품은 /r/sub와 /r에는 RMD를 보내지 않아야 함", listOf("/r/other"), client.removeDirectoryRequests)
     }
@@ -41,7 +41,7 @@ class FtpRemoveDirectoryRecursiveTest {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt"))
         client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Directory not empty"))
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {}.singleItemResult() }
 
         assertEquals(IoResult.ItemFailed("RMD 실패: 550 Directory not empty" + FtpReplyRules.HIDDEN_ENTRIES_NOTE), result)
         assertEquals(listOf("/r/a.txt"), client.deleteRequests)
@@ -53,7 +53,7 @@ class FtpRemoveDirectoryRecursiveTest {
         client.remoteFiles = emptyList()
         client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Directory not empty"))
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {}.singleItemResult() }
 
         assertEquals(IoResult.ItemFailed("RMD 실패: 550 Directory not empty" + FtpReplyRules.HIDDEN_ENTRIES_NOTE), result)
     }

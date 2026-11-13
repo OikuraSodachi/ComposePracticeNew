@@ -234,13 +234,49 @@ class FtpCommandExecutor internal constructor(
     }
 
     /**
+     * [targets]의 원격 파일·디렉터리를 하나의 작업으로 삭제한다.
+     * 먼저 디렉터리 대상의 트리를 모두 모은 뒤(찾은 항목 수는 작업 하나의 [PreparationProgressReporter]로 보고), 모은 항목 전체를 기준으로 지운 항목 수를 보고한다 —
+     * 대상이 여럿이어도 진행이 작업 전체를 가리키도록(#284).
+     * 일부 대상이 실패해도 나머지를 끝까지 지운 뒤 실패를 모아 알리며, 연결이 끊기면 즉시 중단한다. 트리를 모으지 못한 디렉터리는 지우지 않고 실패로 알린다.
+     * 취소하면 이미 지운 항목은 그대로 둔다.
+     * @param targets 삭제할 원격 파일·디렉터리
+     * @param onProgress 진행 상태를 수신하는 콜백
+     * @return 삭제 결과. 실패한 대상이 있으면 대상 이름 아래 실패를 모은 [IoResult.PartiallyFailed]
+     */
+    suspend fun delete(targets: List<RemoteDeletionTarget>, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        val preparation = PreparationProgressReporter(onProgress)
+        val plans = targets.map { target -> target to deletionPlanOf(target, preparation).also { if (it is IoResult.ConnectionLost) return it } }
+        val progress = DeletionProgress(plans.sumOf { (_, plan) -> (plan as? IoResult.Success)?.value?.itemCount ?: 0 }, onProgress)
+        return forEachCollectingFailures(plans, "삭제 실패", nameOf = { (target, _) -> target.name }) { (target, plan) ->
+            when (val planned = plan.valueOr { return@forEachCollectingFailures it }) {
+                DeletionPlan.File -> deleteFile(target.path, progress)
+                is DeletionPlan.Tree -> removeDirectoryRecursive(target.path, planned.items, progress)
+            }
+        }
+    }
+
+    /**
+     * [target]을 지우기 전에 지울 항목을 정한다. 디렉터리는 원격 트리를 재귀 수집한다.
+     * @param target 삭제할 대상
+     * @param preparation 작업 하나의 준비 단계 보고기
+     * @return 지울 항목, 트리를 모으지 못했으면 그 실패
+     */
+    private suspend fun deletionPlanOf(target: RemoteDeletionTarget, preparation: PreparationProgressReporter): IoResult<DeletionPlan> =
+        if (target.isDirectory) {
+            collectRemoteTree(target.path, preparation).map { DeletionPlan.Tree(it) }
+        } else {
+            preparation.onEntryFound(target.name)
+            IoResult.Success(DeletionPlan.File)
+        }
+
+    /**
      * path의 파일을 원격 서버에서 삭제한다. 명령을 보내기 전에 진행을 보고한다 — 여러 파일을 지우는 작업이 파일마다 취소를 확인하도록.
      * @param path 삭제할 원격 파일의 절대 경로 (ftp://server/path 형식)
-     * @param onProgress 진행 상태를 수신하는 콜백
+     * @param progress 작업 전체의 삭제 진행
      * @return 명령 결과
      */
-    suspend fun deleteFile(path: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
-        onProgress(deletionProgressOf(0, 1, defaultDisplayName(path)))
+    private suspend fun deleteFile(path: String, progress: DeletionProgress): IoResult<Unit> {
+        progress.beforeDeleting(defaultDisplayName(path))
         val ftpPath = extractFtpPath(path)
         return runFtpCommand(FtpCommand.DELE) { it.deleteFile(ftpPath) }
     }
@@ -277,33 +313,29 @@ class FtpCommandExecutor internal constructor(
 
     /**
      * path의 디렉터리와 모든 하위 항목을 재귀적으로 삭제한다.
-     * collectRemoteTree로 전체 트리를 수집한 뒤 reversed()로 리프부터 삭제해 RMD 빈 디렉터리 조건을 충족한다.
+     * collectRemoteTree로 수집한 트리([allItems])를 reversed()로 리프부터 삭제해 RMD 빈 디렉터리 조건을 충족한다.
      * 일부 하위 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패를 모아 알리며, 이때 path 자체는 지우지 않는다.
      * 실패한 항목을 품은 상위 디렉터리는 비울 수 없으므로 RMD를 보내지도, 실패로 세지도 않는다(GNU rm과 같은 방식).
      * 트리 수집이 세션을 하위 폴더 안에 남기므로, RMD는 세션이 지울 폴더 안에 있으면 먼저 [path]의 상위 폴더로 나간 뒤 보낸다.
      * 알려진 문제(방치하기로 결정): 트리에 서버가 숨긴 항목이 빠질 수 있어([collectRemoteTree]), 그런 항목이 있으면 보이는 항목을 모두 지운 뒤에야
      * RMD 거부로 실패를 알게 된다. 이 경우 거부 메시지에 숨긴 항목이 남았을 가능성을 덧붙인다([FtpReplyRules.HIDDEN_ENTRIES_NOTE]).
      * 해석하지 못한 목록 줄은 무엇인지 몰라 지우지 못한 항목으로 알리고, 그 줄이 나온 디렉터리는 지우지 않는다(#255).
-     * 수집하는 동안에는 찾은 항목 수를, 지우는 동안에는 항목마다 명령을 보내기 전에 처리한 항목 수를 보고한다 — 보고가 취소를 확인하므로 어느 단계에서든 취소가 듣는다.
-     * 취소하면 이미 지운 항목은 그대로 둔다.
+     * 항목마다 명령을 보내기 전에 진행을 보고한다 — 보고가 취소를 확인하므로 지우는 동안에도 취소가 듣는다.
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
-     * @param onProgress 진행 상태를 수신하는 콜백
+     * @param allItems [path] 아래에서 수집한 트리
+     * @param progress 작업 전체의 삭제 진행
      * @return 삭제 결과. 하위 항목 일부가 실패하면 [IoResult.PartiallyFailed]
      */
-    suspend fun removeDirectoryRecursive(path: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
-        val allItems = collectRemoteTree(path, PreparationProgressReporter(onProgress)).valueOr { return it }
+    private suspend fun removeDirectoryRecursive(path: String, allItems: List<ListedItem>, progress: DeletionProgress): IoResult<Unit> {
         val ftpPath = extractFtpPath(path)
         val outside = parentFtpPath(ftpPath)
-        // 마지막에 지우는 [path] 자신도 센다 — 그래서 하위 항목을 다 지운 뒤에도 100%(작업 끝)를 보고하지 않는다
-        val total = allItems.size + 1
-        var processed = 0
         forEachCollectingFailures(
             allItems.reversed(),
             "하위 항목 삭제 실패",
             nameOf = { relativeRemotePath(it.displayPath, path) },
             isBlockedBy = { item, failed -> item.isDirectoryEntry && isRemoteAncestorOf(item.occupiedPath, failed.occupiedPath) }
         ) { item ->
-            onProgress(deletionProgressOf(processed++, total, nameOf(item)))
+            progress.beforeDeleting(nameOf(item))
             when (item) {
                 is ListedItem.Unreadable -> IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
                 is ListedItem.Entry -> {
@@ -313,22 +345,9 @@ class FtpCommandExecutor internal constructor(
                 }
             }
         }.valueOr { return it }
-        onProgress(deletionProgressOf(processed, total, defaultDisplayName(path)))
+        progress.beforeDeleting(defaultDisplayName(path))
         return runFtpCommand(FtpCommand.RMD, leavingTarget(ftpPath, outside)) { it.removeDirectory(ftpPath) }
     }
-
-    /**
-     * 재귀 삭제에서 [name]을 지우기 직전의 진행 상태를 만든다.
-     * @param processed 이미 처리한 항목 수
-     * @param total 지울 항목 수(시작 디렉터리 포함)
-     * @param name 지금 지울 항목의 이름
-     */
-    private fun deletionProgressOf(processed: Int, total: Int, name: String) = ProgressState(
-        progress = processed * 100 / total,
-        listSize = total,
-        currentIndex = processed,
-        currentFileName = name
-    )
 
     /** 진행 표시에 쓸 [item]의 이름. 해석하지 못한 줄은 이름을 몰라 그 줄이 나온 디렉터리의 이름을 쓴다. */
     private fun nameOf(item: ListedItem): String = when (item) {
@@ -678,5 +697,50 @@ class FtpCommandExecutor internal constructor(
         private const val TOO_MANY_ENTRIES_MESSAGE = "폴더 안의 항목이 너무 많아 처리하지 않았습니다"
         /** 식별값 없이 경로 한도나 메모리 상한에서 멈췄을 때 덧붙이는 설명([descentRefusal], [enterDirectory]). */
         private const val UNIDENTIFIABLE_NOTE = " — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다"
+    }
+}
+
+/**
+ * [FtpCommandExecutor.delete]로 지울 원격 항목 하나.
+ * @param path ftp://server/path 형식의 원격 절대 경로
+ * @param name 실패를 알릴 때 쓰는 항목 이름
+ * @param isDirectory path가 디렉터리인 경우 true
+ */
+class RemoteDeletionTarget(val path: String, val name: String, val isDirectory: Boolean)
+
+/** 삭제 대상 하나에서 지울 항목. */
+private sealed interface DeletionPlan {
+    /** 이 대상이 진행에서 차지하는 항목 수. */
+    val itemCount: Int
+
+    /** 파일 하나. */
+    data object File : DeletionPlan {
+        override val itemCount = 1
+    }
+
+    /**
+     * 디렉터리와 그 아래에서 수집한 트리.
+     * @param items 수집한 하위 항목
+     */
+    class Tree(val items: List<ListedItem>) : DeletionPlan {
+        // 마지막에 지우는 디렉터리 자신도 센다
+        override val itemCount = items.size + 1
+    }
+}
+
+/**
+ * 삭제 작업 하나의 진행을 지울 항목 전체([total]) 기준으로 보고한다.
+ * 명령을 보내기 전에 보고하므로 마지막 명령 직전에도 100%(작업 끝)를 보고하지 않는다 — 진행 다이얼로그는 100%인 작업을 끝난 작업으로 본다.
+ * @param total 작업 전체에서 지울 항목 수(디렉터리 대상 자신 포함)
+ * @param onProgress 진행 상태를 수신하는 콜백
+ */
+private class DeletionProgress(private val total: Int, private val onProgress: (ProgressState) -> Unit) {
+    /** 이미 명령을 보낸 항목 수. */
+    private var processed = 0
+
+    /** [name]을 지우는 명령을 보내기 직전에 진행을 보고한다 — 보고가 취소를 확인하므로 명령마다 취소가 듣는다. */
+    fun beforeDeleting(name: String) {
+        onProgress(ProgressState(progress = processed * 100 / total, listSize = total, currentIndex = processed, currentFileName = name))
+        processed++
     }
 }

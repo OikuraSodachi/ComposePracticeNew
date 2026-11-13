@@ -25,7 +25,7 @@ class FtpLeaveTargetTest {
         loggedIn()
         client.remoteFiles = listOf("a.txt")
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r"), client.listRequests)
@@ -39,7 +39,7 @@ class FtpLeaveTargetTest {
         client.remoteFiles = emptyList()
         client.onChangeWorkingDirectory = { path -> path != "/r" }
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r", "CWD /home/u"), client.listRequests)
@@ -52,7 +52,7 @@ class FtpLeaveTargetTest {
         client.remoteFiles = emptyList()
         client.onChangeWorkingDirectory = { path -> path == "/r/x" }
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r", "CWD /home/u"), client.listRequests)
@@ -65,7 +65,7 @@ class FtpLeaveTargetTest {
         client.remoteFiles = emptyList()
         client.onChangeWorkingDirectory = { path -> path != "/r" }
 
-        runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") {} }
+        runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r"), client.listRequests)
         assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
@@ -77,7 +77,7 @@ class FtpLeaveTargetTest {
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r/x" to emptyList())
 
-        runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") {} }
+        runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(listOf("MLSD /r/x", "CWD /r"), client.listRequests)
         assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
@@ -111,7 +111,7 @@ class FtpLeaveTargetTest {
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r/x" to listOf("type=file;size=1; a.txt"))
 
-        runBlocking { commands.removeDirectoryRecursive("ftp://host/r/x") {} }
+        runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertFalse(client.listRequests.toString(), client.listRequests.any { it.startsWith("CWD") })
     }

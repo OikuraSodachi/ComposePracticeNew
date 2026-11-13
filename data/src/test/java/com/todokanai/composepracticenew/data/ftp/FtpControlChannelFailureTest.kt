@@ -89,7 +89,7 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onDeleteFile = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(1, client.deleteRequests.size)
@@ -102,9 +102,9 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onDeleteFile = { path -> !path.endsWith("b.txt") }
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
-        assertEquals("하위 항목 삭제 실패: b.txt (DELE 실패: 550 Permission denied)", (result as IoResult.PartiallyFailed).message)
+        assertEquals("삭제 실패: r/b.txt (DELE 실패: 550 Permission denied)", (result as IoResult.PartiallyFailed).message)
         assertEquals(2, client.deleteRequests.size)
         assertTrue(runBlocking { session.isReady() })
     }

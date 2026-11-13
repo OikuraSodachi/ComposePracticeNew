@@ -62,7 +62,7 @@ class FtpCommandExecutorTreeListingTest {
             "/r/empty" to emptyList()
         )
 
-        assertEquals(IoResult.Done, runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} })
+        assertEquals(IoResult.Done, runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} })
 
         assertEquals(listOf("/r/a.txt"), client.deleteRequests)
     }
@@ -396,7 +396,7 @@ class FtpCommandExecutorTreeListingTest {
         client.remoteFiles = listOf("x.txt")
         val limited = FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
-        val result = runBlocking { limited.removeDirectoryRecursive("ftp://host/r") {} }
+        val result = runBlocking { limited.delete(listOf(directoryTarget("ftp://host/r"))) {}.singleItemResult() }
 
         assertTrue(result.toString(), result is IoResult.ItemFailed)
         assertEquals(emptyList<String>(), client.deleteRequests)
@@ -412,7 +412,7 @@ class FtpCommandExecutorTreeListingTest {
             "/r/a" to listOf("type=dir;unique=801U10; loop")
         )
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {}.singleItemResult() }
 
         assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
         assertEquals(emptyList<String>(), client.deleteRequests)
