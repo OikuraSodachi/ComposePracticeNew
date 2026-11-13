@@ -226,6 +226,8 @@ internal class FakeFtpClient : SessionFtpClient() {
      */
     private inline fun <T> respond(command: String, refused: () -> T, normal: () -> T): T {
         sentCommands += command
+        // 실제 FTPClient처럼 보낸 명령을 수신기에 알린다 — 데이터 연결 거부의 명령 이름은 이 기록으로 정한다
+        fireCommandSent(command, command)
         return when (val behavior = serverBehaviors[command]) {
             null -> normal()
             is ServerBehavior.Refuse -> {

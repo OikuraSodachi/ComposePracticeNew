@@ -45,11 +45,11 @@ class RemoteFileOperationFailureTest {
 
     @Test
     fun `다운로드가 실패하면 완료 대신 오류를 알린다`() {
-        transferRepo.failure = IoResult.ItemFailed("retrieveFileStream 실패: 550 No such file")
+        transferRepo.failure = IoResult.ItemFailed("RETR 실패: 550 No such file")
 
         remote.download(listOf(item("ftp://h/r/a.txt", isDirectory = false)), "/local", completionMessage = "done") {}
 
-        assertEquals(listOf("retrieveFileStream 실패: 550 No such file"), notices.failures)
+        assertEquals(listOf("RETR 실패: 550 No such file"), notices.failures)
         assertTrue(notices.completions.isEmpty())
     }
 

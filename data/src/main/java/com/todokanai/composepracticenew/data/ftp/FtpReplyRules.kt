@@ -17,8 +17,6 @@ internal enum class FtpCommand(val label: String) {
     DELE("DELE"),
     MKD("MKD"),
     RMD("RMD"),
-    RETR("retrieveFileStream"),
-    STOR("storeFileStream"),
 }
 
 /**
@@ -58,6 +56,16 @@ internal object FtpReplyRules {
      */
     fun refusal(command: FtpCommand, reply: String): IoResult.ItemFailed =
         IoResult.ItemFailed("${command.label} 실패: ${reply.trim()}${refusalNote(command)}")
+
+    /**
+     * 데이터 연결을 쓰는 명령이 데이터 연결을 열기 전에 거부된 것([DataCommandOutcome.Refused])을 이 항목만의 실패로 만든다.
+     * 거부된 명령은 보낸 데이터 명령(LIST·RETR 등)이 아니라 그 앞의 준비 명령(PASV·EPSV·REST)일 수 있으므로, 실제로 거부된 명령의 이름을 받는다.
+     * @param refusedCommand 서버가 거부한 명령 이름([FtpCommandClient.lastSentCommand])
+     * @param reply 서버가 보낸 거부 응답 문자열
+     * @return 거부된 명령과 서버 응답을 메시지로 담은 실패
+     */
+    fun dataCommandRefusal(refusedCommand: String, reply: String): IoResult.ItemFailed =
+        IoResult.ItemFailed("$refusedCommand 실패: ${reply.trim()}")
 
     /**
      * 데이터를 다 주고받았지만 서버가 완료를 확인하지 않은 전송을 이 항목만의 실패로 만든다.
@@ -101,8 +109,7 @@ internal object FtpReplyRules {
      */
     private fun refusalNote(command: FtpCommand): String = when (command) {
         FtpCommand.RMD -> HIDDEN_ENTRIES_NOTE
-        FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD,
-        FtpCommand.RETR, FtpCommand.STOR -> ""
+        FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD -> ""
     }
 
     /** 숨김 항목이 남아 RMD가 거부됐을 수 있을 때 거부 메시지 뒤에 덧붙이는 설명([refusalNote]). */

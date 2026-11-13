@@ -11,8 +11,11 @@ import javax.inject.Inject
  */
 internal sealed interface DataCommandOutcome {
 
-    /** 서버가 데이터 연결을 열기 전에 명령을 거부했다(PASV·REST 실패, 명령의 1xx 아닌 응답). 거부 응답은 FTPClient에 남아 있다. */
-    data object Refused : DataCommandOutcome
+    /**
+     * 서버가 데이터 연결을 열기 전에 명령을 거부했다(PASV·EPSV·REST 실패, 명령의 1xx 아닌 응답). 거부 응답은 FTPClient에 남아 있다.
+     * @param command 서버가 거부한 명령 이름. 보낸 데이터 명령이 아니라 그 앞의 준비 명령일 수 있다
+     */
+    data class Refused(val command: String) : DataCommandOutcome
 
     /**
      * 데이터를 끝까지 주고받고 데이터 연결을 정상으로 닫은 뒤 완료 응답을 읽었다.
@@ -89,7 +92,7 @@ internal class DataCommandRunner @Inject constructor(private val session: FtpDat
         // 기다릴 응답이 없으므로 completePendingCommand는 부르지 않는다. 부르면 오지 않을 응답을 상한까지 기다리며 세션 잠금을 쥔다
         val connection = when (val opening = session.openDataConnection(open)) {
             is DataConnectionOpening.Opened -> opening.connection
-            DataConnectionOpening.Refused -> return DataCommandOutcome.Refused
+            DataConnectionOpening.Refused -> return DataCommandOutcome.Refused(refusedCommand(client))
             is DataConnectionOpening.NotConnected -> {
                 // 잠금 밖 종료가 소켓을 닫아 연결하지 못한 것이면 세션이 끝난 것이다 — 이 명령만의 실패로 보지 않고 경계가 끊김으로 알리게 한다
                 if (!session.isReady()) throw opening.cause
@@ -124,6 +127,15 @@ internal class DataCommandRunner @Inject constructor(private val session: FtpDat
         }
         return if (dataFailure != null) DataCommandOutcome.DataFailed(dataFailure) else DataCommandOutcome.Finished(acknowledged)
     }
+
+    /**
+     * 데이터 연결을 열기 전에 거부된 명령의 이름을 돌려준다. commons-net은 거부 응답을 읽은 직후 null을 돌려주므로 마지막으로 보낸 명령이 거부된 명령이다.
+     * 아무 명령도 보내지 않고 null이 왔다면 수동 모드가 아닌 것이므로 구현 오류다(데이터 연결은 수동 모드만 지원한다).
+     * @param client 거부 응답을 받은 FTP 클라이언트
+     * @return 거부된 명령 이름
+     */
+    private fun refusedCommand(client: FtpCommandClient): String =
+        checkNotNull(client.lastSentCommand) { "명령을 보내지 않았는데 데이터 연결이 거부됐다" }
 
     /**
      * 취소로 멈춘 명령([run]이 취소를 전파함)이 서버에 남긴 것을 [cleanup] 명령 하나로 정리한다. 같은 잠금 안에서 [run] 바로 뒤에 호출한다.

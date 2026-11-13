@@ -485,7 +485,7 @@ class FtpCommandExecutor internal constructor(
             engine.readServerList(keepingOpen(bounded), client.getControlEncoding())
         }
         return when (outcome) {
-            DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.getReplyString())
+            is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
                 else IoResult.ItemFailed("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}")
