@@ -140,7 +140,7 @@ class FileNameEnforcementTest {
     /** 전송을 수행하지 않는 테스트용 원격 전송 저장소. 이 테스트의 대상 작업은 전송을 쓰지 않는다. */
     private object NoOpTransferRepository : RemoteFileTransferRepository {
         override suspend fun download(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun upload(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */

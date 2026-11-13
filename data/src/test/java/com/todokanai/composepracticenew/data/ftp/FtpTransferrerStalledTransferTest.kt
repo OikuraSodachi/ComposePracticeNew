@@ -77,7 +77,7 @@ class FtpTransferrerStalledTransferTest {
             exchange.send("426 Transfer aborted")
         })
 
-        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices()).upload(localFile.path, "ftp://host/a.bin") }
+        val result = runBlocking { FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed("Write timed out"), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
@@ -98,7 +98,7 @@ class FtpTransferrerStalledTransferTest {
 
         // 첫 진행률 보고에서 실패시켜, 쓰기 상한이 아닌 실패(로컬 파일 읽기 실패 등)로 전송이 멈춘 경우를 만든다
         val result = runBlocking {
-            FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices()).upload(localFile.path, "ftp://host/a.bin") { throw IOException(LOCAL_FAILURE) }
+            FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { throw IOException(LOCAL_FAILURE) }.singleItemResult()
         }
 
         assertEquals(IoResult.ItemFailed(LOCAL_FAILURE), result)

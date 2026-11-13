@@ -47,7 +47,7 @@ class FtpTransferrerConnectionLostTest {
         client.onCompletePending = { throw FTPConnectionClosedException("FTP response 421 received.  Server closed connection.") }
         val local = File(dir, "a.txt").apply { writeText("A") }
 
-        val result = runBlocking { transferrer.upload(local.path, "ftp://host/r/a.txt") }
+        val result = runBlocking { transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertFalse(runBlocking { session.isReady() })

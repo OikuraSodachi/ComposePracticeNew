@@ -166,7 +166,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
             },
             CommandRow("STOR", prepare = { it.streamContent = "data".toByteArray() }) {
                 val local = File(it.dir, "a.txt").apply { writeText("A") }
-                it.transferrer.upload(local.path, "ftp://host/r/a.txt")
+                it.transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult()
             },
         )
 

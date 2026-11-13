@@ -94,7 +94,7 @@ class FtpTransferrerCancelledUploadTest {
 
     /** [localFile]을 올리다 첫 진행 보고에서 취소한다. */
     private suspend fun uploadCancelledMidway() =
-        transferrer.upload(localFile.path, "ftp://host/a.bin") { state: ProgressState ->
+        transferrer.upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { state: ProgressState ->
             if ((state.writtenBytes ?: 0) > 0) throw CancellationException("취소")
         }
 

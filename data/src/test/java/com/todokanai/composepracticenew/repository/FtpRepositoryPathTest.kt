@@ -58,7 +58,7 @@ class FtpRepositoryPathTest {
     fun `업로드는 대상 디렉터리 아래 같은 이름으로 요청한다`() {
         val local = File(dir, "a.txt").apply { writeText("data") }
 
-        assertEquals(IoResult.Done, runBlocking { repo.upload(local.path, "ftp://host/dir", "a.txt") {} })
+        assertEquals(IoResult.Done, runBlocking { repo.upload(listOf(FileHolderItem(path = local.path, name = "a.txt", isDirectory = false, sizeBytes = null, lastModifiedMillis = 0L)), "ftp://host/dir") {} })
 
         assertEquals(listOf("/dir/a.txt"), client.storeRequests)
     }

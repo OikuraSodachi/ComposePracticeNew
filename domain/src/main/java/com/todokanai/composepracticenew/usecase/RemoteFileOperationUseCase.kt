@@ -52,16 +52,17 @@ class RemoteFileOperationUseCase(
     }
 
     /**
-     * 로컬 항목 [item]을 [remoteDestPath]에 같은 이름으로 업로드한다.
-     * @param item 업로드할 로컬 파일 또는 디렉터리 항목
+     * 로컬 항목 [items]를 [remoteDestPath]에 같은 이름으로 업로드한다. 한 번의 확인으로 고른 항목들이므로 작업 하나로 실행한다
+     * (취소·진행률이 모두 이 묶음 전체에 걸리도록, #356).
+     * @param items 업로드할 로컬 파일 또는 디렉터리 항목
      * @param remoteDestPath 업로드 대상 원격 디렉터리 경로
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun upload(item: FileHolderItem, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun upload(items: List<FileHolderItem>, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
         orchestrator.launch(completionMessage, FileOperationType.UPLOAD, onRefresh) { onProgress ->
-            transferRepo.upload(item.path, remoteDestPath, item.name, onProgress)
+            transferRepo.upload(items, remoteDestPath, onProgress)
         }
     }
 

@@ -57,7 +57,7 @@ class RemoteFileOperationFailureTest {
     fun `업로드 중 연결이 끊기면 완료 대신 오류를 알린다`() {
         transferRepo.failure = IoResult.ConnectionLost("FTP 서버와의 연결이 끊겼습니다")
 
-        remote.upload(item("/local/a.txt", isDirectory = false), "ftp://h/r", completionMessage = "done") {}
+        remote.upload(listOf(item("/local/a.txt", isDirectory = false)), "ftp://h/r", completionMessage = "done") {}
 
         assertEquals(listOf("FTP 서버와의 연결이 끊겼습니다"), notices.failures)
         assertTrue(notices.completions.isEmpty())
@@ -78,6 +78,17 @@ class RemoteFileOperationFailureTest {
         remote.download(items, "/local", completionMessage = "done") {}
 
         assertEquals(listOf(items), transferRepo.downloads)
+        assertEquals(listOf("done"), notices.completions)
+    }
+
+    @Test
+    fun `업로드는 고른 항목을 작업 하나로 저장소에 함께 맡긴다`() {
+        // 취소·진행률이 한 번의 확인으로 고른 묶음 전체에 걸려야 한다(#356)
+        val items = listOf(item("/local/a.txt", isDirectory = false), item("/local/d", isDirectory = true))
+
+        remote.upload(items, "ftp://h/r", completionMessage = "done") {}
+
+        assertEquals(listOf(items), transferRepo.uploads)
         assertEquals(listOf("done"), notices.completions)
     }
 
@@ -123,16 +134,19 @@ class RemoteFileOperationFailureTest {
         override fun removeProgress(instanceId: Int) {}
     }
 
-    /** [failure]가 있으면 전송 시 그 실패를 돌려주고, 다운로드 요청을 [downloads]에 기록하는 테스트용 원격 전송 저장소. */
+    /** [failure]가 있으면 전송 시 그 실패를 돌려주고, 다운로드·업로드 요청을 [downloads]·[uploads]에 기록하는 테스트용 원격 전송 저장소. */
     private class FakeTransferRepository : RemoteFileTransferRepository {
         var failure: IoResult.Failure? = null
         /** 다운로드 요청마다 받은 항목 목록(요청 순서). */
         val downloads = mutableListOf<List<FileHolderItem>>()
+        /** 업로드 요청마다 받은 항목 목록(요청 순서). */
+        val uploads = mutableListOf<List<FileHolderItem>>()
         override suspend fun download(items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
             downloads += items
             return failure ?: IoResult.Done
         }
-        override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        override suspend fun upload(items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+            uploads += items
             return failure ?: IoResult.Done
         }
     }

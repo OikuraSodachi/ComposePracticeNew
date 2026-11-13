@@ -26,15 +26,14 @@ interface RemoteFileTransferRepository {
     suspend fun download(items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     /**
-     * localPath의 파일 또는 디렉터리를 remoteDirPath 아래 name으로 업로드한다.
-     * 디렉터리는 일부 파일이 실패해도 나머지를 끝까지 올린 뒤 실패한 파일을 모아 알린다.
+     * 로컬 항목 [items]를 차례로 remoteDirPath 아래 각자의 이름으로 업로드한다. 진행률은 모든 항목을 합쳐 보고한다.
+     * 일부 파일이 실패해도 나머지를 끝까지 올린 뒤 실패한 파일을 모아 알린다(연결이 끊기면 멈춘다).
      * 같은 이름의 원격 파일은 묻지 않고 덮어쓴다 — FTP에는 "지정한 이름으로, 없을 때만 만들기"를 보장하는 표준 명령이 없어
      * 겹침은 호출부가 확인할 때의 목록으로 판정하며, 그 뒤에 서버에 생긴 같은 이름의 파일을 덮어쓰는 틈은 지원 범위 밖이다.
-     * @param localPath 업로드할 로컬 파일 또는 디렉터리의 절대 경로
+     * @param items 업로드할 로컬 파일 또는 디렉터리 항목
      * @param remoteDirPath 저장할 원격 디렉터리의 절대 경로
-     * @param name 저장할 파일 또는 디렉터리의 이름
      * @param onProgress 전송 진행 상태를 수신하는 콜백
      * @return 전송 결과
      */
-    suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    suspend fun upload(items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 }
