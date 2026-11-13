@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.compose.listview
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
@@ -35,24 +36,28 @@ fun BottomButtonDialogHost(
     pendingRename: PendingRename?,
     onDelete: (SubmittedSelection) -> Unit,
 ) {
-    dialogState.compressTarget?.let { folder ->
-        // 키 없음 — 연 회차마다 한 번만 제안한다. 입력란은 첫 구성의 값만 쓰므로, 리컴포지션마다 목록을 다시 훑을 필요가 없다
-        val suggestedName = remember { compress.suggestName(selectedList) }
-        CompressDialog(
-            initialText = suggestedName,
-            onConfirm = { name -> onSubmitSelection()?.let { compress.onCompress(it, folder, name) } },
-            onDismiss = { dialogState.dismissCompress() },
-            validate = { name -> compress.validateName(folder, name) }
-        )
-    }
-    if (dialogState.renameDialog) {
-        RenameDialog(
-            currentName = selectedList.first().name,
-            isDirectory = selectedList.first().isDirectory,
-            onConfirm = { name -> onSubmitSelection()?.let { rename.onRename(it, name) } },
-            onDismiss = { dialogState.dismissRename() },
-            validate = { name -> rename.validate(selectedList.first(), name) }
-        )
+    // openId를 키로 — 연 회차마다 입력 상태(rememberSaveable)를 분리해, 화면 이동·프로세스 종료 때 저장된 이전 입력값이
+    // 새로 연 다이얼로그에 복원되지 않게 한다. 회전 시에는 openId가 그대로라 입력값이 유지된다
+    key(dialogState.openId) {
+        dialogState.compressTarget?.let { folder ->
+            // key(openId) 안에서 키 없이 remember — 연 회차마다 한 번만 제안한다. 입력란은 첫 구성의 값만 쓰므로, 리컴포지션마다 목록을 다시 훑을 필요가 없다
+            val suggestedName = remember { compress.suggestName(selectedList) }
+            CompressDialog(
+                initialText = suggestedName,
+                onConfirm = { name -> onSubmitSelection()?.let { compress.onCompress(it, folder, name) } },
+                onDismiss = { dialogState.dismissCompress() },
+                validate = { name -> compress.validateName(folder, name) }
+            )
+        }
+        if (dialogState.renameDialog) {
+            RenameDialog(
+                currentName = selectedList.first().name,
+                isDirectory = selectedList.first().isDirectory,
+                onConfirm = { name -> onSubmitSelection()?.let { rename.onRename(it, name) } },
+                onDismiss = { dialogState.dismissRename() },
+                validate = { name -> rename.validate(selectedList.first(), name) }
+            )
+        }
     }
     pendingRename?.let { pending ->
         RenameConflictDialog(

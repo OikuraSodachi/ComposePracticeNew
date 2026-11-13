@@ -7,11 +7,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -86,25 +82,26 @@ fun RemoteBottomButtonListView(
     onConfirmUpload: () -> Unit,
 ) {
     val currentSelectedList = selectedList()
-    /** 이름 변경 다이얼로그를 띄울지 여부. 대상은 선택 목록의 단일 항목이다. */
-    // 이름 변경 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다.
-    // 저장하지 않는 선택 목록과 어긋나지 않도록(복원 뒤 누르지 않은 창이 뜨지 않도록) 플래그도 저장하지 않는다
-    var showRenameDialog by remember { mutableStateOf(false) }
-    // 삭제 대상은 coordinator의 선택 목록을 그대로 사용 — 확인 전까지 선택을 유지하므로 플래그만 보관한다
-    var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    // 화면 단위 ViewModel에 보관된 다이얼로그 상태 — 대상인 coordinator의 선택 목록과 수명이 같아, 회전 시 유지되고
+    // 화면 이동·프로세스 종료 후 복귀 시 닫힌다(rememberScreenDialogState 참고)
+    val dialogState = rememberRemoteBottomButtonDialogState()
 
     val strRemoteDownload = stringResource(R.string.btn_remote_download)
     val strRemoteDelete   = stringResource(R.string.btn_remote_delete)
     val strRemoteRename   = stringResource(R.string.btn_remote_rename)
 
-    RemoteRenameDialogHost(
-        // 선택이 하나가 아니게 되면(끊김으로 선택이 버려지는 등) 대상이 없으므로 띄우지 않는다
-        renameTarget = currentSelectedList.singleOrNull()?.takeIf { showRenameDialog },
-        onDismiss    = { showRenameDialog = false },
-        onConfirm    = { newName -> onSubmitSelection()?.let { rename.onRename(it, newName) } },
-        validateRename = rename.validate,
-        title        = strRemoteRename,
-    )
+    // openId를 키로 — 연 회차마다 입력 상태(rememberSaveable)를 분리해, 화면 이동·프로세스 종료 때 저장된 이전 입력값이
+    // 새로 연 다이얼로그에 복원되지 않게 한다. 회전 시에는 openId가 그대로라 입력값이 유지된다
+    key(dialogState.openId) {
+        RemoteRenameDialogHost(
+            // 선택이 하나가 아니게 되면(끊김으로 선택이 버려지는 등) 대상이 없으므로 띄우지 않는다
+            renameTarget = currentSelectedList.singleOrNull()?.takeIf { dialogState.renameDialog },
+            onDismiss    = dialogState::dismissRename,
+            onConfirm    = { newName -> onSubmitSelection()?.let { rename.onRename(it, newName) } },
+            validateRename = rename.validate,
+            title        = strRemoteRename,
+        )
+    }
     pendingRename?.let { pending ->
         RenameConflictDialog(
             pending = pending,
@@ -113,10 +110,10 @@ fun RemoteBottomButtonListView(
             onDismiss = rename.onCancelOverwrite
         )
     }
-    if (showDeleteDialog) {
+    if (dialogState.deleteDialog) {
         DeleteDialog(
             onConfirm = { onSubmitSelection()?.let(onDelete) },
-            onDismiss = { showDeleteDialog = false }
+            onDismiss = dialogState::dismissDelete
         )
     }
 
@@ -132,11 +129,11 @@ fun RemoteBottomButtonListView(
                 TextButton(onClick = onEnterDownloadMode) { Text(strRemoteDownload) }
                 TextButton(
                     enabled = currentSelectedList.isNotEmpty(),
-                    onClick = { showDeleteDialog = true }
+                    onClick = dialogState::openDelete
                 ) { Text(strRemoteDelete) }
                 TextButton(
                     enabled = currentSelectedList.size == 1,
-                    onClick = { showRenameDialog = true }
+                    onClick = dialogState::openRename
                 ) { Text(strRemoteRename) }
             }
         }
