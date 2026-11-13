@@ -76,8 +76,8 @@ internal class RecordingTransferRepository : RemoteFileTransferRepository {
         items.forEach { calls += "download ${it.path}" }
         return IoResult.Done
     }
-    override suspend fun upload(localPath: String, remoteDirPath: String, name: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
-        calls += "upload $localPath"
+    override suspend fun upload(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        items.forEach { calls += "upload ${it.path}" }
         return IoResult.Done
     }
 }

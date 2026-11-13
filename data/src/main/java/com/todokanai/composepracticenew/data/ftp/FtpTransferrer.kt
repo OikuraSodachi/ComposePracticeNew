@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalEntryKind
+import com.todokanai.composepracticenew.datasource.LocalTreeEntry
 import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
 import com.todokanai.composepracticenew.datasource.WriteSlot
 import com.todokanai.composepracticenew.datasource.entryKind
@@ -81,25 +82,42 @@ class FtpTransferrer @Inject internal constructor(
         }
 
     /**
-     * localPath의 파일 또는 디렉터리를 remotePath에 스트리밍 업로드한다.
-     * localPath가 디렉터리이면 로컬 트리를 링크를 따라가지 않고 수집 후 각 항목을 순서대로 업로드하며, 일부 파일이 실패해도 끝까지 진행한 뒤 실패를 모아 알린다.
-     * 링크(localPath 자신 포함)는 올리지 않고 실패로 알린다.
+     * [sources]를 차례로 원격에 스트리밍 업로드한다. 올리기 전에 모든 항목의 로컬 트리를 링크를 따라가지 않고 수집해, 진행률을 묶음 전체로 보고한다.
+     * 일부 항목이 실패해도 끝까지 진행한 뒤 실패를 모아 알리며, 연결이 끊기면 남은 항목을 시도하지 않는다.
+     * 링크(고른 항목 자신 포함)는 올리지 않고 실패로 알린다.
      * 취소되면 올리던 파일을 서버에서 지우기를 시도하고, 이미 다 올린 파일은 남긴다.
-     * @param localPath 업로드할 로컬 파일 또는 디렉터리의 절대 경로
-     * @param remotePath 저장될 원격 파일 또는 디렉터리의 절대 경로 (ftp://server/path 형식)
+     * @param sources 올릴 로컬 항목과 저장할 원격 자리
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 전송 결과
      */
-    suspend fun upload(localPath: String, remotePath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit> =
+    suspend fun upload(sources: List<UploadSource>, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit> =
         withContext(Dispatchers.IO) {
-            val localFile = File(localPath)
-            val ftpPath = extractFtpPath(remotePath)
-            when (localFile.entryKind) {
-                LocalEntryKind.LINK -> IoResult.ItemFailed(UNSUPPORTED_LINK_REASON)
-                LocalEntryKind.DIRECTORY -> uploadDirectory(localFile, ftpPath, onProgress)
-                LocalEntryKind.FILE -> uploadFile(localFile, ftpPath, onProgress)
-            }
+            val plans = sources.map { uploadPlanOf(it) }
+            val files = plans.flatMap { it.files }
+            val progress = ByteProgressTracker(files.sumOf { it.length() }, files.size, onProgress)
+            forEachCollectingFailures(plans, "업로드 실패", nameOf = { it.localFile.name }) { plan ->
+                when (plan) {
+                    is UploadPlan.Link -> IoResult.ItemFailed(UNSUPPORTED_LINK_REASON)
+                    is UploadPlan.SingleFile -> uploadFile(plan.localFile, plan.ftpPath, progress)
+                    is UploadPlan.Tree -> uploadDirectory(plan, progress)
+                }
+            }.onSuccess { progress.reportComplete() }
         }
+
+    /**
+     * [source]를 올리기 전에 종류를 정하고, 디렉터리면 로컬 트리를 링크를 따라가지 않고 수집한다.
+     * @param source 올릴 로컬 항목
+     * @return 올릴 계획
+     */
+    private fun uploadPlanOf(source: UploadSource): UploadPlan {
+        val localFile = File(source.localPath)
+        val ftpPath = extractFtpPath(source.remotePath)
+        return when (localFile.entryKind) {
+            LocalEntryKind.LINK -> UploadPlan.Link(localFile)
+            LocalEntryKind.DIRECTORY -> UploadPlan.Tree(localFile, ftpPath, localFile.localTreeTopDown().toList())
+            LocalEntryKind.FILE -> UploadPlan.SingleFile(localFile, ftpPath)
+        }
+    }
 
     /**
      * [source]를 받기 전에 크기를 구한다. 파일은 MLST로, 디렉터리는 원격 트리를 재귀 수집해 구한다.
@@ -297,62 +315,82 @@ class FtpTransferrer @Inject internal constructor(
         }
     }
 
+    /** 올리기 전에 종류를 정해 둔 업로드 항목 하나. */
+    private sealed interface UploadPlan {
+        /** 고른 로컬 항목. */
+        val localFile: File
+
+        /** 올릴 로컬 파일. 묶음 전체의 진행률 합계에 쓴다. */
+        val files: List<File>
+
+        /**
+         * 올리지 않는 링크.
+         * @param localFile 고른 링크
+         */
+        class Link(override val localFile: File) : UploadPlan {
+            override val files: List<File> get() = emptyList()
+        }
+
+        /**
+         * 로컬 파일 하나.
+         * @param localFile 올릴 로컬 파일
+         * @param ftpPath 저장될 원격 파일의 FTP 경로
+         */
+        class SingleFile(override val localFile: File, val ftpPath: String) : UploadPlan {
+            override val files: List<File> get() = listOf(localFile)
+        }
+
+        /**
+         * 링크를 따라가지 않고 수집한 로컬 디렉터리 트리.
+         * @param localFile 올릴 로컬 디렉터리
+         * @param ftpPath 저장될 원격 디렉터리의 FTP 경로
+         * @param entries 디렉터리 자신부터 위에서 아래로 수집한 모든 항목(폴더·링크 포함)
+         */
+        class Tree(override val localFile: File, val ftpPath: String, val entries: List<LocalTreeEntry>) : UploadPlan {
+            override val files: List<File> get() = entries.filter { it.kind == LocalEntryKind.FILE && it.file.isFile }.map { it.file }
+        }
+    }
+
     /**
-     * 단일 로컬 파일을 [ftpPath]로 업로드한다. 진행률은 파일 하나짜리 작업으로 보고한다.
+     * 로컬 파일 하나를 [ftpPath]로 업로드한다. 단일 파일·폴더 안쪽 파일이 공유하며, 진행률은 묶음 전체의 [progress]에 보고한다.
+     * 파일 순번은 열기 전에 올린다 — 열지 못한 파일도 한 파일로 세어 다음 파일의 순번이 밀리지 않도록.
      */
     private suspend fun uploadFile(
         localFile: File,
         ftpPath: String,
-        onProgress: (ProgressState) -> Unit
+        progress: ByteProgressTracker
     ): IoResult<Unit> {
+        progress.startFile()
         val fileBytes = localFile.length()
         return uploadingFrom(localFile) { input ->
             session.withConnectedClient { client ->
-                val progress = ByteProgressTracker(fileBytes, 1, onProgress)
-                progress.startFile()
                 uploadOne(
                     client, ftpPath, input,
                     onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), localFile.name, fileBytes) },
                     onAcked = { progress.onFileCompleted(localFile.name, fileBytes) }
-                ).onSuccess { progress.reportComplete() }
+                )
             }
         }
     }
 
     /**
-     * 로컬 디렉터리 트리를 [ftpPath] 아래로 업로드한다. 실패한 파일은 모아서 마지막에 알린다.
+     * 로컬 디렉터리 트리를 [plan]의 원격 폴더 아래로 업로드한다. 실패한 파일은 모아서 마지막에 알린다. 진행률은 묶음 전체의 [progress]에 보고한다.
      * 원격 폴더는 이미 있어도 되며, 만들 수도 없고 있지도 않으면 그 폴더의 실패로 집계된다([FtpCommandExecutor.ensureDirectory]).
      */
-    private suspend fun uploadDirectory(
-        localDir: File,
-        ftpPath: String,
-        onProgress: (ProgressState) -> Unit
-    ): IoResult<Unit> {
-        val allEntries = localDir.localTreeTopDown().toList()
-        val fileEntries = allEntries.filter { it.kind == LocalEntryKind.FILE && it.file.isFile }.map { it.file }
-        val progress = ByteProgressTracker(fileEntries.sumOf { it.length() }, fileEntries.size, onProgress)
-        return forEachCollectingFailures(allEntries, "업로드 실패", nameOf = { localDir.slashRelativePathOf(it.file).ifEmpty { it.file.name } }) { treeEntry ->
+    private suspend fun uploadDirectory(plan: UploadPlan.Tree, progress: ByteProgressTracker): IoResult<Unit> {
+        val localDir = plan.localFile
+        val ftpPath = plan.ftpPath
+        // 디렉터리 자신의 실패는 빈 경로로 둔다 — 바깥 묶음이 항목 이름 아래로 옮긴다
+        return forEachCollectingFailures(plan.entries, "업로드 실패", nameOf = { localDir.slashRelativePathOf(it.file) }) { treeEntry ->
             val entry = treeEntry.file
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
             when (treeEntry.kind) {
                 LocalEntryKind.LINK -> IoResult.ItemFailed(UNSUPPORTED_LINK_REASON)
                 LocalEntryKind.DIRECTORY -> cmd.ensureDirectory(entryFtpPath)
-                LocalEntryKind.FILE -> {
-                    progress.startFile()
-                    val entryBytes = entry.length()
-                    uploadingFrom(entry) { input ->
-                        session.withConnectedClient { client ->
-                            uploadOne(
-                                client, entryFtpPath, input,
-                                onChunk = { bytesRead -> progress.addBytes(bytesRead.toLong(), entry.name, entryBytes) },
-                                onAcked = { progress.onFileCompleted(entry.name, entryBytes) }
-                            )
-                        }
-                    }
-                }
+                LocalEntryKind.FILE -> uploadFile(entry, entryFtpPath, progress)
             }
-        }.onSuccess { progress.reportComplete() }
+        }
     }
 
     /**
@@ -518,3 +556,10 @@ class FtpTransferrer @Inject internal constructor(
  * @param isDirectory remotePath가 디렉터리인 경우 true
  */
 class DownloadSource(val remotePath: String, val localPath: String, val isDirectory: Boolean)
+
+/**
+ * [FtpTransferrer.upload]로 올릴 로컬 항목 하나와 저장할 원격 자리.
+ * @param localPath 올릴 로컬 파일 또는 디렉터리의 절대 경로
+ * @param remotePath 저장될 원격 파일 또는 디렉터리의 절대 경로 (ftp://server/path 형식)
+ */
+class UploadSource(val localPath: String, val remotePath: String)

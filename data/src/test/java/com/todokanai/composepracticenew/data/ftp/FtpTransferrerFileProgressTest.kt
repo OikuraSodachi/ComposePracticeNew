@@ -15,7 +15,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
-/** 단일 파일 다운로드·업로드가 파일 하나짜리 작업으로 폴더 전송과 같은 진행률 규칙을 따르는지 검증하는 단위 테스트(#242). */
+/** 단일 파일 다운로드·업로드가 파일 하나짜리 작업으로 폴더 전송과 같은 진행률 규칙을 따르고(#242), 여러 항목 업로드가 묶음 전체로 보고하는지(#356) 검증하는 단위 테스트. */
 class FtpTransferrerFileProgressTest {
 
     /** 받을 파일과 올릴 파일을 둘 로컬 임시 디렉터리. */
@@ -70,10 +70,42 @@ class FtpTransferrerFileProgressTest {
     fun `0바이트 파일을 올려도 완료 응답 뒤에 100%를 보고한다`() {
         val empty = File(dir, "empty.txt").apply { writeBytes(ByteArray(0)) }
 
-        assertEquals(IoResult.Done, runBlocking { transferrer.upload(empty.path, "ftp://host/r/empty.txt", onProgress = { reports += it }) })
+        assertEquals(IoResult.Done, runBlocking { transferrer.upload(listOf(UploadSource(empty.path, "ftp://host/r/empty.txt")), onProgress = { reports += it }) })
 
         assertEquals(100, reports.single().progress)
         assertEquals(0L, reports.single().totalBytes)
+    }
+
+    @Test
+    fun `여러 항목을 올리면 진행률을 묶음 전체로 보고하고 항목마다 처음으로 돌아가지 않는다`() {
+        // 항목마다 따로 계산하면 진행 막대가 항목 수만큼 0→100%를 반복한다(#356)
+        val first = File(dir, "a.txt").apply { writeBytes(ByteArray(3)) }
+        val second = File(dir, "b.txt").apply { writeBytes(ByteArray(4)) }
+
+        val result = runBlocking {
+            transferrer.upload(listOf(UploadSource(first.path, "ftp://host/r/a.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
+        }
+
+        assertEquals(IoResult.Done, result)
+        assertTrue(reports.toString(), reports.all { it.totalBytes == 7L && it.listSize == 2 })
+        val progresses = reports.mapNotNull { it.progress }
+        assertEquals("진행률이 줄어들면 안 됨: $progresses", progresses.sorted(), progresses)
+        assertEquals(100, progresses.last())
+    }
+
+    @Test
+    fun `여러 항목을 올릴 때 앞 파일을 열지 못해도 다음 파일은 자기 순번으로 보고한다`() {
+        // 열지 못한 파일을 세지 않으면 다음 파일부터 순번이 하나씩 밀린다
+        val missing = File(dir, "missing.txt")
+        val second = File(dir, "b.txt").apply { writeBytes(ByteArray(4)) }
+
+        runBlocking {
+            transferrer.upload(listOf(UploadSource(missing.path, "ftp://host/r/missing.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
+        }
+
+        val secondReports = reports.filter { it.currentFileName == "b.txt" }
+        assertTrue(reports.toString(), secondReports.isNotEmpty())
+        assertTrue(reports.toString(), secondReports.all { it.currentIndex == 2 && it.listSize == 2 })
     }
 
     /** [size] 바이트 파일을 알리는 MLST 응답 줄을 만든다. */

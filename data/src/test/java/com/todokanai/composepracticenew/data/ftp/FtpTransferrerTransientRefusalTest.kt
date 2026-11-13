@@ -47,7 +47,7 @@ class FtpTransferrerTransientRefusalTest {
         val (client, session, transferrer) = connectedTransferrer(ServerBehavior.Refuse(452, "452 Insufficient storage"))
         val local = File(dir, "a.txt").apply { writeText("A") }
 
-        val result = runBlocking { transferrer.upload(local.path, "ftp://host/r/a.txt") }
+        val result = runBlocking { transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed("STOR 실패: 452 Insufficient storage"), result)
         assertTrue(runBlocking { session.isReady() })

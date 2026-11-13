@@ -247,13 +247,11 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** items를 [remoteDestPath]에 업로드한다. */
     private fun upload(items: List<FileHolderItem>, remoteDestPath: String) {
-        items.forEach { item ->
-            remoteFileOperationUseCase.upload(
-                item = item.toDomain(),
-                remoteDestPath = remoteDestPath,
-                completionMessage = messages.notiUploadComplete,
-                onRefresh = { remoteNavigator.refresh() }
-            )
-        }
+        remoteFileOperationUseCase.upload(
+            items = items.map { it.toDomain() },
+            remoteDestPath = remoteDestPath,
+            completionMessage = messages.notiUploadComplete,
+            onRefresh = { remoteNavigator.refresh() }
+        )
     }
 }

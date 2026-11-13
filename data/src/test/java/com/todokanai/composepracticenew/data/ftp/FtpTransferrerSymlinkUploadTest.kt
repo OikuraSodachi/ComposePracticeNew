@@ -53,7 +53,7 @@ class FtpTransferrerSymlinkUploadTest {
         val link = File(dir, "link")
         assumeSymlink(link, File(source, "a.txt").absoluteFile)
 
-        val result = runBlocking { transferrer.upload(link.path, "ftp://host/r/link") }
+        val result = runBlocking { transferrer.upload(listOf(UploadSource(link.path, "ftp://host/r/link"))).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(UNSUPPORTED_LINK_REASON), result)
         assertEquals(emptyList<String>(), client.storeRequests)
@@ -63,9 +63,10 @@ class FtpTransferrerSymlinkUploadTest {
     fun `폴더 안의 순환 링크는 따라가지 않고 나머지만 올린 뒤 실패로 알린다`() {
         assumeSymlink(File(source, "loop"), source)
 
-        val result = runBlocking { transferrer.upload(source.path, "ftp://host/r") }
+        val result = runBlocking { transferrer.upload(listOf(UploadSource(source.path, "ftp://host/r"))) }
 
-        assertEquals(IoResult.PartiallyFailed("업로드 실패", listOf(FailedItem("loop", UNSUPPORTED_LINK_REASON))), result)
+        // 폴더 안쪽 실패는 바깥 묶음이 올린 항목 이름 아래로 옮긴다
+        assertEquals(IoResult.PartiallyFailed("업로드 실패", listOf(FailedItem("${source.name}/loop", UNSUPPORTED_LINK_REASON))), result)
         assertEquals(listOf("/r/a.txt"), client.storeRequests)
     }
 }

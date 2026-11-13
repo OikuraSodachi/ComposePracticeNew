@@ -47,7 +47,7 @@ class FtpTransferrerConnectionLostTest {
         client.onCompletePending = { throw FTPConnectionClosedException("FTP response 421 received.  Server closed connection.") }
         val local = File(dir, "a.txt").apply { writeText("A") }
 
-        val result = runBlocking { transferrer.upload(local.path, "ftp://host/r/a.txt") }
+        val result = runBlocking { transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertFalse(runBlocking { session.isReady() })
@@ -63,6 +63,29 @@ class FtpTransferrerConnectionLostTest {
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
+    }
+
+    @Test
+    fun `여러 항목을 올리다 연결이 끊기면 남은 항목을 시도하지 않는다`() {
+        loggedIn()
+        client.onCompletePending = { throw FTPConnectionClosedException("Connection closed without indication.") }
+        val first = File(dir, "a.txt").apply { writeText("A") }
+        val second = File(dir, "b.txt").apply { writeText("B") }
+        // 끊긴 세션은 명령을 보내지 않으므로, 남은 항목을 시도했는지는 세션을 쓰려 한 횟수로 본다
+        var sessionUses = 0
+        val counting = object : FtpCommandSession {
+            override suspend fun <T> withConnectedClient(block: suspend (FtpCommandClient) -> IoResult<T>): IoResult<T> {
+                sessionUses++
+                return session.withConnectedClient(block)
+            }
+        }
+        val dataCommands = DataCommandRunner(session)
+        val observed = FtpTransferrer(counting, FtpCommandExecutor(session, dataCommands), dataCommands, OperationNotices())
+
+        val result = runBlocking { observed.upload(listOf(UploadSource(first.path, "ftp://host/r/a.txt"), UploadSource(second.path, "ftp://host/r/b.txt"))) }
+
+        assertTrue("$result", result is IoResult.ConnectionLost)
+        assertEquals("남은 항목은 세션을 쓰지 않아야 함", 1, sessionUses)
     }
 
     @Test
