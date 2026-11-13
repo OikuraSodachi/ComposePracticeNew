@@ -71,6 +71,21 @@ class FtpListingInterpretationTest {
     }
 
     @Test
+    fun `LIST 목록의 total 줄과 자신·상위 항목은 해석하지 못한 줄로 남기지 않고 뺀다`() {
+        // LIST를 쓰는 서버 — 해석기가 total 줄을 거르지 않으면 모든 목록이 불완전해져 폴더 삭제·다운로드가 실패한다
+        val listClient = FakeFtpClient().apply {
+            listHeaderLines = listOf("total 3", "drwxr-xr-x 1 user group 0 Jan  1 00:00 .", "drwxr-xr-x 1 user group 0 Jan  1 00:00 ..")
+            remoteFiles = listOf("a.txt")
+        }
+        val listSession = FtpSession(listClient)
+        runBlocking { listSession.markLoggedIn(listSession.closeRequestMark(), home = null, serverName = "server") }
+
+        val items = (runBlocking { FtpCommandExecutor(listSession, DataCommandRunner(listSession)).listFiles("ftp://host/r") } as IoResult.Success).value
+
+        assertEquals(listOf("a.txt"), items.map { (it as ListedItem.Entry).entry.name })
+    }
+
+    @Test
     fun `해석하지 못한 줄이 없으면 화면 목록은 알리지 않는다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 

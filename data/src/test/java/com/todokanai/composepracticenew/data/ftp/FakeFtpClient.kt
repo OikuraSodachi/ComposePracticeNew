@@ -45,6 +45,8 @@ internal class FakeFtpClient : SessionFtpClient() {
     var remoteFiles: List<String> = emptyList()
     /** LIST 조회 시 돌려줄 원격 디렉터리 이름. 어느 디렉터리를 조회해도 같은 이름을 돌려준다. */
     var remoteDirectories: List<String> = emptyList()
+    /** LIST 응답에서 항목 줄 앞에 그대로 보낼 줄(예: `total N`, `.`·`..` 항목 줄). */
+    var listHeaderLines: List<String> = emptyList()
     /** FEAT로 알릴 기능 이름. 대문자로 비교한다. */
     var features: Set<String> = emptySet()
     /** MLSD 응답 줄 — 디렉터리 FTP 경로 → MLSx 형식 줄. 없는 경로는 550으로 거부한다. */
@@ -160,7 +162,7 @@ internal class FakeFtpClient : SessionFtpClient() {
     override fun openListStream(): InputStream? {
         listRequests += "LIST"
         return listingStream("LIST") {
-            remoteDirectories.map { name -> unixListLine(DIRECTORY_MODE, size = 0, name) } + remoteFiles.map { name -> unixListLine(FILE_MODE, size = 1, name) }
+            listHeaderLines + remoteDirectories.map { name -> unixListLine(DIRECTORY_MODE, size = 0, name) } + remoteFiles.map { name -> unixListLine(FILE_MODE, size = 1, name) }
         }
     }
 
