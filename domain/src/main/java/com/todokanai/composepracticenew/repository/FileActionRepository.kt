@@ -31,9 +31,11 @@ interface FileActionRepository {
     // is merged into a folder (clashing entries replaced, others kept); a file/folder type mismatch always fails.
     suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean = false): IoResult<Unit>
 
-    // Deletes the file or directory tree at [targetFile], reporting progress via [onProgress].
-    // Keeps deleting the remaining entries when one fails, then reports once (PartiallyFailed) naming the entries that could not be deleted.
-    suspend fun deleteFile(targetFile: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    // Deletes the files and directory trees at [targetFiles] as one operation, reporting progress via [onProgress].
+    // Takes every target at once so progress covers the whole operation — only the implementation knows how many entries a folder holds.
+    // Keeps deleting the remaining entries when one fails, then reports once (PartiallyFailed) naming the entries that could not be deleted,
+    // each under its target's name.
+    suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Moves [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
     // Name clashes are resolved through [resolveConflict] exactly as in [copyAction]. Skipped entries stay at their source;

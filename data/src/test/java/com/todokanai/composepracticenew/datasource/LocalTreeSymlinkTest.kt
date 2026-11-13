@@ -56,7 +56,7 @@ class LocalTreeSymlinkTest {
     fun `삭제는 트리 안의 링크 자신만 지우고 링크가 가리키는 폴더는 남긴다`() = runBlocking {
         assumeSymlink(File(source, "link"), outside)
 
-        assertEquals(IoResult.Done, LocalEntryMutator().delete(source.path) {})
+        assertEquals(IoResult.Done, LocalEntryMutator().delete(setOf(source.path)) {})
 
         assertFalse(source.exists())
         assertEquals("K", File(outside, "keep.txt").readText())
@@ -67,7 +67,7 @@ class LocalTreeSymlinkTest {
         val link = File(dir, "link")
         assumeSymlink(link, outside)
 
-        assertEquals(IoResult.Done, LocalEntryMutator().delete(link.path) {})
+        assertEquals(IoResult.Done, LocalEntryMutator().delete(setOf(link.path)) {})
 
         assertFalse(Files.exists(link.toPath(), LinkOption.NOFOLLOW_LINKS))
         assertEquals("K", File(outside, "keep.txt").readText())
@@ -176,9 +176,9 @@ class LocalTreeSymlinkTest {
         val link = File(dir, "dangling")
         assumeSymlink(link, File(dir, "missing"))
 
-        val result = LocalEntryMutator { false }.delete(link.path) {}
+        val result = LocalEntryMutator { false }.delete(setOf(link.path)) {}
 
-        assertEquals(IoResult.PartiallyFailed("삭제하지 못함", listOf(FailedItem("", null))), result)
+        assertEquals(IoResult.PartiallyFailed("삭제 실패", listOf(FailedItem("dangling", null))), result)
     }
 
     @Test
