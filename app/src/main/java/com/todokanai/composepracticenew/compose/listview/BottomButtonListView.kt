@@ -44,6 +44,7 @@ fun BottomButtonListView(
     pendingRename: PendingRename?,
     onDelete: (SubmittedSelection) -> Unit,
 ) {
+    // 화면 단위 ViewModel에 보관된 다이얼로그 상태 — 회전 시 유지, 화면 이동·프로세스 종료 후 복귀 시 닫힘(rememberScreenDialogState 참고)
     val dialogState = rememberBottomButtonDialogState()
     val currentSelectedList = selectedList()
 

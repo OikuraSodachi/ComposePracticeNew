@@ -40,8 +40,8 @@ fun <E> EditTextDialog(
     onDismiss: () -> Unit
 ) {
     // 입력값(선택 범위 포함)과 편집 여부는 같은 rememberSaveable로 함께 보존 — 키 없음: initialText가 바뀌어도 입력 중인 값을 덮어쓰지 않음.
-    // 호스트가 표시 상태를 저장하면 구성 변경 후 입력값과 오류 표시가 짝을 이뤄 복원되고(한쪽만 복원되어 빈 입력에 오류가 뜨는 일 방지),
-    // 호스트 표시 상태가 remember라 다이얼로그가 닫히는 경우에는 함께 버려진다.
+    // 호스트가 표시 상태를 구성 변경에 유지하면 입력값과 오류 표시가 짝을 이뤄 복원되고(한쪽만 복원되어 빈 입력에 오류가 뜨는 일 방지),
+    // 열린 회차가 바뀌면(호스트가 key로 구분, ScreenDialogState.openId) 함께 버려진다.
     var field by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(initialText, initialSelection))
     }
