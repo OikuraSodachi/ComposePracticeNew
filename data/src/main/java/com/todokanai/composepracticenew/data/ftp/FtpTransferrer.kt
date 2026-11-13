@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalEntryKind
 import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
@@ -67,7 +68,8 @@ class FtpTransferrer @Inject internal constructor(
         onProgress: (ProgressState) -> Unit = {}
     ): IoResult<Unit> =
         withContext(Dispatchers.IO) {
-            val plans = sources.map { source -> source to planOf(source).also { if (it is IoResult.ConnectionLost) return@withContext it } }
+            val preparation = PreparationProgressReporter(onProgress)
+            val plans = sources.map { source -> source to planOf(source, preparation).also { if (it is IoResult.ConnectionLost) return@withContext it } }
             val sizes = plans.flatMap { (_, plan) -> (plan as? IoResult.Success)?.value?.fileSizes.orEmpty() }
             val progress = ByteProgressTracker(transferTotalOf(sizes), sizes.size, onProgress)
             forEachCollectingFailures(plans, "다운로드 실패", nameOf = { (source, _) -> File(source.localPath).name }) { (_, plan) ->
@@ -101,12 +103,16 @@ class FtpTransferrer @Inject internal constructor(
 
     /**
      * [source]를 받기 전에 크기를 구한다. 파일은 MLST로, 디렉터리는 원격 트리를 재귀 수집해 구한다.
+     * 찾은 항목을 [preparation]에 알린다 — 수집이 오래 걸려도 진행이 보이고 취소가 듣도록(#284).
+     * @param source 받을 원격 항목
+     * @param preparation 이 다운로드의 준비 단계 진행 보고기
      * @return 받을 계획, 또는 크기·트리를 구하지 못한 실패
      */
-    private suspend fun planOf(source: DownloadSource): IoResult<DownloadPlan> =
+    private suspend fun planOf(source: DownloadSource, preparation: PreparationProgressReporter): IoResult<DownloadPlan> =
         if (source.isDirectory) {
-            cmd.collectRemoteTree(source.remotePath).map { DownloadPlan.Tree(source.remotePath, File(source.localPath), it) }
+            cmd.collectRemoteTree(source.remotePath, preparation).map { DownloadPlan.Tree(source.remotePath, File(source.localPath), it) }
         } else {
+            preparation.onEntryFound(File(source.localPath).name)
             val ftpPath = extractFtpPath(source.remotePath)
             session.withConnectedClient { client -> IoResult.Success(DownloadPlan.SingleFile(ftpPath, File(source.localPath), remoteFileSize(client, ftpPath))) }
         }

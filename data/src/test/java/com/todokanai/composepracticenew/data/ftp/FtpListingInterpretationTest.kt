@@ -103,14 +103,14 @@ class FtpListingInterpretationTest {
             "/r/sub" to listOf(UNPARSEABLE_SIZE)
         )
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
         assertEquals(
             IoResult.PartiallyFailed(
-                "하위 항목 삭제 실패",
+                "삭제 실패",
                 listOf(
-                    FailedItem("", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
-                    FailedItem("sub", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
+                    FailedItem("r", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
+                    FailedItem("r/sub", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
                 )
             ),
             result

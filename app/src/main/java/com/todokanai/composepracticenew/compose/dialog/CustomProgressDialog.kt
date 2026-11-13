@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.KnownSizeProgressModel
+import com.todokanai.composepracticenew.model.PreparationProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
 
@@ -72,6 +73,10 @@ private fun ProgressItem(state: ProgressStateModel) {
             text = stringResource(operationLabelRes(state.operationType)),
             style = MaterialTheme.typography.labelMedium
         )
+        state.preparing?.let {
+            PreparingPart(it)
+            return@Column
+        }
         if (progress != null) {
             ProgressLinearIndicator(
                 modifier = Modifier.fillMaxWidth().height(8.dp),
@@ -79,11 +84,7 @@ private fun ProgressItem(state: ProgressStateModel) {
             )
         } else {
             // 진행률을 모르면 0%로 멈춘 막대 대신 계속 움직이는 막대로 작업이 진행 중임을 보여준다
-            LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(16.dp)),
-                color = Color.Red,
-                trackColor = Color.Red.copy(0.24f)
-            )
+            IndeterminateIndicator()
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -121,6 +122,36 @@ private fun ProgressItem(state: ProgressStateModel) {
             )
         }
     }
+}
+
+/**
+ * 처리 전에 대상을 훑는 준비 단계의 진행을 보여준다. 끝나야 전체를 알 수 있으므로 퍼센트 대신 움직이는 막대와 찾은 항목 수를 보여준다.
+ * @param preparing 준비 단계의 진행
+ */
+@Composable
+private fun PreparingPart(preparing: PreparationProgressModel) {
+    IndeterminateIndicator()
+    Text(
+        text = stringResource(R.string.progress_preparing, preparing.foundEntries),
+        style = MaterialTheme.typography.bodySmall
+    )
+    Text(
+        text = preparing.currentName,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+/** 진행률을 모를 때 작업이 진행 중임을 보여주는 계속 움직이는 막대. */
+@Composable
+private fun IndeterminateIndicator() {
+    LinearProgressIndicator(
+        modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(16.dp)),
+        color = Color.Red,
+        trackColor = Color.Red.copy(0.24f)
+    )
 }
 
 /**
@@ -210,6 +241,19 @@ private fun CustomProgressDialogPreview() {
     Surface {
         CustomProgressDialog(
             progress = ProgressStateModel(progress = 42, operationType = FileOperationType.COPY)
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun CustomProgressDialogPreparingPreview() {
+    Surface {
+        CustomProgressDialog(
+            progress = ProgressStateModel(
+                operationType = FileOperationType.DOWNLOAD,
+                preparing = PreparationProgressModel(foundEntries = 1234, currentName = "photos")
+            )
         )
     }
 }

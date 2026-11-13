@@ -13,6 +13,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.os.bundleOf
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.PreparationProgress
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
@@ -41,6 +42,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
 
     override fun progressNoti(state: ProgressState, instanceId: Int) {
         val type = state.operationType
+        state.preparing?.let { return showPreparingProgress(type, it, instanceId) }
         when (type) {
             FileOperationType.DELETE -> showCountProgress(type, state, instanceId)
             FileOperationType.COPY,
@@ -65,6 +67,17 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setContentText(context.getString(R.string.noti_write_conflict_awaiting))
             .setOngoing(true)
             .setContentIntent(buildAppOnlyClickIntent(notificationId))
+        notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
+    }
+
+    /** 처리 전에 대상을 훑는 준비 단계를 불확정 막대와 찾은 항목 수로 표시한다 — 전체를 모르는 동안에도 작업이 진행 중임을 보이도록. */
+    private fun showPreparingProgress(type: FileOperationType?, preparing: PreparationProgress, instanceId: Int) {
+        val notificationId = ids.idFor(instanceId)
+        val builder = progressBuilder(type)
+            .setContentText(context.getString(R.string.progress_preparing, preparing.foundEntries))
+            .setOngoing(true)
+            .setProgress(0, 0, true)
+            .setContentIntent(buildClickIntent(type?.id ?: 0, instanceId, notificationId))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
     }
 

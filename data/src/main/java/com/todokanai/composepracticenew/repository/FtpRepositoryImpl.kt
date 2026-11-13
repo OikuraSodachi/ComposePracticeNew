@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionStatus
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
 import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
+import com.todokanai.composepracticenew.data.ftp.RemoteDeletionTarget
 import com.todokanai.composepracticenew.data.ftp.childFtpUri
 import com.todokanai.composepracticenew.data.ftp.ftpUriOf
 import com.todokanai.composepracticenew.data.ftp.siblingFtpUri
@@ -57,9 +58,8 @@ class FtpRepositoryImpl @Inject internal constructor(
 
     override suspend fun rename(path: String, newName: String) = commandExecutor.rename(path, siblingFtpUri(path, newName))
 
-    override suspend fun deleteFile(path: String) = commandExecutor.deleteFile(path)
+    override suspend fun delete(items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) =
+        commandExecutor.delete(items.map { RemoteDeletionTarget(it.path, it.name, it.isDirectory) }, onProgress)
 
     override suspend fun makeDirectory(parentPath: String, name: String) = commandExecutor.makeDirectory(childFtpUri(parentPath, name))
-
-    override suspend fun removeDirectoryRecursive(path: String) = commandExecutor.removeDirectoryRecursive(path)
 }

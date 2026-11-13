@@ -82,65 +82,44 @@ class RemoteFileOperationFailureTest {
     }
 
     @Test
-    fun `원격 삭제는 일부가 실패해도 나머지를 끝까지 삭제하고 실패를 알린다`() {
-        mutationRepo.failingPaths += "ftp://h/r/b.txt"
+    fun `원격 삭제는 고른 항목을 작업 하나로 저장소에 함께 맡긴다`() {
+        // 진행을 작업 전체 기준으로 보고하려면 저장소가 대상 전체를 알아야 한다(폴더 안쪽 수는 구현만 안다)
+        val items = listOf(item("ftp://h/r/a.txt", false), item("ftp://h/r/dir", true))
 
-        remote.deleteRemote(
-            targets = listOf(item("ftp://h/r/a.txt", false), item("ftp://h/r/b.txt", false), item("ftp://h/r/dir", true)),
-            completionMessage = "done"
-        ) {}
+        remote.deleteRemote(targets = items, completionMessage = "done") {}
 
-        assertEquals(listOf("delete a.txt", "delete b.txt", "rmdir dir"), mutationRepo.calls)
-        assertEquals(1, notices.failures.size)
-        assertTrue(notices.failures.single(), notices.failures.single().startsWith("삭제 실패: b.txt"))
+        assertEquals(listOf(items), mutationRepo.deletes)
+        assertEquals(listOf("done"), notices.completions)
+    }
+
+    @Test
+    fun `원격 삭제가 일부 실패하면 완료 대신 저장소가 모은 실패를 알린다`() {
+        mutationRepo.deleteResult = IoResult.PartiallyFailed("삭제 실패", listOf(FailedItem("b.txt", "DELE 실패: 550")))
+
+        remote.deleteRemote(targets = listOf(item("ftp://h/r/b.txt", false)), completionMessage = "done") {}
+
+        assertEquals(listOf("삭제 실패: b.txt (DELE 실패: 550)"), notices.failures)
         assertTrue(notices.completions.isEmpty())
     }
 
     @Test
-    fun `원격 삭제 중 연결이 끊기면 남은 항목을 시도하지 않는다`() {
-        mutationRepo.connectionLostAt = "ftp://h/r/a.txt"
-
-        remote.deleteRemote(
-            targets = listOf(item("ftp://h/r/a.txt", false), item("ftp://h/r/b.txt", false)),
-            completionMessage = "done"
-        ) {}
-
-        assertEquals(listOf("delete a.txt"), mutationRepo.calls)
-        assertEquals(listOf("끊김"), notices.failures)
-    }
-
-    @Test
-    fun `원격 폴더 삭제의 하위 항목 실패는 대상 이름 아래 경로로 평탄화해 머리말 하나로 알린다`() {
-        mutationRepo.partialFailures["ftp://h/r/dir"] =
-            IoResult.PartiallyFailed("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", "DELE 실패: 550")))
-
+    fun `원격 삭제는 진행 표시가 있는 삭제 작업으로 실행한다`() {
+        // 폴더 삭제는 하위 항목 수에 비례해 오래 걸리므로 진행 표시·취소가 있어야 한다(#334)
         remote.deleteRemote(targets = listOf(item("ftp://h/r/dir", true)), completionMessage = "done") {}
 
-        assertEquals(listOf("삭제 실패: dir/sub/x.txt (DELE 실패: 550)"), notices.failures)
-    }
-
-    @Test
-    fun `여러 대상이 실패하면 안쪽 실패 경로까지 모아 개수와 함께 알린다`() {
-        mutationRepo.failingPaths += "ftp://h/r/a.txt"
-        mutationRepo.partialFailures["ftp://h/r/dir"] =
-            IoResult.PartiallyFailed("하위 항목 삭제 실패", listOf(FailedItem("sub/x.txt", "DELE 실패: 550")))
-
-        remote.deleteRemote(
-            targets = listOf(item("ftp://h/r/a.txt", false), item("ftp://h/r/dir", true), item("ftp://h/r/ok.txt", false)),
-            completionMessage = "done"
-        ) {}
-
-        assertEquals(listOf("삭제 실패: 2개 항목 (a.txt, dir/sub/x.txt)"), notices.failures)
+        assertEquals(FileOperationType.DELETE, progressRepo.states.first().operationType)
     }
 
     /** [path]의 마지막 경로 조각을 이름으로 갖는 테스트 항목을 만든다. */
     private fun item(path: String, isDirectory: Boolean) =
         FileHolderItem(path = path, isDirectory = isDirectory, name = path.substringAfterLast('/'), sizeBytes = null, lastModifiedMillis = 0L)
 
-    /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
+    /** 등록된 진행 상태를 기록하는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
+        /** 등록된 진행 상태(등록 순서). */
+        val states = mutableListOf<ProgressState>()
         override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override fun setProgressState(instanceId: Int, state: ProgressState) {}
+        override fun setProgressState(instanceId: Int, state: ProgressState) { states += state }
         override fun removeProgress(instanceId: Int) {}
     }
 
@@ -158,24 +137,15 @@ class RemoteFileOperationFailureTest {
         }
     }
 
-    /** 호출을 기록하고, 지정한 경로에서 실패 또는 연결 끊김을 일으키는 테스트용 원격 변경 저장소. */
+    /** 삭제 요청을 기록하고 정해 둔 결과를 돌려주는 테스트용 원격 변경 저장소. */
     private class FakeMutationRepository : RemoteFileMutationRepository {
-        val calls = mutableListOf<String>()
-        val failingPaths = mutableSetOf<String>()
-        /** 경로 → 그 경로 작업이 돌려줄 부분 실패. 폴더 삭제 중 하위 항목 실패를 재현한다. */
-        val partialFailures = mutableMapOf<String, IoResult.PartiallyFailed>()
-        var connectionLostAt: String? = null
-        override suspend fun rename(path: String, newName: String) = record("rename", path)
-        override suspend fun deleteFile(path: String) = record("delete", path)
-        override suspend fun makeDirectory(parentPath: String, name: String) = record("mkdir", parentPath)
-        override suspend fun removeDirectoryRecursive(path: String) = record("rmdir", path)
-
-        private fun record(command: String, path: String): IoResult<Unit> {
-            calls += "$command ${path.substringAfterLast('/')}"
-            if (path == connectionLostAt) return IoResult.ConnectionLost("끊김")
-            partialFailures[path]?.let { return it }
-            return if (path in failingPaths) IoResult.ItemFailed("$command 실패: 550") else IoResult.Done
-        }
+        /** 삭제 요청마다 받은 항목 목록. */
+        val deletes = mutableListOf<List<FileHolderItem>>()
+        /** 삭제 요청이 돌려줄 결과. */
+        var deleteResult: IoResult<Unit> = IoResult.Done
+        override suspend fun rename(path: String, newName: String) = IoResult.Done
+        override suspend fun delete(items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) = deleteResult.also { deletes += items }
+        override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */
