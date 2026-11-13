@@ -25,7 +25,9 @@ import androidx.lifecycle.ViewModelStoreOwner
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_INSTANCE_ID
+import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_PROCESS_TOKEN
 import com.todokanai.composepracticenew.navigation.AppNavHost
+import com.todokanai.composepracticenew.tools.NotificationProcessToken
 import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -100,6 +102,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleProgressIntent(intent: Intent?) {
+        // 이전 프로세스가 남긴 알림의 intent는 그 프로세스의 작업 ID를 담으므로, 이 프로세스의 같은 ID 작업을 가리키지 않도록 무시한다
+        if (!NotificationProcessToken.isFromThisProcess(intent?.getStringExtra(EXTRA_PROCESS_TOKEN))) return
         val actionKey = intent?.getIntExtra(EXTRA_ACTION_KEY, -1) ?: return
         val instanceId = intent.getIntExtra(EXTRA_INSTANCE_ID, -1)
         if (actionKey != -1 && instanceId != -1) mViewModel.requestShowProgressDialog(actionKey, instanceId)

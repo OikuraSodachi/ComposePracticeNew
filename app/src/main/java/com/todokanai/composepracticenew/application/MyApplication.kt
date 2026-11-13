@@ -12,6 +12,7 @@ import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.service.ConnectionServicePolicy
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FtpForegroundService
+import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
@@ -26,10 +27,14 @@ class MyApplication : Application(), ImageLoaderFactory {
     /** 연결 유지 서비스를 시작하는 컨트롤러. */
     @Inject lateinit var connectionServiceController: ConnectionServiceController
     @Inject @ApplicationScope lateinit var appScope: CoroutineScope
+    /** 파일 작업 알림. 이전 프로세스가 남긴 진행 알림을 정리하는 데 쓴다. */
+    @Inject lateinit var operationNotification: MyNotification
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannels()
+        // 이 프로세스의 작업이 아직 없는 지금 남아 있는 진행 알림은 죽은 프로세스의 것이므로 중단 알림으로 바꾼다(#300)
+        operationNotification.interruptLeftoverProgress()
         observeRemoteConnection()
     }
 

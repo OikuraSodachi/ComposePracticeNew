@@ -93,6 +93,7 @@
     <string name="dialog_write_conflict_type_mismatch">%2$s에 “%1$s”이(가) 이미 있지만 파일과 폴더로 종류가 달라 바꿀 수 없습니다. 이 항목은 건너뛰기만 할 수 있습니다.</string>
     <string name="dialog_write_conflict_apply_to_rest">남은 같은 종류의 충돌에도 적용</string>
     <string name="noti_write_conflict_awaiting">확인 필요 — 같은 이름의 항목을 어떻게 할지 골라 주세요</string>
+    <string name="noti_operation_interrupted">앱이 종료되어 작업이 완료되지 않고 중단되었습니다</string>
 
     <!-- File list -->
     <string name="empty_directory">Empty Directory</string>
