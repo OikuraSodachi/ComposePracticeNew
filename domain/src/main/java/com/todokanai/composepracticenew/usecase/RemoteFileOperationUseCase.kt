@@ -85,15 +85,16 @@ class RemoteFileOperationUseCase(
     /**
      * [targets]의 원격 파일·디렉터리를 하나의 작업으로 삭제한다.
      * 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다. 연결이 끊기면 즉시 중단한다.
+     * 폴더는 하위 항목 수에 비례해 오래 걸릴 수 있으므로 진행 표시·보호·취소가 있는 삭제 작업으로 실행한다(#334). 취소하면 이미 지운 항목은 그대로 둔다.
      * @param targets 삭제할 원격 파일·디렉터리 항목
      * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
     fun deleteRemote(targets: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
+        orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
             forEachCollectingFailures(targets, "삭제 실패", nameOf = { it.name }) { item ->
-                if (item.isDirectory) mutationRepo.removeDirectoryRecursive(item.path) else mutationRepo.deleteFile(item.path)
+                if (item.isDirectory) mutationRepo.removeDirectoryRecursive(item.path, onProgress) else mutationRepo.deleteFile(item.path, onProgress)
             }
         }
     }

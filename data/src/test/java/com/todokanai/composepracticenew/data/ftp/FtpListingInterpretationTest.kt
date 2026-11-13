@@ -103,7 +103,7 @@ class FtpListingInterpretationTest {
             "/r/sub" to listOf(UNPARSEABLE_SIZE)
         )
 
-        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") }
+        val result = runBlocking { commands.removeDirectoryRecursive("ftp://host/r") {} }
 
         assertEquals(
             IoResult.PartiallyFailed(

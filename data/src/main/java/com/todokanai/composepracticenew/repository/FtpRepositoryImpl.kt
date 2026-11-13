@@ -57,9 +57,10 @@ class FtpRepositoryImpl @Inject internal constructor(
 
     override suspend fun rename(path: String, newName: String) = commandExecutor.rename(path, siblingFtpUri(path, newName))
 
-    override suspend fun deleteFile(path: String) = commandExecutor.deleteFile(path)
+    override suspend fun deleteFile(path: String, onProgress: (ProgressState) -> Unit) = commandExecutor.deleteFile(path, onProgress)
 
     override suspend fun makeDirectory(parentPath: String, name: String) = commandExecutor.makeDirectory(childFtpUri(parentPath, name))
 
-    override suspend fun removeDirectoryRecursive(path: String) = commandExecutor.removeDirectoryRecursive(path)
+    override suspend fun removeDirectoryRecursive(path: String, onProgress: (ProgressState) -> Unit) =
+        commandExecutor.removeDirectoryRecursive(path, onProgress)
 }

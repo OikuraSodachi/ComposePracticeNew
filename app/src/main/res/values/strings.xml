@@ -124,6 +124,7 @@
     <string name="progress_unknown_files_received">크기를 모르는 파일 %1$d개: %2$s 받음</string>
     <string name="progress_unknown_files_sent">크기를 모르는 파일 %1$d개: %2$s 보냄</string>
     <string name="progress_unknown_files_processed">크기를 모르는 파일 %1$d개: %2$s 처리</string>
+    <string name="progress_preparing">대상 확인 중 — 항목 %1$d개 찾음</string>
 
     <!-- Dialogs -->
     <string name="dialog_delete_message">Delete?</string>

@@ -133,14 +133,24 @@ class RemoteFileOperationFailureTest {
         assertEquals(listOf("삭제 실패: 2개 항목 (a.txt, dir/sub/x.txt)"), notices.failures)
     }
 
+    @Test
+    fun `원격 삭제는 진행 표시가 있는 삭제 작업으로 실행한다`() {
+        // 폴더 삭제는 하위 항목 수에 비례해 오래 걸리므로 진행 표시·취소가 있어야 한다(#334)
+        remote.deleteRemote(targets = listOf(item("ftp://h/r/dir", true)), completionMessage = "done") {}
+
+        assertEquals(FileOperationType.DELETE, progressRepo.states.first().operationType)
+    }
+
     /** [path]의 마지막 경로 조각을 이름으로 갖는 테스트 항목을 만든다. */
     private fun item(path: String, isDirectory: Boolean) =
         FileHolderItem(path = path, isDirectory = isDirectory, name = path.substringAfterLast('/'), sizeBytes = null, lastModifiedMillis = 0L)
 
-    /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
+    /** 등록된 진행 상태를 기록하는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
+        /** 등록된 진행 상태(등록 순서). */
+        val states = mutableListOf<ProgressState>()
         override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
-        override fun setProgressState(instanceId: Int, state: ProgressState) {}
+        override fun setProgressState(instanceId: Int, state: ProgressState) { states += state }
         override fun removeProgress(instanceId: Int) {}
     }
 
@@ -166,9 +176,9 @@ class RemoteFileOperationFailureTest {
         val partialFailures = mutableMapOf<String, IoResult.PartiallyFailed>()
         var connectionLostAt: String? = null
         override suspend fun rename(path: String, newName: String) = record("rename", path)
-        override suspend fun deleteFile(path: String) = record("delete", path)
+        override suspend fun deleteFile(path: String, onProgress: (ProgressState) -> Unit) = record("delete", path)
         override suspend fun makeDirectory(parentPath: String, name: String) = record("mkdir", parentPath)
-        override suspend fun removeDirectoryRecursive(path: String) = record("rmdir", path)
+        override suspend fun removeDirectoryRecursive(path: String, onProgress: (ProgressState) -> Unit) = record("rmdir", path)
 
         private fun record(command: String, path: String): IoResult<Unit> {
             calls += "$command ${path.substringAfterLast('/')}"

@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.KnownSizeProgress
+import com.todokanai.composepracticenew.model.PreparationProgress
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -51,6 +52,18 @@ class FtpTransferrerDirectoryProgressTest {
     }
 
     @Test
+    fun `받기 전 트리를 수집하는 동안 준비 단계를 알린다`() {
+        // 수집이 오래 걸려도 진행이 보이고, 그 보고에서 취소를 받도록(#284)
+        client.mlsdListings = mapOf("/r" to listOf("type=file;size=4; a.txt"))
+        val all = mutableListOf<ProgressState>()
+
+        runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver, onProgress = { all += it }) }
+
+        assertEquals(PreparationProgress(1, "a.txt"), all.first().preparing)
+        assertTrue(all.drop(1).all { it.preparing == null })
+    }
+
+    @Test
     fun `모든 파일의 크기를 알면 합계에 대한 퍼센트로 보고하고 100%는 모든 파일을 받은 뒤에 보고한다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=4; a.txt", "type=file;size=4; b.txt"))
 
@@ -71,6 +84,7 @@ class FtpTransferrerDirectoryProgressTest {
     }
 
     private fun download(): IoResult<Unit> = runBlocking {
-        transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver, onProgress = { reports += it })
+        // 받기 전 준비 단계(#284)는 빼고 전송 단계의 진행만 본다
+        transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it.preparing == null) reports += it })
     }
 }

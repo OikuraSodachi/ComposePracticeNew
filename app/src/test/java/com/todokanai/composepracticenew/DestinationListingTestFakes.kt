@@ -85,9 +85,9 @@ internal class RecordingTransferRepository : RemoteFileTransferRepository {
 /** 원격 변경을 수행하지 않는 테스트용 원격 변경 저장소. 이 테스트의 대상 작업은 원격 변경을 쓰지 않는다. */
 internal object NoOpMutationRepository : RemoteFileMutationRepository {
     override suspend fun rename(path: String, newName: String) = IoResult.Done
-    override suspend fun deleteFile(path: String) = IoResult.Done
+    override suspend fun deleteFile(path: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
     override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
-    override suspend fun removeDirectoryRecursive(path: String) = IoResult.Done
+    override suspend fun removeDirectoryRecursive(path: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
 }
 
 /** 호출된 로컬 작업을 기록하는 테스트용 로컬 파일 작업 저장소. */

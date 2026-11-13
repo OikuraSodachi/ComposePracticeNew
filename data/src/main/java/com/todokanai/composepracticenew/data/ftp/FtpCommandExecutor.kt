@@ -1,10 +1,13 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.fileexplorer.defaultDisplayName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPFile
@@ -231,11 +234,13 @@ class FtpCommandExecutor internal constructor(
     }
 
     /**
-     * path의 파일을 원격 서버에서 삭제한다.
+     * path의 파일을 원격 서버에서 삭제한다. 명령을 보내기 전에 진행을 보고한다 — 여러 파일을 지우는 작업이 파일마다 취소를 확인하도록.
      * @param path 삭제할 원격 파일의 절대 경로 (ftp://server/path 형식)
+     * @param onProgress 진행 상태를 수신하는 콜백
      * @return 명령 결과
      */
-    suspend fun deleteFile(path: String): IoResult<Unit> {
+    suspend fun deleteFile(path: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        onProgress(deletionProgressOf(0, 1, defaultDisplayName(path)))
         val ftpPath = extractFtpPath(path)
         return runFtpCommand(FtpCommand.DELE) { it.deleteFile(ftpPath) }
     }
@@ -279,19 +284,26 @@ class FtpCommandExecutor internal constructor(
      * 알려진 문제(방치하기로 결정): 트리에 서버가 숨긴 항목이 빠질 수 있어([collectRemoteTree]), 그런 항목이 있으면 보이는 항목을 모두 지운 뒤에야
      * RMD 거부로 실패를 알게 된다. 이 경우 거부 메시지에 숨긴 항목이 남았을 가능성을 덧붙인다([FtpReplyRules.HIDDEN_ENTRIES_NOTE]).
      * 해석하지 못한 목록 줄은 무엇인지 몰라 지우지 못한 항목으로 알리고, 그 줄이 나온 디렉터리는 지우지 않는다(#255).
+     * 수집하는 동안에는 찾은 항목 수를, 지우는 동안에는 항목마다 명령을 보내기 전에 처리한 항목 수를 보고한다 — 보고가 취소를 확인하므로 어느 단계에서든 취소가 듣는다.
+     * 취소하면 이미 지운 항목은 그대로 둔다.
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
+     * @param onProgress 진행 상태를 수신하는 콜백
      * @return 삭제 결과. 하위 항목 일부가 실패하면 [IoResult.PartiallyFailed]
      */
-    suspend fun removeDirectoryRecursive(path: String): IoResult<Unit> {
-        val allItems = collectRemoteTree(path).valueOr { return it }
+    suspend fun removeDirectoryRecursive(path: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        val allItems = collectRemoteTree(path, PreparationProgressReporter(onProgress)).valueOr { return it }
         val ftpPath = extractFtpPath(path)
         val outside = parentFtpPath(ftpPath)
+        // 마지막에 지우는 [path] 자신도 센다 — 그래서 하위 항목을 다 지운 뒤에도 100%(작업 끝)를 보고하지 않는다
+        val total = allItems.size + 1
+        var processed = 0
         forEachCollectingFailures(
             allItems.reversed(),
             "하위 항목 삭제 실패",
             nameOf = { relativeRemotePath(it.displayPath, path) },
             isBlockedBy = { item, failed -> item.isDirectoryEntry && isRemoteAncestorOf(item.occupiedPath, failed.occupiedPath) }
         ) { item ->
+            onProgress(deletionProgressOf(processed++, total, nameOf(item)))
             when (item) {
                 is ListedItem.Unreadable -> IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
                 is ListedItem.Entry -> {
@@ -301,7 +313,27 @@ class FtpCommandExecutor internal constructor(
                 }
             }
         }.valueOr { return it }
+        onProgress(deletionProgressOf(processed, total, defaultDisplayName(path)))
         return runFtpCommand(FtpCommand.RMD, leavingTarget(ftpPath, outside)) { it.removeDirectory(ftpPath) }
+    }
+
+    /**
+     * 재귀 삭제에서 [name]을 지우기 직전의 진행 상태를 만든다.
+     * @param processed 이미 처리한 항목 수
+     * @param total 지울 항목 수(시작 디렉터리 포함)
+     * @param name 지금 지울 항목의 이름
+     */
+    private fun deletionProgressOf(processed: Int, total: Int, name: String) = ProgressState(
+        progress = processed * 100 / total,
+        listSize = total,
+        currentIndex = processed,
+        currentFileName = name
+    )
+
+    /** 진행 표시에 쓸 [item]의 이름. 해석하지 못한 줄은 이름을 몰라 그 줄이 나온 디렉터리의 이름을 쓴다. */
+    private fun nameOf(item: ListedItem): String = when (item) {
+        is ListedItem.Entry -> item.entry.name
+        is ListedItem.Unreadable -> defaultDisplayName(item.dirPath)
     }
 
     /**
@@ -319,10 +351,12 @@ class FtpCommandExecutor internal constructor(
      * 알려진 문제(방치하기로 결정): 각 목록은 서버가 드러내는 항목뿐이라([identifiedListing]) 서버가 숨긴 항목은 트리에서 빠지지만, 수집은 성공으로 끝난다.
      * 그래서 폴더 다운로드는 숨긴 항목 없이 완료로 보고되고, 재귀 삭제는 보이는 항목을 지운 뒤 RMD에서 실패한다([removeDirectoryRecursive]).
      * 해석하지 못한 목록 줄은 버리지 않고 그 디렉터리의 항목 자리에 담아, 받는 쪽이 그 항목만 실패로 알리게 한다(#255).
+     * 시간 상한을 두지 않으므로(순환과 큰 트리를 구분할 수 없다), 받은 항목마다 [preparation]에 알려 진행을 보이고 그 보고에서 취소를 받는다(#284).
      * @param remoteDirPath 수집할 원격 디렉터리 경로 (ftp://server/path 형식)
+     * @param preparation 받은 항목을 알릴 준비 단계 진행 보고기. 취소되면 보고에서 CancellationException을 던진다
      * @return 하위 항목 전체 목록(해석하지 못한 줄 포함), 또는 조회 실패나 메모리 상한·순환·경로 한도에 의한 실패
      */
-    internal suspend fun collectRemoteTree(remoteDirPath: String): IoResult<List<ListedItem>> {
+    internal suspend fun collectRemoteTree(remoteDirPath: String, preparation: PreparationProgressReporter): IoResult<List<ListedItem>> {
         val result = mutableListOf<ListedItem>()
         val budget = TreeMemoryBudget(treeMemoryLimitBytes)
         // 거쳐 온 디렉터리의 식별값 — 이미 있는 값이면 내려가지 않으므로 같은 값이 두 번 들어가지 않아, 그 디렉터리를 나올 때 빼도 된다
@@ -342,6 +376,7 @@ class FtpCommandExecutor internal constructor(
             }
             val item = visit.remaining.next()
             result.add(item)
+            preparation.onEntryFound(nameOf(item))
             val entry = (item as? ListedItem.Entry)?.entry?.takeIf { item.isDirectoryEntry } ?: continue
             val identity = visit.listed.identities[entry.path]
             if (identity == null) unidentifiedOnPath++

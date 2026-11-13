@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
  * @param currentFileSize 현재 작업중인 파일의 전체 용량
  * @param operationType 작업 종류
  * @param knownSize 크기를 모르는 파일이 섞여 [progress]가 null일 때 크기를 아는 부분의 진행. 그 밖에는 null
+ * @param preparing 처리 전에 대상을 훑는 준비 단계의 진행. 준비 단계가 아니면 null
  */
 @Immutable
 data class ProgressStateModel(
@@ -25,7 +26,18 @@ data class ProgressStateModel(
     val currentFileName: String? = null,
     val currentFileSize: String? = null,
     val operationType: FileOperationType? = null,
-    val knownSize: KnownSizeProgressModel? = null
+    val knownSize: KnownSizeProgressModel? = null,
+    val preparing: PreparationProgressModel? = null
+)
+
+/**
+ * 처리 전에 대상을 훑는 준비 단계 진행의 UI 상태.
+ * @param foundEntries 지금까지 찾은 항목 수
+ * @param currentName 마지막으로 찾은 항목의 이름
+ */
+data class PreparationProgressModel(
+    val foundEntries: Int,
+    val currentName: String
 )
 
 /**
@@ -55,7 +67,8 @@ fun ProgressState.toModel(): ProgressStateModel = ProgressStateModel(
     currentFileName = this.currentFileName,
     currentFileSize = this.currentFileBytes?.let { readableFileSize_td(it) },
     operationType = this.operationType,
-    knownSize = this.knownSize?.toModel()
+    knownSize = this.knownSize?.toModel(),
+    preparing = this.preparing?.let { PreparationProgressModel(it.foundEntries, it.currentName) }
 )
 
 /** KnownSizeProgress → KnownSizeProgressModel 변환. */

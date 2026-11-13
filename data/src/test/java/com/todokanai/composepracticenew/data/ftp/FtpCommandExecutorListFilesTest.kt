@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.fileexplorer.FileEntry
@@ -71,7 +72,7 @@ class FtpCommandExecutorListFilesTest {
         loggedIn()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 File busy"))
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 450 File busy"), runBlocking { commands.collectRemoteTree("ftp://host/r") })
+        assertEquals(IoResult.ItemFailed("LIST 실패: 450 File busy"), runBlocking { commands.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) })
     }
 
     @Test
