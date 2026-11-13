@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,15 +31,17 @@ import javax.inject.Singleton
  * 목록 조회도 데이터 스트림을 직접 열어야 하므로([DataCommandRunner]) 그 함수를 가진 [SessionFtpClient]다.
  * 소켓 상한·소켓 팩토리는 세션이 정하므로 먼저 정해 둔 값은 덮어쓴다 — 상한을 바꾸려면 [ioTimeoutMillis]로 넘긴다
  * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
+ * @param lossNotices 연결된 세션이 끊김으로 바뀔 때 끊김을 넣고, 새 연결을 시작할 때 알리지 않은 끊김을 빼는 알림함
  */
 @Singleton
 internal class FtpSession(
     private val client: SessionFtpClient,
-    ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS
+    ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS,
+    private val lossNotices: ConnectionLossNotices = ConnectionLossNotices()
 ) : FtpCommandSession, FtpDataCommandSession, FtpConnectionLifecycle {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor() : this(SessionFtpClient())
+    @Inject constructor(lossNotices: ConnectionLossNotices) : this(SessionFtpClient(), lossNotices = lossNotices)
 
     init {
         // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다
@@ -170,23 +173,29 @@ internal class FtpSession(
     /**
      * FTP 연결이 서버 측에서 끊긴 경우 로그인 상태를 초기화한다. 진행 중인 작업은 다음 명령에서 [withConnectedClient]가 끊김으로 알린다.
      * 연결된 세션에서만 끊김([RemoteConnectionState.Lost])으로 기록한다 — 앱이 먼저 종료한 세션의 진행 중 명령이 소켓이 닫혀 실패한 것은 끊김이 아니다.
+     * 끊김으로 기록할 때 같은 잠금 안에서 알림함([lossNotices])에도 넣는다 — 상태와 알림이 어긋나지 않도록.
      */
     suspend fun markConnectionDropped() {
         stateMutex.withLock {
             isLoggedIn = false
-            if (_connectionState.value is RemoteConnectionState.Connected) _connectionState.value = RemoteConnectionState.Lost
+            if (_connectionState.value is RemoteConnectionState.Connected) {
+                _connectionState.value = RemoteConnectionState.Lost
+                lossNotices.report()
+            }
         }
     }
 
     /**
      * 새 연결 작업을 시작한다. 연결 상태는 이전 세션이 연결돼 있었든 끊겼든 [RemoteConnectionState.Disconnected]로 둔다 —
      * 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도([markConnectionDropped]) 그건 새 연결의 끊김이 아니므로 [RemoteConnectionState.Lost]가 되지 않는다.
+     * 아직 화면에 알리지 않은 이전 세션의 끊김은 알림함([lossNotices])에서 뺀다 — 새 연결이 끊긴 것으로 보이지 않도록.
      * 종료 요청 표지를 연결 작업 표시와 같은 잠금 안에서 읽는다 — 연결 작업으로 보인 뒤에 온 종료 요청([closeBypassingIoLock])은 모두 [markLoggedIn]이 알아챈다.
      * @return 연결 작업이 [markLoggedIn]에 넘길 종료 요청 표지
      */
     override suspend fun beginConnecting(): Int = stateMutex.withLock {
         _isConnecting.value = true
         _connectionState.value = RemoteConnectionState.Disconnected
+        lossNotices.connectionStarted()
         bypassCloseRequests.get()
     }
 
@@ -242,14 +251,17 @@ internal class FtpSession(
     }
 
     /**
-     * 연결된 세션만 [closeBypassingIoLock]과 같이 닫되, 사용자가 요청한 종료가 아니므로 끊김([RemoteConnectionState.Lost])으로 남긴다.
+     * 연결된 세션만 [closeBypassingIoLock]과 같이 닫되, 사용자가 요청한 종료가 아니므로 끊김([RemoteConnectionState.Lost])으로 남기고 알림함([lossNotices])에도 넣는다.
      * 연결돼 있는지를 종료 기록과 같은 잠금 안에서 확인한다 — 연결 작업 중인 세션(보호하던 연결이 아닌 새 연결)을 끝내거나, 이미 끊긴 세션의 끊김을 종료로 덮어쓰지 않도록.
      * @return 연결된 세션을 끝냈으면 true, 연결된 세션이 없어 아무것도 하지 않았으면 false
      */
     override suspend fun dropConnected(): Boolean {
         val connected = stateMutex.withLock {
             val isConnected = _connectionState.value is RemoteConnectionState.Connected
-            if (isConnected) markClosing(RemoteConnectionState.Lost)
+            if (isConnected) {
+                markClosing(RemoteConnectionState.Lost)
+                lossNotices.report()
+            }
             isConnected
         }
         if (connected) closeClient()
