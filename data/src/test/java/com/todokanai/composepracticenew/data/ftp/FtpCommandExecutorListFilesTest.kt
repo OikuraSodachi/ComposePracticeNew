@@ -28,7 +28,7 @@ class FtpCommandExecutorListFilesTest {
 
         val entries = runBlocking { commands.listFiles("ftp://host/r") } as IoResult.Success
 
-        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.value.map { it.path })
+        assertEquals(listOf("ftp://host/r/.hidden", "ftp://host/r/sub"), entries.value.map { (it as ListedItem.Entry).entry.path })
         assertEquals(listOf("MLSD /r"), client.listRequests)
     }
 

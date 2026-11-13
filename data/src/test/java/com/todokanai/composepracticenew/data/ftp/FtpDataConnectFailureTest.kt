@@ -71,7 +71,7 @@ class FtpDataConnectFailureTest {
 
         val listed = runBlocking { executor.listFiles("ftp://host/r") }
 
-        assertEquals(listOf("ftp://host/r/a.txt"), (listed as IoResult.Success).value.map { it.path })
+        assertEquals(listOf("ftp://host/r/a.txt"), (listed as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })
     }
 
     @Test

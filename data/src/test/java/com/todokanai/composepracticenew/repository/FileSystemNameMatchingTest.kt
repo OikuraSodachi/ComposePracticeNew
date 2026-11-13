@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.data.ftp.FtpSession
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.fileexplorer.FileEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -21,7 +20,7 @@ class FileSystemNameMatchingTest {
     /** 로컬 경로를 처리하는 파일 시스템. */
     private val local = LocalPathAwareFileSystem(LocalFileDataSource())
     /** ftp:// 경로를 처리하는 파일 시스템. */
-    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) })
+    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) }, OperationNotices())
 
     /** 로컬·FTP 파일 시스템과 각자 처리하는 위치. */
     private val fileSystems = listOf(local to "/dir", ftp to "ftp://host/dir")
@@ -72,7 +71,7 @@ class FileSystemNameMatchingTest {
      */
     private class PrefixedKeyFileSystem(private val prefix: String) : PathAwareFileSystem {
         override fun handles(path: String) = path.startsWith(prefix)
-        override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = IoResult.ItemFailed(null)
+        override suspend fun listFiles(path: String): IoResult<ListedDirectory> = IoResult.ItemFailed(null)
         override fun getParent(path: String): String? = null
         override fun displayName(path: String) = path
         override fun nameViolationsOf(fullName: String, location: String) = emptySet<FileNameError>()

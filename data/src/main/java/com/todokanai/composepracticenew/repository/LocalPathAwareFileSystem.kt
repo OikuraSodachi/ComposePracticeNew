@@ -3,7 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.model.map
 import com.todokanai.fileexplorer.defaultDisplayName
 import com.todokanai.fileexplorer.defaultParentPath
 import javax.inject.Inject
@@ -17,7 +17,7 @@ class LocalPathAwareFileSystem @Inject constructor(
     private val localFiles: LocalFileDataSource
 ) : PathAwareFileSystem {
     override fun handles(path: String): Boolean = !path.contains(SCHEME_SEPARATOR)
-    override suspend fun listFiles(path: String): IoResult<List<FileEntry>> = localFiles.listFiles(path)
+    override suspend fun listFiles(path: String): IoResult<ListedDirectory> = localFiles.listFiles(path).map { ListedDirectory(it, isComplete = true) }
     override fun getParent(path: String): String? = defaultParentPath(path)
     override fun displayName(path: String): String = defaultDisplayName(path)
     // 볼륨의 파일 시스템(FAT 등)을 구분하지 않으므로 모든 로컬 경로에 주요 파일시스템의 길이 한도만 적용한다

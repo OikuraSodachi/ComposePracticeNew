@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -34,7 +33,7 @@ internal class DirectoryListingNavigation(
     appScope: CoroutineScope,
     started: SharingStarted,
     initialPath: String?,
-    listFiles: suspend (String) -> IoResult<List<FileEntry>>
+    listFiles: suspend (String) -> IoResult<ListedDirectory>
 ) {
 
     private companion object {

@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.fileexplorer.FileEntry
 
 /**
  * 경로 종류에 따라 파일 목록 조회·부모 계산·이동·이름 제약 판정·이름 비교를 처리하는 파일 시스템 추상화.
@@ -20,9 +19,9 @@ interface PathAwareFileSystem {
     /**
      * path 디렉터리의 파일 목록을 조회한다. 조회 실패는 빈 목록이 아니라 실패 결과로 돌려준다.
      * @param path 조회할 디렉터리 경로
-     * @return FileEntry 리스트를 담은 결과. 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다([com.todokanai.composepracticenew.model.DirectoryListing.Loaded]의 알려진 한계 참고)
+     * @return 읽은 항목과 모두 읽었는지를 담은 결과. 항목이 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다([com.todokanai.composepracticenew.model.DirectoryListing.Loaded]의 알려진 한계 참고)
      */
-    suspend fun listFiles(path: String): IoResult<List<FileEntry>>
+    suspend fun listFiles(path: String): IoResult<ListedDirectory>
 
     /**
      * path의 부모 경로를 반환한다. 루트이면 null을 반환한다.

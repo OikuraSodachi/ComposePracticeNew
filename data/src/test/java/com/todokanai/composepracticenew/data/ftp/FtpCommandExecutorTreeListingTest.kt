@@ -35,7 +35,7 @@ class FtpCommandExecutorTreeListingTest {
 
         val tree = (runBlocking { commands.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
 
-        assertEquals(listOf("ftp://host/r/empty" to true, "ftp://host/r/a.txt" to false), tree.map { it.path to it.isDirectory })
+        assertEquals(listOf("ftp://host/r/empty" to true, "ftp://host/r/a.txt" to false), tree.map { (it as ListedItem.Entry).entry.let { e -> e.path to e.isDirectory } })
         assertEquals(listOf("MLSD /r", "MLSD /r/empty"), client.listRequests)
     }
 
@@ -116,7 +116,7 @@ class FtpCommandExecutorTreeListingTest {
 
         val tree = (runBlocking { commands.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
 
-        assertEquals(listOf("ftp://host/r/a", "ftp://host/r/a/x", "ftp://host/r/b", "ftp://host/r/b/x"), tree.map { it.path })
+        assertEquals(listOf("ftp://host/r/a", "ftp://host/r/a/x", "ftp://host/r/b", "ftp://host/r/b/x"), tree.map { (it as ListedItem.Entry).entry.path })
     }
 
     @Test
@@ -131,7 +131,7 @@ class FtpCommandExecutorTreeListingTest {
 
         val tree = (runBlocking { commands.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
 
-        assertEquals(listOf("ftp://host/r/a", "ftp://host/r/a/b"), tree.map { it.path })
+        assertEquals(listOf("ftp://host/r/a", "ftp://host/r/a/b"), tree.map { (it as ListedItem.Entry).entry.path })
     }
 
     @Test
@@ -234,7 +234,7 @@ class FtpCommandExecutorTreeListingTest {
 
         val tree = (runBlocking { commands.collectRemoteTree("ftp://host/r") } as IoResult.Success).value
 
-        assertEquals(listOf("ftp://host/r/a", "ftp://host/r/b", "ftp://host/r/b/c"), tree.map { it.path })
+        assertEquals(listOf("ftp://host/r/a", "ftp://host/r/b", "ftp://host/r/b/c"), tree.map { (it as ListedItem.Entry).entry.path })
     }
 
     @Test(timeout = TEST_TIMEOUT_MILLIS)
@@ -300,7 +300,7 @@ class FtpCommandExecutorTreeListingTest {
 
         val tree = (runBlocking { exact.collectRemoteTree(DEEP_PATH) } as IoResult.Success).value
 
-        assertEquals(listOf("$DEEP_PATH/a"), tree.map { it.path })
+        assertEquals(listOf("$DEEP_PATH/a"), tree.map { (it as ListedItem.Entry).entry.path })
         assertEquals(
             IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME"),
             runBlocking { FtpCommandExecutor(session, DataCommandRunner(session), treeMemoryLimitBytes = 1357).collectRemoteTree(DEEP_PATH) }

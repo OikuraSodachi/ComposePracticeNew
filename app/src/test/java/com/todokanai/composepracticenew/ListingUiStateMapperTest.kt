@@ -18,7 +18,7 @@ import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolder
 class ListingUiStateMapperTest {
 
     private val mapper = ListingUiStateMapper(isLocalFile = false)
-    private val loaded = DirectoryListing.Loaded(ListingRequest("ftp://h/a", 1L), listOf(domainItem("ftp://h/a/x.txt")))
+    private val loaded = DirectoryListing.Loaded(ListingRequest("ftp://h/a", 1L), listOf(domainItem("ftp://h/a/x.txt")), isComplete = true)
 
     @Test
     fun `조회를 마친 목록은 다시 조회 중이 아닌 목록이다`() {

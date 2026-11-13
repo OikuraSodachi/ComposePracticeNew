@@ -56,7 +56,7 @@ class DirectoryListingNavigationTest {
         navigation.navigateTo("/root")
         runCurrent()
 
-        assertEquals(DirectoryListing.Loaded(navigation.listingRequest.value!!, emptyList()), navigation.directoryListing.value)
+        assertEquals(DirectoryListing.Loaded(navigation.listingRequest.value!!, emptyList(), isComplete = true), navigation.directoryListing.value)
         assertEquals(2, fetchCount)
     }
 
@@ -102,12 +102,12 @@ class DirectoryListingNavigationTest {
         // Eagerly + Unconfined — 생성자 안에서 공유가 시작돼 초기 경로를 곧바로 조회한다
         val navigation = DirectoryListingNavigation(
             DataConverter(), sortPreference, scope, SharingStarted.Eagerly, initialPath = "/start",
-            listFiles = { path -> listed += path; IoResult.Success(emptyList()) }
+            listFiles = { path -> listed += path; IoResult.Success(ListedDirectory(emptyList(), isComplete = true)) }
         )
 
         assertEquals(listOf("/start"), listed)
         assertEquals("/start", navigation.currentPath.value)
-        assertEquals(DirectoryListing.Loaded(navigation.listingRequest.value!!, emptyList()), navigation.directoryListing.value)
+        assertEquals(DirectoryListing.Loaded(navigation.listingRequest.value!!, emptyList(), isComplete = true), navigation.directoryListing.value)
     }
 
     /** 테스트 스케줄러를 쓰는 공유 스코프에서 경로 없이 시작하는 탐색 상태를 만든다. */
@@ -116,7 +116,7 @@ class DirectoryListingNavigationTest {
         sharingScopes += scope
         return DirectoryListingNavigation(DataConverter(), sortPreference, scope, started, initialPath = null) { _ ->
             fetchCount++
-            if (disconnected) IoResult.ConnectionLost("끊김") else IoResult.Success(emptyList())
+            if (disconnected) IoResult.ConnectionLost("끊김") else IoResult.Success(ListedDirectory(emptyList(), isComplete = true))
         }
     }
 }

@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -58,7 +57,7 @@ class FtpListingRealClientTest {
             exchange.send("226 Transfer complete")
         }
 
-        assertEquals(listOf("ftp://host/r/a.txt"), (result as IoResult.Success).value.map { it.path })
+        assertEquals(listOf("ftp://host/r/a.txt"), (result as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })
     }
 
     /**
@@ -66,7 +65,7 @@ class FtpListingRealClientTest {
      * @param onList LIST를 받았을 때의 응답 동작
      * @return 조회 결과
      */
-    private fun listWith(onList: (ScriptedFtpServer.Exchange) -> Unit): IoResult<List<FileEntry>> {
+    private fun listWith(onList: (ScriptedFtpServer.Exchange) -> Unit): IoResult<List<ListedItem>> {
         val scripted = ScriptedFtpServer(mapOf("LIST" to onList)).also { server = it }
         client.connect(scripted.host, scripted.port)
         client.soTimeout = TIMEOUT_MILLIS

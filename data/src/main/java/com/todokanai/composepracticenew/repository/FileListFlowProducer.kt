@@ -50,7 +50,7 @@ class FileListFlowProducer(
         started: SharingStarted,
         onStopped: () -> Unit,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<List<FileEntry>>
+        listFiles: suspend (String) -> IoResult<ListedDirectory>
     ): StateFlow<DirectoryListing> {
         val fetchStates = fetchStatesOf(requests, onUnexpectedFailure, listFiles).onCompletion { onStopped() }
         return sortedListingsOf(fetchStates)
@@ -89,7 +89,7 @@ class FileListFlowProducer(
     private fun fetchStatesOf(
         requests: StateFlow<ListingRequest?>,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<List<FileEntry>>
+        listFiles: suspend (String) -> IoResult<ListedDirectory>
     ): Flow<FetchState> {
         // 공유가 멈췄다 다시 시작될 때 이어 누적할 마지막 상태 — 이전 공유가 완전히 끝난 뒤에만 읽힌다
         val lastState = AtomicReference<FetchState>(FetchState.NoPath)
@@ -113,7 +113,7 @@ class FileListFlowProducer(
     private fun fetch(
         request: ListingRequest?,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<List<FileEntry>>
+        listFiles: suspend (String) -> IoResult<ListedDirectory>
     ): Flow<FetchState> = flow {
         if (request == null) {
             emit(FetchState.NoPath)
@@ -135,7 +135,7 @@ class FileListFlowProducer(
     private suspend fun load(
         request: ListingRequest,
         onUnexpectedFailure: (Throwable) -> Unit,
-        listFiles: suspend (String) -> IoResult<List<FileEntry>>
+        listFiles: suspend (String) -> IoResult<ListedDirectory>
     ): FetchState {
         val result = try {
             listFiles(request.path)
@@ -147,7 +147,7 @@ class FileListFlowProducer(
             return FetchState.FetchFailed(request, ListingFailureReason.UNEXPECTED, detail = null)
         }
         return when (result) {
-            is IoResult.Success -> FetchState.Fetched(request, result.value)
+            is IoResult.Success -> FetchState.Fetched(request, result.value.entries, result.value.isComplete)
             is IoResult.Failure -> FetchState.FetchFailed(request, failureReasonOf(result), result.message)
         }
     }
@@ -189,7 +189,7 @@ class FileListFlowProducer(
      * @return 정렬된 조회 완료 상태
      */
     private fun loadedOf(fetched: FetchState.Fetched, sortMode: SortMode): DirectoryListing.Loaded =
-        DirectoryListing.Loaded(fetched.request, converter.fileHolderItemList(fetched.entries, sortMode))
+        DirectoryListing.Loaded(fetched.request, converter.fileHolderItemList(fetched.entries, sortMode), fetched.isComplete)
 
     /**
      * 목록 조회 실패의 종류를 화면 상태의 실패 사유로 바꾼다.
@@ -226,8 +226,9 @@ class FileListFlowProducer(
          * [request]의 조회를 마친 상태.
          * @param request 조회를 마친 요청
          * @param entries 정렬하지 않은 디렉터리 항목
+         * @param isComplete 저장소가 보낸 항목을 모두 읽었으면 true
          */
-        data class Fetched(val request: ListingRequest, val entries: List<FileEntry>) : FetchState
+        data class Fetched(val request: ListingRequest, val entries: List<FileEntry>, val isComplete: Boolean) : FetchState
 
         /**
          * [request]의 조회에 실패한 상태.
