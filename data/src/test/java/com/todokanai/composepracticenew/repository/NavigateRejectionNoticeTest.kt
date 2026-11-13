@@ -37,7 +37,7 @@ class NavigateRejectionNoticeTest {
         },
         appScope = TestScope(),
         started = SharingStarted.Lazily,
-        fileSystems = setOf(LocalPathAwareFileSystem(LocalFileDataSource())),
+        fileSystems = setOf(LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
         notices = notices
     )
 

@@ -18,7 +18,7 @@ import org.junit.Test
 class FileSystemNameRulesTest {
 
     /** 로컬 경로를 처리하는 파일 시스템. */
-    private val local = LocalPathAwareFileSystem(LocalFileDataSource())
+    private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
     /** ftp:// 경로를 처리하는 파일 시스템. */
     private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) }, OperationNotices())
 
