@@ -82,6 +82,7 @@ fun RemoteBottomButtonListView(
     onConfirmUpload: () -> Unit,
 ) {
     val currentSelectedList = selectedList()
+    /** 이 화면의 이름 변경·삭제 다이얼로그 열림 상태. */
     // 화면 단위 ViewModel에 보관된 다이얼로그 상태 — 대상인 coordinator의 선택 목록과 수명이 같아, 회전 시 유지되고
     // 화면 이동·프로세스 종료 후 복귀 시 닫힌다(rememberScreenDialogState 참고)
     val dialogState = rememberRemoteBottomButtonDialogState()

@@ -1,5 +1,7 @@
-package com.todokanai.composepracticenew.compose.listview
+package com.todokanai.composepracticenew.compose.dialog
 
+import com.todokanai.composepracticenew.compose.listview.BottomButtonDialogState
+import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonDialogState
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
@@ -9,7 +11,7 @@ import org.junit.Test
 class ScreenDialogStateTest {
 
     @Test
-    fun `다시 열면 새 회차가 발급되어 이전 입력값을 복원하지 않는다`() {
+    fun `다시 열면 새 회차(openId)가 발급된다`() {
         val state = BottomButtonDialogState()
         state.openRename()
         val first = state.openId
