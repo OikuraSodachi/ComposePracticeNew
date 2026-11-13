@@ -30,6 +30,8 @@ import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
 import com.todokanai.composepracticenew.repository.ConflictQuestionRepository
 import com.todokanai.composepracticenew.repository.ConflictQuestions
+import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.PathAwareFileSystem
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
@@ -95,6 +97,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindOperationNoticeReporter(impl: OperationNotices): OperationNoticeReporter
+
+    @Binds
+    abstract fun bindConnectionLossNoticeRepository(impl: ConnectionLossNotices): ConnectionLossNoticeRepository
 
     @Binds
     abstract fun bindConflictQuestionAsker(impl: ConflictQuestions): ConflictQuestionAsker

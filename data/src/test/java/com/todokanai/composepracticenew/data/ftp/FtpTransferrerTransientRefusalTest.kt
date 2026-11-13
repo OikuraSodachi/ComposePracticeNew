@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -85,7 +86,7 @@ class FtpTransferrerTransientRefusalTest {
      */
     private fun connectedTransferrer(refusal: ServerBehavior.Refuse): Triple<FakeFtpClient, FtpSession, FtpTransferrer> {
         val client = FakeFtpClient().apply { streamRefusal = refusal }
-        val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+        val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
         return Triple(client, session, FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices()))
     }
 }

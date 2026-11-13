@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -20,7 +21,7 @@ import java.nio.file.Files
 class FtpCommandExecutorTreeListingTest {
 
     private val client = FakeFtpClient()
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
 
     @Test

@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.navigation
 
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
@@ -75,14 +74,7 @@ fun AppNavHost(
     }
 
     val context = LocalContext.current
-    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 세션이 끊긴 순간 어느 화면에 있든 알린다
-    LaunchedEffect(Unit) {
-        mainViewModel.connectionLost.collect {
-            Toast.makeText(context, context.getString(R.string.toast_connection_lost), Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    // 키 없음 — AppNavHost가 살아 있는 동안 하나만 둔다. 설정 실패와 작업 메시지가 한 Snackbar 대기열을 함께 써 한 번에 하나만 보이도록
+    // 키 없음 — AppNavHost가 살아 있는 동안 하나만 둔다. 설정 실패·작업 메시지·연결 끊김이 한 Snackbar 대기열을 함께 써 한 번에 하나만 보이도록
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유).
@@ -102,6 +94,16 @@ fun AppNavHost(
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             mainViewModel.showOperationNotices { notice ->
                 snackbarHostState.showSnackbar(notice.message, duration = snackbarDurationOf(notice.kind))
+            }
+        }
+    }
+
+    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 원격 세션의 끊김을 어느 화면에 있든 알린다.
+    // 화면이 보이는 동안만 꺼내, 보이지 않는 동안 끊긴 것은 다시 보일 때 알리도록. Snackbar로 알리는 이유는 위와 같다
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.showConnectionLosses {
+                snackbarHostState.showSnackbar(context.getString(R.string.notice_connection_lost), duration = SnackbarDuration.Short)
             }
         }
     }

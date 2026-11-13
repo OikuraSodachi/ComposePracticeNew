@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -26,7 +27,7 @@ class FtpTransferrerLocalFileFailureTest {
     private val client = FakeFtpClient()
 
     /** [client]를 쓰는 세션. */
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
 
     /** 검증 대상. */
     private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())

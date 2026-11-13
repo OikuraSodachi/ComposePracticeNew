@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.PendingNotice
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -10,6 +11,12 @@ import kotlinx.coroutines.flow.StateFlow
 interface NoticeInbox<out T> {
     /** 아직 아무도 꺼내지 않은 알림(넣은 순서). 꺼내기([claim]) 전까지 남아, 받을 화면이 없을 때 생긴 알림도 잃지 않는다. */
     val pending: StateFlow<List<PendingNotice<T>>>
+
+    /**
+     * 꺼냈지만 아직 [complete]·[release]하지 않은 알림의 id. 꺼낸 동안 더는 유효하지 않게 된 알림은 여기서 빠진다 —
+     * 꺼낸 쪽이 그 알림을 보여 주기를 멈출 수 있도록.
+     */
+    val claimedIds: Flow<Set<Long>>
 
     /**
      * [id]의 알림을 [pending]에서 꺼낸다. 꺼낸 쪽만 알린다 — 여러 화면이 같은 알림을 보아도 한 번만 알리도록.

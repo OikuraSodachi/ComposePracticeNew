@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.model.OperationNotice
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.PendingNotice
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,6 +16,8 @@ class OperationNotices @Inject constructor() : OperationNoticeRepository, Operat
     private val box = NoticeBox<OperationNotice>()
 
     override val pending: StateFlow<List<PendingNotice<OperationNotice>>> get() = box.pending
+
+    override val claimedIds: Flow<Set<Long>> get() = box.claimedIds
 
     override fun report(kind: OperationNoticeKind, message: String) = box.report(OperationNotice(kind, message))
 

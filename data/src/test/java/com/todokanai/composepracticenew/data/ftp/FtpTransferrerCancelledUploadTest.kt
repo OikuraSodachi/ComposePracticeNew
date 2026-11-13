@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -29,7 +30,7 @@ class FtpTransferrerCancelledUploadTest {
     /** STOR를 받아들이는 가짜 클라이언트. */
     private val client = FakeFtpClient().apply { streamContent = ByteArray(0) }
     /** 검증 대상 세션. */
-    private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+    private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
     /** 넣은 실패 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingNotices()
     /** 검증 대상 전송기. */

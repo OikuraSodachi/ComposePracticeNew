@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNotices
@@ -29,7 +30,7 @@ class FtpListingInterpretationTest {
     /** 서버 응답을 정하고 보낸 명령을 기록하는 가짜 클라이언트. */
     private val client = FakeFtpClient().apply { features = setOf("MLST") }
     /** [client]를 쓰는 세션. */
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
     /** 검증 대상 명령 실행기. */
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
     /** 화면 목록이 넣은 실패 메시지를 기록하는 저장소. */
@@ -77,7 +78,7 @@ class FtpListingInterpretationTest {
             listHeaderLines = listOf("total 3", "drwxr-xr-x 1 user group 0 Jan  1 00:00 .", "drwxr-xr-x 1 user group 0 Jan  1 00:00 ..")
             remoteFiles = listOf("a.txt")
         }
-        val listSession = FtpSession(listClient)
+        val listSession = FtpSession(listClient, ConnectionLossNotices())
         runBlocking { listSession.markLoggedIn(listSession.closeRequestMark(), home = null, serverName = "server") }
 
         val items = (runBlocking { FtpCommandExecutor(listSession, DataCommandRunner(listSession)).listFiles("ftp://host/r") } as IoResult.Success).value

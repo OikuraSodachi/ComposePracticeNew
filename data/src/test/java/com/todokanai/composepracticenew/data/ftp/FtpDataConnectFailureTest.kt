@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIM
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -114,7 +115,7 @@ class FtpDataConnectFailureTest {
         client.connect(scripted.host, scripted.port)
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
-        return FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+        return FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
     }
 
     /**

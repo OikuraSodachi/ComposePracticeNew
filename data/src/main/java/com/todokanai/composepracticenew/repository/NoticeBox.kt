@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.PendingNotice
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
  * 알림을 넣고 화면이 꺼내 알리는 [NoticeInbox] 구현. 알림 종류마다 저장소가 이것을 합성해 쓴다.
@@ -21,10 +23,12 @@ class NoticeBox<T> : NoticeInbox<T> {
     /** 아직 아무도 꺼내지 않은 알림. 알림은 사용자 동작마다 하나라 사용자 동작 수를 넘지 않는다. */
     private val _pending = MutableStateFlow<List<PendingNotice<T>>>(emptyList())
 
-    /** 꺼냈지만 아직 다 알리지 않은 알림(id별). [lock] 안에서만 읽고 바꾼다. */
-    private val claimed = mutableMapOf<Long, PendingNotice<T>>()
+    /** 꺼냈지만 아직 다 알리지 않은 알림(id별). [lock] 안에서만 바꾼다. */
+    private val claimed = MutableStateFlow<Map<Long, PendingNotice<T>>>(emptyMap())
 
     override val pending: StateFlow<List<PendingNotice<T>>> = _pending.asStateFlow()
+
+    override val claimedIds: Flow<Set<Long>> = claimed.map { it.keys }
 
     /**
      * 알림 [content]를 넣는다. 호출 스레드에서 바로 반환한다.
@@ -35,30 +39,31 @@ class NoticeBox<T> : NoticeInbox<T> {
     }
 
     /**
-     * [obsolete]인 알림을 꺼냈든 아니든 모두 뺀다. 꺼낸 알림이라면 알리지 못해도 돌려놓지 않는다.
+     * [obsolete]인 알림을 꺼냈든 아니든 모두 뺀다. 꺼낸 알림이라면 알리지 못해도 돌려놓지 않으며, 꺼낸 쪽은 [claimedIds]로 보여 주기를 멈춘다.
      * @param obsolete 더는 사실이 아니어서 알리면 안 되는 알림인지
      */
     fun discard(obsolete: (T) -> Boolean) {
         synchronized(lock) {
             _pending.value = _pending.value.filterNot { obsolete(it.content) }
-            claimed.values.removeAll { obsolete(it.content) }
+            claimed.value = claimed.value.filterValues { !obsolete(it.content) }
         }
     }
 
     override fun claim(id: Long): Boolean = synchronized(lock) {
         val notice = _pending.value.find { it.id == id } ?: return false
         _pending.value -= notice
-        claimed[id] = notice
+        claimed.value += id to notice
         true
     }
 
     override fun complete(id: Long) {
-        synchronized(lock) { claimed.remove(id) }
+        synchronized(lock) { claimed.value -= id }
     }
 
     override fun release(id: Long) {
         synchronized(lock) {
-            val notice = claimed.remove(id) ?: return
+            val notice = claimed.value[id] ?: return
+            claimed.value -= id
             _pending.value = (_pending.value + notice).sortedBy { it.id }
         }
     }

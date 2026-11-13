@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.datasource.localTreeBottomUp
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
@@ -34,7 +35,7 @@ class FtpTransferrerSymlinkDownloadTest {
     private val client = FakeFtpClient()
 
     /** [client]를 쓰는 세션. */
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
 
     /** 검증 대상. */
     private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())

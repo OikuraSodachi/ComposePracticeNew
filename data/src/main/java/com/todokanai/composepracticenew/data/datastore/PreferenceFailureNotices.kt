@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.PendingNotice
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.repository.NoticeBox
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -19,6 +20,8 @@ class PreferenceFailureNotices @Inject constructor() : PreferenceFailureReposito
     private val box = NoticeBox<PreferenceFailure>()
 
     override val pending: StateFlow<List<PendingNotice<PreferenceFailure>>> get() = box.pending
+
+    override val claimedIds: Flow<Set<Long>> get() = box.claimedIds
 
     /**
      * 실패 [failure]를 알림 목록에 넣는다. 호출 스레드에서 바로 반환한다.

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -17,7 +18,7 @@ import java.net.SocketTimeoutException
 class FtpCommandExecutorListFilesTest {
 
     private val client = FakeFtpClient()
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
 
     @Test

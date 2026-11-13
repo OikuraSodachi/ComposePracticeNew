@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.datastore
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
@@ -68,5 +69,26 @@ class PreferenceFailureNoticesTest {
         runCurrent()
 
         assertEquals(listOf(PreferenceFailure.SAVE), notices.pending.value.map { it.content })
+    }
+
+    @Test
+    fun `보여 주는 도중 읽기가 회복하면 그 읽기 실패의 표시를 거두고 다음 실패를 알린다`() = runTest {
+        // 회복한 읽기 실패를 대기열이나 화면에 남겨 사실이 아닌 실패로 보이게 하지 않는다
+        val shown = mutableListOf<PreferenceFailure>()
+        notices.report(PreferenceFailure.READ)
+        notices.report(PreferenceFailure.SAVE)
+        backgroundScope.launch {
+            PreferenceFailureUseCase(notices).deliver {
+                if (it == PreferenceFailure.READ) awaitCancellation()
+                shown += it
+            }
+        }
+        runCurrent()
+
+        notices.readRecovered()
+        runCurrent()
+
+        assertEquals(listOf(PreferenceFailure.SAVE), shown)
+        assertTrue(notices.pending.value.isEmpty())
     }
 }

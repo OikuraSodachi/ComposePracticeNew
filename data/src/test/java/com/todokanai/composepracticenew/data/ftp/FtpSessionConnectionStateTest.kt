@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +20,7 @@ class FtpSessionConnectionStateTest {
     /** 세션이 소유하는 가짜 클라이언트. */
     private val client = FakeFtpClient()
     /** 검증 대상 세션. 로그인한 상태로 시작한다. */
-    private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+    private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
 
     @Test
     fun `연결된 세션의 명령이 응답을 읽지 못하면 끊김으로 남는다`() = runBlocking {

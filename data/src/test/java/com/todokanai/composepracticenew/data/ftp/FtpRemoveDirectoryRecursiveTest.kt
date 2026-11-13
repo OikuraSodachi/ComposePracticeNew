@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -12,7 +13,7 @@ import org.junit.Test
 class FtpRemoveDirectoryRecursiveTest {
 
     private val client = FakeFtpClient()
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
 
     @Test
