@@ -16,6 +16,7 @@ interface FileNavigatorRepository {
     /**
      * 경로 이동의 단일 진입점. 경로 종류 판단과 접근성 검증은 구현체가 수행한다.
      * 검증에 실패하면 현재 경로를 바꾸지 않고 [NavigateResult.Rejected]를 돌려준다 — 호출자가 거부된 이동을 이동한 것으로 보지 않도록.
+     * 거부는 구현체가 [OperationNoticeReporter]로 직접 알린다 — 호출자는 알리지 않고, 이동 뒤에 할 일이 있을 때만 결과를 본다.
      */
     suspend fun navigate(path: String): NavigateResult
     /** 현재 경로의 목록을 새 요청으로 다시 조회한다. */

@@ -64,11 +64,15 @@ class FileSearchUseCase(
 
     /**
      * [item]이 들어 있는 폴더로 이동한다.
+     * 상위 폴더가 없는 항목([locationOf]가 null)은 열 위치가 없으므로 부르지 않는다 — 부르면 구현 오류로 실패한다.
+     * 거부로 돌려주면 탐색 저장소를 거치지 않아 아무도 알리지 않는 거부가 되기 때문이다.
      * @param item 검색으로 찾은 항목
-     * @return 이동했는지, 거부됐는지. 상위 폴더가 없으면 갈 곳이 없으므로 거부다
+     * @return 이동했는지, 거부됐는지
      */
-    suspend fun openLocation(item: FileHolderItem): NavigateResult =
-        locationOf(item)?.let { nav.navigate(it) } ?: NavigateResult.Rejected
+    suspend fun openLocation(item: FileHolderItem): NavigateResult {
+        val location = checkNotNull(locationOf(item)) { "상위 폴더가 없는 항목의 위치는 열 수 없다: ${item.path}" }
+        return nav.navigate(location)
+    }
 
     /**
      * 찾은 항목이 모두 [max]개까지만 지나가게 한다. 상한을 넘는 항목이 오면 넘는 부분을 버린 묶음을 상한 도달로 표시해 내보내고,

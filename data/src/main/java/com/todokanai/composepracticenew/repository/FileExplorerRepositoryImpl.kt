@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
+import com.todokanai.composepracticenew.model.OperationNoticeKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.StateFlow
  * @param appScope 파일 탐색 Flow를 공유할 애플리케이션 수명 CoroutineScope
  * @param started 목록 Flow를 공유하기 시작하고 멈추는 정책
  * @param fileSystems 이 저장소가 다루는 경로 종류별 PathAwareFileSystem 집합 — 각 handles()는 서로 배타적이다
+ * @param notices 거부한 이동을 알리는 OperationNoticeReporter — 부르는 곳마다 결과를 확인하지 않아도 거부가 알려지도록 여기서 직접 알린다
  * @param initialPath 초기 탐색 경로; null이면 설정하지 않는다
  */
 class FileExplorerRepositoryImpl(
@@ -25,6 +27,7 @@ class FileExplorerRepositoryImpl(
     appScope: CoroutineScope,
     started: SharingStarted,
     fileSystems: Set<PathAwareFileSystem>,
+    private val notices: OperationNoticeReporter,
     initialPath: String? = null
 ) : FileNavigatorRepository {
 
@@ -44,8 +47,20 @@ class FileExplorerRepositoryImpl(
     override fun refresh() = navigation.refresh()
 
     override suspend fun navigate(path: String): NavigateResult {
-        val resolved = router.resolve(path)?.resolveNavigationPath(path) ?: return NavigateResult.Rejected
+        val fileSystem = router.resolve(path)
+        val resolved = fileSystem?.resolveNavigationPath(path)
+        if (resolved == null) {
+            notices.report(OperationNoticeKind.FAILURE, rejectionNotice(fileSystem?.displayName(path) ?: path))
+            return NavigateResult.Rejected
+        }
         navigation.navigateTo(resolved)
         return NavigateResult.Navigated
     }
+
+    /**
+     * 거부한 이동을 알리는 문구를 만든다.
+     * @param name 열지 못한 폴더의 표시 이름
+     * @return 표시할 문구
+     */
+    private fun rejectionNotice(name: String): String = "폴더를 열 수 없습니다 ($name)"
 }

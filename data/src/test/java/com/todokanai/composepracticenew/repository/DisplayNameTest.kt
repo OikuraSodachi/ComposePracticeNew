@@ -12,7 +12,7 @@ import org.junit.Test
 class DisplayNameTest {
 
     private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) }, OperationNotices())
-    private val local = LocalPathAwareFileSystem(LocalFileDataSource())
+    private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
 
     @Test
     fun `FTP 경로는 마지막 구간을, 서버 루트는 호스트를 이름으로 쓴다`() {

@@ -81,6 +81,12 @@ class FileSearchUseCaseTest {
         assertEquals(listOf(false), search.toList().map { it.limitReached })
     }
 
+    @Test(expected = IllegalStateException::class)
+    fun `상위 폴더가 없는 항목의 위치 열기는 거부로 돌려주지 않고 구현 오류로 실패한다`() {
+        // NoOpNavigator의 경로 규칙은 모든 경로에 상위 폴더가 없다고 답한다
+        runBlocking { useCaseWith {}.openLocation(items(1, "root").single()) }
+    }
+
     /** [walk]로 결과 묶음을 내보내는 저장소로 검색해 받은 묶음을 모두 돌려준다. */
     private suspend fun searchWith(walk: suspend FlowCollector<SearchBatch>.() -> Unit): List<SearchBatch> =
         useCaseWith(walk).search(query)!!.toList()
