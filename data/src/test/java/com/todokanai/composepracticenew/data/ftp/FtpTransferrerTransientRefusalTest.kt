@@ -35,7 +35,7 @@ class FtpTransferrerTransientRefusalTest {
 
             val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-            assertEquals("${refusal.code}", IoResult.ItemFailed("retrieveFileStream 실패: ${refusal.text}"), result)
+            assertEquals("${refusal.code}", IoResult.ItemFailed("RETR 실패: ${refusal.text}"), result)
             assertTrue("${refusal.code}: 세션이 유지돼야 함", runBlocking { session.isReady() })
             assertEquals(0, client.disconnectCalls)
         }
@@ -48,7 +48,7 @@ class FtpTransferrerTransientRefusalTest {
 
         val result = runBlocking { transferrer.upload(local.path, "ftp://host/r/a.txt") }
 
-        assertEquals(IoResult.ItemFailed("storeFileStream 실패: 452 Insufficient storage"), result)
+        assertEquals(IoResult.ItemFailed("STOR 실패: 452 Insufficient storage"), result)
         assertTrue(runBlocking { session.isReady() })
         assertEquals(0, client.disconnectCalls)
     }

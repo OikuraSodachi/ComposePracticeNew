@@ -54,7 +54,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 val result = runBlocking { run() }
                 assertTrue("$result", result is IoResult.ItemFailed)
                 val text = (behavior.serverBehavior as ServerBehavior.Refuse).text
-                assertEquals("${FtpCommand.valueOf(command.ftpName).label} 실패: $text${command.refusalNote}", (result as IoResult.ItemFailed).message)
+                assertEquals("${command.ftpName} 실패: $text${command.refusalNote}", (result as IoResult.ItemFailed).message)
                 assertEquals("거부 응답 뒤에는 기다릴 응답이 없다", 0, client.completePendingCalls)
                 assertSessionKept()
             }

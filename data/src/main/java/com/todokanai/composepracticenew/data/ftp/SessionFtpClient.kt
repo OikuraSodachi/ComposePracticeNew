@@ -1,12 +1,14 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import org.apache.commons.net.ProtocolCommandEvent
+import org.apache.commons.net.ProtocolCommandListener
 import org.apache.commons.net.ftp.FTPClient
 import org.apache.commons.net.ftp.FTPCmd
 import java.io.IOException
 import java.io.InputStream
 
 /**
- * 세션이 쓰는 FTPClient. 명령 블록이 쓰는 표면을 구현하고, 목록 조회의 데이터 스트림을 열어 주며, 이 연결의 현재 디렉터리를 기록한다.
+ * 세션이 쓰는 FTPClient. 명령 블록이 쓰는 표면을 구현하고, 목록 조회의 데이터 스트림을 열어 주며, 이 연결의 현재 디렉터리와 마지막으로 보낸 명령을 기록한다.
  * 전송의 `retrieveFileStream`에 해당하는 목록 조회용 공개 함수가 commons-net에 없어 스트림 열기를 여기에 둔다.
  * commons-net의 `listFiles`·`mlistDir`는 데이터 연결을 읽다 실패한 것과 완료 응답을 읽다 실패한 것을 같은 예외로 던진다.
  * LIST는 완료 응답을 읽지 않은 채 던지고, MLSD는 읽은 뒤에도 던진다. 그래서 목록도 전송처럼 데이터 스트림을 직접 열어 [DataCommandRunner]로 다룬다.
@@ -22,6 +24,21 @@ internal open class SessionFtpClient : FTPClient(), FtpCommandClient {
     /** 이 연결의 로그인 직후 디렉터리. [recordLogin]만 바꾼다. */
     final override var homeDirectory: String? = null
         private set
+
+    /** 이 연결에 마지막으로 보낸 명령 이름. commons-net이 명령을 보낼 때마다 알리는 이벤트로 기록한다. */
+    final override var lastSentCommand: String? = null
+        private set
+
+    init {
+        // commons-net의 데이터 연결 열기는 준비 명령(PASV·EPSV·REST)이 거부돼도 명령 거부와 같은 null을 돌려주므로, 거부된 명령을 알려면 보낸 명령을 기록해야 한다
+        addProtocolCommandListener(object : ProtocolCommandListener {
+            override fun protocolCommandSent(event: ProtocolCommandEvent) {
+                lastSentCommand = event.command
+            }
+
+            override fun protocolReplyReceived(event: ProtocolCommandEvent) {}
+        })
+    }
 
     /**
      * 새 연결의 로그인 직후 디렉터리를 기록한다. 새 연결의 현재 디렉터리는 홈이다.

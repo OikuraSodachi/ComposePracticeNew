@@ -18,6 +18,9 @@ internal interface FtpCommandClient {
     /** 로그인 직후의 현재 디렉터리(FTP 경로). 대상 밖으로 나가는 이동이 거부될 때 다시 시도할 곳이다. 서버가 알려주지 않았으면 null이다. */
     val homeDirectory: String?
 
+    /** 이 연결에 마지막으로 보낸 명령 이름(예: "PASV"). 데이터 스트림을 열다 거부됐을 때 그 앞의 준비 명령까지 포함해 어느 명령이 거부됐는지 알려 준다. 아직 보낸 명령이 없으면 null이다. */
+    val lastSentCommand: String?
+
     /**
      * 현재 디렉터리를 옮기고, 옮겼으면 [workingDirectory]에 기록한다. 이동과 기록이 어긋나지 않도록 디렉터리 이동은 이 함수로만 한다.
      * @param pathname 옮겨 갈 디렉터리의 FTP 경로

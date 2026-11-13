@@ -383,7 +383,7 @@ class FtpTransferrer @Inject internal constructor(
             onOpened()
             localFile.outputStream().use { output -> pump(stream, output, onChunk) }
         }
-        return transferResult(FtpCommand.RETR, client, outcome, onAcked)
+        return transferResult(client, outcome, onAcked)
     }
 
     /**
@@ -411,7 +411,7 @@ class FtpTransferrer @Inject internal constructor(
             discardCancelledUpload(client, ftpPath)
             throw e
         }
-        return transferResult(FtpCommand.STOR, client, outcome, onAcked)
+        return transferResult(client, outcome, onAcked)
     }
 
     /**
@@ -433,19 +433,17 @@ class FtpTransferrer @Inject internal constructor(
     /**
      * 전송 명령의 결과([DataCommandRunner.run])를 이 항목의 결과로 만든다. 서버가 전송 완료를 확인해야 성공이다.
      * 전송(데이터 스트림·로컬 파일) 중 실패는 제어 채널과 무관하고 완료 응답까지 읽었으므로 이 항목만의 실패다.
-     * @param command 보낸 전송 명령
      * @param client 응답을 받은 FTP 클라이언트
      * @param outcome 전송 명령의 결과
      * @param onAcked 서버가 전송 완료를 확인한 뒤 호출되는 콜백
      * @return 전송 결과
      */
     private suspend fun transferResult(
-        command: FtpCommand,
         client: FtpCommandClient,
         outcome: DataCommandOutcome,
         onAcked: suspend () -> Unit
     ): IoResult<Unit> = when (outcome) {
-        DataCommandOutcome.Refused -> FtpReplyRules.refusal(command, client.getReplyString())
+        is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
         is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(outcome.cause.message ?: TRANSFER_FAILED_MESSAGE)
         is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(dataConnectionFailure(outcome.cause))
         is DataCommandOutcome.Finished ->
