@@ -14,4 +14,7 @@ object OperationConstants {
 
     /** 알림 클릭 시 진행률 다이얼로그를 띄울 작업 인스턴스 ID를 전달하는 Intent extra 키. */
     const val EXTRA_INSTANCE_ID: String = "com.todokanai.composepracticenew.EXTRA_INSTANCE_ID"
+
+    /** 알림 클릭 intent를 만든 프로세스의 값([com.todokanai.composepracticenew.tools.NotificationProcessToken])을 전달하는 Intent extra 키. */
+    const val EXTRA_PROCESS_TOKEN: String = "com.todokanai.composepracticenew.EXTRA_PROCESS_TOKEN"
 }

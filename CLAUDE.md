@@ -139,6 +139,7 @@ See [ROADMAP.md](ROADMAP.md).
 
 - 정렬 모드는 domain `SortMode` enum이다. `SortMode.id`는 DataStore 저장 전용(변경 금지)이며, 표시 문구는 app 레이어 exhaustive `when` → 문자열 리소스로 매핑한다.
 - 작업 종류는 `FileOperationType` enum. 진행 알림 Intent extra `EXTRA_ACTION_KEY`에는 `FileOperationType.id`를, `EXTRA_INSTANCE_ID`에는 작업 인스턴스 ID를, 알림 id와 PendingIntent requestCode에는 `OperationNotificationIds`가 붙인 알림 id를 사용한다(알림마다 자기 작업을 가리키고, 인스턴스 ID가 프로세스마다 다시 발급돼도 이전 프로세스가 남긴 알림과 겹치지 않도록).
+- 진행 알림은 그 작업을 실행한 프로세스만 지울 수 있다(#300). 그래서 작업을 가리키는 클릭 intent에는 만든 프로세스의 값(`NotificationProcessToken`, `EXTRA_PROCESS_TOKEN`)을 담고, `MainActivity`는 다른 프로세스의 intent를 무시한다(앱만 연다). 프로세스가 시작될 때(`MyApplication.onCreate`) 남아 있는 진행 알림은 죽은 프로세스의 작업이므로 `MyNotification.interruptLeftoverProgress`가 같은 id의 중단 알림(밀어서 지울 수 있음)으로 바꾼다. 프로세스가 죽은 뒤 앱이 다시 시작되기 전까지 남은 진행 알림은 정리하지 못한다(지원 범위 밖 — 실행 중인 코드가 없다).
 - 진행률 다이얼로그는 한 번에 한 작업만 띄운다(`ProgressDialogSelection`). 새 작업이 시작되면 가장 나중에 시작한 작업을 띄우고, 닫거나 작업이 끝나도 다른 작업으로 넘어가지 않는다. 앱을 열 때(ViewModel 생성 시) 이미 진행 중인 작업은 새 작업으로 보지 않는다. 알림을 누르면 그 알림의 작업을 띄운다.
 - Compose "fragments" (`*Frag`) are stateless composables that receive a ViewModel; they are not Android `Fragment` classes.
 - Compose "holders" (`*Holder`) are item-level composables for list rows.
