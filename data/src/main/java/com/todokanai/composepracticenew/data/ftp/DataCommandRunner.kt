@@ -130,7 +130,6 @@ internal class DataCommandRunner @Inject constructor(private val session: FtpDat
 
     /**
      * 데이터 연결을 열기 전에 거부된 명령의 이름을 돌려준다. commons-net은 거부 응답을 읽은 직후 null을 돌려주므로 마지막으로 보낸 명령이 거부된 명령이다.
-     * 아무 명령도 보내지 않고 null이 왔다면 수동 모드가 아닌 것이므로 구현 오류다(데이터 연결은 수동 모드만 지원한다).
      * @param client 거부 응답을 받은 FTP 클라이언트
      * @return 거부된 명령 이름
      */
