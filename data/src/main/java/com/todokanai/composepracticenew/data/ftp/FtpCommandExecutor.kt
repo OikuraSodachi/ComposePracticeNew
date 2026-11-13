@@ -9,7 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPFileEntryParser
-import org.apache.commons.net.ftp.FTPListParseEngine
 import org.apache.commons.net.ftp.parser.MLSxEntryParser
 import java.io.FilterInputStream
 import java.io.IOException
@@ -19,10 +18,10 @@ import javax.inject.Singleton
 
 /**
  * 목록 조회 결과와, 서버가 알려준 식별값(MLSD `unique`). 트리 수집이 순환을 판별하는 데 쓴다.
- * @param entries 조회한 항목
+ * @param items 조회한 항목과 해석하지 못한 줄
  * @param identities 항목 경로 → 식별값. 서버가 식별값을 알려준 항목만 담는다
  */
-private data class IdentifiedListing(val entries: List<FileEntry>, val identities: Map<String, String>)
+private data class IdentifiedListing(val items: List<ListedItem>, val identities: Map<String, String>)
 
 /**
  * 서버에게 받은 목록 항목 하나와 그 식별값.
@@ -38,7 +37,7 @@ private data class ReceivedEntry(val file: FTPFile, val identity: String?)
  */
 private class DirectoryVisit(val listed: IdentifiedListing, val identity: String?) {
     /** 아직 수집하지 않은 항목. */
-    val remaining: Iterator<FileEntry> = listed.entries.iterator()
+    val remaining: Iterator<ListedItem> = listed.items.iterator()
 }
 
 /**
@@ -59,21 +58,25 @@ private class TreeMemoryBudget(private val limitBytes: Long) {
 
     /**
      * 받은 목록의 추정 메모리를 더한다.
-     * @param entries 받은 목록의 항목
+     * @param items 받은 목록의 항목과 해석하지 못한 줄
      * @return 더한 뒤에도 상한 안이면 true
      */
-    fun admit(entries: List<FileEntry>): Boolean {
-        usedBytes += entries.sumOf(::estimatedBytes)
+    fun admit(items: List<ListedItem>): Boolean {
+        usedBytes += items.sumOf(::estimatedBytes)
         return usedBytes <= limitBytes
     }
 
     /**
-     * 항목 하나가 차지하는 메모리의 상한 추정치. 고정 부분([ENTRY_OVERHEAD_BYTES])에 경로·이름을 문자당 2바이트(UTF-16)로 더한다 —
+     * 항목 하나가 차지하는 메모리의 상한 추정치. 고정 부분([ENTRY_OVERHEAD_BYTES])에 경로·이름(해석하지 못한 줄은 그 줄)을 문자당 2바이트(UTF-16)로 더한다 —
      * ASCII만인 문자열은 실제로 그 절반이므로, 어느 문자로 된 경로든 항목 자체의 실제 메모리가 추정치를 넘지 않는다(식별값은 세지 않는다 — [TreeMemoryBudget]).
-     * @param entry 받은 항목
+     * 해석하지 못한 줄의 디렉터리 경로는 그 디렉터리 항목과 같은 문자열을 가리키므로 세지 않는다.
+     * @param item 받은 항목
      * @return 추정 메모리(바이트)
      */
-    private fun estimatedBytes(entry: FileEntry): Long = ENTRY_OVERHEAD_BYTES + 2L * (entry.path.length + entry.name.length)
+    private fun estimatedBytes(item: ListedItem): Long = ENTRY_OVERHEAD_BYTES + 2L * when (item) {
+        is ListedItem.Entry -> item.entry.path.length + item.entry.name.length
+        is ListedItem.Unreadable -> item.line.length
+    }
 
     private companion object {
         /**
@@ -207,9 +210,9 @@ class FtpCommandExecutor internal constructor(
     /**
      * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
      * @param path ftp://server/path 형식의 절대 경로
-     * @return 원격 경로의 파일 목록, 또는 서버가 거부한 실패
+     * @return 원격 경로의 항목과 해석하지 못한 줄, 또는 서버가 거부한 실패
      */
-    suspend fun listFiles(path: String): IoResult<List<FileEntry>> = list(path, withIdentities = false).map { it.entries }
+    internal suspend fun listFiles(path: String): IoResult<List<ListedItem>> = list(path, withIdentities = false).map { it.items }
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.
@@ -275,22 +278,28 @@ class FtpCommandExecutor internal constructor(
      * 트리 수집이 세션을 하위 폴더 안에 남기므로, RMD는 세션이 지울 폴더 안에 있으면 먼저 [path]의 상위 폴더로 나간 뒤 보낸다.
      * 알려진 문제(방치하기로 결정): 트리에 서버가 숨긴 항목이 빠질 수 있어([collectRemoteTree]), 그런 항목이 있으면 보이는 항목을 모두 지운 뒤에야
      * RMD 거부로 실패를 알게 된다. 이 경우 거부 메시지에 숨긴 항목이 남았을 가능성을 덧붙인다([FtpReplyRules.HIDDEN_ENTRIES_NOTE]).
+     * 해석하지 못한 목록 줄은 무엇인지 몰라 지우지 못한 항목으로 알리고, 그 줄이 나온 디렉터리는 지우지 않는다(#255).
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)
      * @return 삭제 결과. 하위 항목 일부가 실패하면 [IoResult.PartiallyFailed]
      */
     suspend fun removeDirectoryRecursive(path: String): IoResult<Unit> {
-        val allEntries = collectRemoteTree(path).valueOr { return it }
+        val allItems = collectRemoteTree(path).valueOr { return it }
         val ftpPath = extractFtpPath(path)
         val outside = parentFtpPath(ftpPath)
         forEachCollectingFailures(
-            allEntries.reversed(),
+            allItems.reversed(),
             "하위 항목 삭제 실패",
-            nameOf = { relativeRemotePath(it.path, path) },
-            isBlockedBy = { entry, failed -> entry.isDirectory && isRemoteAncestorOf(entry.path, failed.path) }
-        ) { entry ->
-            val entryFtpPath = extractFtpPath(entry.path)
-            if (entry.isDirectory) runFtpCommand(FtpCommand.RMD, leavingTarget(entryFtpPath, outside)) { it.removeDirectory(entryFtpPath) }
-            else runFtpCommand(FtpCommand.DELE) { it.deleteFile(entryFtpPath) }
+            nameOf = { relativeRemotePath(it.displayPath, path) },
+            isBlockedBy = { item, failed -> item.isDirectoryEntry && isRemoteAncestorOf(item.occupiedPath, failed.occupiedPath) }
+        ) { item ->
+            when (item) {
+                is ListedItem.Unreadable -> IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
+                is ListedItem.Entry -> {
+                    val entryFtpPath = extractFtpPath(item.entry.path)
+                    if (item.isDirectoryEntry) runFtpCommand(FtpCommand.RMD, leavingTarget(entryFtpPath, outside)) { it.removeDirectory(entryFtpPath) }
+                    else runFtpCommand(FtpCommand.DELE) { it.deleteFile(entryFtpPath) }
+                }
+            }
         }.valueOr { return it }
         return runFtpCommand(FtpCommand.RMD, leavingTarget(ftpPath, outside)) { it.removeDirectory(ftpPath) }
     }
@@ -309,11 +318,12 @@ class FtpCommandExecutor internal constructor(
      * 스레드 스택 깊이에 기대지 않는다.
      * 알려진 문제(방치하기로 결정): 각 목록은 서버가 드러내는 항목뿐이라([identifiedListing]) 서버가 숨긴 항목은 트리에서 빠지지만, 수집은 성공으로 끝난다.
      * 그래서 폴더 다운로드는 숨긴 항목 없이 완료로 보고되고, 재귀 삭제는 보이는 항목을 지운 뒤 RMD에서 실패한다([removeDirectoryRecursive]).
+     * 해석하지 못한 목록 줄은 버리지 않고 그 디렉터리의 항목 자리에 담아, 받는 쪽이 그 항목만 실패로 알리게 한다(#255).
      * @param remoteDirPath 수집할 원격 디렉터리 경로 (ftp://server/path 형식)
-     * @return 하위 항목 전체 목록, 또는 조회 실패나 메모리 상한·순환·경로 한도에 의한 실패
+     * @return 하위 항목 전체 목록(해석하지 못한 줄 포함), 또는 조회 실패나 메모리 상한·순환·경로 한도에 의한 실패
      */
-    internal suspend fun collectRemoteTree(remoteDirPath: String): IoResult<List<FileEntry>> {
-        val result = mutableListOf<FileEntry>()
+    internal suspend fun collectRemoteTree(remoteDirPath: String): IoResult<List<ListedItem>> {
+        val result = mutableListOf<ListedItem>()
         val budget = TreeMemoryBudget(treeMemoryLimitBytes)
         // 거쳐 온 디렉터리의 식별값 — 이미 있는 값이면 내려가지 않으므로 같은 값이 두 번 들어가지 않아, 그 디렉터리를 나올 때 빼도 된다
         val ancestorIdentities = HashSet<String>()
@@ -330,9 +340,9 @@ class FtpCommandExecutor internal constructor(
                 if (visit.identity != null) ancestorIdentities.remove(visit.identity) else if (pending.isNotEmpty()) unidentifiedOnPath--
                 continue
             }
-            val entry = visit.remaining.next()
-            result.add(entry)
-            if (!entry.isDirectory) continue
+            val item = visit.remaining.next()
+            result.add(item)
+            val entry = (item as? ListedItem.Entry)?.entry?.takeIf { item.isDirectoryEntry } ?: continue
             val identity = visit.listed.identities[entry.path]
             if (identity == null) unidentifiedOnPath++
             descentRefusal(entry.path, identity, ancestorIdentities, undecidable = unidentifiedOnPath > 0)?.let { return it }
@@ -359,7 +369,7 @@ class FtpCommandExecutor internal constructor(
     ): IoResult<DirectoryVisit> {
         val tooMany = IoResult.ItemFailed("$TOO_MANY_ENTRIES_MESSAGE: ${extractFtpPath(dirPath)}" + if (undecidable) UNIDENTIFIABLE_NOTE else "")
         val listed = list(dirPath, withIdentities = true, ListingLimit(budget.remainingBytes, tooMany)).valueOr { return it }
-        if (!budget.admit(listed.entries)) return tooMany
+        if (!budget.admit(listed.items)) return tooMany
         return IoResult.Success(DirectoryVisit(listed, identity))
     }
 
@@ -431,8 +441,8 @@ class FtpCommandExecutor internal constructor(
      */
     private suspend fun listWithList(client: FtpCommandClient, ftpPath: String, path: String, limit: ListingLimit?): IoResult<IdentifiedListing> {
         if (!client.changeDirectory(ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client.getReplyString())
-        return receiveListing(FtpCommand.LIST, client, FtpListingFormat.listParser(client), path, limit, open = { client.openListStream() }) { files ->
-            files.filter { it.name != "." && it.name != ".." }.map { ReceivedEntry(it, identity = null) }
+        return receiveListing(FtpCommand.LIST, client, FtpListingFormat.listParser(client), path, limit, open = { client.openListStream() }) { file ->
+            ReceivedEntry(file, identity = null).takeIf { file.name != "." && file.name != ".." }
         }
     }
 
@@ -443,7 +453,7 @@ class FtpCommandExecutor internal constructor(
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param withIdentities 서버가 알려준 항목 식별값(MLSD `unique`)도 읽으면 true — 트리 수집이 순환 판별에 쓴다
      * @param limit 목록을 받는 동안의 메모리 상한. null이면 두지 않는다
-     * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdEntries]), 또는 조회 실패
+     * @return 디렉터리의 항목 목록 (자신·상위 디렉터리 항목 제외)과 서버가 알려준 식별값([receivedMlsdEntry]), 또는 조회 실패
      */
     private suspend fun listWithMlsd(
         client: FtpCommandClient,
@@ -452,12 +462,12 @@ class FtpCommandExecutor internal constructor(
         withIdentities: Boolean,
         limit: ListingLimit?
     ): IoResult<IdentifiedListing> =
-        receiveListing(FtpCommand.MLSD, client, MLSxEntryParser.getInstance(), path, limit, open = { client.openMlsdStream(ftpPath) }) { files ->
-            receivedMlsdEntries(files, withIdentities)
+        receiveListing(FtpCommand.MLSD, client, MLSxEntryParser.getInstance(), path, limit, open = { client.openMlsdStream(ftpPath) }) { file ->
+            receivedMlsdEntry(file, withIdentities)
         }
 
     /**
-     * 목록 조회 명령을 전송과 같은 규칙([DataCommandRunner])으로 실행하고, 받은 목록을 [parser]로 해석해 결과로 만든다.
+     * 목록 조회 명령을 전송과 같은 규칙([DataCommandRunner])으로 실행하고, 받은 목록을 줄마다 [parser]로 해석해 결과로 만든다.
      * 서버가 데이터 연결을 열기 전에 거부했거나 마지막 응답이 거부([FtpReplyRules.isListingCompleted])면 이 조회의 실패다.
      * 목록 데이터를 받다 실패하면(읽기 상한 초과 포함) 받은 일부를 목록으로 보지 않고 이 조회의 실패로 돌려준다 — 완료 응답까지 읽었으므로 세션은 유지된다.
      * 받는 동안의 메모리 상한([limit])을 넘은 것도 데이터를 받다 난 실패라 같은 경로로 연결을 중단으로 닫고, 결과는 [ListingLimit.exceeded]다.
@@ -467,7 +477,7 @@ class FtpCommandExecutor internal constructor(
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param limit 목록을 받는 동안의 메모리 상한. null이면 두지 않는다
      * @param open 명령을 보내 목록 데이터 스트림을 여는 동작. 서버가 거부하면 null을 돌려준다
-     * @param received 끝까지 받은 항목에서 디렉터리 안의 항목과 식별값을 고르는 동작
+     * @param received 해석한 항목이 디렉터리 안의 항목이면 그 항목과 식별값을, 아니면(자신·상위 항목) null을 돌려주는 동작
      * @return 조회 결과
      */
     private suspend fun receiveListing(
@@ -477,12 +487,12 @@ class FtpCommandExecutor internal constructor(
         path: String,
         limit: ListingLimit?,
         open: () -> InputStream?,
-        received: (Array<FTPFile>) -> List<ReceivedEntry>
+        received: (FTPFile) -> ReceivedEntry?
     ): IoResult<IdentifiedListing> {
-        val engine = FTPListParseEngine(parser)
+        var lines = emptyList<String>()
         val outcome = dataCommands.run(client, open) { stream ->
             val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes, childFtpUriPrefix(path).length) } ?: stream
-            engine.readServerList(keepingOpen(bounded), client.getControlEncoding())
+            lines = FtpListingFormat.readLines(bounded, client.getControlEncoding(), parser)
         }
         return when (outcome) {
             is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
@@ -491,50 +501,53 @@ class FtpCommandExecutor internal constructor(
                 else IoResult.ItemFailed("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}")
             is DataCommandOutcome.NotConnected -> IoResult.ItemFailed("${command.label} 실패: ${dataConnectionFailure(outcome.cause)}")
             is DataCommandOutcome.Finished ->
-                if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(received(engine.files), path))
+                if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(lines, parser, received, path))
                 else FtpReplyRules.refusal(command, client.getReplyString())
         }
     }
 
     /**
-     * [stream]을 닫아도 닫히지 않는 스트림으로 감싼다. 목록 해석기(`FTPListParseEngine.readServerList`)는 읽기를 마치거나 실패하면 스트림을 닫는데,
-     * 그 닫기는 정상 닫기라 데이터 연결을 어떻게 닫을지(정상·중단) 정하는 [DataCommandRunner]보다 먼저 연결을 닫아 버린다.
-     * @param stream 목록 데이터 스트림
-     * @return 닫기를 무시하는 스트림
-     */
-    private fun keepingOpen(stream: InputStream): InputStream = object : FilterInputStream(stream) {
-        override fun close() {}
-    }
-
-    /**
-     * 끝까지 받은 목록의 항목을 domain 항목으로 바꾸고, 서버가 알려준 식별값을 항목 경로에 묶는다.
+     * 끝까지 받은 목록의 줄을 받은 순서대로 해석해 항목으로 바꾸고, 서버가 알려준 식별값을 항목 경로에 묶는다.
+     * 해석하지 못한 줄은 버리지 않고 [ListedItem.Unreadable]로 남긴다 — 버리면 목록에서 항목이 말없이 빠진다(#255).
      *
      * 알려진 문제(방치하기로 결정): 목록은 서버가 드러내는 항목뿐이라(RFC 3659 §7.1, 유닉스 계열 LIST의 `.` 항목·ProFTPD `HideFiles` 등)
      * 서버가 숨긴 항목이 빠질 수 있지만 폴더의 목록으로 보고한다. 그래서 업로드·이름 변경의 충돌 검사가 숨긴 같은 이름 항목을 보지 못해
      * STOR·RNTO가 묻지 않고 덮어쓸 수 있다. 표준 명령으로는 항목이 없음을 증명할 수 없다(MLST·SIZE의 550은 없음과 거부를 구분하지 않는다).
-     * @param received 받은 항목과 식별값
+     * @param lines 받은 항목 줄
+     * @param parser 목록 줄 해석기
+     * @param received 해석한 항목이 디렉터리 안의 항목이면 그 항목과 식별값을, 아니면 null을 돌려주는 동작
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @return 받은 목록과 식별값
      */
-    private fun identifiedListing(received: List<ReceivedEntry>, path: String): IdentifiedListing {
-        val converted = received.map { it to toFileEntry(it.file, path) }
-        val identities = converted.mapNotNull { (item, entry) -> item.identity?.let { entry.path to it } }.toMap()
-        return IdentifiedListing(converted.map { it.second }, identities)
+    private fun identifiedListing(
+        lines: List<String>,
+        parser: FTPFileEntryParser,
+        received: (FTPFile) -> ReceivedEntry?,
+        path: String
+    ): IdentifiedListing {
+        val identities = HashMap<String, String>()
+        val items = lines.mapNotNull { line ->
+            val file = FtpListingFormat.parsedEntry(parser, line) ?: return@mapNotNull ListedItem.Unreadable(path, line)
+            val entry = received(file) ?: return@mapNotNull null
+            val converted = toFileEntry(entry.file, path)
+            entry.identity?.let { identities[converted.path] = it }
+            ListedItem.Entry(converted)
+        }
+        return IdentifiedListing(items, identities)
     }
 
     /**
-     * MLSD로 받은 항목의 사실을 한 번씩 읽어, 나열한 디렉터리 자신·상위 항목(type=cdir/pdir)을 걸러낸다.
+     * MLSD로 받은 항목의 사실을 한 번 읽어, 나열한 디렉터리 자신·상위 항목(type=cdir/pdir)을 걸러낸다.
      * 걸러내지 않으면 트리 수집이 자기 자신을 하위 디렉터리로 보고 내려간다.
-     * @param files MLSD로 받은 항목
+     * @param file MLSD로 받은 항목
      * @param withIdentities 식별값을 붙일지 여부. 식별값은 트리 수집만 쓴다
-     * @return 디렉터리 안의 항목과 식별값
+     * @return 디렉터리 안의 항목과 식별값, 자신·상위 항목이면 null
      */
-    private fun receivedMlsdEntries(files: Array<out FTPFile>, withIdentities: Boolean): List<ReceivedEntry> =
-        files.mapNotNull { file ->
-            val facts = FtpListingFormat.mlsdFacts(file)
-            if (FtpListingFormat.isMlsdSelfOrParent(facts)) null
-            else ReceivedEntry(file, if (withIdentities) FtpListingFormat.mlsdIdentity(facts) else null)
-        }
+    private fun receivedMlsdEntry(file: FTPFile, withIdentities: Boolean): ReceivedEntry? {
+        val facts = FtpListingFormat.mlsdFacts(file)
+        return if (FtpListingFormat.isMlsdSelfOrParent(facts)) null
+        else ReceivedEntry(file, if (withIdentities) FtpListingFormat.mlsdIdentity(facts) else null)
+    }
 
     /**
      * [ancestorPath]가 [path]를 하위 항목으로 품는 원격 디렉터리 경로인지 판별한다.

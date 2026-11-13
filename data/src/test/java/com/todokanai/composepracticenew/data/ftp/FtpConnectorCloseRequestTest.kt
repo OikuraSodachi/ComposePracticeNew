@@ -202,7 +202,7 @@ class FtpConnectorCloseRequestTest {
      */
     private fun listedNamesOf(path: String): Set<String> {
         val listing = runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles(path) }
-        return (listing as IoResult.Success).value.mapTo(HashSet()) { it.name }
+        return (listing as IoResult.Success).value.mapTo(HashSet()) { (it as ListedItem.Entry).entry.name }
     }
 
     /**

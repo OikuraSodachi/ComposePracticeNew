@@ -5,6 +5,10 @@ import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPFileEntryParser
 import org.apache.commons.net.ftp.parser.DefaultFTPFileEntryParserFactory
 import org.apache.commons.net.ftp.parser.ParserInitializationException
+import java.io.BufferedReader
+import java.io.InputStream
+import java.io.InputStreamReader
+import java.nio.charset.Charset
 import java.util.Locale
 
 /**
@@ -47,6 +51,43 @@ internal object FtpListingFormat {
         file.rawListing?.substringBefore(' ')?.split(';').orEmpty()
             .filter { '=' in it }
             .associate { it.substringBefore('=').lowercase(Locale.ROOT) to it.substringAfter('=') }
+
+    /**
+     * 목록 데이터를 [parser]의 규칙으로 항목 줄 단위로 끝까지 읽는다. commons-net `FTPListParseEngine`과 같은 순서(줄 읽기 → `preParse`)다.
+     * 엔진의 `getFiles`는 해석하지 못한 줄을 말없이 버리므로, 줄을 직접 받아 [parsedEntry]로 하나씩 해석한다(#255).
+     * 스트림은 닫지 않는다 — 데이터 연결을 어떻게 닫을지(정상·중단)는 [DataCommandRunner]가 정한다.
+     * @param stream 목록 데이터 스트림
+     * @param encoding 목록의 문자 인코딩(제어 채널과 같다)
+     * @param parser 줄을 나누고 거를 해석기. LIST는 시스템 종류의 해석기, MLSD는 MLSx 해석기다
+     * @return 해석할 항목 줄(`total` 줄처럼 해석기가 거르는 줄은 빠진다)
+     * @throws java.io.IOException 데이터를 받다 실패한 경우
+     */
+    fun readLines(stream: InputStream, encoding: String, parser: FTPFileEntryParser): List<String> {
+        val reader = BufferedReader(InputStreamReader(stream, Charset.forName(encoding)))
+        return parser.preParse(generateSequence { parser.readNextEntry(reader) }.toMutableList())
+    }
+
+    /**
+     * 목록 줄 하나를 [parser]로 해석한다. commons-net 해석기가 값 때문에 예외를 던지는 줄(숫자가 아닌 size, 짧은 unix.mode)도 해석하지 못한 줄이다 —
+     * 예외를 그대로 두면 줄 하나 때문에 목록 전체가 구현 오류로 실패한다.
+     * @param parser 목록 해석기
+     * @param line 목록 줄
+     * @return 해석한 항목, 해석하지 못하면 null
+     */
+    fun parsedEntry(parser: FTPFileEntryParser, line: String): FTPFile? = try {
+        parser.parseFTPEntry(line)
+    } catch (e: NumberFormatException) {
+        null
+    } catch (e: IndexOutOfBoundsException) {
+        null
+    }
+
+    /**
+     * 해석하지 못한 목록 줄을 알리는 문구를 만든다.
+     * @param line 해석하지 못한 줄
+     * @return 표시할 문구
+     */
+    fun unreadableLineReason(line: String): String = "목록 항목을 읽지 못했습니다: ${line.trim()}"
 
     /**
      * MLSD 항목이 나열한 디렉터리 자신(type=cdir)이나 상위 디렉터리(type=pdir)인지 판별한다. 종류 값은 대소문자를 구분하지 않는다(RFC 3659 §7.5.1).

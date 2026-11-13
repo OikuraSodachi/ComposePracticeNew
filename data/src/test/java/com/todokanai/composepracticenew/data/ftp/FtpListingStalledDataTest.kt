@@ -56,7 +56,7 @@ class FtpListingStalledDataTest {
         assertEquals(IoResult.ItemFailed("LIST 실패: Read timed out"), stalled)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
-        assertEquals(listOf("ftp://host/r/a.txt"), (next as IoResult.Success).value.map { it.path })
+        assertEquals(listOf("ftp://host/r/a.txt"), (next as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })
     }
 
     /**

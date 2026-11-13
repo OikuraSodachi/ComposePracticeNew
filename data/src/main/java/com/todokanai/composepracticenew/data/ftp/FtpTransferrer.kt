@@ -138,6 +138,7 @@ class FtpTransferrer @Inject internal constructor(
     /**
      * 원격 디렉터리 트리를 [plan]의 로컬 폴더 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다. 진행률은 묶음 전체의 [progress]에 보고한다.
      * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목은 트리에 없어 받지 않으며, 누락을 알리지 않고 완료로 보고한다([FtpCommandExecutor.collectRemoteTree] 참고).
+     * 해석하지 못한 목록 줄은 무엇인지 몰라 받지 못한 항목으로 알린다(#255).
      */
     private suspend fun downloadDirectory(plan: DownloadPlan.Tree, resolveConflict: WriteConflictResolver, progress: ByteProgressTracker): IoResult<Unit> {
         val remotePath = plan.remotePath
@@ -147,14 +148,20 @@ class FtpTransferrer @Inject internal constructor(
         when (val slot = claimLocalDirectory(localRoot, resolveConflict).valueOr { return it }) {
             is WriteSlot.Ready -> Unit
             WriteSlot.Skipped, WriteSlot.Link -> {
-                plan.entries.filter { !it.isDirectory }.forEach { progress.passOver(it.name, it.size) }
+                plan.fileEntries.forEach { progress.passOver(it.name, it.size) }
                 return if (slot == WriteSlot.Link) IoResult.ItemFailed(UNSUPPORTED_LINK_REASON) else IoResult.Done
             }
         }
         // 건너뛰기로 했거나 링크가 있는 폴더. 그 아래 항목은 묻지 않고 건너뛴다 — 링크 아래에 만들면 링크가 가리키는 곳에 쓰므로
         val skippedDirs = mutableListOf<File>()
-        return forEachCollectingFailures(plan.entries, "다운로드 실패", nameOf = { relativeRemotePath(it.path, remotePath) }) { entry ->
-            val localTarget = File(localRoot, relativeRemotePath(entry.path, remotePath))
+        return forEachCollectingFailures(plan.items, "다운로드 실패", nameOf = { relativeRemotePath(it.displayPath, remotePath) }) { item ->
+            val localTarget = File(localRoot, relativeRemotePath(item.displayPath, remotePath))
+            val entry = when (item) {
+                is ListedItem.Entry -> item.entry
+                // 건너뛰기로 한 폴더 안이면 받을 것이 아니었으므로 완료다
+                is ListedItem.Unreadable -> return@forEachCollectingFailures if (skippedDirs.any { localTarget.startsWith(it) }) IoResult.Done
+                    else IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
+            }
             when {
                 skippedDirs.any { localTarget.startsWith(it) } -> IoResult.Done.also { if (!entry.isDirectory) progress.passOver(entry.name, entry.size) }
                 entry.isDirectory -> when (claimLocalDirectory(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }) {
@@ -274,10 +281,13 @@ class FtpTransferrer @Inject internal constructor(
          * 재귀 수집한 원격 디렉터리 트리.
          * @param remotePath ftp://server/path 형식의 원격 디렉터리 경로
          * @param localRoot 트리를 받을 로컬 폴더
-         * @param entries 트리 아래의 모든 항목(폴더 포함)
+         * @param items 트리 아래의 모든 항목(폴더·해석하지 못한 목록 줄 포함)
          */
-        class Tree(val remotePath: String, val localRoot: File, val entries: List<FileEntry>) : DownloadPlan {
-            override val fileSizes: List<Long?> get() = entries.filter { !it.isDirectory }.map { it.size }
+        class Tree(val remotePath: String, val localRoot: File, val items: List<ListedItem>) : DownloadPlan {
+            override val fileSizes: List<Long?> get() = fileEntries.map { it.size }
+
+            /** 트리 아래의 파일. */
+            val fileEntries: List<FileEntry> get() = items.mapNotNull { (it as? ListedItem.Entry)?.entry?.takeUnless { entry -> entry.isDirectory } }
         }
     }
 
