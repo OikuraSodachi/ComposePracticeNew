@@ -32,7 +32,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 `navigate(path)` is the canonical way to navigate — it sets `currentPath` (and thus `dirTree`) and a new `ListingRequest`; `directoryListing` follows asynchronously as the result of that request.
 
-읽을 수 없는 경로로의 이동은 현재 경로를 바꾸지 않고 `NavigateResult.Rejected`를 돌려주며, 거부는 탐색 저장소(`FileExplorerRepositoryImpl`)가 `OperationNoticeReporter`로 직접 알린다(#279) — 부르는 곳마다 거부를 확인하지 않아도 알림이 빠지지 않도록. 부르는 곳은 알리지 않고, 이동 뒤에 할 일(저장소 화면에서 목록으로 넘어가기, 검색 닫기)이 있을 때만 `Navigated`인지 본다. 거부할 때마다 알린다 — 같은 거부를 여러 번 하면 알림도 그 수만큼 차례로 보인다(알림함은 같은 내용을 합치지 않는다). 로컬 경로의 부모는 저장소 볼륨 루트에서 끝난다(`LocalPathAwareFileSystem.getParent`) — 볼륨 위 폴더는 앱이 읽을 수 없으므로, 볼륨 루트에서 뒤로가기는 저장소 선택으로 나가고 경로 표시줄은 볼륨 루트부터 보인다.
+읽을 수 없는 경로로의 이동은 현재 경로를 바꾸지 않고 `NavigateResult.Rejected`를 돌려주며, 거부는 탐색 저장소(`FileExplorerRepositoryImpl`)가 `OperationNoticeReporter`로 직접 알린다(#279) — 부르는 곳마다 거부를 확인하지 않아도 알림이 빠지지 않도록. 부르는 곳은 알리지 않고, 이동 뒤에 할 일(저장소 화면에서 목록으로 넘어가기, 검색 닫기)이 있을 때만 `Navigated`인지 본다. 거부할 때마다 알린다 — 같은 거부를 여러 번 하면 알림도 그 수만큼 차례로 보인다(알림함은 같은 내용을 합치지 않는다). 로컬 경로의 부모는 저장소 볼륨 루트에서 끝난다(`LocalPathAwareFileSystem.getParent`) — 볼륨 위 폴더는 앱이 읽을 수 없으므로, 경로 표시줄은 볼륨 루트부터 보이고 볼륨 루트에서 뒤로가기는 아무것도 하지 않는다(의도된 동작, #90 — 뒤로가기로 로컬 목록을 나가지 않는다).
 
 `directoryListing` is a `DirectoryListing` state (`NoPath` / `Loading` / `Loaded` / `Failed`), never a bare list: a listing failure must not appear as an empty directory.
 

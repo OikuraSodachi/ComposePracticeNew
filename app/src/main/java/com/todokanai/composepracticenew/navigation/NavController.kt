@@ -214,7 +214,7 @@ private fun FileListDestination(
     }
 
     BackHandler {
-        viewModel.onBackPressed { navController.popBackStack() }
+        viewModel.onBackPressed()
     }
 
     FileListFrag(

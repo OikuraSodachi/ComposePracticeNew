@@ -189,10 +189,10 @@ class FileListViewModel @Inject constructor(
     /** 현재 디렉터리의 목록을 다시 조회한다. 목록 조회 실패 화면의 다시 시도에 쓴다. */
     fun retryListing() = fileNavigatorUseCase.refresh()
 
-    /** 상위 디렉터리로 이동한다. 루트이면 toStorageFrag를 호출한다. */
-    fun onBackPressed(toStorageFrag: () -> Unit) {
+    /** 상위 디렉터리로 이동한다. 저장소 볼륨 루트이면 아무것도 하지 않는다 — 뒤로가기로 로컬 목록을 나가지 않는다(#90). */
+    fun onBackPressed() {
         viewModelScope.launch {
-            fileNavigatorUseCase.navigateBack(toStorageFrag)
+            fileNavigatorUseCase.navigateBack(toRoot = {})
         }
     }
 
