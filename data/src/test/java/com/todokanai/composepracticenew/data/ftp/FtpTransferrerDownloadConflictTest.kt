@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.CancellationException
@@ -25,7 +26,7 @@ class FtpTransferrerDownloadConflictTest {
 
     private val dir: File = Files.createTempDirectory("ftp-download-conflict-test").toFile()
     private val client = FakeFtpClient()
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
     private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
     private val local = File(dir, "a.txt")
 

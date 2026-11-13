@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -23,7 +24,7 @@ class FtpControlChannelFailureTest {
 
     private val dir: File = Files.createTempDirectory("ftp-control-channel-test").toFile()
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
     private val transferrer = FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices())
 

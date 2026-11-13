@@ -30,18 +30,18 @@ import javax.inject.Singleton
  * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]·[withConnectedClient]로만 노출한다. 앱에서는 새 클라이언트를, 테스트에서는 가짜 클라이언트를 넘긴다.
  * 목록 조회도 데이터 스트림을 직접 열어야 하므로([DataCommandRunner]) 그 함수를 가진 [SessionFtpClient]다.
  * 소켓 상한·소켓 팩토리는 세션이 정하므로 먼저 정해 둔 값은 덮어쓴다 — 상한을 바꾸려면 [ioTimeoutMillis]로 넘긴다
- * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
  * @param lossNotices 연결된 세션이 끊김으로 바뀔 때 끊김을 넣고, 새 연결을 시작할 때 알리지 않은 끊김을 빼는 알림함
+ * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
  */
 @Singleton
 internal class FtpSession(
     private val client: SessionFtpClient,
-    ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS,
-    private val lossNotices: ConnectionLossNotices = ConnectionLossNotices()
+    private val lossNotices: ConnectionLossNotices,
+    ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS
 ) : FtpCommandSession, FtpDataCommandSession, FtpConnectionLifecycle {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor(lossNotices: ConnectionLossNotices) : this(SessionFtpClient(), lossNotices = lossNotices)
+    @Inject constructor(lossNotices: ConnectionLossNotices) : this(SessionFtpClient(), lossNotices)
 
     init {
         // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다

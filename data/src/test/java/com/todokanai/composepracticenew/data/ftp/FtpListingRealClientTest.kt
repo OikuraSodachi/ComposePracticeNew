@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -70,7 +71,7 @@ class FtpListingRealClientTest {
         client.connect(scripted.host, scripted.port)
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
-        val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+        val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
         return runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles("ftp://host/r") }
     }
 }

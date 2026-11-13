@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -31,7 +32,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /** 서버 동작을 재현하는 가짜 클라이언트. */
     private val client = FakeFtpClient()
     /** 검증 대상 세션. */
-    private val session = FtpSession(client)
+    private val session = FtpSession(client, ConnectionLossNotices())
     /** 검증 대상 파일 명령 실행기. */
     private val executor = FtpCommandExecutor(session, DataCommandRunner(session))
     /** 검증 대상 전송기. */

@@ -27,7 +27,7 @@ import org.junit.Test
 class RemoteRootNavigationWiringTest {
 
     /** 테스트 세션. 루트 경로 계산과 원격 이동은 서버에 명령을 보내지 않는다. */
-    private val session = FtpSession(FakeFtpClient())
+    private val session = FtpSession(FakeFtpClient(), ConnectionLossNotices())
     /** 원격 파일 시스템과 FTP 저장소가 함께 쓰는 명령 실행기. */
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
     /** 루트 경로를 정하는 실제 FTP 연결 저장소. */

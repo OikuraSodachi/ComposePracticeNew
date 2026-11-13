@@ -20,7 +20,7 @@ class FileSystemNameRulesTest {
     /** 로컬 경로를 처리하는 파일 시스템. */
     private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
     /** ftp:// 경로를 처리하는 파일 시스템. */
-    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) }, OperationNotices())
+    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) }, OperationNotices())
 
     @Test
     fun `로컬·FTP 모두 UTF-8 255바이트까지 허용하고 초과하면 거부한다`() {

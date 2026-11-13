@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.KnownSizeProgress
@@ -22,7 +23,7 @@ class FtpTransferrerFileProgressTest {
     /** 데이터 스트림을 주고받는 가짜 클라이언트. */
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     /** 검증 대상 세션. */
-    private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+    private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
     /** 검증 대상 전송기. */
     private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
     /** 보고된 진행 상태. */

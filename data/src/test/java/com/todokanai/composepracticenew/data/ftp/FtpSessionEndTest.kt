@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.job
@@ -20,7 +21,7 @@ class FtpSessionEndTest {
     /** 상태 잠금 경합을 재현하는 가짜 클라이언트. */
     private val client = FakeFtpClient()
     /** 검증 대상 세션. */
-    private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+    private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
 
     @Test
     fun `취소된 코루틴에서 상태 잠금이 경합 중이어도 세션을 끊김 상태로 바꾸고 소켓을 닫는다`() {

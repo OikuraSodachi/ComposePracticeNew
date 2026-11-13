@@ -15,7 +15,7 @@ class FtpSessionConnectionLossNoticeTest {
     /** 세션이 끊김을 넣는 알림함. */
     private val notices = ConnectionLossNotices()
     /** 검증 대상 세션. 로그인한 상태로 시작한다. */
-    private val session = FtpSession(FakeFtpClient(), lossNotices = notices)
+    private val session = FtpSession(FakeFtpClient(), notices)
         .also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
 
     @Test

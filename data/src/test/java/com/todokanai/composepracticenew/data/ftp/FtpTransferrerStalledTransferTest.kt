@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.model.IoResult
@@ -29,7 +30,7 @@ class FtpTransferrerStalledTransferTest {
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. 데이터 소켓의 송신 버퍼를 작게 해 서버가 읽지 않으면 쓰기가 곧 막히게 한다. */
     private val client = SessionFtpClient().apply { sendDataSocketBufferSize = SMALL_BUFFER }
     /** 검증 대상 세션. 데이터 연결의 읽기·쓰기 상한을 짧게 둔다. */
-    private val session = FtpSession(client, ioTimeoutMillis = IO_TIMEOUT_MILLIS)
+    private val session = FtpSession(client, ConnectionLossNotices(), ioTimeoutMillis = IO_TIMEOUT_MILLIS)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
     private var server: ScriptedFtpServer? = null
 

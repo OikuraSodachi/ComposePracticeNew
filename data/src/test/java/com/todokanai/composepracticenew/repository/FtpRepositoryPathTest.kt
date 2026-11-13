@@ -29,7 +29,7 @@ class FtpRepositoryPathTest {
     /** 요청된 원격 경로를 기록하는 가짜 클라이언트. */
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     /** 로그인을 마친 테스트 세션. */
-    private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+    private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
     /** FTP 저장소와 전송기가 함께 쓰는 명령 실행기. */
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
     /** 검증 대상. */
