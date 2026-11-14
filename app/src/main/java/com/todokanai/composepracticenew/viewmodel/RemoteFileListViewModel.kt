@@ -8,7 +8,8 @@ import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.tools.CompletionMessages
+import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
@@ -44,6 +45,7 @@ import javax.inject.Inject
  * @param connectionStateUseCase 원격 연결 상태(끊김 포함)를 제공하는 UseCase
  * @param conflictCheckUseCase 이름 변경 시 같은 이름 항목과의 겹침을 판정하는 UseCase
  * @param messages 작업 완료 메시지 제공자
+ * @param folderNames 새 폴더 다이얼로그의 기본 이름 제공자
  */
 @HiltViewModel
 class RemoteFileListViewModel @Inject constructor(
@@ -53,7 +55,8 @@ class RemoteFileListViewModel @Inject constructor(
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
     connectionStateUseCase: RemoteConnectionStateUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
-    private val messages: OperationMessages,
+    private val messages: CompletionMessages,
+    private val folderNames: NewFolderNameDefaults,
 ) : ViewModel() {
 
     /** 자동 재연결 실패를 이유에 맞는 알림(이벤트·다이얼로그)으로 바꾼다. */
@@ -244,7 +247,7 @@ class RemoteFileListViewModel @Inject constructor(
 
     /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
     fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
-        baseName = messages.defaultNewFolderName,
+        baseName = folderNames.defaultNewFolderName,
         extension = "",
         folder = fileNavigatorUseCase,
     )

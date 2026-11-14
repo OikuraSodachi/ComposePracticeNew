@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.RemoteConnectionState
-import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.tools.CompletionMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
@@ -49,7 +49,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     @RemoteNavigator private val remoteNavigator: FileNavigatorUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val uploadConflictCheckUseCase: UploadConflictCheckUseCase,
-    private val messages: OperationMessages,
+    private val messages: CompletionMessages,
     connectionStateUseCase: RemoteConnectionStateUseCase,
 ) : ViewModel() {
 

@@ -6,8 +6,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** 파일 작업 완료·실행 거부 알림 메시지 문자열을 제공하는 계약. */
-interface OperationMessages {
+/** 파일 작업 완료 알림 메시지 문자열을 제공하는 계약. */
+interface CompletionMessages {
     /** 일반 작업 완료 메시지. */
     val notiComplete: String
     /** 이동 완료 메시지. */
@@ -18,22 +18,34 @@ interface OperationMessages {
     val notiDownloadComplete: String
     /** 업로드 완료 메시지. */
     val notiUploadComplete: String
-    /** 대상 폴더의 목록을 확인하지 못해 이름 충돌을 판정할 수 없어 작업(업로드·이름 변경)을 실행하지 않았다는 메시지. */
-    val destinationUnverified: String
+}
+
+/** 새 폴더 다이얼로그에 미리 채울 기본 이름을 제공하는 계약. */
+interface NewFolderNameDefaults {
     /** 새 폴더 다이얼로그에 미리 채울 기본 폴더 이름. */
     val defaultNewFolderName: String
+}
+
+/** 목록을 확인하지 못해 작업을 실행하지 않았다는 거부 메시지를 제공하는 계약. */
+interface DestinationUnverifiedMessage {
+    /** 대상 폴더의 목록을 확인하지 못해 이름 충돌을 판정할 수 없어 작업(업로드·이름 변경)을 실행하지 않았다는 메시지. */
+    val destinationUnverified: String
+}
+
+/** 프로세스 보호를 받지 못해 작업을 시작하지 않았다는 거부 메시지를 제공하는 계약. */
+interface ProtectionRefusedMessage {
     /** 시스템이 프로세스 보호를 거부해 작업을 시작하지 않았다는 메시지. */
     val protectionRefused: String
 }
 
 /**
- * 문자열 리소스에서 메시지를 읽는 [OperationMessages] 구현.
+ * 문자열 리소스에서 파일 작업 관련 문구를 읽는 구현. 쓰는 곳마다 필요한 계약으로만 바인딩한다.
  * @param context 문자열 리소스 조회에 사용하는 애플리케이션 Context
  */
 @Singleton
-class CompletionMessageProvider @Inject constructor(
+class ResourceOperationMessages @Inject constructor(
     @ApplicationContext private val context: Context
-) : OperationMessages {
+) : CompletionMessages, NewFolderNameDefaults, DestinationUnverifiedMessage, ProtectionRefusedMessage {
     override val notiComplete: String get() = context.getString(R.string.noti_complete)
     override val notiMoveComplete: String get() = context.getString(R.string.noti_move_complete)
     override val notiDeleteComplete: String get() = context.getString(R.string.noti_delete_complete)
