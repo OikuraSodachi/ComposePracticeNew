@@ -18,7 +18,7 @@ sealed interface ListingUiState {
 
     /**
      * 보여줄 목록이 있는 상태.
-     * @param items 표시할 디렉터리 항목. 비어 있으면 빈 폴더다
+     * @param items 표시할 디렉터리 항목. 비어 있고 [unreadableCount]가 0이면 빈 폴더다
      * @param key [items]가 나온 목록 조회 요청. 다시 조회하는 중이면 직전 목록의 요청이다
      * @param unreadableCount 저장소가 보냈지만 읽지 못해 [items]에서 뺀 항목 수. 0이 아니면 [items]가 비어 있어도 빈 폴더가 아니다
      * @param isRefreshing 같은 경로를 다시 조회하는 중이라 [items]가 직전 목록이면 true. 이 동안에는 이름 충돌을 판정할 수 없어 작업이 거부된다
