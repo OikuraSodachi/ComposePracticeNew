@@ -31,7 +31,10 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
-import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.tools.CompletionMessages
+import com.todokanai.composepracticenew.tools.DestinationUnverifiedMessage
+import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
+import com.todokanai.composepracticenew.tools.ProtectionRefusedMessage
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -128,7 +131,7 @@ internal object GrantedProtection : OperationProtection {
 }
 
 /** 고정 문구를 돌려주는 테스트용 메시지 제공자. */
-internal object FixedMessages : OperationMessages {
+internal object FixedMessages : CompletionMessages, NewFolderNameDefaults, DestinationUnverifiedMessage, ProtectionRefusedMessage {
     override val notiComplete = "완료"
     override val notiMoveComplete = "이동 완료"
     override val notiDeleteComplete = "삭제 완료"

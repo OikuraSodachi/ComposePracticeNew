@@ -7,7 +7,8 @@ import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.RenameConflict
-import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.tools.CompletionMessages
+import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
@@ -40,6 +41,7 @@ import javax.inject.Inject
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
  * @param messages 작업 완료 메시지 제공자
+ * @param folderNames 새 폴더 다이얼로그의 기본 이름 제공자
  */
 @HiltViewModel
 class FileListViewModel @Inject constructor(
@@ -48,7 +50,8 @@ class FileListViewModel @Inject constructor(
     sortModeUseCase: SortModeUseCase,
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
-    private val messages: OperationMessages,
+    private val messages: CompletionMessages,
+    private val folderNames: NewFolderNameDefaults,
 ) : ViewModel() {
 
     /**
@@ -133,7 +136,7 @@ class FileListViewModel @Inject constructor(
 
     /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
     fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
-        baseName = messages.defaultNewFolderName,
+        baseName = folderNames.defaultNewFolderName,
         extension = "",
         folder = fileNavigatorUseCase,
     )

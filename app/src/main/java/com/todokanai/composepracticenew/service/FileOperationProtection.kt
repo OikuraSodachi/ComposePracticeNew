@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.service
 
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.operation.OperationProtection
-import com.todokanai.composepracticenew.tools.OperationMessages
+import com.todokanai.composepracticenew.tools.ProtectionRefusedMessage
 import kotlinx.coroutines.CompletableDeferred
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -13,12 +13,12 @@ import javax.inject.Singleton
  * 이미 실행 중인 서비스를 믿지 않고 매번 요청하는 것은, 그 서비스가 이전 요청 기준으로 멈추는 중일 수 있기 때문이다 — 새 요청이 전달되면 이전 요청 기준의 멈춤은 일어나지 않는다.
  * 받아들여진 시작 요청은 시스템이 몇 초 안에 서비스에 전달하므로(전달하지 못하면 시스템이 앱을 종료한다) 결과를 끝없이 기다리지 않는다.
  * @param controller 시작 요청을 보내는 컨트롤러
- * @param messages 보호가 거부됐을 때의 실패 메시지를 제공하는 OperationMessages
+ * @param messages 보호가 거부됐을 때의 실패 메시지 제공자
  */
 @Singleton
 class FileOperationProtection @Inject constructor(
     private val controller: FileOperationServiceController,
-    private val messages: OperationMessages
+    private val messages: ProtectionRefusedMessage
 ) : OperationProtection {
 
     /** 요청 id 발급과 대기 목록을 지키는 잠금. 요청은 작업 스레드에서, 결과는 메인 스레드에서 온다. */
