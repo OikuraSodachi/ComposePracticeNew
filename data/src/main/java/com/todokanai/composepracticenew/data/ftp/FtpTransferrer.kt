@@ -178,13 +178,13 @@ class FtpTransferrer @Inject internal constructor(
         }
         // 건너뛰기로 했거나 링크가 있는 폴더. 그 아래 항목은 묻지 않고 건너뛴다 — 링크 아래에 만들면 링크가 가리키는 곳에 쓰므로
         val skippedDirs = mutableListOf<File>()
-        return forEachCollectingFailures(plan.items, "다운로드 실패", nameOf = { relativeRemotePath(it.displayPath, remotePath) }) { item ->
-            val localTarget = File(localRoot, relativeRemotePath(item.displayPath, remotePath))
+        return forEachCollectingFailures(plan.items, "다운로드 실패", nameOf = { it.failureName(remotePath) }) { item ->
+            val localTarget = File(localRoot, relativeRemotePath(item.locationPath, remotePath))
             val entry = when (item) {
                 is ListedItem.Entry -> item.entry
                 // 건너뛰기로 한 폴더 안이면 받을 것이 아니었으므로 완료다
                 is ListedItem.Unreadable -> return@forEachCollectingFailures if (skippedDirs.any { localTarget.startsWith(it) }) IoResult.Done
-                    else IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
+                    else IoResult.ItemFailed(item.failureReason)
             }
             when {
                 skippedDirs.any { localTarget.startsWith(it) } -> IoResult.Done.also { if (!entry.isDirectory) progress.passOver(entry.name, entry.size) }

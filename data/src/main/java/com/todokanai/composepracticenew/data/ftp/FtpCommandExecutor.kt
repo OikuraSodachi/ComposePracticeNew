@@ -332,12 +332,12 @@ class FtpCommandExecutor internal constructor(
         forEachCollectingFailures(
             allItems.reversed(),
             "하위 항목 삭제 실패",
-            nameOf = { relativeRemotePath(it.displayPath, path) },
+            nameOf = { it.failureName(path) },
             isBlockedBy = { item, failed -> item.isDirectoryEntry && isRemoteAncestorOf(item.occupiedPath, failed.occupiedPath) }
         ) { item ->
             progress.beforeDeleting(nameOf(item))
             when (item) {
-                is ListedItem.Unreadable -> IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
+                is ListedItem.Unreadable -> IoResult.ItemFailed(item.failureReason)
                 is ListedItem.Entry -> {
                     val entryFtpPath = extractFtpPath(item.entry.path)
                     if (item.isDirectoryEntry) runFtpCommand(FtpCommand.RMD, leavingTarget(entryFtpPath, outside)) { it.removeDirectory(entryFtpPath) }
@@ -349,10 +349,10 @@ class FtpCommandExecutor internal constructor(
         return runFtpCommand(FtpCommand.RMD, leavingTarget(ftpPath, outside)) { it.removeDirectory(ftpPath) }
     }
 
-    /** 진행 표시에 쓸 [item]의 이름. 해석하지 못한 줄은 이름을 몰라 그 줄이 나온 디렉터리의 이름을 쓴다. */
+    /** 진행 표시에 쓸 [item]의 이름. 해석하지 못한 줄은 이름을 몰라 받은 줄을 쓴다. */
     private fun nameOf(item: ListedItem): String = when (item) {
         is ListedItem.Entry -> item.entry.name
-        is ListedItem.Unreadable -> defaultDisplayName(item.dirPath)
+        is ListedItem.Unreadable -> item.shownLine
     }
 
     /**
