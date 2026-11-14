@@ -147,7 +147,7 @@ class FileListFlowProducer(
             return FetchState.FetchFailed(request, ListingFailureReason.UNEXPECTED, detail = null)
         }
         return when (result) {
-            is IoResult.Success -> FetchState.Fetched(request, result.value.entries, result.value.isComplete)
+            is IoResult.Success -> FetchState.Fetched(request, result.value.entries, result.value.unreadableCount)
             is IoResult.Failure -> FetchState.FetchFailed(request, failureReasonOf(result), result.message)
         }
     }
@@ -189,7 +189,7 @@ class FileListFlowProducer(
      * @return 정렬된 조회 완료 상태
      */
     private fun loadedOf(fetched: FetchState.Fetched, sortMode: SortMode): DirectoryListing.Loaded =
-        DirectoryListing.Loaded(fetched.request, converter.fileHolderItemList(fetched.entries, sortMode), fetched.isComplete)
+        DirectoryListing.Loaded(fetched.request, converter.fileHolderItemList(fetched.entries, sortMode), fetched.unreadableCount)
 
     /**
      * 목록 조회 실패의 종류를 화면 상태의 실패 사유로 바꾼다.
@@ -226,9 +226,9 @@ class FileListFlowProducer(
          * [request]의 조회를 마친 상태.
          * @param request 조회를 마친 요청
          * @param entries 정렬하지 않은 디렉터리 항목
-         * @param isComplete 저장소가 보낸 항목을 모두 읽었으면 true
+         * @param unreadableCount 저장소가 보냈지만 읽지 못해 [entries]에서 뺀 항목 수
          */
-        data class Fetched(val request: ListingRequest, val entries: List<FileEntry>, val isComplete: Boolean) : FetchState
+        data class Fetched(val request: ListingRequest, val entries: List<FileEntry>, val unreadableCount: Int) : FetchState
 
         /**
          * [request]의 조회에 실패한 상태.

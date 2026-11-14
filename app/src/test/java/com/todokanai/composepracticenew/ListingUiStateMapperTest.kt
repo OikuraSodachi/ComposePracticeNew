@@ -13,12 +13,12 @@ import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolder
 
 /**
  * [ListingUiStateMapper]가 같은 경로를 다시 조회하는 동안 직전 목록을 다시 조회 중 표시와 함께 보여주고,
- * 같은 domain 목록이면 화면용 항목을 다시 만들지 않는지 검증하는 단위 테스트(#215).
+ * 같은 domain 목록이면 화면용 항목을 다시 만들지 않으며, 읽지 못한 항목 수를 화면 상태로 옮기는지 검증하는 단위 테스트(#215, #348).
  */
 class ListingUiStateMapperTest {
 
     private val mapper = ListingUiStateMapper(isLocalFile = false)
-    private val loaded = DirectoryListing.Loaded(ListingRequest("ftp://h/a", 1L), listOf(domainItem("ftp://h/a/x.txt")), isComplete = true)
+    private val loaded = DirectoryListing.Loaded(ListingRequest("ftp://h/a", 1L), listOf(domainItem("ftp://h/a/x.txt")), unreadableCount = 0)
 
     @Test
     fun `조회를 마친 목록은 다시 조회 중이 아닌 목록이다`() {
@@ -36,6 +36,17 @@ class ListingUiStateMapperTest {
 
         assertTrue(refreshing.isRefreshing)
         assertSame("같은 domain 목록이면 화면용 항목을 다시 만들지 않아야 함", before.items, refreshing.items)
+    }
+
+    @Test
+    fun `읽지 못한 항목 수는 다시 조회하는 동안의 직전 목록에도 남는다`() {
+        val partial = DirectoryListing.Loaded(ListingRequest("ftp://h/a", 1L), emptyList(), unreadableCount = 2)
+
+        val shown = mapper.map(partial) as ListingUiState.Loaded
+        val refreshing = mapper.map(DirectoryListing.Loading(ListingRequest("ftp://h/a", 2L), stale = partial)) as ListingUiState.Loaded
+
+        assertEquals(2, shown.unreadableCount)
+        assertEquals("직전 목록을 보여 주는 동안 빈 폴더로 보이지 않아야 함", 2, refreshing.unreadableCount)
     }
 
     @Test

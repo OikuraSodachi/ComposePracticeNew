@@ -43,7 +43,7 @@ internal class FileSystemRouter(private val fileSystems: Set<PathAwareFileSystem
         Log.d(TAG, "fileList 갱신 — path=$path")
         val fileSystem = resolve(path) ?: return IoResult.ItemFailed(UNSUPPORTED_PATH_MESSAGE)
         return fileSystem.listFiles(path).onSuccess {
-            Log.d(TAG, "fileList 결과 — path=$path size=${it.entries.size} complete=${it.isComplete}")
+            Log.d(TAG, "fileList 결과 — path=$path size=${it.entries.size} unreadable=${it.unreadableCount}")
         }
     }
 }

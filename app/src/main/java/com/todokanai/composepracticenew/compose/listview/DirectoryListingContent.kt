@@ -26,7 +26,8 @@ import com.todokanai.composepracticenew.ui.model.ListingUiState
 /**
  * 목록 상태에 따라 조회 중 표시, 조회 실패 안내와 다시 시도 버튼, 빈 폴더 안내, 또는 [content]로 그린 항목 목록을 보여준다.
  * 같은 경로를 다시 조회하는 중이면 직전 목록 위에 얇은 진행 막대를 겹쳐 보여준다.
- * 조회 실패를 빈 폴더로 표시하지 않도록 "빈 폴더"는 조회를 마친 목록이 비었을 때만 보여준다.
+ * 조회 실패를 빈 폴더로 표시하지 않도록 "빈 폴더"는 조회를 마친 목록이 비었고 읽지 못한 항목도 없을 때만 보여준다.
+ * 읽지 못한 항목이 있으면 그 수를 목록 위에 안내한다.
  * @param modifier 목록 영역의 크기·배치를 정하는 Modifier
  * @param listing 표시할 목록 상태
  * @param onRetry 조회 실패 안내의 다시 시도 버튼이 호출하는 콜백
@@ -47,15 +48,20 @@ fun DirectoryListingContent(
         is ListingUiState.Failed -> ListingFailureNotice(modifier = modifier, failure = listing, onRetry = onRetry)
         // modifier(부모 Column의 weight 등)가 목록에도 적용되도록 Box로 감싸고, 다시 조회하는 중 표시를 그 위에 겹친다
         is ListingUiState.Loaded -> Box(modifier = modifier) {
-            if (listing.items.isEmpty()) {
-                Text(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .wrapContentSize(),
-                    text = stringResource(R.string.empty_directory)
-                )
-            } else {
-                content(listing)
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (listing.unreadableCount > 0) PartiallyUnreadableNotice(count = listing.unreadableCount)
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    when {
+                        listing.items.isNotEmpty() -> content(listing)
+                        // 읽지 못한 항목만 있는 목록은 빈 폴더가 아니므로 위의 안내만 보인다
+                        listing.unreadableCount == 0 -> Text(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .wrapContentSize(),
+                            text = stringResource(R.string.empty_directory)
+                        )
+                    }
+                }
             }
             if (listing.isRefreshing) RefreshingIndicator(modifier = Modifier.align(Alignment.TopCenter))
         }
@@ -70,6 +76,19 @@ fun DirectoryListingContent(
 @Composable
 private fun RefreshingIndicator(modifier: Modifier) {
     LinearProgressIndicator(modifier = modifier.fillMaxWidth())
+}
+
+/**
+ * 목록에서 읽지 못한 항목이 있음을 알리는 안내. 그 목록이 화면에 있는 동안 목록 위에 남아, 다시 조회할 때마다 알림이 쌓이지 않게 한다(#348).
+ * @param count 읽지 못한 항목 수
+ */
+@Composable
+private fun PartiallyUnreadableNotice(count: Int) {
+    Text(
+        text = stringResource(R.string.listing_partially_unreadable, count),
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+    )
 }
 
 /**

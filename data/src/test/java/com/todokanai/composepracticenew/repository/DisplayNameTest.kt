@@ -11,7 +11,7 @@ import org.junit.Test
 /** 경로 종류별 표시 이름 규칙([PathAwareFileSystem.displayName])이 경로 표시줄에 보여 줄 이름을 정하는지 검증하는 단위 테스트(#228). */
 class DisplayNameTest {
 
-    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) }, OperationNotices())
+    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) })
     private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
 
     @Test
