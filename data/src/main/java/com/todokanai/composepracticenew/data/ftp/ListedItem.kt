@@ -7,8 +7,8 @@ import com.todokanai.fileexplorer.FileEntry
  */
 internal sealed interface ListedItem {
 
-    /** 실패 메시지에 쓸 경로. 항목은 그 경로, 해석하지 못한 줄은 그 줄이 나온 디렉터리다. */
-    val displayPath: String
+    /** 이 항목이 있는 자리의 경로. 항목은 그 경로, 해석하지 못한 줄은 무엇인지 몰라 그 줄이 나온 디렉터리다. 표시 이름으로는 쓰지 않는다([failureName]). */
+    val locationPath: String
 
     /** 이 항목이 실패하면 지울 수 없게 되는 디렉터리를 가리는 데 쓰는 경로. 이 경로를 하위로 품은 디렉터리는 비울 수 없다. */
     val occupiedPath: String
@@ -17,12 +17,20 @@ internal sealed interface ListedItem {
     val isDirectoryEntry: Boolean get() = this is Entry && entry.isDirectory
 
     /**
+     * 실패 메시지에 쓸, [rootPath] 아래에서의 이름을 만든다.
+     * @param rootPath 이 항목을 수집한 트리의 루트 경로 (ftp://server/path 형식)
+     * @return [rootPath] 기준의 상대 이름
+     */
+    fun failureName(rootPath: String): String
+
+    /**
      * 해석한 항목.
      * @param entry 항목
      */
     data class Entry(val entry: FileEntry) : ListedItem {
-        override val displayPath: String get() = entry.path
+        override val locationPath: String get() = entry.path
         override val occupiedPath: String get() = entry.path
+        override fun failureName(rootPath: String): String = relativeRemotePath(entry.path, rootPath)
     }
 
     /**
@@ -32,7 +40,11 @@ internal sealed interface ListedItem {
      * @param line 받은 줄
      */
     data class Unreadable(val dirPath: String, val line: String) : ListedItem {
-        override val displayPath: String get() = dirPath
+        /** 이름 대신 보여 줄 받은 줄. 이름을 모르므로 줄 자체로 어느 항목인지 알아보게 한다(#347). */
+        val shownLine: String get() = line.trim()
+        override val locationPath: String get() = dirPath
         override val occupiedPath: String get() = childFtpUriPrefix(dirPath)
+        override fun failureName(rootPath: String): String =
+            relativeRemotePath(dirPath, rootPath).let { dir -> if (dir.isEmpty()) shownLine else "$dir/$shownLine" }
     }
 }

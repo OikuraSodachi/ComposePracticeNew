@@ -1,11 +1,13 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.OperationNotices
+import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -102,8 +104,8 @@ class FtpListingInterpretationTest {
             IoResult.PartiallyFailed(
                 "삭제 실패",
                 listOf(
-                    FailedItem("r", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
-                    FailedItem("r/sub", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
+                    FailedItem("r/$PROFTPD_LINK", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
+                    FailedItem("r/sub/$UNPARSEABLE_SIZE", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
                 )
             ),
             result
@@ -126,14 +128,43 @@ class FtpListingInterpretationTest {
             IoResult.PartiallyFailed(
                 "다운로드 실패",
                 listOf(
-                    FailedItem("r", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
-                    FailedItem("r", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
+                    FailedItem("r/$PROFTPD_LINK", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
+                    FailedItem("r/$UNPARSEABLE_SIZE", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
                 )
             ),
             result
         )
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
         assertEquals("abc", File(dir, "r/a.txt").readText())
+    }
+
+    @Test
+    fun `해석하지 못한 줄이 여러 개면 실패 이름은 나온 폴더가 아니라 받은 줄로 서로 구분된다`() {
+        client.mlsdListings = mapOf("/r" to listOf(PROFTPD_LINK, UNPARSEABLE_SIZE))
+
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
+
+        assertEquals(
+            "같은 폴더 이름만 반복되지 않아야 함(#347)",
+            setOf("r/$PROFTPD_LINK", "r/$UNPARSEABLE_SIZE"),
+            (result as IoResult.PartiallyFailed).failures.map { it.path }.toSet()
+        )
+    }
+
+    @Test
+    fun `건너뛰기로 한 폴더 안의 해석하지 못한 줄은 표시 이름과 무관하게 실패로 알리지 않는다`() {
+        File(dir, "r/sub").mkdirs()
+        client.mlsdListings = mapOf("/r" to listOf("type=dir; sub"), "/r/sub" to listOf(UNPARSEABLE_SIZE))
+
+        val result = runBlocking {
+            FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices())
+                .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), WriteConflictResolver { conflict ->
+                    // 받을 폴더 r은 합치고, 그 안의 sub만 건너뛴다
+                    if (conflict.name == "sub") ConflictChoice.SKIP else ConflictChoice.PROCEED
+                })
+        }
+
+        assertEquals("건너뛴 폴더 안인지는 줄이 나온 폴더의 자리로 판정해야 함", IoResult.Done, result)
     }
 
     private companion object {
