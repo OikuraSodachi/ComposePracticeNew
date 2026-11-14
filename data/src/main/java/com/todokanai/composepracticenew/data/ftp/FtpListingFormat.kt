@@ -83,13 +83,6 @@ internal object FtpListingFormat {
     }
 
     /**
-     * 해석하지 못한 목록 줄을 알리는 문구를 만든다.
-     * @param line 해석하지 못한 줄
-     * @return 표시할 문구
-     */
-    fun unreadableLineReason(line: String): String = "목록 항목을 읽지 못했습니다: ${line.trim()}"
-
-    /**
      * MLSD 항목이 나열한 디렉터리 자신(type=cdir)이나 상위 디렉터리(type=pdir)인지 판별한다. 종류 값은 대소문자를 구분하지 않는다(RFC 3659 §7.5.1).
      * commons-net은 두 종류를 일반 디렉터리로 파싱하고, 서버에 따라 이름이 "."이 아닌 전체 경로로 오므로 원본 줄의 type 사실로 판별한다.
      * @param facts [mlsdFacts]로 읽은 사실

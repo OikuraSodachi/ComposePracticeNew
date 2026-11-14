@@ -337,7 +337,7 @@ class FtpCommandExecutor internal constructor(
         ) { item ->
             progress.beforeDeleting(nameOf(item))
             when (item) {
-                is ListedItem.Unreadable -> IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
+                is ListedItem.Unreadable -> IoResult.ItemFailed(item.failureReason)
                 is ListedItem.Entry -> {
                     val entryFtpPath = extractFtpPath(item.entry.path)
                     if (item.isDirectoryEntry) runFtpCommand(FtpCommand.RMD, leavingTarget(entryFtpPath, outside)) { it.removeDirectory(entryFtpPath) }

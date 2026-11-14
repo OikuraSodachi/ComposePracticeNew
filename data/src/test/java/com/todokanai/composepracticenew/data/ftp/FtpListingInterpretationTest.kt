@@ -152,6 +152,24 @@ class FtpListingInterpretationTest {
     }
 
     @Test
+    fun `빈 줄은 실패 이름이 줄이 나온 폴더를 가리키지 않고 빈 줄 문구로 보인다`() {
+        client.mlsdListings = mapOf("/r" to listOf("type=dir; sub", ""), "/r/sub" to listOf(""))
+
+        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
+
+        assertEquals(
+            IoResult.PartiallyFailed(
+                "삭제 실패",
+                listOf(
+                    FailedItem("r/(빈 줄)", "목록 항목을 읽지 못했습니다: (빈 줄)"),
+                    FailedItem("r/sub/(빈 줄)", "목록 항목을 읽지 못했습니다: (빈 줄)")
+                )
+            ),
+            result
+        )
+    }
+
+    @Test
     fun `건너뛰기로 한 폴더 안의 해석하지 못한 줄은 표시 이름과 무관하게 실패로 알리지 않는다`() {
         File(dir, "r/sub").mkdirs()
         client.mlsdListings = mapOf("/r" to listOf("type=dir; sub"), "/r/sub" to listOf(UNPARSEABLE_SIZE))

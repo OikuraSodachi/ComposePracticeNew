@@ -184,7 +184,7 @@ class FtpTransferrer @Inject internal constructor(
                 is ListedItem.Entry -> item.entry
                 // 건너뛰기로 한 폴더 안이면 받을 것이 아니었으므로 완료다
                 is ListedItem.Unreadable -> return@forEachCollectingFailures if (skippedDirs.any { localTarget.startsWith(it) }) IoResult.Done
-                    else IoResult.ItemFailed(FtpListingFormat.unreadableLineReason(item.line))
+                    else IoResult.ItemFailed(item.failureReason)
             }
             when {
                 skippedDirs.any { localTarget.startsWith(it) } -> IoResult.Done.also { if (!entry.isDirectory) progress.passOver(entry.name, entry.size) }

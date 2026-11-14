@@ -40,11 +40,23 @@ internal sealed interface ListedItem {
      * @param line 받은 줄
      */
     data class Unreadable(val dirPath: String, val line: String) : ListedItem {
-        /** 이름 대신 보여 줄 받은 줄. 이름을 모르므로 줄 자체로 어느 항목인지 알아보게 한다(#347). */
-        val shownLine: String get() = line.trim()
+        /**
+         * 이름 대신 보여 줄 받은 줄. 이름을 모르므로 줄 자체로 어느 항목인지 알아보게 한다(#347).
+         * 빈 줄·공백뿐인 줄은 [BLANK_LINE_LABEL]로 보인다 — 비워 두면 실패 이름이 줄이 나온 폴더 자신을 가리킨다.
+         */
+        val shownLine: String get() = line.trim().ifEmpty { BLANK_LINE_LABEL }
+
+        /** 이 줄을 읽지 못했음을 알리는 실패 사유. */
+        val failureReason: String get() = "목록 항목을 읽지 못했습니다: $shownLine"
+
         override val locationPath: String get() = dirPath
         override val occupiedPath: String get() = childFtpUriPrefix(dirPath)
         override fun failureName(rootPath: String): String =
             relativeRemotePath(dirPath, rootPath).let { dir -> if (dir.isEmpty()) shownLine else "$dir/$shownLine" }
+
+        companion object {
+            /** 빈 줄·공백뿐인 줄 대신 보여 줄 문구. */
+            const val BLANK_LINE_LABEL = "(빈 줄)"
+        }
     }
 }
