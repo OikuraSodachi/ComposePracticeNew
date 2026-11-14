@@ -66,7 +66,17 @@ class FileListFlowProducerTest {
         val request = request("/a")
         runCurrent()
 
-        assertEquals(DirectoryListing.Loaded(request, emptyList(), isComplete = true), listing.value)
+        assertEquals(DirectoryListing.Loaded(request, emptyList(), unreadableCount = 0), listing.value)
+    }
+
+    @Test
+    fun `읽지 못한 항목 수는 조회 완료 상태에 담긴다`() = runTest {
+        responses["/a"] = { IoResult.Success(ListedDirectory(emptyList(), unreadableCount = 2)) }
+        val listing = listingIn(this)
+        val request = request("/a")
+        runCurrent()
+
+        assertEquals("읽지 못한 항목만 있는 목록이 빈 폴더로 보이지 않도록 수를 담아야 함", DirectoryListing.Loaded(request, emptyList(), unreadableCount = 2), listing.value)
     }
 
     @Test
@@ -105,7 +115,7 @@ class FileListFlowProducerTest {
 
         val next = request("/b")
         runCurrent()
-        assertEquals(DirectoryListing.Loaded(next, emptyList(), isComplete = true), listing.value)
+        assertEquals(DirectoryListing.Loaded(next, emptyList(), unreadableCount = 0), listing.value)
     }
 
     @Test
@@ -143,7 +153,7 @@ class FileListFlowProducerTest {
 
         gate.complete(Unit)
         runCurrent()
-        assertEquals(DirectoryListing.Loaded(refresh, DataConverter().fileHolderItemList(listOf(entry("/a/new.txt")), SortMode.BY_DEFAULT), isComplete = true), listing.value)
+        assertEquals(DirectoryListing.Loaded(refresh, DataConverter().fileHolderItemList(listOf(entry("/a/new.txt")), SortMode.BY_DEFAULT), unreadableCount = 0), listing.value)
     }
 
     @Test
@@ -248,5 +258,5 @@ class FileListFlowProducerTest {
         FileEntry(name = path.substringAfterLast('/'), path = path, isDirectory = false, size = 1L, lastModified = 0L)
 
     /** [entries]를 담은 조회 성공 결과를 만든다. */
-    private fun ok(vararg entries: FileEntry): IoResult<ListedDirectory> = IoResult.Success(ListedDirectory(entries.toList(), isComplete = true))
+    private fun ok(vararg entries: FileEntry): IoResult<ListedDirectory> = IoResult.Success(ListedDirectory(entries.toList(), unreadableCount = 0))
 }

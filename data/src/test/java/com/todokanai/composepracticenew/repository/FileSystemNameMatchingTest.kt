@@ -20,7 +20,7 @@ class FileSystemNameMatchingTest {
     /** 로컬 경로를 처리하는 파일 시스템. */
     private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
     /** ftp:// 경로를 처리하는 파일 시스템. */
-    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) }, OperationNotices())
+    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandExecutor(session, DataCommandRunner(session)) })
 
     /** 로컬·FTP 파일 시스템과 각자 처리하는 위치. */
     private val fileSystems = listOf(local to "/dir", ftp to "ftp://host/dir")

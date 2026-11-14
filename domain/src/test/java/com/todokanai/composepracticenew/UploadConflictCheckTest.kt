@@ -98,7 +98,7 @@ class UploadConflictCheckTest {
     /** 목적지의 확인된 목록을 [items]로 정한다. */
     private fun show(items: List<FileHolderItem>) {
         nav.listingRequest.value = destination
-        nav.directoryListing.value = DirectoryListing.Loaded(destination, items, isComplete = true)
+        nav.directoryListing.value = DirectoryListing.Loaded(destination, items, unreadableCount = 0)
     }
 
     /** [path]의 파일 항목을 만든다. */

@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.model.ListingFailureReason
 
 /**
  * 파일 목록 화면이 표시할 현재 디렉터리의 목록 상태. domain 목록 조회 상태를 화면용 항목으로 바꾼 앱 레이어 모델이다.
- * 조회 실패·조회 중을 빈 목록으로 바꾸지 않으므로, 화면은 "빈 폴더"를 [Loaded]의 항목이 비었을 때만 표시한다.
+ * 조회 실패·조회 중을 빈 목록으로 바꾸지 않으므로, 화면은 "빈 폴더"를 [Loaded]의 항목이 비었고 읽지 못한 항목도 없을 때만 표시한다.
  * 화면 표시 전용이다 — 이름 충돌 판정은 이 상태가 아니라 domain의 확인된 목록으로 한다.
  */
 sealed interface ListingUiState {
@@ -18,11 +18,12 @@ sealed interface ListingUiState {
 
     /**
      * 보여줄 목록이 있는 상태.
-     * @param items 표시할 디렉터리 항목. 비어 있으면 빈 폴더다
+     * @param items 표시할 디렉터리 항목. 비어 있고 [unreadableCount]가 0이면 빈 폴더다
      * @param key [items]가 나온 목록 조회 요청. 다시 조회하는 중이면 직전 목록의 요청이다
+     * @param unreadableCount 저장소가 보냈지만 읽지 못해 [items]에서 뺀 항목 수. 0이 아니면 [items]가 비어 있어도 빈 폴더가 아니다
      * @param isRefreshing 같은 경로를 다시 조회하는 중이라 [items]가 직전 목록이면 true. 이 동안에는 이름 충돌을 판정할 수 없어 작업이 거부된다
      */
-    data class Loaded(val items: List<FileHolderItem>, val key: ListingKey, val isRefreshing: Boolean = false) : ListingUiState
+    data class Loaded(val items: List<FileHolderItem>, val key: ListingKey, val unreadableCount: Int, val isRefreshing: Boolean = false) : ListingUiState
 
     /**
      * 현재 경로의 목록 조회에 실패한 상태.
@@ -52,8 +53,8 @@ class ListingUiStateMapper(private val isLocalFile: Boolean) {
      */
     fun map(listing: DirectoryListing): ListingUiState = when (listing) {
         DirectoryListing.NoPath -> ListingUiState.NoPath
-        is DirectoryListing.Loading -> listing.stale?.let { ListingUiState.Loaded(itemsOf(it), ListingKey.from(it.request), isRefreshing = true) } ?: ListingUiState.Loading
-        is DirectoryListing.Loaded -> ListingUiState.Loaded(itemsOf(listing), ListingKey.from(listing.request))
+        is DirectoryListing.Loading -> listing.stale?.let { ListingUiState.Loaded(itemsOf(it), ListingKey.from(it.request), it.unreadableCount, isRefreshing = true) } ?: ListingUiState.Loading
+        is DirectoryListing.Loaded -> ListingUiState.Loaded(itemsOf(listing), ListingKey.from(listing.request), listing.unreadableCount)
         is DirectoryListing.Failed -> ListingUiState.Failed(listing.reason, listing.detail)
     }
 

@@ -20,7 +20,7 @@ class LocalPathAwareFileSystem @Inject constructor(
     private val volumes: StorageVolumeRepository
 ) : PathAwareFileSystem {
     override fun handles(path: String): Boolean = !path.contains(SCHEME_SEPARATOR)
-    override suspend fun listFiles(path: String): IoResult<ListedDirectory> = localFiles.listFiles(path).map { ListedDirectory(it, isComplete = true) }
+    override suspend fun listFiles(path: String): IoResult<ListedDirectory> = localFiles.listFiles(path).map { ListedDirectory(it, unreadableCount = 0) }
     override fun getParent(path: String): String? = if (isVolumeRoot(path)) null else defaultParentPath(path)
     override fun displayName(path: String): String = defaultDisplayName(path)
     // 볼륨의 파일 시스템(FAT 등)을 구분하지 않으므로 모든 로컬 경로에 주요 파일시스템의 길이 한도만 적용한다

@@ -3,15 +3,12 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
-import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -20,7 +17,7 @@ import java.nio.file.Files
 
 /**
  * FTP 목록에서 해석하지 못한 줄을 버리지 않고 다루는 규칙(#255)을 검증하는 단위 테스트.
- * 화면 목록은 읽은 항목만 보여 주며 빠진 줄을 알리고, 트리를 쓰는 작업(폴더 다운로드·재귀 삭제)은 그 줄만 실패로 알리고 나머지를 처리한다.
+ * 화면 목록은 읽은 항목만 돌려주며 뺀 줄 수를 목록 결과에 담고, 트리를 쓰는 작업(폴더 다운로드·재귀 삭제)은 그 줄만 실패로 알리고 나머지를 처리한다.
  * MLSD의 심볼릭 링크 줄도 commons-net이 해석하지 못하는 줄이라 같은 규칙으로 실패한다(링크는 지원 범위 밖).
  */
 class FtpListingInterpretationTest {
@@ -33,8 +30,6 @@ class FtpListingInterpretationTest {
     private val session = FtpSession(client, ConnectionLossNotices())
     /** 검증 대상 명령 실행기. */
     private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
-    /** 화면 목록이 넣은 실패 메시지를 기록하는 저장소. */
-    private val notices = RecordingNotices()
 
     @Before
     fun setUp() {
@@ -60,15 +55,14 @@ class FtpListingInterpretationTest {
     }
 
     @Test
-    fun `화면 목록은 해석하지 못한 줄을 빼고 읽은 항목을 보여 주며 빠진 줄을 알린다`() {
+    fun `화면 목록은 해석하지 못한 줄을 빼고 읽은 항목과 뺀 줄 수를 돌려준다`() {
         // 숫자가 아닌 size는 commons-net 해석기가 예외를 던지는 줄이고, 공백이 없는 줄은 해석기가 null을 돌려주는 줄이다
         client.mlsdListings = mapOf("/r" to listOf(UNPARSEABLE_SIZE, "garbage", "type=file;size=3; a.txt", PROFTPD_LINK))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands, notices).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(commands).listFiles("ftp://host/r") }
 
         assertEquals(listOf("a.txt"), (result as IoResult.Success).value.entries.map { it.name })
-        assertFalse("빠진 항목이 있는 목록은 이름 충돌 판정에 쓰이지 않도록 불완전으로 돌려줘야 함", result.value.isComplete)
-        assertEquals(listOf("/r: 목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE 외 2개 — 읽은 항목만 표시합니다"), notices.failures)
+        assertEquals("빠진 줄 수를 목록 상태로 표시하고 이름 충돌 판정에서 빼도록 돌려줘야 함", 3, result.value.unreadableCount)
     }
 
     @Test
@@ -87,13 +81,12 @@ class FtpListingInterpretationTest {
     }
 
     @Test
-    fun `해석하지 못한 줄이 없으면 화면 목록은 알리지 않는다`() {
+    fun `해석하지 못한 줄이 없으면 화면 목록의 뺀 줄 수는 0이다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands, notices).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(commands).listFiles("ftp://host/r") }
 
-        assertTrue(notices.failures.isEmpty())
-        assertTrue((result as IoResult.Success).value.isComplete)
+        assertEquals(0, (result as IoResult.Success).value.unreadableCount)
     }
 
     @Test
@@ -141,16 +134,6 @@ class FtpListingInterpretationTest {
         )
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
         assertEquals("abc", File(dir, "r/a.txt").readText())
-    }
-
-    /** 넣은 실패 메시지를 넣은 순서대로 기록하는 테스트용 메시지 저장소. */
-    private class RecordingNotices : OperationNoticeReporter {
-        /** 넣은 실패 메시지. */
-        val failures = mutableListOf<String>()
-
-        override fun report(kind: OperationNoticeKind, message: String) {
-            if (kind == OperationNoticeKind.FAILURE) failures += message
-        }
     }
 
     private companion object {

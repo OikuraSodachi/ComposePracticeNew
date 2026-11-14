@@ -21,9 +21,16 @@ sealed interface DirectoryListing {
      * 알려진 한계(결과 타입에 담지 않기로 결정): 저장소가 목록에서 숨기는 항목(FTP 서버의 `.` 항목 등)은 [items]에 빠질 수 있으며, 이 값으로는 알 수 없다.
      * @param request 조회를 마친 요청
      * @param items 정렬된 디렉터리 항목
-     * @param isComplete 저장소가 보낸 항목을 모두 읽었으면 true. 읽지 못한 항목(FTP 목록에서 해석하지 못한 줄)이 있으면 false이며, [items]에 빠진 항목이 있을 수 있어 이름 충돌 판정에 쓰지 않는다
+     * @param unreadableCount 저장소가 보냈지만 읽지 못해 [items]에서 뺀 항목(FTP 목록에서 해석하지 못한 줄) 수. 0 이상이어야 한다
      */
-    data class Loaded(val request: ListingRequest, val items: List<FileHolderItem>, val isComplete: Boolean) : DirectoryListing
+    data class Loaded(val request: ListingRequest, val items: List<FileHolderItem>, val unreadableCount: Int) : DirectoryListing {
+        init {
+            require(unreadableCount >= 0) { "읽지 못한 항목 수는 음수일 수 없다: $unreadableCount" }
+        }
+
+        /** 저장소가 보낸 항목을 모두 읽었는지. false면 [items]에 빠진 항목이 있을 수 있어 이름 충돌 판정에 쓰지 않는다. */
+        val isComplete: Boolean get() = unreadableCount == 0
+    }
 
     /**
      * [request]의 목록 조회에 실패한 상태.
