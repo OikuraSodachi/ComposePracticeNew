@@ -30,6 +30,7 @@ import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
 import com.todokanai.composepracticenew.repository.ConflictQuestionRepository
 import com.todokanai.composepracticenew.repository.ConflictQuestions
+import com.todokanai.composepracticenew.repository.ConnectionLossNoticeReporter
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
@@ -100,6 +101,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindConnectionLossNoticeRepository(impl: ConnectionLossNotices): ConnectionLossNoticeRepository
+
+    @Binds
+    abstract fun bindConnectionLossNoticeReporter(impl: ConnectionLossNotices): ConnectionLossNoticeReporter
 
     @Binds
     abstract fun bindConflictQuestionAsker(impl: ConflictQuestions): ConflictQuestionAsker
