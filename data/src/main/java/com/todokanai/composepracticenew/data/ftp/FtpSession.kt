@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
+import com.todokanai.composepracticenew.repository.ConnectionLossNoticeReporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,12 +36,12 @@ import javax.inject.Singleton
 @Singleton
 internal class FtpSession(
     private val client: SessionFtpClient,
-    private val lossNotices: ConnectionLossNotices,
+    private val lossNotices: ConnectionLossNoticeReporter,
     ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS
 ) : FtpCommandSession, FtpDataCommandSession, FtpConnectionLifecycle {
 
     /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor(lossNotices: ConnectionLossNotices) : this(SessionFtpClient(), lossNotices)
+    @Inject constructor(lossNotices: ConnectionLossNoticeReporter) : this(SessionFtpClient(), lossNotices)
 
     init {
         // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다
