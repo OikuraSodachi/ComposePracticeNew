@@ -5,20 +5,25 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.repository.FileInfoRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 
 /**
  * 선택 항목의 정보(속성, 하위 항목을 포함한 크기, 폴더의 하위 항목 수)를 구한다.
  * 목록 조회 결과의 값(크기·종류·수정 시각)은 쓰지 않고 저장소에서 다시 읽는다 — 목록 조회 뒤 바뀐 항목의 옛 값이 지금 값으로 보이지 않도록.
  * @param repo 저장소에서 속성·크기·하위 항목 수를 읽는 FileInfoRepository 구현체
+ * @param paths 항목의 상위 폴더를 구하는 StoragePathRules 구현체
  */
-class FileInfoUseCase(private val repo: FileInfoRepository) {
+class FileInfoUseCase(
+    private val repo: FileInfoRepository,
+    private val paths: StoragePathRules
+) {
 
     /**
-     * [item]이 들어 있는 폴더의 경로를 저장소의 경로 규칙으로 구한다.
+     * [item]이 들어 있는 폴더의 경로를 저장소의 경로 규칙으로 구한다. 저장소를 읽지 않는다.
      * @param item 위치를 구할 항목
      * @return 상위 폴더 경로. 경로에 상위가 없으면 null
      */
-    fun locationOf(item: FileHolderItem): String? = repo.locationOf(item.path)
+    fun locationOf(item: FileHolderItem): String? = paths.getParentPath(item.path)
 
     /**
      * [item]의 속성(종류, 수정 시각)을 저장소에서 읽는다.

@@ -7,7 +7,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -110,21 +109,6 @@ class LocalFileInfoDataSourceTest {
         assertThrows(CancellationException::class.java) {
             Files.walkFileTree(root.toPath(), LocalFileInfoDataSource.SizeVisitor(cancelled))
         }
-    }
-
-    @Test
-    fun `위치는 항목이 들어 있는 폴더다`() {
-        val dir = temp.newFolder("d")
-
-        assertEquals(dir.absolutePath, dataSource.locationOf(dir.resolve("a.txt").absolutePath))
-    }
-
-    @Test
-    fun `루트 바로 아래 항목의 위치는 루트이고, 상위가 없는 경로는 없음이다`() {
-        val root = temp.root.toPath().root
-
-        assertEquals(root.toString(), dataSource.locationOf(root.resolve("a.txt").toString()))
-        assertNull(dataSource.locationOf("a.txt"))
     }
 
     @Test

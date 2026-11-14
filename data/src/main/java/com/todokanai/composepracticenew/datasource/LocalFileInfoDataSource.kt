@@ -33,13 +33,6 @@ import javax.inject.Inject
 class LocalFileInfoDataSource @Inject constructor() {
 
     /**
-     * 항목 [path]가 들어 있는 폴더의 경로를 구한다. 디스크를 읽지 않는다.
-     * @param path 항목의 절대 경로
-     * @return 상위 폴더 경로(루트 바로 아래면 루트). 경로에 상위가 없으면 null
-     */
-    fun locationOf(path: String): String? = Paths.get(path).parent?.toString()
-
-    /**
      * 항목 [path]의 속성을 읽는다. 항목이 심볼릭 링크면 링크가 가리키는 대상의 속성이다(크기 측정과 같은 대상).
      * @param path 항목의 절대 경로
      * @return 항목 속성, 또는 항목을 읽지 못한 실패(없어진 항목, 끊긴 링크 등)

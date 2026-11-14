@@ -1,10 +1,10 @@
 package com.todokanai.composepracticenew.viewmodel
 
-import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.repository.FileInfoRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import com.todokanai.composepracticenew.ui.model.AttributesInfo
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
@@ -38,7 +38,7 @@ class FileInfoViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        viewModel = FileInfoViewModel(FileInfoUseCase(repo))
+        viewModel = FileInfoViewModel(FileInfoUseCase(repo, LabeledLocationPaths))
     }
 
     @After
@@ -127,14 +127,16 @@ class FileInfoViewModelTest {
         val size = CompletableDeferred<IoResult<SizeMeasurement>>()
         val childCount = CompletableDeferred<IoResult<Int>>()
 
-        override fun locationOf(path: String): String = "위치:$path"
-
         override suspend fun readAttributes(path: String): IoResult<ItemAttributes> = attributes.await()
 
         override suspend fun measureSize(paths: List<String>): IoResult<SizeMeasurement> = size.await()
 
         override suspend fun countChildren(path: String): IoResult<Int> = childCount.await()
+    }
 
-        override suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = emptyList()
+    /** 위치를 "위치:경로"로 돌려주는 경로 규칙 — 위치가 경로 규칙에서 온 값인지 테스트가 알아볼 수 있도록. */
+    private object LabeledLocationPaths : StoragePathRules {
+        override fun getParentPath(path: String): String = "위치:$path"
+        override fun displayNameOf(path: String): String = path
     }
 }
