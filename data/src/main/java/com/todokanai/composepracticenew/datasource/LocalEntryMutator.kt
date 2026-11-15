@@ -10,6 +10,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
+import java.nio.file.NoSuchFileException
 import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 
@@ -127,11 +128,12 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @param a 비교할 경로
      * @param b 비교할 경로
      * @return 같은 항목이면 true
+     * @throws IOException 판정하지 못했을 때(권한 거부 등). 다른 항목으로 보면 같은 항목을 덮어쓰거나 합칠 수 있으므로 [localIo]가 실패로 알리게 한다
      */
     private fun isSameEntry(a: File, b: File): Boolean =
         try {
             Files.isSameFile(a.toPath(), b.toPath())
-        } catch (e: IOException) {
+        } catch (e: NoSuchFileException) {
             // 어느 쪽이 없으면 같은 항목일 수 없다
             false
         }
