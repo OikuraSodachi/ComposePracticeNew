@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
@@ -45,7 +46,7 @@ class LocalTreeTransfer internal constructor(
             val roots = targetFiles.map(::File)
             val totals = roots.map(::treeTotalOf)
             val totalBytes = totals.sumOf { it.bytes }
-            checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(it) }
+            checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(FailureReason.Raw(it)) }
             val tracker = ByteProgressTracker(totalBytes, totals.sumOf { it.fileCount }, onProgress)
             tracker.reportStart()
 
@@ -56,7 +57,7 @@ class LocalTreeTransfer internal constructor(
                 skippedLinks += links.map { unsupportedLinkUnder(root, it) }
             }
             tracker.reportComplete()
-            resultSkipping(skippedLinks, "복사하지 못함")
+            resultSkipping(skippedLinks)
         }
     }
 
@@ -82,8 +83,8 @@ class LocalTreeTransfer internal constructor(
                 .sumOf { totals[it].bytes }
             if (crossBytes > 0) {
                 val free = freeSpaceOf(destDir)
-                if (free == 0L) return@move IoResult.ItemFailed("디스크 공간 부족: 여유 공간 없음")
-                checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(it) }
+                if (free == 0L) return@move IoResult.ItemFailed(FailureReason.Raw("디스크 공간 부족: 여유 공간 없음"))
+                checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(FailureReason.Raw(it)) }
             }
             val tracker = ByteProgressTracker(totals.sumOf { it.bytes }, totals.sumOf { it.fileCount }, onProgress)
             tracker.reportStart()
@@ -101,7 +102,7 @@ class LocalTreeTransfer internal constructor(
                 skippedLinks += links.map { unsupportedLinkUnder(root, it) }
             }
             tracker.reportComplete()
-            resultSkipping(skippedLinks, "이동하지 못함")
+            resultSkipping(skippedLinks)
         }
     }
 
@@ -110,11 +111,10 @@ class LocalTreeTransfer internal constructor(
      * 끝까지 처리했을 때만 불린다 — 도중에 입출력 실패로 멈추면 그 실패만 알리고 그때까지 모은 링크는 알리지 않는다
      * (링크는 원래 자리에 남아 잃는 데이터는 없다. PR #336 리뷰 2번, 고치지 않기로 함).
      * @param skippedLinks 건너뛴 링크의 실패 항목
-     * @param failurePrefix 실패 메시지 머리말
      * @return 작업 결과
      */
-    private fun resultSkipping(skippedLinks: List<FailedItem>, failurePrefix: String): IoResult<Unit> =
-        if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failurePrefix, skippedLinks)
+    private fun resultSkipping(skippedLinks: List<FailedItem>): IoResult<Unit> =
+        if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skippedLinks)
 
     /**
      * [src]를 [target] 자리로 복사한다. 폴더는 안쪽 항목을 하나씩 복사하고, [deleteSource]면 다 옮긴 항목의 원본을 지운다(교차 파티션 이동).

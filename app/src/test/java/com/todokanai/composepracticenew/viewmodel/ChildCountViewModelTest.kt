@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
@@ -8,6 +9,7 @@ import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingKey
+import com.todokanai.composepracticenew.ui.model.UiText
 import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -113,9 +115,9 @@ class ChildCountViewModelTest {
         val counts = viewModel.countsFor(listing)
 
         val result = async { counts.countOf(music).first() }
-        repo.complete(music.path, IoResult.ItemFailed("권한 없음"))
+        repo.complete(music.path, IoResult.ItemFailed(FailureReason.Raw("권한 없음")))
 
-        assertEquals(ChildCountInfo.Failed("권한 없음"), result.await())
+        assertEquals(ChildCountInfo.Failed(UiText.Raw("권한 없음")), result.await())
     }
 
     @Test

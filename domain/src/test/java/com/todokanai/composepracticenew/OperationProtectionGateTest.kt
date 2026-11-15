@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.NoticeMessage
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -64,10 +65,10 @@ class OperationProtectionGateTest {
             IoResult.Done
         }
 
-        protection.result.complete(IoResult.ItemFailed("보호 거부"))
+        protection.result.complete(IoResult.ItemFailed(FailureReason.Raw("보호 거부")))
 
         assertFalse(ran)
-        assertEquals(listOf(NoticeMessage.OperationFailed("보호 거부")), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.Raw("보호 거부")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
         assertTrue(progressRepo.progressMap.value.isEmpty())
     }

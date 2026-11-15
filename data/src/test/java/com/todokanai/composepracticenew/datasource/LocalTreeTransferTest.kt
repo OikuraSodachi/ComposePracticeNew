@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
@@ -36,7 +37,7 @@ class LocalTreeTransferTest {
 
         val result = runBlocking { transfer.copy(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
-        assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("디스크 공간 부족: 필요"))
+        assertTrue("$result", ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text.startsWith("디스크 공간 부족: 필요"))
         assertFalse(File(target, "src").exists())
     }
 
@@ -46,7 +47,7 @@ class LocalTreeTransferTest {
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
-        assertEquals(IoResult.ItemFailed("디스크 공간 부족: 여유 공간 없음"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("디스크 공간 부족: 여유 공간 없음")), result)
         assertTrue(File(source, "a.txt").exists())
         assertFalse(File(target, "src").exists())
     }
@@ -57,7 +58,7 @@ class LocalTreeTransferTest {
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
-        assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("디스크 공간 부족: 필요"))
+        assertTrue("$result", ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text.startsWith("디스크 공간 부족: 필요"))
         assertTrue(File(source, "a.txt").exists())
         assertFalse(File(target, "src").exists())
     }
@@ -70,7 +71,7 @@ class LocalTreeTransferTest {
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
 
-        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        val message = ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text
         assertTrue(message, message.startsWith("이동 실패: src — "))
         assertTrue(message, message.endsWith("(0개 항목은 이미 이동됨)"))
         assertTrue("원본이 남아야 함", File(source, "a.txt").exists())
@@ -83,7 +84,7 @@ class LocalTreeTransferTest {
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
 
-        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        val message = ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text
         assertTrue(message, message.startsWith("이동 실패: src — "))
         assertTrue(message, message.endsWith("(0개 항목은 이미 이동됨)"))
         assertTrue("원본이 남아야 함", File(source, "a.txt").exists())

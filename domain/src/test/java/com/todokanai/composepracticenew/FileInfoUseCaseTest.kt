@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
@@ -29,7 +30,7 @@ class FileInfoUseCaseTest {
         val lowerBound = IoResult.Success(SizeMeasurement.LowerBound(100, listOf(FailedItem("/d/x", null))))
         assertEquals(lowerBound, FileInfoUseCase(FakeFileInfoRepository(measurement = lowerBound), LocalPathRules()).measureSize(listOf(dir("/d"))))
 
-        val failed = IoResult.ItemFailed("원인")
+        val failed = IoResult.ItemFailed(FailureReason.Raw("원인"))
         assertEquals(failed, FileInfoUseCase(FakeFileInfoRepository(measurement = failed), LocalPathRules()).measureSize(listOf(dir("/d"))))
     }
 

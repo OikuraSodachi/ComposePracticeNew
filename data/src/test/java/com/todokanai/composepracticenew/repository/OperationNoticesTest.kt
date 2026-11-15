@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
@@ -101,5 +103,5 @@ class OperationNoticesTest {
     }
 
     /** 실패 문구가 [text]인 알림 내용을 만든다. */
-    private fun msg(text: String) = NoticeMessage.OperationFailed(text)
+    private fun msg(text: String) = NoticeMessage.OperationFailed(null, IoResult.ItemFailed(FailureReason.Raw(text)))
 }

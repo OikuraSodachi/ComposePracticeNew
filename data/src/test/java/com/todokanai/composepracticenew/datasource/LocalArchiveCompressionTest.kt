@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ArchiveFormat
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.runBlocking
@@ -186,7 +187,7 @@ class LocalArchiveCompressionTest {
 
         val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {}
 
-        assertEquals(IoResult.ItemFailed("쓰기 실패"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("쓰기 실패")), result)
     }
 
     /**

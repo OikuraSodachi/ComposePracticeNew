@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPReply
@@ -55,7 +56,7 @@ internal object FtpReplyRules {
      * @return 서버 응답을 메시지로 담은 실패
      */
     fun refusal(command: FtpCommand, reply: String): IoResult.ItemFailed =
-        IoResult.ItemFailed("${command.label} 실패: ${reply.trim()}${refusalNote(command)}")
+        IoResult.ItemFailed(FailureReason.Raw("${command.label} 실패: ${reply.trim()}${refusalNote(command)}"))
 
     /**
      * 데이터 연결을 쓰는 명령이 데이터 연결을 열기 전에 거부된 것([DataCommandOutcome.Refused])을 이 항목만의 실패로 만든다.
@@ -65,14 +66,14 @@ internal object FtpReplyRules {
      * @return 거부된 명령과 서버 응답을 메시지로 담은 실패
      */
     fun dataCommandRefusal(refusedCommand: String, reply: String): IoResult.ItemFailed =
-        IoResult.ItemFailed("$refusedCommand 실패: ${reply.trim()}")
+        IoResult.ItemFailed(FailureReason.Raw("$refusedCommand 실패: ${reply.trim()}"))
 
     /**
      * 데이터를 다 주고받았지만 서버가 완료를 확인하지 않은 전송을 이 항목만의 실패로 만든다.
      * @param reply 서버가 보낸 완료 응답 문자열
      * @return 서버 응답을 메시지로 담은 실패
      */
-    fun unacknowledgedTransfer(reply: String): IoResult.ItemFailed = IoResult.ItemFailed("전송 미완료: ${reply.trim()}")
+    fun unacknowledgedTransfer(reply: String): IoResult.ItemFailed = IoResult.ItemFailed(FailureReason.Raw("전송 미완료: ${reply.trim()}"))
 
     /**
      * MLST 응답에서 파일 크기를 읽는다. 항목 줄은 응답의 둘째 줄이며 공백으로 시작한다(RFC 3659 §7.2).

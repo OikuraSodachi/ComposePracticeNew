@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
@@ -11,6 +12,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ItemKind
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.ui.model.SizeInfo
+import com.todokanai.composepracticenew.ui.model.UiText
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -40,7 +42,7 @@ class SelectionSummaryTest {
         val folder = AttributesInfo.from(IoResult.Success(ItemAttributes(isDirectory = true, lastModifiedMillis = 0)), "Music")
 
         assertEquals(ItemKind.Folder, (folder as AttributesInfo.Known).kind)
-        assertEquals(AttributesInfo.Failed("원인"), AttributesInfo.from(IoResult.ItemFailed("원인"), "Music"))
+        assertEquals(AttributesInfo.Failed(UiText.Raw("원인")), AttributesInfo.from(IoResult.ItemFailed(FailureReason.Raw("원인")), "Music"))
     }
 
     @Test
@@ -77,13 +79,13 @@ class SelectionSummaryTest {
             SizeInfo.AtLeast(readableFileSize_td(10), 2),
             SizeInfo.from(IoResult.Success(SizeMeasurement.LowerBound(10, listOf(FailedItem("a", null), FailedItem("b", null)))))
         )
-        assertEquals(SizeInfo.Failed("원인"), SizeInfo.from(IoResult.ItemFailed("원인")))
+        assertEquals(SizeInfo.Failed(UiText.Raw("원인")), SizeInfo.from(IoResult.ItemFailed(FailureReason.Raw("원인"))))
     }
 
     @Test
     fun `하위 항목 수 실패는 0개가 아니라 실패로 바뀐다`() {
         assertEquals(ChildCountInfo.Known(0), ChildCountInfo.from(IoResult.Success(0)))
-        assertEquals(ChildCountInfo.Failed("원인"), ChildCountInfo.from(IoResult.ItemFailed("원인")))
+        assertEquals(ChildCountInfo.Failed(UiText.Raw("원인")), ChildCountInfo.from(IoResult.ItemFailed(FailureReason.Raw("원인"))))
     }
 
     private fun kindOf(name: String): ItemKind =

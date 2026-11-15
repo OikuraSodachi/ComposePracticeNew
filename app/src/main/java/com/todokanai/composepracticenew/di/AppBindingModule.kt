@@ -13,7 +13,6 @@ import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.tools.AppExitHandlerImpl
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
-import com.todokanai.composepracticenew.tools.ProtectionRefusedMessage
 import com.todokanai.composepracticenew.tools.ResourceOperationMessages
 import dagger.Binds
 import dagger.Module
@@ -35,9 +34,6 @@ abstract class AppBindingModule {
 
     @Binds
     abstract fun bindNewFolderNameDefaults(impl: ResourceOperationMessages): NewFolderNameDefaults
-
-    @Binds
-    abstract fun bindProtectionRefusedMessage(impl: ResourceOperationMessages): ProtectionRefusedMessage
 
     @Binds
     abstract fun bindFileOperationNotifier(impl: MyNotification): FileOperationNotifier

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
 import org.junit.After
@@ -98,7 +99,7 @@ class RarExtractCallbackTest {
         assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
         callback.setOperationResult(ExtractOperationResult.OK)
 
-        assertEquals(listOf(FailedItem("../evil.txt", ArchiveEntryWriter.REJECTED_PATH_REASON)), writer.failures)
+        assertEquals(listOf(FailedItem("../evil.txt", FailureReason.Raw(ArchiveEntryWriter.REJECTED_PATH_REASON))), writer.failures)
         assertNull(callback.failure)
     }
 

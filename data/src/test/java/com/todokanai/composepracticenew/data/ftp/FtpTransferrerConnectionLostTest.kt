@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
@@ -107,7 +108,7 @@ class FtpTransferrerConnectionLostTest {
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-        assertTrue("$result", (result as IoResult.ItemFailed).message.orEmpty().startsWith("전송 미완료"))
+        assertTrue("$result", ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text.startsWith("전송 미완료"))
         assertTrue(runBlocking { session.isReady() })
     }
 

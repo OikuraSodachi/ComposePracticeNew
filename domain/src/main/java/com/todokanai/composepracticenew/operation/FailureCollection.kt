@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.failedItemsAt
 
 /**
  * [items]의 각 항목에 [action]을 수행한다. 한 항목이 실패해도 나머지를 끝까지 진행하고, 실패한 항목이 있으면 모아서 한 번에 알린다.
@@ -11,7 +12,6 @@ import com.todokanai.composepracticenew.model.IoResult
  * 항목 작업이 [IoResult.PartiallyFailed]를 돌려주면 감싸지 않고, 그 실패 목록을 이 항목 이름 아래 경로로 옮겨 합친다(중첩 평탄화).
  * 취소와 구현 오류(예외)는 결과가 아니므로 잡지 않고 그대로 전파한다.
  * @param items 처리할 항목
- * @param failurePrefix 실패 메시지 머리말(예: "삭제 실패")
  * @param nameOf 실패 경로로 쓸 항목 이름. 바깥 작업 기준 상대 경로이며, 빈 문자열이면 작업 대상 자신이다
  * @param isBlockedBy (항목, 앞서 실패한 항목)을 받아 그 실패 때문에 항목을 건너뛰어야 하면 true를 반환한다. 기본은 항목이 서로 독립이다
  * @param action 항목 하나를 처리하는 작업
@@ -19,7 +19,6 @@ import com.todokanai.composepracticenew.model.IoResult
  */
 suspend fun <T> forEachCollectingFailures(
     items: Collection<T>,
-    failurePrefix: String,
     nameOf: (T) -> String,
     isBlockedBy: (item: T, failed: T) -> Boolean = { _, _ -> false },
     action: suspend (T) -> IoResult<Unit>
@@ -31,15 +30,11 @@ suspend fun <T> forEachCollectingFailures(
         when (val result = action(item)) {
             is IoResult.Success -> Unit
             is IoResult.ConnectionLost -> return result
-            is IoResult.PartiallyFailed -> {
+            is IoResult.ItemFailed, is IoResult.PartiallyFailed -> {
                 failedItems += item
-                failures += result.failures.map { it.under(nameOf(item)) }
-            }
-            is IoResult.ItemFailed -> {
-                failedItems += item
-                failures += FailedItem(nameOf(item), result.message)
+                failures += result.failedItemsAt(nameOf(item))
             }
         }
     }
-    return if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failurePrefix, failures)
+    return if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failures)
 }

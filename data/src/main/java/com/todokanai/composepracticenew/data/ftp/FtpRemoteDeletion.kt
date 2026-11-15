@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.map
@@ -36,7 +37,7 @@ class FtpRemoteDeletion @Inject internal constructor(
         val preparation = PreparationProgressReporter(onProgress)
         val plans = targets.map { target -> target to deletionPlanOf(target, preparation).also { if (it is IoResult.ConnectionLost) return it } }
         val progress = DeletionProgress(plans.sumOf { (_, plan) -> (plan as? IoResult.Success)?.value?.itemCount ?: 0 }, onProgress)
-        return forEachCollectingFailures(plans, "삭제 실패", nameOf = { (target, _) -> target.name }) { (target, plan) ->
+        return forEachCollectingFailures(plans, nameOf = { (target, _) -> target.name }) { (target, plan) ->
             when (val planned = plan.valueOr { return@forEachCollectingFailures it }) {
                 DeletionPlan.File -> deleteFile(target.path, progress)
                 is DeletionPlan.Tree -> removeDirectoryRecursive(target.path, planned.items, progress)
@@ -90,13 +91,12 @@ class FtpRemoteDeletion @Inject internal constructor(
         val outside = parentFtpPath(ftpPath)
         forEachCollectingFailures(
             allItems.reversed(),
-            "하위 항목 삭제 실패",
             nameOf = { it.failureName(path) },
             isBlockedBy = { item, failed -> item.isDirectoryEntry && isRemoteAncestorOf(item.occupiedPath, failed.occupiedPath) }
         ) { item ->
             progress.beforeDeleting(item.progressName)
             when (item) {
-                is ListedItem.Unreadable -> IoResult.ItemFailed(item.failureReason)
+                is ListedItem.Unreadable -> IoResult.ItemFailed(FailureReason.Raw(item.failureReason))
                 is ListedItem.Entry -> {
                     val entryFtpPath = extractFtpPath(item.entry.path)
                     if (item.isDirectoryEntry) commands.run(FtpCommand.RMD, commands.leavingTarget(entryFtpPath, outside)) { it.removeDirectory(entryFtpPath) }

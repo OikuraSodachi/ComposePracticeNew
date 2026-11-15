@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.ui.model.ListingUiState
+import com.todokanai.composepracticenew.ui.model.asString
 
 /**
  * 목록 상태에 따라 조회 중 표시, 조회 실패 안내와 다시 시도 버튼, 빈 폴더 안내, 또는 [content]로 그린 항목 목록을 보여준다.
@@ -109,7 +110,7 @@ private fun ListingFailureNotice(modifier: Modifier, failure: ListingUiState.Fai
     ) {
         Text(text = stringResource(failureMessageRes(failure.reason)), textAlign = TextAlign.Center)
         failure.detail?.let {
-            Text(text = it, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+            Text(text = it.asString(), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
         }
         Button(onClick = onRetry) {
             Text(text = stringResource(R.string.btn_retry))

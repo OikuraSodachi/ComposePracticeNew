@@ -144,11 +144,11 @@ class FileListFlowProducer(
         } catch (e: Exception) {
             // 내부 예외 메시지는 사용자에게 의미가 없으므로 화면 상세에 싣지 않고 기록만 한다
             onUnexpectedFailure(e)
-            return FetchState.FetchFailed(request, ListingFailureReason.UNEXPECTED, detail = null)
+            return FetchState.FetchFailed(request, ListingFailureReason.UNEXPECTED, failure = null)
         }
         return when (result) {
             is IoResult.Success -> FetchState.Fetched(request, result.value.entries, result.value.unreadableCount)
-            is IoResult.Failure -> FetchState.FetchFailed(request, failureReasonOf(result), result.message)
+            is IoResult.Failure -> FetchState.FetchFailed(request, failureReasonOf(result), result)
         }
     }
 
@@ -179,7 +179,7 @@ class FileListFlowProducer(
             FetchState.NoPath -> DirectoryListing.NoPath
             is FetchState.Fetching -> DirectoryListing.Loading(state.request, state.stale?.let(loadedOf))
             is FetchState.Fetched -> loadedOf(state)
-            is FetchState.FetchFailed -> DirectoryListing.Failed(state.request, state.reason, state.detail)
+            is FetchState.FetchFailed -> DirectoryListing.Failed(state.request, state.reason, state.failure)
         }
 
     /**
@@ -234,8 +234,8 @@ class FileListFlowProducer(
          * [request]의 조회에 실패한 상태.
          * @param request 조회에 실패한 요청
          * @param reason 실패 종류
-         * @param detail 실패의 상세 내용. 없으면 null
+         * @param failure 저장소가 돌려준 실패. 조회가 결과 대신 예외로 끝났으면 null
          */
-        data class FetchFailed(val request: ListingRequest, val reason: ListingFailureReason, val detail: String?) : FetchState
+        data class FetchFailed(val request: ListingRequest, val reason: ListingFailureReason, val failure: IoResult.Failure?) : FetchState
     }
 }

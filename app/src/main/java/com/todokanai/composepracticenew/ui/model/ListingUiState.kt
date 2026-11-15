@@ -28,9 +28,9 @@ sealed interface ListingUiState {
     /**
      * 현재 경로의 목록 조회에 실패한 상태.
      * @param reason 실패 종류 — 표시 문구를 정하는 데 쓴다
-     * @param detail 서버 응답 등 실패의 상세 내용. 없으면 null
+     * @param detail 서버 응답 등 실패의 상세 문구. 없으면 null
      */
-    data class Failed(val reason: ListingFailureReason, val detail: String?) : ListingUiState
+    data class Failed(val reason: ListingFailureReason, val detail: UiText?) : ListingUiState
 }
 
 /**
@@ -55,7 +55,7 @@ class ListingUiStateMapper(private val isLocalFile: Boolean) {
         DirectoryListing.NoPath -> ListingUiState.NoPath
         is DirectoryListing.Loading -> listing.stale?.let { ListingUiState.Loaded(itemsOf(it), ListingKey.from(it.request), it.unreadableCount, isRefreshing = true) } ?: ListingUiState.Loading
         is DirectoryListing.Loaded -> ListingUiState.Loaded(itemsOf(listing), ListingKey.from(listing.request), listing.unreadableCount)
-        is DirectoryListing.Failed -> ListingUiState.Failed(listing.reason, listing.detail)
+        is DirectoryListing.Failed -> ListingUiState.Failed(listing.reason, listing.failure?.let { failureTextOf(it, operationType = null) })
     }
 
     /**

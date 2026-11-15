@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
@@ -40,7 +42,7 @@ class FtpControlChannelFailureTest {
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 
-        assertTrue("$result", (result as IoResult.ConnectionLost).message.contains("Read timed out"))
+        assertTrue("$result", ((result as IoResult.ConnectionLost).reason as FailureReason.Raw).text.contains("Read timed out"))
         assertSessionEnded()
     }
 
@@ -104,7 +106,7 @@ class FtpControlChannelFailureTest {
 
         val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
-        assertEquals("삭제 실패: r/b.txt (DELE 실패: 550 Permission denied)", (result as IoResult.PartiallyFailed).message)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("r/b.txt", FailureReason.Raw("DELE 실패: 550 Permission denied")))), result)
         assertEquals(2, client.deleteRequests.size)
         assertTrue(runBlocking { session.isReady() })
     }

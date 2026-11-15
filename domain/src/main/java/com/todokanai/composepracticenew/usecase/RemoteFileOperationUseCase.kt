@@ -1,11 +1,11 @@
 package com.todokanai.composepracticenew.usecase
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NamingOperation
-import com.todokanai.composepracticenew.model.withFailureMessage
+import com.todokanai.composepracticenew.model.wrappingFailureReason
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -68,14 +68,13 @@ class RemoteFileOperationUseCase(
      * [path]의 원격 파일 이름을 [newName]으로 변경한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
      * @param path 이름을 변경할 원격 파일의 경로
      * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
-     * @param errorMessage 이름 변경 실패 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun renameRemote(path: String, newName: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+    fun renameRemote(path: String, newName: String, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, NamingOperation.RENAME)) return
         orchestrator.launch(onRefresh = onRefresh) { _ ->
-            failingWith(errorMessage) { mutationRepo.rename(path, newName) }
+            mutationRepo.rename(path, newName).wrappingFailureReason { FailureReason.RenameFailed(newName, it) }
         }
     }
 
@@ -95,23 +94,13 @@ class RemoteFileOperationUseCase(
      * [parentPath] 아래에 [dirName] 디렉터리를 원격 서버에 생성한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
      * @param parentPath 디렉터리를 생성할 원격 부모 경로
      * @param dirName 생성할 디렉터리 이름
-     * @param errorMessage 디렉터리 생성 실패 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun makeDirectoryRemote(parentPath: String, dirName: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+    fun makeDirectoryRemote(parentPath: String, dirName: String, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, NamingOperation.MAKE_FOLDER)) return
         orchestrator.launch(onRefresh = onRefresh) { _ ->
-            failingWith(errorMessage) { mutationRepo.makeDirectory(parentPath, dirName) }
+            mutationRepo.makeDirectory(parentPath, dirName).wrappingFailureReason { FailureReason.MakeFolderFailed(dirName, it) }
         }
     }
-
-    /**
-     * [block]이 실패하면 그 메시지를 [message]로 바꾼다. 규칙은 [withFailureMessage]를 따른다(연결 끊김만 종류를 유지한다).
-     * @param message 실패 시 표시할 메시지
-     * @param block 실행할 원격 작업
-     * @return 성공이면 [block]의 결과, 실패면 [message]를 담은 실패
-     */
-    private suspend fun failingWith(message: String, block: suspend () -> IoResult<Unit>): IoResult<Unit> =
-        block().withFailureMessage(message)
 }

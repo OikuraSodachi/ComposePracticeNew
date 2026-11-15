@@ -14,38 +14,32 @@ sealed interface IoResult<out T> {
      */
     data class Success<out T>(val value: T) : IoResult<T>
 
-    /** 작업이 실패했다. */
-    sealed interface Failure : IoResult<Nothing> {
-        /** 사용자에게 보여줄 실패 메시지. 원인을 알 수 없으면 null이다. */
-        val message: String?
-    }
+    /** 작업이 실패했다. 표시 문구는 app 레이어가 실패 종류와 원인([FailureReason])으로 정한다(#218). */
+    sealed interface Failure : IoResult<Nothing>
 
     /**
      * 대상 하나가 실패했다. 저장소·세션은 계속 쓸 수 있으므로, 여러 대상을 처리하는 작업은 이 대상만 실패로 모으고 다음 대상을 진행한다.
-     * @param message 표시할 실패 메시지. 원인을 알 수 없으면 null
+     * @param reason 실패 원인. 원인을 알 수 없으면 null
      */
-    data class ItemFailed(override val message: String?) : Failure
+    data class ItemFailed(val reason: FailureReason?) : Failure
 
     /**
      * 여러 하위 항목 중 일부가 실패했다. 실패를 문자열이 아닌 목록으로 담아, 바깥 작업이 실패 목록을 합칠 수 있게 한다(중첩 평탄화).
-     * @param failurePrefix 메시지 머리말(예: "삭제 실패")
+     * 머리말은 담지 않는다 — 실패를 알리는 쪽이 작업 종류로 정한다(안쪽 수집의 머리말은 평탄화되며 버려지므로).
      * @param failures 실패한 항목 목록. 비어 있지 않아야 한다
      */
-    data class PartiallyFailed(val failurePrefix: String, val failures: List<FailedItem>) : Failure {
+    data class PartiallyFailed(val failures: List<FailedItem>) : Failure {
         init {
             require(failures.isNotEmpty()) { "실패한 항목이 없는 부분 실패는 만들 수 없다" }
         }
-
-        /** 실패 목록으로 만든 표시 메시지. */
-        override val message: String get() = partialFailureMessage(failurePrefix, failures)
     }
 
     /**
      * 원격 연결이 없거나 작업 도중 끊겨 남은 원격 작업을 진행할 수 없다.
      * 여러 대상을 처리하는 작업은 이 결과를 받으면 나머지 대상을 시도하지 않고 즉시 중단한다.
-     * @param message 표시할 실패 메시지
+     * @param reason 실패 원인
      */
-    data class ConnectionLost(override val message: String) : Failure
+    data class ConnectionLost(val reason: FailureReason) : Failure
 
     companion object {
         /** 결과값 없이 성공한 작업의 결과. */
@@ -74,15 +68,26 @@ inline fun <T, R> IoResult<T>.map(transform: (T) -> R): IoResult<R> = when (this
 }
 
 /**
- * 실패의 메시지를 [message]로 바꾼다. 연결 끊김은 연결 끊김으로 남겨, 여러 대상을 처리하는 호출부가 남은 대상을 시도하지 않게 한다.
- * 그 밖의 실패(부분 실패 포함)는 [message] 하나로 요약한 항목 실패가 된다.
- * @param message 실패 시 표시할 메시지
- * @return 성공이면 이 결과 그대로, 실패면 [message]를 담은 실패
+ * 실패의 원인을 [wrap]으로 감싼다(예: 저장소가 알린 원인을 "이름 변경 실패"의 원인으로). 실패 종류는 그대로 둬,
+ * 연결 끊김을 받은 여러 대상 작업이 남은 대상을 시도하지 않게 한다. 부분 실패는 항목별 원인을 이미 담고 있으므로 그대로 돌려준다.
+ * @param wrap 원래 원인(모르면 null)을 받아 감싼 원인을 만드는 함수
+ * @return 성공·부분 실패면 이 결과 그대로, 그 밖의 실패면 원인을 감싼 같은 종류의 실패
  */
-fun <T> IoResult<T>.withFailureMessage(message: String): IoResult<T> = when (this) {
-    is IoResult.Success -> this
-    is IoResult.ConnectionLost -> IoResult.ConnectionLost(message)
-    is IoResult.ItemFailed, is IoResult.PartiallyFailed -> IoResult.ItemFailed(message)
+inline fun <T> IoResult<T>.wrappingFailureReason(wrap: (FailureReason?) -> FailureReason): IoResult<T> = when (this) {
+    is IoResult.Success, is IoResult.PartiallyFailed -> this
+    is IoResult.ItemFailed -> IoResult.ItemFailed(wrap(reason))
+    is IoResult.ConnectionLost -> IoResult.ConnectionLost(wrap(reason))
+}
+
+/**
+ * 이 실패를 [path] 항목의 실패 목록으로 바꾼다. 부분 실패는 항목마다 [path] 아래 경로로 옮긴다(중첩 평탄화).
+ * @param path 이 실패를 낸 항목의 경로. 빈 문자열이면 작업 대상 자신이다
+ * @return 실패한 항목 목록
+ */
+fun IoResult.Failure.failedItemsAt(path: String): List<FailedItem> = when (this) {
+    is IoResult.ItemFailed -> listOf(FailedItem(path, reason))
+    is IoResult.ConnectionLost -> listOf(FailedItem(path, reason))
+    is IoResult.PartiallyFailed -> failures.map { it.under(path) }
 }
 
 /**

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
@@ -65,7 +66,7 @@ class FtpDataConnectFailureTest {
 
         val failed = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
-        assertTrue("데이터 연결 실패로 알려야 함: $failed", (failed as IoResult.ItemFailed).message.orEmpty().startsWith("LIST 실패: 데이터 연결을 열지 못했습니다"))
+        assertTrue("데이터 연결 실패로 알려야 함: $failed", (((failed as IoResult.ItemFailed).reason) as FailureReason.Raw).text.startsWith("LIST 실패: 데이터 연결을 열지 못했습니다"))
         assertFalse("데이터 소켓을 연결하지 못했으면 LIST를 보내지 않아야 함", "LIST" in scripted.received)
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })
         assertEquals(RemoteConnectionState.Connected("server"), session.connectionState.value)
@@ -90,7 +91,7 @@ class FtpDataConnectFailureTest {
         }
 
         val failure = (result as IoResult.PartiallyFailed).failures.single()
-        assertTrue("데이터 연결 실패로 알려야 함: $result", failure.reason.orEmpty().startsWith("데이터 연결을 열지 못했습니다"))
+        assertTrue("데이터 연결 실패로 알려야 함: $result", (failure.reason as FailureReason.Raw).text.startsWith("데이터 연결을 열지 못했습니다"))
         assertFalse("데이터 소켓을 연결하지 못했으면 RETR를 보내지 않아야 함", "RETR" in scripted.received)
         assertFalse("받기 시작하지 못한 다운로드의 빈 파일은 지워야 함", localFile.exists())
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })

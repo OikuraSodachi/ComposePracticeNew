@@ -17,7 +17,7 @@ import com.todokanai.composepracticenew.model.RelocateOperation
 fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
     is NoticeMessage.Completed -> UiText.Resource(completionTextRes(message.operationType))
     is NoticeMessage.Cancelled -> cancelledTextOf(message.operationType)
-    is NoticeMessage.OperationFailed -> message.text?.let(UiText::Raw) ?: UiText.Resource(R.string.notice_unknown_failure)
+    is NoticeMessage.OperationFailed -> failureTextOf(message.failure, message.operationType) ?: UiText.Resource(R.string.notice_unknown_failure)
     is NoticeMessage.UnansweredConflict -> UiText.Resource(
         R.string.notice_unanswered_conflict,
         listOf(UiText.Resource(operationNameRes(message.operationType)), message.name, message.waitHours)

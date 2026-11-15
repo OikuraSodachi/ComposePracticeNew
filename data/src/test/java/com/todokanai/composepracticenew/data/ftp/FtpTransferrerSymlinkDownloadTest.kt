@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.datasource.assumeSymlink
 import com.todokanai.composepracticenew.datasource.localTreeBottomUp
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
@@ -59,7 +60,7 @@ class FtpTransferrerSymlinkDownloadTest {
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", link.path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(UNSUPPORTED_LINK_REASON), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON)), result)
         assertEquals(emptyList<String>(), client.retrieveRequests)
         assertEquals("K", outsideFile.readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
@@ -73,7 +74,7 @@ class FtpTransferrerSymlinkDownloadTest {
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", localRoot.path, true)), resolveConflict = ProceedingConflictResolver) }
 
-        assertEquals(IoResult.PartiallyFailed("다운로드 실패", listOf(FailedItem("r/a.txt", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("r/a.txt", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals(listOf("/r/b.txt"), client.retrieveRequests)
         assertEquals("K", outsideFile.readText())
     }

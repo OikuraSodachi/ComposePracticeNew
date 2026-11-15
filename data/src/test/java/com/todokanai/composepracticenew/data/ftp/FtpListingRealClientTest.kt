@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
@@ -32,7 +33,7 @@ class FtpListingRealClientTest {
             exchange.send("450 No files found")
         }
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 450 No files found"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 450 No files found")), result)
     }
 
     @Test
@@ -45,7 +46,7 @@ class FtpListingRealClientTest {
             exchange.send("450 Transfer aborted")
         }
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 450 Transfer aborted"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 450 Transfer aborted")), result)
     }
 
     @Test

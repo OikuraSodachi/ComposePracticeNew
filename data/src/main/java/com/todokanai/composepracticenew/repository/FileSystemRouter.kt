@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import android.util.Log
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.onSuccess
 
@@ -41,7 +42,7 @@ internal class FileSystemRouter(private val fileSystems: Set<PathAwareFileSystem
      */
     suspend fun listFiles(path: String): IoResult<ListedDirectory> {
         Log.d(TAG, "fileList 갱신 — path=$path")
-        val fileSystem = resolve(path) ?: return IoResult.ItemFailed(UNSUPPORTED_PATH_MESSAGE)
+        val fileSystem = resolve(path) ?: return IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_PATH_MESSAGE))
         return fileSystem.listFiles(path).onSuccess {
             Log.d(TAG, "fileList 결과 — path=$path size=${it.entries.size} unreadable=${it.unreadableCount}")
         }

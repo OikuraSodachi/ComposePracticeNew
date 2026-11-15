@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
@@ -79,7 +80,7 @@ class LocalTreeSymlinkTest {
 
         val result = transfer(samePartition = false).copy(setOf(source.path), target.path, UnexpectedConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("복사하지 못함", listOf(FailedItem("src/loop", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src/loop", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals(listOf("a.txt"), File(target, "src").list()!!.toList())
     }
 
@@ -89,7 +90,7 @@ class LocalTreeSymlinkTest {
 
         val result = transfer(samePartition = false).move(setOf(source.path), target.path, UnexpectedConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("이동하지 못함", listOf(FailedItem("src/link", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src/link", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals("A", File(target, "src/a.txt").readText())
         assertTrue(Files.isSymbolicLink(File(source, "link").toPath()))
         assertEquals("K", File(outside, "keep.txt").readText())
@@ -102,7 +103,7 @@ class LocalTreeSymlinkTest {
         // 같은 이름의 폴더가 있으면 합치기로 내려가 안쪽 항목을 하나씩 다룬다
         val result = transfer(samePartition = true).move(setOf(source.path), target.path, ProceedingConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("이동하지 못함", listOf(FailedItem("src/link", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src/link", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals("A", File(target, "src/a.txt").readText())
         assertEquals("K", File(outside, "keep.txt").readText())
     }
@@ -114,7 +115,7 @@ class LocalTreeSymlinkTest {
 
         val result = transfer(samePartition = true).move(setOf(link.path), target.path, UnexpectedConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("이동하지 못함", listOf(FailedItem("link", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("link", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertTrue(Files.isSymbolicLink(link.toPath()))
         assertFalse(File(target, "link").exists())
     }
@@ -126,7 +127,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalEntryMutator().rename(source.path, dest.name, overwrite = true)
 
-        assertEquals(IoResult.ItemFailed("이름 변경 실패: $UNSUPPORTED_LINK_REASON (dest/link)"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: $UNSUPPORTED_LINK_REASON (dest/link)")), result)
         assertEquals("A", File(source, "a.txt").readText())
         assertEquals("K", File(outside, "keep.txt").readText())
     }
@@ -152,7 +153,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalEntryMutator().rename(link.path, file.name, overwrite = true)
 
-        assertEquals(IoResult.ItemFailed("이름 변경 실패: $UNSUPPORTED_LINK_REASON (c.txt)"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: $UNSUPPORTED_LINK_REASON (c.txt)")), result)
         assertEquals("C", file.readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
     }
@@ -165,7 +166,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalEntryMutator().rename(file.path, link.name, overwrite = true)
 
-        assertEquals(IoResult.ItemFailed("이름 변경 실패: $UNSUPPORTED_LINK_REASON (link)"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: $UNSUPPORTED_LINK_REASON (link)")), result)
         assertEquals("C", file.readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
         assertEquals("K", File(outside, "keep.txt").readText())
@@ -178,7 +179,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalEntryMutator { false }.delete(setOf(link.path)) {}
 
-        assertEquals(IoResult.PartiallyFailed("삭제 실패", listOf(FailedItem("dangling", null))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("dangling", null))), result)
     }
 
     @Test
@@ -188,7 +189,7 @@ class LocalTreeSymlinkTest {
 
         val result = compression.compress(setOf(source.path), dir.path, "out", ArchiveFormat.ZIP) {}
 
-        assertEquals(IoResult.PartiallyFailed("압축에 넣지 못함", listOf(FailedItem("src/loop", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src/loop", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         ZipFile(File(dir, "out.zip")).use { zip -> assertEquals(listOf("src/", "src/a.txt"), zip.entries().toList().map { it.name }) }
     }
 
@@ -208,7 +209,7 @@ class LocalTreeSymlinkTest {
 
         val result = transfer(samePartition = false).copy(setOf(source.path), target.path, ProceedingConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("복사하지 못함", listOf(FailedItem("src", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals("A", File(source, "a.txt").readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
     }
@@ -220,7 +221,7 @@ class LocalTreeSymlinkTest {
 
         val result = transfer(samePartition = false).copy(setOf(File(source, "a.txt").path), target.path, ProceedingConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("복사하지 못함", listOf(FailedItem("a.txt", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals("K", File(outside, "keep.txt").readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
     }
@@ -232,7 +233,7 @@ class LocalTreeSymlinkTest {
 
         val result = transfer(samePartition = true).move(setOf(source.path), target.path, ProceedingConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("이동하지 못함", listOf(FailedItem("src/a.txt", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src/a.txt", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals("A", File(source, "a.txt").readText())
         assertTrue(Files.isSymbolicLink(File(merged, "a.txt").toPath()))
         assertEquals("K", File(outside, "keep.txt").readText())
@@ -250,7 +251,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
 
-        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("d", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("d", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertFalse(File(outside, "new.txt").exists())
     }
 
@@ -268,8 +269,8 @@ class LocalTreeSymlinkTest {
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
 
-        val expected = listOf(FailedItem("d", UNSUPPORTED_LINK_REASON), FailedItem("../evil.txt", ArchiveEntryWriter.REJECTED_PATH_REASON))
-        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", expected), result)
+        val expected = listOf(FailedItem("d", FailureReason.Raw(UNSUPPORTED_LINK_REASON)), FailedItem("../evil.txt", FailureReason.Raw(ArchiveEntryWriter.REJECTED_PATH_REASON)))
+        assertEquals(IoResult.PartiallyFailed(expected), result)
         assertFalse(File(outside, "new.txt").exists())
     }
 
@@ -299,7 +300,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver) { states += it }
 
-        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("in", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("in", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertFalse(File(outside, "new.txt").exists())
         assertTrue(Files.isSymbolicLink(link.toPath()))
         assertCompleted(states)
@@ -315,7 +316,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver) { states += it }
 
-        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("in/d", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("in/d", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertFalse(File(outside, "new.txt").exists())
         assertTrue(Files.isSymbolicLink(link.toPath()))
         assertCompleted(states)
@@ -330,7 +331,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) { states += it }
 
-        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("a.txt", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals("K", File(outside, "keep.txt").readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
         assertCompleted(states)
@@ -344,7 +345,7 @@ class LocalTreeSymlinkTest {
 
         val result = transfer(samePartition = true).move(setOf(source.path), target.path, ProceedingConflictResolver) { states += it }
 
-        assertEquals(IoResult.PartiallyFailed("이동하지 못함", listOf(FailedItem("src", UNSUPPORTED_LINK_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
         assertEquals("A", File(source, "a.txt").readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
         assertEquals(listOf("keep.txt"), outside.list()!!.toList())

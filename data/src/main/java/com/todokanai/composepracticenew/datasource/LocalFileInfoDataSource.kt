@@ -1,10 +1,12 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
+import com.todokanai.composepracticenew.model.failedItemsAt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -124,7 +126,7 @@ class LocalFileInfoDataSource @Inject constructor() {
             Files.walkFileTree(walkRootOf(root), visitor)
             IoResult.Done
         }
-        if (walked is IoResult.Failure) visitor.addUnreadable(root, walked.message)
+        if (walked is IoResult.Failure) walked.failedItemsAt(root.toString()).forEach(visitor::addUnreadable)
     }
 
     /**
@@ -151,23 +153,22 @@ class LocalFileInfoDataSource @Inject constructor() {
         }
 
         override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
-            addUnreadable(file, exc.message)
+            addUnreadable(FailedItem(file.toString(), exc.message?.let(FailureReason::Raw)))
             return FileVisitResult.CONTINUE
         }
 
         override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
             // 디렉터리를 끝까지 나열하지 못했다 — 이미 더한 항목은 남기고 이 디렉터리를 읽지 못한 항목으로 둔다
-            if (exc != null) addUnreadable(dir, exc.message)
+            if (exc != null) addUnreadable(FailedItem(dir.toString(), exc.message?.let(FailureReason::Raw)))
             return FileVisitResult.CONTINUE
         }
 
         /**
          * 읽지 못한 항목을 남긴다.
-         * @param path 읽지 못한 항목 경로
-         * @param reason 실패 원인 메시지. 모르면 null
+         * @param item 읽지 못한 항목과 그 원인
          */
-        fun addUnreadable(path: Path, reason: String?) {
-            unreadable += FailedItem(path.toString(), reason)
+        fun addUnreadable(item: FailedItem) {
+            unreadable += item
         }
 
         /** 모은 크기와 실패로 측정 결과를 만든다. */

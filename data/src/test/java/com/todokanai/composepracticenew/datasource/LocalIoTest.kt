@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
@@ -17,7 +18,7 @@ class LocalIoTest {
     fun `입출력 실패는 예외 메시지를 담은 항목 실패가 된다`() {
         val result = localIo<Unit> { throw IOException("디스크 오류") }
 
-        assertEquals(IoResult.ItemFailed("디스크 오류"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("디스크 오류")), result)
     }
 
     @Test
@@ -36,12 +37,12 @@ class LocalIoTest {
     fun `메시지 함수를 주면 입출력 실패를 그 메시지로 바꾼다`() {
         val result = localIo<Unit>(describe = { e -> "이동 실패: b.txt — ${e.message}" }) { throw IOException("디스크 오류") }
 
-        assertEquals(IoResult.ItemFailed("이동 실패: b.txt — 디스크 오류"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("이동 실패: b.txt — 디스크 오류")), result)
     }
 
     @Test
     fun `작업이 돌려준 결과는 그대로 돌려준다`() {
-        assertEquals(IoResult.ItemFailed("디스크 공간 부족"), localIo<Unit> { IoResult.ItemFailed("디스크 공간 부족") })
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("디스크 공간 부족")), localIo<Unit> { IoResult.ItemFailed(FailureReason.Raw("디스크 공간 부족")) })
         assertEquals(IoResult.Done, localIo { IoResult.Done })
     }
 

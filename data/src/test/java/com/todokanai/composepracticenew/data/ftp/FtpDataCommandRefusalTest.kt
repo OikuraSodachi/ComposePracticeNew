@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
@@ -42,7 +43,7 @@ class FtpDataCommandRefusalTest {
 
         val result = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
-        assertEquals(IoResult.ItemFailed("PASV 실패: 500 PASV not understood"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("PASV 실패: 500 PASV not understood")), result)
         assertFalse("준비 명령이 거부되면 LIST를 보내지 않아야 함", "LIST" in scripted.received)
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })
     }
@@ -53,7 +54,7 @@ class FtpDataCommandRefusalTest {
 
         val reason = downloadFailureReason(scripted)
 
-        assertEquals("PASV 실패: 500 PASV not understood", reason)
+        assertEquals(FailureReason.Raw("PASV 실패: 500 PASV not understood"), reason)
         assertFalse("준비 명령이 거부되면 RETR를 보내지 않아야 함", "RETR" in scripted.received)
     }
 
@@ -63,7 +64,7 @@ class FtpDataCommandRefusalTest {
 
         val reason = downloadFailureReason(scripted)
 
-        assertEquals("RETR 실패: 550 No such file", reason)
+        assertEquals(FailureReason.Raw("RETR 실패: 550 No such file"), reason)
     }
 
     /**
@@ -71,7 +72,7 @@ class FtpDataCommandRefusalTest {
      * @param scripted 접속할 서버
      * @return 내려받은 파일의 실패 이유
      */
-    private fun downloadFailureReason(scripted: ScriptedFtpServer): String? {
+    private fun downloadFailureReason(scripted: ScriptedFtpServer): FailureReason? {
         val session = connectedSession(scripted)
         val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
         val result = runBlocking {

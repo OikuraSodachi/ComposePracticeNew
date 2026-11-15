@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -43,7 +44,7 @@ class LocalArchiveCompression @Inject constructor(
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo {
-            val compressor = compressors[format] ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${format.extension}")
+            val compressor = compressors[format] ?: return@localIo IoResult.ItemFailed(FailureReason.Raw("지원하지 않는 압축 형식: ${format.extension}"))
             compressEntries(compressor, targetFiles, File(parentPath, "$baseName${format.extension}"), onProgress)
         }
     }
@@ -69,13 +70,13 @@ class LocalArchiveCompression @Inject constructor(
             }
         }
         if (entries.isEmpty()) {
-            return if (skippedLinks.isEmpty()) IoResult.ItemFailed("압축할 항목이 없습니다.")
-                   else IoResult.PartiallyFailed(SKIPPED_LINK_PREFIX, skippedLinks)
+            return if (skippedLinks.isEmpty()) IoResult.ItemFailed(FailureReason.Raw("압축할 항목이 없습니다."))
+                   else IoResult.PartiallyFailed(skippedLinks)
         }
         val files = entries.filterIsInstance<ArchiveSource.Regular>()
         val totalBytes = files.sumOf { it.bytes }
         checkDiskSpace(totalBytes, (desired.parentFile ?: desired).freeSpace)
-            ?.let { return IoResult.ItemFailed(it) }
+            ?.let { return IoResult.ItemFailed(FailureReason.Raw(it)) }
         val tracker = ByteProgressTracker(totalBytes, files.size, onProgress)
         tracker.reportStart()
         // 압축 대상 목록을 만든 뒤에 새 파일을 확보 — 기존 파일(선택 항목 자신 포함)은 절대 열지 않으므로 잘라내기·자기 참조가 생기지 않는다
@@ -86,7 +87,7 @@ class LocalArchiveCompression @Inject constructor(
             compressor.write(entries, output, tracker)
             tracker.reportComplete()
         }
-        return if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(SKIPPED_LINK_PREFIX, skippedLinks)
+        return if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skippedLinks)
     }
 
     /**
@@ -135,11 +136,5 @@ class LocalArchiveCompression @Inject constructor(
         if (index == 0) return desired
         val baseNameEnd = FileNameParts.baseNameEnd(desired.name)
         return File(desired.parentFile, FileNameParts.numbered(desired.name.substring(0, baseNameEnd), desired.name.substring(baseNameEnd), index))
-    }
-
-    /** 압축 결과 메시지에 쓰는 상수를 둔다. */
-    private companion object {
-        /** 아카이브에 넣지 못한 링크를 알리는 실패 메시지 머리말. */
-        const val SKIPPED_LINK_PREFIX = "압축에 넣지 못함"
     }
 }

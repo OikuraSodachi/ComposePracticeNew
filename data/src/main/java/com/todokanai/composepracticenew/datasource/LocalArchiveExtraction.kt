@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpac
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -47,12 +48,12 @@ class LocalArchiveExtraction @Inject constructor(
         val ask: (WriteConflict) -> ConflictChoice = { conflict -> runBlocking(job) { resolveConflict.resolve(conflict) } }
         localIo {
             val archives = zipFiles.map { path ->
-                path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed("지원하지 않는 압축 형식: ${File(path).name}"))
+                path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed(FailureReason.Raw("지원하지 않는 압축 형식: ${File(path).name}")))
             }
             val sizes = archives.map { (path, extractor) -> extractor.measure(path) }
             val knownBytes = sizes.sumOf { it.knownBytes }
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
-            checkDiskSpace(knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
+            checkDiskSpace(knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(FailureReason.Raw(it)) }
             val total = TransferTotal.of(knownBytes, sizes.sumOf { it.unknownSizeCount })
             val tracker = ByteProgressTracker(total, sizes.sumOf { it.fileCount }, onProgress)
             tracker.reportStart()
@@ -64,7 +65,7 @@ class LocalArchiveExtraction @Inject constructor(
                 val slot = if (layout == ExtractLayout.IntoDestination) WriteSlot.Ready(Unit) else mergeDirectoryResolving(root, ask)
                 // 아카이브 폴더 자리에 파일이나 링크가 있어 건너뛰면 그 아카이브의 항목을 모두 처리한 것으로 넘긴다
                 if (slot !is WriteSlot.Ready) {
-                    if (slot == WriteSlot.Link) failures += FailedItem(root.name, UNSUPPORTED_LINK_REASON)
+                    if (slot == WriteSlot.Link) failures += FailedItem(root.name, FailureReason.Raw(UNSUPPORTED_LINK_REASON))
                     tracker.skipFiles(sizes[i].fileCount)
                     tracker.addBytes(sizes[i].knownBytes, root.name, fileBytes = null)
                     return@forEachIndexed
@@ -74,7 +75,7 @@ class LocalArchiveExtraction @Inject constructor(
                 failures += writer.failures.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
             }
             tracker.reportComplete()
-            if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(SKIPPED_ENTRY_PREFIX, failures)
+            if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failures)
         }
     }
 
@@ -110,10 +111,4 @@ class LocalArchiveExtraction @Inject constructor(
      * @return 추출기. 지원하지 않는 형식이면 null
      */
     private fun extractorFor(path: String): ArchiveExtractor? = extractors.firstOrNull { it.supports(path) }
-
-    /** 압축 해제 결과 메시지에 쓰는 상수를 둔다. */
-    private companion object {
-        /** 경로 검증 실패나 자리의 링크로 풀지 못한 항목을 알리는 실패 메시지 머리말. */
-        const val SKIPPED_ENTRY_PREFIX = "압축을 풀지 못함"
-    }
 }

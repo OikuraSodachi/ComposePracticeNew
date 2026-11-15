@@ -66,8 +66,8 @@ class FileNameEnforcementTest {
 
     @Test
     fun `원격 이름 변경·새 폴더는 규칙 위반 이름을 거부하고 오류를 방출한다`() {
-        remote.renameRemote("/r/a.txt", "a\\b", "fail") {}
-        remote.makeDirectoryRemote("/r", "", "fail") {}
+        remote.renameRemote("/r/a.txt", "a\\b") {}
+        remote.makeDirectoryRemote("/r", "") {}
 
         assertEquals(2, notices.failures.size)
         assertEquals(NoticeMessage.InvalidName(NamingOperation.RENAME, "a\\b"), notices.failures[0])
@@ -79,7 +79,7 @@ class FileNameEnforcementTest {
     fun `규칙을 지킨 이름은 오류 없이 실행 단계로 넘어간다`() {
         local.rename("/dir/a.txt", "a.md", false) {}
         local.makeDirectory("/dir", "new folder") {}
-        remote.renameRemote("/r/a.txt", "b.txt", "fail") {}
+        remote.renameRemote("/r/a.txt", "b.txt") {}
 
         assertTrue(notices.failures.toString(), notices.failures.isEmpty())
     }
@@ -89,8 +89,8 @@ class FileNameEnforcementTest {
         local.rename("/dir/a.txt", "a.md", false) {}
         local.makeDirectory("/dir", "new folder") {}
         local.compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP) {}
-        remote.renameRemote("/r/a.txt", "b.txt", "fail") {}
-        remote.makeDirectoryRemote("/r", "sub", "fail") {}
+        remote.renameRemote("/r/a.txt", "b.txt") {}
+        remote.makeDirectoryRemote("/r", "sub") {}
 
         assertEquals(
             listOf("a.md" to "/dir/a.txt", "new folder" to "/dir", "archive.zip" to "/dir", "b.txt" to "/r/a.txt", "sub" to "/r"),

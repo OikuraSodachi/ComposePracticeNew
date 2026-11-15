@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -47,7 +48,7 @@ class ArchiveEntryWriterTest {
         writer.createFolder("../evil/")
         writer.createFolder("./")
 
-        assertEquals(listOf("../evil.txt", "../evil/", "./").map { FailedItem(it, ArchiveEntryWriter.REJECTED_PATH_REASON) }, writer.failures)
+        assertEquals(listOf("../evil.txt", "../evil/", "./").map { FailedItem(it, FailureReason.Raw(ArchiveEntryWriter.REJECTED_PATH_REASON)) }, writer.failures)
         assertEquals(listOf("out"), dir.list()!!.toList())
     }
 }

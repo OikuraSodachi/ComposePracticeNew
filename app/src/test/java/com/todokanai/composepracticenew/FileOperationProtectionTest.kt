@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.service.FileOperationProtection
 import com.todokanai.composepracticenew.service.FileOperationServiceController
@@ -34,7 +35,7 @@ class FileOperationProtectionTest {
     private val controller = RecordingController()
 
     /** 검증 대상 작업 보호. */
-    private val protection = FileOperationProtection(controller, FixedMessages)
+    private val protection = FileOperationProtection(controller)
 
     @Test
     fun `서비스가 포그라운드가 됐다고 알리면 보호를 준다`() = runTest(UnconfinedTestDispatcher()) {
@@ -52,14 +53,14 @@ class FileOperationProtectionTest {
 
         protection.report(controller.requests.single(), granted = false)
 
-        assertEquals(IoResult.ItemFailed(FixedMessages.protectionRefused), result.await())
+        assertEquals(IoResult.ItemFailed(FailureReason.ProtectionRefused), result.await())
     }
 
     @Test
     fun `시작 요청이 거부되면 결과를 기다리지 않고 실패를 돌려준다`() = runTest(UnconfinedTestDispatcher()) {
         controller.accepts = false
 
-        assertEquals(IoResult.ItemFailed(FixedMessages.protectionRefused), protection.acquire())
+        assertEquals(IoResult.ItemFailed(FailureReason.ProtectionRefused), protection.acquire())
     }
 
     @Test
@@ -73,7 +74,7 @@ class FileOperationProtectionTest {
         protection.report(firstId, granted = true)
 
         assertEquals(IoResult.Done, first.await())
-        assertEquals(IoResult.ItemFailed(FixedMessages.protectionRefused), second.await())
+        assertEquals(IoResult.ItemFailed(FailureReason.ProtectionRefused), second.await())
     }
 
     @Test

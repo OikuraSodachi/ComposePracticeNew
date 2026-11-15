@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.data.FileEntry
@@ -48,7 +49,7 @@ class FtpListingReaderListFilesTest {
         loggedIn()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 No files found"))
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 450 No files found"), runBlocking { commands.listing.listFiles("ftp://host/r") })
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 450 No files found")), runBlocking { commands.listing.listFiles("ftp://host/r") })
     }
 
     @Test
@@ -64,7 +65,7 @@ class FtpListingReaderListFilesTest {
         client.remoteFiles = listOf("a.txt")
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.RefuseAfterData(450, "450 Transfer aborted"))
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 450 Transfer aborted"), runBlocking { commands.listing.listFiles("ftp://host/r") })
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 450 Transfer aborted")), runBlocking { commands.listing.listFiles("ftp://host/r") })
     }
 
     @Test
@@ -72,7 +73,7 @@ class FtpListingReaderListFilesTest {
         loggedIn()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 File busy"))
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 450 File busy"), runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) })
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 450 File busy")), runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) })
     }
 
     @Test
@@ -80,7 +81,7 @@ class FtpListingReaderListFilesTest {
         loggedIn()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(550, "550 No files found"))
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 550 No files found"), runBlocking { commands.listing.listFiles("ftp://host/r") })
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 550 No files found")), runBlocking { commands.listing.listFiles("ftp://host/r") })
     }
 
     @Test
@@ -92,7 +93,7 @@ class FtpListingReaderListFilesTest {
 
         val result = runBlocking { commands.listing.listFiles("ftp://host/r") }
 
-        assertEquals(IoResult.ItemFailed("MLSD 실패: Read timed out"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("MLSD 실패: Read timed out")), result)
         assertEquals(1, client.listingCompletionCalls)
         assertTrue(runBlocking { session.isReady() })
     }

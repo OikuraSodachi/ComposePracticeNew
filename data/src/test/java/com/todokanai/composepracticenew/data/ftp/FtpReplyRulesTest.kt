@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -9,20 +10,20 @@ class FtpReplyRulesTest {
 
     @Test
     fun `거부 응답은 명령 이름과 다듬은 응답 문자열을 담은 실패다`() {
-        assertEquals(IoResult.ItemFailed("DELE 실패: 550 Denied"), FtpReplyRules.refusal(FtpCommand.DELE, "550 Denied\r\n"))
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("DELE 실패: 550 Denied")), FtpReplyRules.refusal(FtpCommand.DELE, "550 Denied\r\n"))
     }
 
     @Test
     fun `RMD 거부에는 숨김 항목 안내를 덧붙인다`() {
         assertEquals(
-            IoResult.ItemFailed("RMD 실패: 550 Not empty" + FtpReplyRules.HIDDEN_ENTRIES_NOTE),
+            IoResult.ItemFailed(FailureReason.Raw("RMD 실패: 550 Not empty" + FtpReplyRules.HIDDEN_ENTRIES_NOTE)),
             FtpReplyRules.refusal(FtpCommand.RMD, "550 Not empty")
         )
     }
 
     @Test
     fun `완료를 확인받지 못한 전송은 다듬은 응답 문자열을 담은 실패다`() {
-        assertEquals(IoResult.ItemFailed("전송 미완료: 451 Aborted"), FtpReplyRules.unacknowledgedTransfer("451 Aborted\r\n"))
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("전송 미완료: 451 Aborted")), FtpReplyRules.unacknowledgedTransfer("451 Aborted\r\n"))
     }
 
     @Test

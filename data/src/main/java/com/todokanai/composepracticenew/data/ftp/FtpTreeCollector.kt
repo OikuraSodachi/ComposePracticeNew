@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.valueOr
 import javax.inject.Inject
@@ -149,7 +150,7 @@ class FtpTreeCollector internal constructor(
         budget: TreeMemoryBudget,
         undecidable: Boolean
     ): IoResult<DirectoryVisit> {
-        val tooMany = IoResult.ItemFailed("$TOO_MANY_ENTRIES_MESSAGE: ${extractFtpPath(dirPath)}" + if (undecidable) UNIDENTIFIABLE_NOTE else "")
+        val tooMany = IoResult.ItemFailed(FailureReason.Raw("$TOO_MANY_ENTRIES_MESSAGE: ${extractFtpPath(dirPath)}" + if (undecidable) UNIDENTIFIABLE_NOTE else ""))
         val listed = listing.list(dirPath, withIdentities = true, ListingLimit(budget.remainingBytes, tooMany)).valueOr { return it }
         if (!budget.admit(listed.items)) return tooMany
         return IoResult.Success(DirectoryVisit(listed, identity))
@@ -161,7 +162,7 @@ class FtpTreeCollector internal constructor(
      * @return 순환을 알리는 실패
      */
     private fun cycleRefusal(path: String): IoResult.ItemFailed =
-        IoResult.ItemFailed("폴더 순환 감지: ${extractFtpPath(path)} 은(는) 상위 폴더와 같은 폴더입니다")
+        IoResult.ItemFailed(FailureReason.Raw("폴더 순환 감지: ${extractFtpPath(path)} 은(는) 상위 폴더와 같은 폴더입니다"))
 
     /**
      * 트리 수집이 하위 디렉터리 [path]로 내려가면 안 되는 이유를 실패로 만든다.
@@ -178,7 +179,7 @@ class FtpTreeCollector internal constructor(
     private fun descentRefusal(path: String, identity: String?, ancestorIdentities: Set<String>, undecidable: Boolean): IoResult.ItemFailed? = when {
         identity != null && identity in ancestorIdentities -> cycleRefusal(path)
         exceedsPathMax(path) -> IoResult.ItemFailed(
-            "경로가 너무 깁니다(${PATH_MAX_BYTES}바이트 이상): ${extractFtpPath(path)}" + if (undecidable) UNIDENTIFIABLE_NOTE else ""
+            FailureReason.Raw("경로가 너무 깁니다(${PATH_MAX_BYTES}바이트 이상): ${extractFtpPath(path)}" + if (undecidable) UNIDENTIFIABLE_NOTE else "")
         )
         else -> null
     }

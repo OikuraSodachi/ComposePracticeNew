@@ -19,10 +19,11 @@ sealed interface NoticeMessage {
     data class Cancelled(val operationType: FileOperationType?) : NoticeMessage
 
     /**
-     * 작업이 실패했다. 실패 내용은 아직 data·domain이 만든 문구 그대로다 — 실패 결과의 타입화는 #218의 다음 단계에서 한다.
-     * @param text 실패 문구. 원인을 알 수 없으면 null
+     * 작업이 실패 결과를 돌려줬다.
+     * @param operationType 실패한 작업의 종류. 부분 실패의 머리말을 정한다. null이면 순간 작업이다
+     * @param failure 작업이 돌려준 실패
      */
-    data class OperationFailed(val text: String?) : NoticeMessage
+    data class OperationFailed(val operationType: FileOperationType?, val failure: IoResult.Failure) : NoticeMessage
 
     /**
      * 쓰기 충돌 질문 하나에 정해진 시간 동안 답이 없어 작업을 멈췄다. 이미 처리한 항목은 그대로 둔다.

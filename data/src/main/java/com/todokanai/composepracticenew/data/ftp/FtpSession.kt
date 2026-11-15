@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeReporter
@@ -104,12 +105,12 @@ internal class FtpSession(
      * @return block의 결과, 또는 연결 끊김
      */
     override suspend fun <T> withConnectedClient(block: suspend (FtpCommandClient) -> IoResult<T>): IoResult<T> = withClient { client ->
-        if (!isReady()) return@withClient IoResult.ConnectionLost(NOT_CONNECTED_MESSAGE)
+        if (!isReady()) return@withClient IoResult.ConnectionLost(FailureReason.Raw(NOT_CONNECTED_MESSAGE))
         try {
             block(client)
         } catch (e: IOException) {
             endUnusableSession()
-            IoResult.ConnectionLost(unusableSessionMessage(e))
+            IoResult.ConnectionLost(FailureReason.Raw(unusableSessionMessage(e)))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

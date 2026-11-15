@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
@@ -102,10 +103,9 @@ class FtpListingInterpretationTest {
 
         assertEquals(
             IoResult.PartiallyFailed(
-                "삭제 실패",
                 listOf(
-                    FailedItem("r/$PROFTPD_LINK", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
-                    FailedItem("r/sub/$UNPARSEABLE_SIZE", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
+                    FailedItem("r/$PROFTPD_LINK", FailureReason.Raw("목록 항목을 읽지 못했습니다: $PROFTPD_LINK")),
+                    FailedItem("r/sub/$UNPARSEABLE_SIZE", FailureReason.Raw("목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE"))
                 )
             ),
             result
@@ -126,10 +126,9 @@ class FtpListingInterpretationTest {
 
         assertEquals(
             IoResult.PartiallyFailed(
-                "다운로드 실패",
                 listOf(
-                    FailedItem("r/$PROFTPD_LINK", "목록 항목을 읽지 못했습니다: $PROFTPD_LINK"),
-                    FailedItem("r/$UNPARSEABLE_SIZE", "목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE")
+                    FailedItem("r/$PROFTPD_LINK", FailureReason.Raw("목록 항목을 읽지 못했습니다: $PROFTPD_LINK")),
+                    FailedItem("r/$UNPARSEABLE_SIZE", FailureReason.Raw("목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE"))
                 )
             ),
             result
@@ -159,10 +158,9 @@ class FtpListingInterpretationTest {
 
         assertEquals(
             IoResult.PartiallyFailed(
-                "삭제 실패",
                 listOf(
-                    FailedItem("r/(빈 줄)", "목록 항목을 읽지 못했습니다: (빈 줄)"),
-                    FailedItem("r/sub/(빈 줄)", "목록 항목을 읽지 못했습니다: (빈 줄)")
+                    FailedItem("r/(빈 줄)", FailureReason.Raw("목록 항목을 읽지 못했습니다: (빈 줄)")),
+                    FailedItem("r/sub/(빈 줄)", FailureReason.Raw("목록 항목을 읽지 못했습니다: (빈 줄)"))
                 )
             ),
             result
