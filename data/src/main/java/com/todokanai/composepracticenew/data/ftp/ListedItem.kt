@@ -16,6 +16,12 @@ internal sealed interface ListedItem {
     /** 디렉터리 항목이면 true. */
     val isDirectoryEntry: Boolean get() = this is Entry && entry.isDirectory
 
+    /** 진행 표시에 쓸 이름. 해석하지 못한 줄은 이름을 몰라 받은 줄([Unreadable.shownLine])을 쓴다. */
+    val progressName: String get() = when (this) {
+        is Entry -> entry.name
+        is Unreadable -> shownLine
+    }
+
     /**
      * 실패 메시지에 쓸, [rootPath] 아래에서의 이름을 만든다.
      * @param rootPath 이 항목을 수집한 트리의 루트 경로 (ftp://server/path 형식)

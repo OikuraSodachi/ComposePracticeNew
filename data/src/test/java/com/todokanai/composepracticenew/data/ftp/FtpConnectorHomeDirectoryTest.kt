@@ -15,7 +15,7 @@ import org.junit.Test
 
 /**
  * 연결할 때([FtpConnector.connect]) 로그인 직후의 현재 디렉터리를 세션의 홈과 현재 디렉터리로 기록하는지 검증하는 통합 테스트.
- * 홈은 대상 밖으로 나가는 이동이 거부될 때 다시 시도할 곳이다([FtpCommandExecutor]). PWD 응답 해석은 commons-net 동작이므로 실제 FTPClient로 로컬 테스트 서버에 접속한다.
+ * 홈은 대상 밖으로 나가는 이동이 거부될 때 다시 시도할 곳이다([FtpCommandRunner.leavingTarget]). PWD 응답 해석은 commons-net 동작이므로 실제 FTPClient로 로컬 테스트 서버에 접속한다.
  */
 class FtpConnectorHomeDirectoryTest {
 

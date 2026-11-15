@@ -27,7 +27,7 @@ class FtpTransferrerDownloadConflictTest {
     private val dir: File = Files.createTempDirectory("ftp-download-conflict-test").toFile()
     private val client = FakeFtpClient()
     private val session = FtpSession(client, ConnectionLossNotices())
-    private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
+    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
     private val local = File(dir, "a.txt")
 
     /** 받은 겹침(받은 순서). */

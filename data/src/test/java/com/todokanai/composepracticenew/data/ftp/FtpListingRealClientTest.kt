@@ -72,6 +72,6 @@ class FtpListingRealClientTest {
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
         val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
-        return runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles("ftp://host/r") }
+        return runBlocking { FtpCommandParts(session).listing.listFiles("ftp://host/r") }
     }
 }

@@ -42,7 +42,8 @@ import javax.inject.Singleton
  * 세션 경계 안의 로컬 파일 I/O는 [DataCommandRunner]의 exchange에서만 한다 — 경계는 던져진 IOException을 세션 종료로 보기 때문이다.
  * 다운로드의 로컬 파일은 서버가 전송을 받아들인 뒤에(거부되면 기존 파일을 비우지 않도록), 업로드의 로컬 파일은 STOR 전에([uploadingFrom]) 연다.
  * @param session 전송에 사용할 FTPClient와 잠금을 소유한 FTP 세션
- * @param cmd 디렉터리 다운로드 시 원격 트리를 수집하고, 폴더 업로드 시 원격 폴더를 만드는 FtpCommandExecutor
+ * @param cmd 폴더 업로드 시 원격 폴더를 만드는 FtpCommandExecutor
+ * @param treeCollector 디렉터리 다운로드 시 원격 트리를 수집하는 FtpTreeCollector
  * @param dataCommands 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행하는 실행기
  * @param notices 취소한 업로드가 서버에 남겼을 수 있는 파일을 알리는 OperationNoticeReporter — 취소는 결과로 돌려줄 수 없으므로 직접 알린다
  */
@@ -50,6 +51,7 @@ import javax.inject.Singleton
 class FtpTransferrer @Inject internal constructor(
     private val session: FtpCommandSession,
     private val cmd: FtpCommandExecutor,
+    private val treeCollector: FtpTreeCollector,
     private val dataCommands: DataCommandRunner,
     private val notices: OperationNoticeReporter
 ) {
@@ -129,7 +131,7 @@ class FtpTransferrer @Inject internal constructor(
      */
     private suspend fun planOf(source: DownloadSource, preparation: PreparationProgressReporter): IoResult<DownloadPlan> =
         if (source.isDirectory) {
-            cmd.collectRemoteTree(source.remotePath, preparation).map { DownloadPlan.Tree(source.remotePath, File(source.localPath), it) }
+            treeCollector.collectRemoteTree(source.remotePath, preparation).map { DownloadPlan.Tree(source.remotePath, File(source.localPath), it) }
         } else {
             preparation.onEntryFound(File(source.localPath).name)
             val ftpPath = extractFtpPath(source.remotePath)
@@ -162,7 +164,7 @@ class FtpTransferrer @Inject internal constructor(
 
     /**
      * 원격 디렉터리 트리를 [plan]의 로컬 폴더 아래로 다운로드한다. 실패한 파일은 모아서 마지막에 알린다. 진행률은 묶음 전체의 [progress]에 보고한다.
-     * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목은 트리에 없어 받지 않으며, 누락을 알리지 않고 완료로 보고한다([FtpCommandExecutor.collectRemoteTree] 참고).
+     * 알려진 문제(방치하기로 결정): 서버가 목록에서 숨긴 항목은 트리에 없어 받지 않으며, 누락을 알리지 않고 완료로 보고한다([FtpTreeCollector.collectRemoteTree] 참고).
      * 해석하지 못한 목록 줄은 무엇인지 몰라 받지 못한 항목으로 알린다(#255).
      */
     private suspend fun downloadDirectory(plan: DownloadPlan.Tree, resolveConflict: WriteConflictResolver, progress: ByteProgressTracker): IoResult<Unit> {
@@ -437,7 +439,7 @@ class FtpTransferrer @Inject internal constructor(
         onAcked: suspend () -> Unit
     ): IoResult<Unit> {
         // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
-        // ([FtpCommandExecutor.identifiedListing] 참고)
+        // ([FtpListingReader.identifiedListing] 참고)
         val outcome = try {
             dataCommands.run(client, open = { client.storeFileStream(ftpPath) }) { stream -> pump(input, stream, onChunk) }
         } catch (e: CancellationException) {

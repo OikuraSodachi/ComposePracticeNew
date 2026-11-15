@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 목록 조회 중 서버가 목록 데이터를 보내지 않으면 [FtpCommandExecutor]가 데이터 연결의 읽기 상한에 그 폴더만 실패로 끝내고,
+ * 목록 조회 중 서버가 목록 데이터를 보내지 않으면 [FtpListingReader]가 데이터 연결의 읽기 상한에 그 폴더만 실패로 끝내고,
  * 완료 응답까지 읽어 세션을 유지하는지 검증하는 통합 테스트(#282 리뷰). 데이터 연결은 정상 닫기가 아니라 리셋으로 끝내는지도 검증한다.
  * 실제 commons-net FTPClient로 로컬 소켓의 정해진 응답 서버에 수동(PASV) 모드로 접속한다.
  */
@@ -49,10 +49,10 @@ class FtpListingStalledDataTest {
             }
             exchange.send(if (stall) "426 Transfer aborted" else "226 Transfer complete")
         }
-        val commands = FtpCommandExecutor(session, DataCommandRunner(session))
+        val commands = FtpCommandParts(session)
 
-        val stalled = runBlocking { commands.listFiles("ftp://host/r") }
-        val next = runBlocking { commands.listFiles("ftp://host/r") }
+        val stalled = runBlocking { commands.listing.listFiles("ftp://host/r") }
+        val next = runBlocking { commands.listing.listFiles("ftp://host/r") }
 
         assertEquals(IoResult.ItemFailed("LIST 실패: Read timed out"), stalled)
         assertEquals(DataEnd.RESET, serverEnd.get())

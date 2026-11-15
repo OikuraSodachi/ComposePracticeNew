@@ -61,16 +61,16 @@ class FtpDataConnectFailureTest {
             )
         ).also { server = it }
         val session = connectedSession(scripted)
-        val executor = FtpCommandExecutor(session, DataCommandRunner(session))
+        val executor = FtpCommandParts(session)
 
-        val failed = runBlocking { executor.listFiles("ftp://host/r") }
+        val failed = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
         assertTrue("데이터 연결 실패로 알려야 함: $failed", (failed as IoResult.ItemFailed).message.orEmpty().startsWith("LIST 실패: 데이터 연결을 열지 못했습니다"))
         assertFalse("데이터 소켓을 연결하지 못했으면 LIST를 보내지 않아야 함", "LIST" in scripted.received)
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })
         assertEquals(RemoteConnectionState.Connected("server"), session.connectionState.value)
 
-        val listed = runBlocking { executor.listFiles("ftp://host/r") }
+        val listed = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
         assertEquals(listOf("ftp://host/r/a.txt"), (listed as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })
     }
@@ -82,7 +82,7 @@ class FtpDataConnectFailureTest {
             mapOf("PASV" to { exchange -> exchange.send("227 Entering Passive Mode (127,0,0,1,${refusedPort / 256},${refusedPort % 256})") })
         ).also { server = it }
         val session = connectedSession(scripted)
-        val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
+        val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
         val localFile = File(dir, "a.txt")
 
         val result = runBlocking {

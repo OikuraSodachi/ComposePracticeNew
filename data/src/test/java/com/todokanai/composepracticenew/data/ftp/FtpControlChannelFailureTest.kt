@@ -25,8 +25,8 @@ class FtpControlChannelFailureTest {
     private val dir: File = Files.createTempDirectory("ftp-control-channel-test").toFile()
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     private val session = FtpSession(client, ConnectionLossNotices())
-    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
-    private val transferrer = FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices())
+    private val commands = FtpCommandParts(session)
+    private val transferrer = commands.transferrer(OperationNotices())
 
     @After
     fun tearDown() {
@@ -89,7 +89,7 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onDeleteFile = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(1, client.deleteRequests.size)
@@ -102,7 +102,7 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onDeleteFile = { path -> !path.endsWith("b.txt") }
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
         assertEquals("삭제 실패: r/b.txt (DELE 실패: 550 Permission denied)", (result as IoResult.PartiallyFailed).message)
         assertEquals(2, client.deleteRequests.size)

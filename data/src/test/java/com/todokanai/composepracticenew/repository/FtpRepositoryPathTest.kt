@@ -1,13 +1,11 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
-import com.todokanai.composepracticenew.data.ftp.DataCommandRunner
 import com.todokanai.composepracticenew.data.ftp.FakeFtpClient
-import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
+import com.todokanai.composepracticenew.data.ftp.FtpCommandParts
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
 import com.todokanai.composepracticenew.data.ftp.FtpKeepAlive
 import com.todokanai.composepracticenew.data.ftp.FtpSession
-import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -31,9 +29,9 @@ class FtpRepositoryPathTest {
     /** 로그인을 마친 테스트 세션. */
     private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
     /** FTP 저장소와 전송기가 함께 쓰는 명령 실행기. */
-    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
+    private val commands = FtpCommandParts(session)
     /** 검증 대상. */
-    private val repo = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, session, TestScope())), commands, FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices()))
+    private val repo = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, session, TestScope())), commands.executor, commands.deletion, commands.transferrer(OperationNotices()))
 
     @After
     fun tearDown() {

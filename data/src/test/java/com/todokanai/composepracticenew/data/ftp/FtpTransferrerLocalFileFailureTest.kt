@@ -30,7 +30,7 @@ class FtpTransferrerLocalFileFailureTest {
     private val session = FtpSession(client, ConnectionLossNotices())
 
     /** 검증 대상. */
-    private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
+    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
 
     @Before
     fun setUp() {
@@ -83,7 +83,7 @@ class FtpTransferrerLocalFileFailureTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpTransferrer(observing, FtpCommandExecutor(session, dataCommands), dataCommands, OperationNotices())
+        val observed = FtpCommandParts(session).transferrer(OperationNotices(), transferSession = observing)
 
         val result = runBlocking { observed.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", target.path, false)), resolveConflict = UnexpectedConflictResolver) }
 
