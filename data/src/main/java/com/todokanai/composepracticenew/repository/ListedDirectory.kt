@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.data.FileEntry
 
 /**
  * 디렉터리 목록 조회 결과.
