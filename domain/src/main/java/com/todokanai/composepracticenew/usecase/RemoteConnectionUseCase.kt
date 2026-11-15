@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
@@ -15,22 +16,26 @@ import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
  * @param nav 원격 화면의 탐색 위치를 다루는 FileNavigatorRepository 구현체. [RemoteConnectionRepository.rootPathOf]가 돌려준 경로로의 이동을
  * 접근 권한을 이유로 거부하지 않아야 한다 — 권한 문제는 이동이 아니라 목록 조회 실패로 드러내, 연결은 유지한 채 다시 시도할 수 있게 한다
  * @param lastConnectionRepo 연결에 성공한 서버 id를 기록하는 LastConnectionRepository 구현체
+ * @param failureAlerts 연결 시도를 시작할 때 아직 알리지 않은 이전 시도의 실패를 빼는 연결 실패 알림함
  */
 class RemoteConnectionUseCase(
     private val connection: RemoteConnectionRepository,
     private val nav: FileNavigatorRepository,
-    private val lastConnectionRepo: LastConnectionRepository
+    private val lastConnectionRepo: LastConnectionRepository,
+    private val failureAlerts: ConnectFailureAlertReporter
 ) {
     /**
      * 원격 스토리지에 연결하고, 연결되면 루트 경로로 이동한 뒤 그 서버를 마지막 연결 서버로 기록한다.
      * 기록을 연결 안에 두어, 어느 경로로 연결하든 재연결 대상이 연결한 서버와 어긋나지 않게 한다.
      * 포트가 범위를 벗어난 접속 정보(입력 검증이 생기기 전에 저장된 값 등)는 접속할 수 없으므로 연결을 시도하지 않고 [ConnectFailureReason.INVALID_PORT]로 알린다.
+     * 시작할 때 아직 알리지 않은 이전 시도의 실패를 알림함([failureAlerts])에서 뺀다 — 이 시도가 성공한 뒤 이전 실패가 보여 이 연결이 실패한 것처럼 보이지 않도록.
      * @param item 연결할 원격 스토리지 접속 정보
      * @return 연결 결과. 실패하면 기록하지 않고 이동하지 않는다
      * @throws IllegalStateException 연결한 서버의 루트 경로로 이동이 거부됐을 때. [nav]는 이 이동을 권한으로 거부하지 않으므로,
      * 루트 경로 형식과 탐색 저장소가 다루는 경로가 어긋난 배선 오류다
      */
     suspend fun connectAndNavigate(item: RemoteStorageItem): ConnectResult {
+        failureAlerts.connectionStarted()
         if (item.port !in RemoteStorageItem.PORT_RANGE) return ConnectResult.Failed(ConnectFailureReason.INVALID_PORT)
         val result = connection.connect(item)
         if (result == ConnectResult.Connected) {

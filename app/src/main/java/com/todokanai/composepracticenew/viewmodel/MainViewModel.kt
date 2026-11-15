@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.ConnectFailureAlert
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.OperationNotice
 import com.todokanai.composepracticenew.model.PreferenceFailure
@@ -10,6 +11,7 @@ import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
+import com.todokanai.composepracticenew.usecase.ConnectFailureAlertUseCase
 import com.todokanai.composepracticenew.usecase.ConnectionLossNoticeUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
@@ -43,6 +45,7 @@ import javax.inject.Inject
  * @param connectionLossNoticeUseCase 원격 세션의 예기치 않은 끊김을 알려주는 UseCase
  * @param preferenceFailureUseCase 설정 저장소의 읽기·저장 실패와 손상 초기화를 알려주는 UseCase
  * @param cancelOperationUseCase 진행 중인 작업을 취소하는 UseCase
+ * @param connectFailureAlertUseCase 다시 시도하면 될 수 있는 원격 연결 실패를 알려주는 UseCase
  */
 @HiltViewModel
 class MainViewModel @Inject constructor(
@@ -52,7 +55,8 @@ class MainViewModel @Inject constructor(
     private val exitHandler: AppExitHandler,
     private val connectionLossNoticeUseCase: ConnectionLossNoticeUseCase,
     private val preferenceFailureUseCase: PreferenceFailureUseCase,
-    private val cancelOperationUseCase: CancelOperationUseCase
+    private val cancelOperationUseCase: CancelOperationUseCase,
+    private val connectFailureAlertUseCase: ConnectFailureAlertUseCase
 ) : ViewModel() {
 
     /**
@@ -89,6 +93,13 @@ class MainViewModel @Inject constructor(
      * @param show 끊김을 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수. 취소되면 보여 주던 것을 거둬야 한다
      */
     suspend fun showConnectionLosses(show: suspend () -> Unit): Nothing = connectionLossNoticeUseCase.deliver { show() }
+
+    /**
+     * 다시 시도하면 될 수 있는 원격 연결 실패를 [show]로 하나씩, 앞 알림을 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
+     * 보이는 화면이 없을 때 실패한 것과 보여 주는 도중 화면이 사라진 알림도 부르면 받고, 그 사이 새 연결 시도를 시작했으면 받지 않는다. 보여 주는 도중 새 연결 시도를 시작하면 [show]를 취소한다.
+     * @param show 연결 실패를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수. 취소되면 보여 주던 것을 거둬야 한다
+     */
+    suspend fun showConnectFailures(show: suspend (ConnectFailureAlert) -> Unit): Nothing = connectFailureAlertUseCase.deliver(show)
 
     /**
      * 설정 저장소의 실패를 [show]로 하나씩, 앞 실패를 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.

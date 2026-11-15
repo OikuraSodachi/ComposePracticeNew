@@ -1,11 +1,13 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ConnectFailureAlert
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteStorageItem
+import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,4 +64,18 @@ internal class FakeNavigator(private val result: NavigateResult = NavigateResult
     }
 
     override fun refresh() = Unit
+}
+
+/** 새 연결 시도의 시작과 맡긴 연결 실패를 받은 순서대로 기록하는 가짜 연결 실패 알림함. */
+internal class RecordingConnectFailureAlerts : ConnectFailureAlertReporter {
+    /** 받은 호출. 연결 시작은 null, 맡긴 실패는 그 실패로 받은 순서대로 쌓는다. */
+    val events = mutableListOf<ConnectFailureAlert?>()
+
+    override fun report(alert: ConnectFailureAlert) {
+        events += alert
+    }
+
+    override fun connectionStarted() {
+        events += null
+    }
 }

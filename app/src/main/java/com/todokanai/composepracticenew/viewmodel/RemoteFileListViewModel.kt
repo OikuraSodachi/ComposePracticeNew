@@ -15,6 +15,7 @@ import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
+import com.todokanai.composepracticenew.usecase.ConnectFailureReportUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
@@ -22,11 +23,8 @@ import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -44,6 +42,7 @@ import javax.inject.Inject
  * @param connectionResilienceUseCase 마지막 서버 자동 재연결 UseCase
  * @param connectionStateUseCase 원격 연결 상태(끊김 포함)를 제공하는 UseCase
  * @param conflictCheckUseCase 이름 변경 시 같은 이름 항목과의 겹침을 판정하는 UseCase
+ * @param connectFailureReportUseCase 다시 시도하면 될 수 있는 자동 재연결 실패를 알림함에 맡기는 UseCase
  * @param messages 작업 완료 메시지 제공자
  * @param folderNames 새 폴더 다이얼로그의 기본 이름 제공자
  */
@@ -55,19 +54,13 @@ class RemoteFileListViewModel @Inject constructor(
     private val connectionResilienceUseCase: RemoteConnectionResilienceUseCase,
     connectionStateUseCase: RemoteConnectionStateUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
+    connectFailureReportUseCase: ConnectFailureReportUseCase,
     private val messages: CompletionMessages,
     private val folderNames: NewFolderNameDefaults,
 ) : ViewModel() {
 
-    /** 자동 재연결 실패를 이유에 맞는 알림(이벤트·다이얼로그)으로 바꾼다. */
-    private val reconnectFailureNotice = ConnectFailureNotice()
-
-    /** 다시 시도하면 될 수 있는 자동 재연결 실패 이벤트. */
-    val reconnectFailed: SharedFlow<Unit> = reconnectFailureNotice.connectionFailed
-
-    private val _reconnectSettingsUnreadable = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** 설정을 읽지 못해 다시 연결할 서버를 알 수 없었던 자동 재연결 실패 이벤트. 저장된 서버가 없는 경우와 구별해 알리도록 따로 둔다. */
-    val reconnectSettingsUnreadable: SharedFlow<Unit> = _reconnectSettingsUnreadable.asSharedFlow()
+    /** 자동 재연결 실패를 이유에 맞는 알림(알림함·다이얼로그)으로 바꾼다. */
+    private val reconnectFailureNotice = ConnectFailureNotice(connectFailureReportUseCase)
 
     /** 자동 재연결한 서버의 파일 목록을 읽을 수 없어 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
     val unreadableServer: StateFlow<Boolean> = reconnectFailureNotice.unreadableServer
@@ -103,7 +96,7 @@ class RemoteFileListViewModel @Inject constructor(
                     // 설정 저장소는 결과로 돌려준 읽기 실패를 따로 알리지 않으므로, 결과를 받은 이 화면이 이유와 함께 알린다
                     ReconnectResult.SettingsUnreadable -> {
                         Log.w(TAG, "reconnectLast — 설정을 읽지 못해 재연결할 서버를 알 수 없음")
-                        _reconnectSettingsUnreadable.tryEmit(Unit)
+                        reconnectFailureNotice.notifyReconnectSettingsUnreadable()
                     }
                     is ReconnectResult.Failed -> {
                         Log.w(TAG, "reconnectLast — 재연결 실패: ${result.reason}")
