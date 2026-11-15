@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageInput
+import com.todokanai.composepracticenew.model.RemoteStorageInputCheck
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SavedRemoteId
@@ -15,7 +16,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** [RemoteStorageUseCase]가 입력을 규칙(이름·주소 필수, 포트 1~65535)으로 검증하고, 유효한 입력만 저장하는지 검증하는 단위 테스트. */
+/** [RemoteStorageUseCase]가 입력을 규칙(이름·주소 필수, 포트 1~65535)으로 검증하고, 검증을 통과한 입력을 그대로 저장하는지 검증하는 단위 테스트. */
 class RemoteStorageInputValidationTest {
 
     /** 저장 요청을 기록하는 가짜 저장소. */
@@ -25,18 +26,18 @@ class RemoteStorageInputValidationTest {
 
     @Test
     fun `이름·주소가 있고 포트가 범위 안이면 유효하다`() {
-        assertTrue(useCase.validateInput(input(name = "nas", address = "192.168.0.1", port = "21")).isEmpty())
+        assertTrue(useCase.validateInput(input(name = "nas", address = "192.168.0.1", port = "21")) is RemoteStorageInputCheck.Valid)
     }
 
     @Test
     fun `아이디·비밀번호와 무관하게 이름·주소·포트만 검증한다`() {
-        assertTrue(useCase.validateInput(input(name = "n", address = "a", port = "65535")).isEmpty())
+        assertTrue(useCase.validateInput(input(name = "n", address = "a", port = "65535")) is RemoteStorageInputCheck.Valid)
     }
 
     @Test
     fun `공백뿐인 이름과 주소는 거부한다`() {
         assertEquals(
-            setOf(RemoteStorageInputError.NAME_BLANK, RemoteStorageInputError.ADDRESS_BLANK),
+            RemoteStorageInputCheck.Invalid(setOf(RemoteStorageInputError.NAME_BLANK, RemoteStorageInputError.ADDRESS_BLANK)),
             useCase.validateInput(input(name = "  ", address = "", port = "21"))
         )
     }
@@ -46,20 +47,21 @@ class RemoteStorageInputValidationTest {
         listOf("0", "65536", "-1", "abc", "", " 21").forEach { port ->
             assertEquals(
                 "port=\"$port\"",
-                setOf(RemoteStorageInputError.PORT_OUT_OF_RANGE),
+                RemoteStorageInputCheck.Invalid(setOf(RemoteStorageInputError.PORT_OUT_OF_RANGE)),
                 useCase.validateInput(input(name = "n", address = "a", port = port))
             )
         }
         listOf("1", "21", "65535").forEach { port ->
-            assertTrue("port=\"$port\"", useCase.validateInput(input(name = "n", address = "a", port = port)).isEmpty())
+            assertTrue("port=\"$port\"", useCase.validateInput(input(name = "n", address = "a", port = port)) is RemoteStorageInputCheck.Valid)
         }
     }
 
     @Test
-    fun `유효한 입력은 포트를 숫자로 바꾸고 id와 프로토콜 설정을 유지해 저장한다`() {
+    fun `검증을 통과한 입력은 포트를 숫자로 바꾸고 id와 프로토콜 설정을 유지해 저장한다`() {
         val settings = RemoteProtocolSettings.Ftp("EUC-KR")
+        val check = useCase.validateInput(input(id = 7, name = "nas", address = "a", port = "2121", settings = settings))
 
-        runBlocking { useCase.save(input(id = 7, name = "nas", address = "a", port = "2121", settings = settings)) }
+        runBlocking { useCase.save(check as RemoteStorageInputCheck.Valid) }
 
         assertEquals(
             listOf(RemoteStorageItem(id = 7, name = "nas", address = "a", port = 2121, userId = "u", password = "p", settings = settings)),
@@ -67,13 +69,9 @@ class RemoteStorageInputValidationTest {
         )
     }
 
-    @Test
-    fun `규칙을 위반한 입력은 저장하지 않는다`() {
-        listOf(input(name = "", address = "a", port = "21"), input(name = "n", address = "a", port = "70000")).forEach {
-            runBlocking { useCase.save(it) }
-        }
-
-        assertEquals(emptyList<RemoteStorageItem>(), repo.inserted)
+    @Test(expected = IllegalArgumentException::class)
+    fun `위반한 규칙이 없는 거부 결과는 만들 수 없다`() {
+        RemoteStorageInputCheck.Invalid(emptySet())
     }
 
     /**

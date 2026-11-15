@@ -4,7 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.NavigateResult
-import com.todokanai.composepracticenew.model.RemoteStorageInputError
+import com.todokanai.composepracticenew.model.RemoteStorageInputCheck
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
@@ -118,22 +118,22 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    /** 원격 스토리지 추가·수정 입력값을 검증해 위반한 규칙의 집합을 반환한다. 비어 있으면 유효한 입력이다. */
-    fun validateRemoteStorageInput(input: RemoteStorageInput): Set<RemoteStorageInputError> =
+    /** 원격 스토리지 추가·수정 입력값을 검증한다. 통과하면 저장에 넘길 값을, 위반하면 위반한 규칙을 돌려준다. */
+    fun validateRemoteStorageInput(input: RemoteStorageInput): RemoteStorageInputCheck =
         remoteStorageUseCase.validateInput(input.toDomain())
 
-    /** 입력한 접속 정보로 원격 스토리지를 추가한다. */
-    fun addRemoteStorage(input: RemoteStorageInput) {
+    /** 검증을 통과한 접속 정보로 원격 스토리지를 추가한다. */
+    fun addRemoteStorage(input: RemoteStorageInputCheck.Valid) {
         viewModelScope.launch {
-            remoteStorageUseCase.save(input.toDomain())
+            remoteStorageUseCase.save(input)
         }
     }
 
-    /** 기존 원격 스토리지 접속 정보를 입력한 값으로 수정한다. 연결 작업이 진행 중이면 무시한다. */
-    fun updateRemoteStorage(input: RemoteStorageInput) {
+    /** 기존 원격 스토리지 접속 정보를 검증을 통과한 값으로 수정한다. 연결 작업이 진행 중이면 무시한다. */
+    fun updateRemoteStorage(input: RemoteStorageInputCheck.Valid) {
         if (connectInProgress.value) return
         viewModelScope.launch {
-            remoteStorageUseCase.save(input.toDomain())
+            remoteStorageUseCase.save(input)
         }
     }
 
