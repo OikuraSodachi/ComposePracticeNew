@@ -28,7 +28,6 @@ import com.todokanai.composepracticenew.repository.StorageNameMatching
 import com.todokanai.composepracticenew.repository.StorageNameRules
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
-import com.todokanai.composepracticenew.tools.DestinationUnverifiedMessage
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.ConflictQuestionUseCase
@@ -145,8 +144,8 @@ object UseCaseModule {
     ) = RemoteConnectionResilienceUseCase(lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
 
     @Provides @Singleton
-    fun provideConflictCheckUseCase(notices: OperationNoticeReporter, nameMatching: StorageNameMatching, messages: DestinationUnverifiedMessage) =
-        ConflictCheckUseCase(notices, nameMatching) { messages.destinationUnverified }
+    fun provideConflictCheckUseCase(notices: OperationNoticeReporter, nameMatching: StorageNameMatching) =
+        ConflictCheckUseCase(notices, nameMatching)
 
     @Provides @Singleton
     fun provideUploadConflictCheckUseCase(conflictCheck: ConflictCheckUseCase, sourceInfo: FolderEntryNamesRepository, nameMatching: StorageNameMatching) =

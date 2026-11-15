@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NoticeMessage
+import com.todokanai.composepracticenew.model.OpenFailure
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileLaunchResult
 import com.todokanai.composepracticenew.repository.FileLauncher
@@ -34,28 +36,28 @@ class OpenFileUseCaseTest {
 
         assertEquals(listOf(file.path), launcher.launched)
         assertEquals(emptyList<String>(), nav.navigated)
-        assertEquals(emptyList<String>(), notices.failures)
+        assertEquals(emptyList<NoticeMessage>(), notices.failures)
     }
 
     @Test
     fun `형식을 알 수 없어 열지 못하면 그 이유를 알린다`() = runBlocking {
         OpenFileUseCase(nav, RecordingFileLauncher(FileLaunchResult.UnknownType), notices).open(file)
 
-        assertEquals(listOf("열기 실패: 형식을 알 수 없는 파일입니다 (song.mp3)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.OpenFailed(OpenFailure.UNKNOWN_TYPE, "song.mp3")), notices.failures)
     }
 
     @Test
     fun `여는 앱이 없으면 그 이유를 알린다`() = runBlocking {
         OpenFileUseCase(nav, RecordingFileLauncher(FileLaunchResult.NoHandler), notices).open(file)
 
-        assertEquals(listOf("열기 실패: 이 파일을 열 수 있는 앱이 없습니다 (song.mp3)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.OpenFailed(OpenFailure.NO_HANDLER, "song.mp3")), notices.failures)
     }
 
     @Test
     fun `여는 앱이 열기를 거부하면 그 이유를 알린다`() = runBlocking {
         OpenFileUseCase(nav, RecordingFileLauncher(FileLaunchResult.Refused), notices).open(file)
 
-        assertEquals(listOf("열기 실패: 이 파일을 여는 앱이 열기를 허용하지 않습니다 (song.mp3)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.OpenFailed(OpenFailure.REFUSED, "song.mp3")), notices.failures)
     }
 
     /**

@@ -10,6 +10,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
@@ -31,8 +32,6 @@ import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
-import com.todokanai.composepracticenew.tools.CompletionMessages
-import com.todokanai.composepracticenew.tools.DestinationUnverifiedMessage
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.tools.ProtectionRefusedMessage
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
@@ -120,7 +119,7 @@ internal class InMemorySortPreference : SortPreferenceRepository {
 /** 알림을 표시하지 않는 테스트용 알림기. */
 internal object NoOpNotifier : FileOperationNotifier {
     override fun progressNoti(state: ProgressState, instanceId: Int) {}
-    override fun completedNotification(message: String, instanceId: Int) {}
+    override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
     override fun cancelNotification(instanceId: Int) {}
     override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
 }
@@ -131,13 +130,7 @@ internal object GrantedProtection : OperationProtection {
 }
 
 /** 고정 문구를 돌려주는 테스트용 메시지 제공자. */
-internal object FixedMessages : CompletionMessages, NewFolderNameDefaults, DestinationUnverifiedMessage, ProtectionRefusedMessage {
-    override val notiComplete = "완료"
-    override val notiMoveComplete = "이동 완료"
-    override val notiDeleteComplete = "삭제 완료"
-    override val notiDownloadComplete = "다운로드 완료"
-    override val notiUploadComplete = "업로드 완료"
-    override val destinationUnverified = "목록 미확인"
+internal object FixedMessages : NewFolderNameDefaults, ProtectionRefusedMessage {
     override val defaultNewFolderName = "새 폴더"
     override val protectionRefused = "보호 거부"
 }
@@ -178,12 +171,12 @@ internal class RecordingFileLauncher : FileLauncher {
 /** 넣은 실패·완료 메시지를 종류별로 기록하는 테스트용 메시지 저장소. */
 internal class RecordingOperationNotices : OperationNoticeReporter {
     /** 넣은 실패(거부 포함) 메시지(넣은 순서). */
-    val failures = mutableListOf<String>()
+    val failures = mutableListOf<NoticeMessage>()
 
     /** 넣은 완료 메시지(넣은 순서). */
-    val completions = mutableListOf<String>()
+    val completions = mutableListOf<NoticeMessage>()
 
-    override fun report(kind: OperationNoticeKind, message: String) {
+    override fun report(kind: OperationNoticeKind, message: NoticeMessage) {
         when (kind) {
             OperationNoticeKind.FAILURE -> failures += message
             OperationNoticeKind.COMPLETION -> completions += message

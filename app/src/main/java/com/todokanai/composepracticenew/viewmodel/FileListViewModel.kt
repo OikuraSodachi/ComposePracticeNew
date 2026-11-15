@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileNameParts
-import com.todokanai.composepracticenew.tools.CompletionMessages
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
@@ -38,7 +37,6 @@ import javax.inject.Inject
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
- * @param messages 작업 완료 메시지 제공자
  * @param folderNames 새 폴더 다이얼로그의 기본 이름 제공자
  */
 @HiltViewModel
@@ -48,7 +46,6 @@ class FileListViewModel @Inject constructor(
     sortModeUseCase: SortModeUseCase,
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
-    private val messages: CompletionMessages,
     folderNames: NewFolderNameDefaults,
 ) : ViewModel() {
 
@@ -160,7 +157,6 @@ class FileListViewModel @Inject constructor(
         localFileOperationUseCase.makeDirectory(
             parentPath = target,
             name = name,
-            completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -192,10 +188,10 @@ class FileListViewModel @Inject constructor(
         val targets = selection.items.mapTo(LinkedHashSet()) { it.path }
         val onRefresh: suspend () -> Unit = { fileNavigatorUseCase.refresh() }
         when (mode) {
-            SelectMode.LocalOperation.Copy -> localFileOperationUseCase.copy(targets, destPath, messages.notiComplete, onRefresh)
-            SelectMode.LocalOperation.Move -> localFileOperationUseCase.move(targets, destPath, messages.notiMoveComplete, onRefresh)
-            SelectMode.LocalOperation.Unzip -> localFileOperationUseCase.unzip(targets, destPath, ExtractLayout.IntoArchiveFolder, messages.notiComplete, onRefresh)
-            SelectMode.LocalOperation.UnzipHere -> localFileOperationUseCase.unzip(targets, destPath, ExtractLayout.IntoDestination, messages.notiComplete, onRefresh)
+            SelectMode.LocalOperation.Copy -> localFileOperationUseCase.copy(targets, destPath, onRefresh)
+            SelectMode.LocalOperation.Move -> localFileOperationUseCase.move(targets, destPath, onRefresh)
+            SelectMode.LocalOperation.Unzip -> localFileOperationUseCase.unzip(targets, destPath, ExtractLayout.IntoArchiveFolder, onRefresh)
+            SelectMode.LocalOperation.UnzipHere -> localFileOperationUseCase.unzip(targets, destPath, ExtractLayout.IntoDestination, onRefresh)
         }
     }
 
@@ -212,7 +208,6 @@ class FileListViewModel @Inject constructor(
             parentPath = folder,
             name = name,
             format = archiveFormat,
-            completionMessage = messages.notiComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -230,7 +225,6 @@ class FileListViewModel @Inject constructor(
                 path = item.path,
                 newName = name,
                 overwrite = overwrite,
-                completionMessage = messages.notiComplete,
                 onRefresh = { fileNavigatorUseCase.refresh() }
             )
         }
@@ -243,7 +237,6 @@ class FileListViewModel @Inject constructor(
     fun delete(selection: SubmittedSelection) {
         localFileOperationUseCase.delete(
             files = selection.items.map { it.toDomain() },
-            completionMessage = messages.notiDeleteComplete,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }

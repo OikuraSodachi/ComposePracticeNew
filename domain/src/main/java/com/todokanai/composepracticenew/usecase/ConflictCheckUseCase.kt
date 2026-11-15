@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -15,12 +16,10 @@ import com.todokanai.composepracticenew.repository.StorageNameMatching
  * 이름은 그 폴더 저장소의 비교 규칙([StorageNameMatching])으로만 비교하므로, 모든 판정이 저장소가 같은 항목으로 다룰 수 있는 이름을 겹침으로 본다.
  * @param notices 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param nameMatching 이름이 놓인 폴더의 저장소가 같은 항목으로 다룰 수 있는 이름을 가려내는 StorageNameMatching
- * @param unverifiedMessage 목적지 목록을 확인하지 못해 작업을 실행하지 않았다는 오류 메시지를 반환하는 함수
  */
 class ConflictCheckUseCase(
     private val notices: OperationNoticeReporter,
     private val nameMatching: StorageNameMatching,
-    private val unverifiedMessage: () -> String,
 ) {
 
     /**
@@ -129,7 +128,7 @@ class ConflictCheckUseCase(
      * @return [listing] 그대로
      */
     private fun verifiedOrReject(listing: DirectoryListing.Loaded?): DirectoryListing.Loaded? =
-        listing ?: null.also { notices.report(OperationNoticeKind.FAILURE, unverifiedMessage()) }
+        listing ?: null.also { notices.report(OperationNoticeKind.FAILURE, NoticeMessage.DestinationUnverified) }
 
     /**
      * [listing]의 항목 중 [newName]과 겹치는 항목으로 이름 변경의 처리 방식을 정한다.

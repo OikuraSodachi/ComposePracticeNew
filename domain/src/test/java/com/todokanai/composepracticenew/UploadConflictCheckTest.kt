@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FolderEntryNames
@@ -31,7 +32,7 @@ class UploadConflictCheckTest {
     /** 대소문자만 다른 이름을 같은 항목으로 보는 목적지 저장소의 이름 비교 규칙. */
     private val nameMatching = RecordingCaseInsensitiveNameMatching()
     private val sourceInfo = FakeSourceInfo()
-    private val useCase = UploadConflictCheckUseCase(ConflictCheckUseCase(notices, nameMatching) { UNVERIFIED }, sourceInfo, nameMatching)
+    private val useCase = UploadConflictCheckUseCase(ConflictCheckUseCase(notices, nameMatching), sourceInfo, nameMatching)
 
     private val destination = ListingRequest("/r", generation = 1L)
 
@@ -84,7 +85,7 @@ class UploadConflictCheckTest {
         nav.directoryListing.value = DirectoryListing.Loading(destination)
 
         assertNull(findConflicts(listOf(item("/src/photos"))))
-        assertEquals(listOf(UNVERIFIED), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationUnverified), notices.failures)
         assertEquals(emptyList<List<String>>(), sourceInfo.requests)
     }
 
@@ -102,10 +103,6 @@ class UploadConflictCheckTest {
     private fun item(path: String) =
         FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), sizeBytes = 1L, lastModifiedMillis = 0L)
 
-    private companion object {
-        /** 테스트용 미확인 거부 메시지. */
-        const val UNVERIFIED = "목록 미확인"
-    }
 
     /** 폴더 안 항목 이름을 테스트가 정하고, 읽기 요청을 기록하는 원본 저장소. */
     private class FakeSourceInfo : FolderEntryNamesRepository {

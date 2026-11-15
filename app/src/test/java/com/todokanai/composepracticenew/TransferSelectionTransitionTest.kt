@@ -226,8 +226,7 @@ class TransferSelectionTransitionTest {
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase(NoStorageNameRules)),
-            UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified }, folderEntries, ExactNameMatching),
-            FixedMessages,
+            UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), folderEntries, ExactNameMatching),
             RemoteConnectionStateUseCase(connection)
         )
     }

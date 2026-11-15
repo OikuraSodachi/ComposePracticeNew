@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.LeftoverCause
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
@@ -59,7 +61,7 @@ class FtpTransferrerCancelledUploadTest {
         assertThrows(CancellationException::class.java) { runBlocking { uploadCancelledMidway() } }
 
         assertEquals(
-            listOf("업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (${client.storeRequests.single()}) — DELE 실패: 550 Permission denied"),
+            listOf(NoticeMessage.UploadLeftover(client.storeRequests.single(), LeftoverCause.Refused("550 Permission denied"))),
             notices.failures
         )
         assertTrue(runBlocking { session.isReady() })
@@ -73,7 +75,7 @@ class FtpTransferrerCancelledUploadTest {
 
         assertTrue(client.deleteRequests.isEmpty())
         assertEquals(
-            listOf("업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (${client.storeRequests.single()}) — 연결이 끊겨 지우지 못했습니다"),
+            listOf(NoticeMessage.UploadLeftover(client.storeRequests.single(), LeftoverCause.SessionEnded)),
             notices.failures
         )
         assertFalse(runBlocking { session.isReady() })
@@ -86,7 +88,7 @@ class FtpTransferrerCancelledUploadTest {
         assertThrows(CancellationException::class.java) { runBlocking { uploadCancelledMidway() } }
 
         assertEquals(
-            listOf("업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (${client.storeRequests.single()}) — 연결이 끊겨 지우지 못했습니다"),
+            listOf(NoticeMessage.UploadLeftover(client.storeRequests.single(), LeftoverCause.SessionEnded)),
             notices.failures
         )
         assertFalse(runBlocking { session.isReady() })
@@ -100,8 +102,8 @@ class FtpTransferrerCancelledUploadTest {
 
     /** 넣은 실패 메시지를 넣은 순서대로 기록하는 테스트용 메시지 저장소. */
     private class RecordingNotices : OperationNoticeReporter {
-        val failures = mutableListOf<String>()
-        override fun report(kind: OperationNoticeKind, message: String) {
+        val failures = mutableListOf<NoticeMessage>()
+        override fun report(kind: OperationNoticeKind, message: NoticeMessage) {
             if (kind == OperationNoticeKind.FAILURE) failures += message
         }
     }

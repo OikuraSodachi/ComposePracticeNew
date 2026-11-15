@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
@@ -31,7 +32,7 @@ class ConflictCheckVerificationTest {
     private val navigator = FileNavigatorUseCase(nav, nav)
     /** 대소문자만 다른 이름을 같은 항목으로 보는 목적지 저장소의 이름 비교 규칙. */
     private val nameMatching = RecordingCaseInsensitiveNameMatching()
-    private val useCase = ConflictCheckUseCase(notices, nameMatching) { UNVERIFIED }
+    private val useCase = ConflictCheckUseCase(notices, nameMatching)
 
     private val current = ListingRequest("/a", generation = 2L)
     private val previous = ListingRequest("/a", generation = 1L)
@@ -201,7 +202,7 @@ class ConflictCheckVerificationTest {
     /** 판정하지 않고(null) 거부를 한 번 알렸는지 확인한다. */
     private fun assertUnverified(result: Any?) {
         assertNull(result)
-        assertEquals(listOf(UNVERIFIED), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationUnverified), notices.failures)
     }
 
     /** [path]의 파일 항목을 만든다. */
@@ -211,10 +212,6 @@ class ConflictCheckVerificationTest {
     /** [path]의 폴더 항목을 만든다. */
     private fun folder(path: String) = item(path).copy(isDirectory = true)
 
-    private companion object {
-        /** 테스트용 미확인 거부 메시지. */
-        const val UNVERIFIED = "목록 미확인"
-    }
 
     /** 현재 요청과 목록 상태를 테스트가 정하는 테스트용 탐색 저장소. */
     private class FakeNavigator : FileNavigatorRepository, StoragePathRules {

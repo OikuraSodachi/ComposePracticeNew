@@ -10,9 +10,9 @@ import com.todokanai.composepracticenew.model.OperationNotice as DomainOperation
  * @param message 사용자에게 보일 문구
  */
 @Immutable
-data class OperationNotice(val kind: OperationNoticeKind, val message: String) {
+data class OperationNotice(val kind: OperationNoticeKind, val message: UiText) {
     companion object {
         /** domain [DomainOperationNotice]를 표시용 메시지로 바꾼다. */
-        fun from(notice: DomainOperationNotice) = OperationNotice(notice.kind, notice.message)
+        fun from(notice: DomainOperationNotice) = OperationNotice(notice.kind, noticeTextOf(notice.message))
     }
 }

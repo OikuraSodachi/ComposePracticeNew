@@ -4,7 +4,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.RemoteConnectionState
-import com.todokanai.composepracticenew.tools.CompletionMessages
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
@@ -40,7 +39,6 @@ import javax.inject.Inject
  * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록을 제공하는 UseCase
  * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
  * @param uploadConflictCheckUseCase 업로드 전에 확인할 겹침(목적지에 이미 있는 이름, 함께 올리는 항목끼리)을 모으는 UseCase
- * @param messages 작업 완료 메시지 제공자
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  */
 @HiltViewModel
@@ -49,7 +47,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     @RemoteNavigator private val remoteNavigator: FileNavigatorUseCase,
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     private val uploadConflictCheckUseCase: UploadConflictCheckUseCase,
-    private val messages: CompletionMessages,
     connectionStateUseCase: RemoteConnectionStateUseCase,
 ) : ViewModel() {
 
@@ -242,7 +239,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         remoteFileOperationUseCase.download(
             items = items.map { it.toDomain() },
             localDestPath = localDestPath,
-            completionMessage = messages.notiDownloadComplete,
             onRefresh = { localNavigator.refresh() }
         )
     }
@@ -252,7 +248,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         remoteFileOperationUseCase.upload(
             items = items.map { it.toDomain() },
             remoteDestPath = remoteDestPath,
-            completionMessage = messages.notiUploadComplete,
             onRefresh = { remoteNavigator.refresh() }
         )
     }

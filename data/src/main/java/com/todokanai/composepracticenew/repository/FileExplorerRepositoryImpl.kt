@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
@@ -50,17 +51,10 @@ class FileExplorerRepositoryImpl(
         val fileSystem = router.resolve(path)
         val resolved = fileSystem?.resolveNavigationPath(path)
         if (resolved == null) {
-            notices.report(OperationNoticeKind.FAILURE, rejectionNotice(fileSystem?.displayName(path) ?: path))
+            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.FolderUnreadable(fileSystem?.displayName(path) ?: path))
             return NavigateResult.Rejected
         }
         navigation.navigateTo(resolved)
         return NavigateResult.Navigated
     }
-
-    /**
-     * 거부한 이동을 알리는 문구를 만든다.
-     * @param name 열지 못한 폴더의 표시 이름
-     * @return 표시할 문구
-     */
-    private fun rejectionNotice(name: String): String = "폴더를 열 수 없습니다 ($name)"
 }

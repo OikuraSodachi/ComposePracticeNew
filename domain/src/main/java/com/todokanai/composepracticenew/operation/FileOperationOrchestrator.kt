@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.operation
 
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
@@ -20,9 +21,6 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
-
-/** 실패 메시지가 없을 때 표시할 메시지. */
-private const val UNKNOWN_FAILURE_MESSAGE = "알 수 없는 오류"
 
 /**
  * 파일 작업의 공통 인프라(인스턴스 ID, 진행 핸들, 콜백, 실행 스코프)를 제공하는 오케스트레이터.
@@ -81,23 +79,22 @@ class FileOperationOrchestrator(
      * 보호는 시스템의 실행 시간 한도까지이며, 한도 이후의 보호는 지원 범위 밖이다.
      * 순간 작업(operationType null)은 보호를 요청하지 않는다.
      * 취소([cancel])는 onProgress 안에서 확인한다 — 취소된 뒤의 진행 보고는 CancellationException을 던지므로, 진행을 보고하는 작업은 따로 확인하지 않아도 다음 보고에서 멈춘다.
-     * @param completionMessage 작업 완료 시 표시할 메시지
+     * 완료·취소 메시지는 [operationType]으로 정한다.
      * @param operationType 작업 종류. null이면 진행 알림 없음
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @param block 실제 IO 작업 코드. onProgress 콜백으로 진행 상태를 보고하고, 실패는 결과로 돌려준다. onProgress가 던진 취소는 잡지 않고 전파한다
      * @return Unit
      */
     fun launch(
-        completionMessage: String,
         operationType: FileOperationType? = null,
         onRefresh: suspend () -> Unit,
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) {
         val handle = startHandle(operationType)
-        val callback = OperationCallback(completionMessage, cancelledMessageOf(operationType), onRefresh)
+        val callback = OperationCallback(operationType, onRefresh)
         launchOperation(handle, callback) {
-            if (operationType != null) protection.acquire().valueOr { return@launchOperation it }
-            block(progressReporterOf(handle, operationType))
+            if (operationType != null) protection.acquire().valueOr { return@launchOperation OperationOutcome.Finished(it) }
+            OperationOutcome.Finished(block(progressReporterOf(handle, operationType)))
         }
     }
 
@@ -106,22 +103,20 @@ class FileOperationOrchestrator(
      * 묻는 동안 작업은 멈추고 진행 알림은 답을 기다리는 상태가 된다. 답을 받으면 마지막 진행 상태로 알림을 되돌린다.
      * 사용자가 질문에서 취소하면 취소로, 질문 하나에 [MAX_CONFLICT_ANSWER_WAIT] 동안 답이 없으면 실패로 끝낸다. 어느 쪽이든 이미 처리한 항목은 그대로 둔다.
      * "나머지에도 적용"한 답은 이 작업 안에서만 쓴다.
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param operationType 작업 종류. 묻는 작업은 진행 표시가 있는 작업이다
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @param block 실제 IO 작업 코드. 진행 보고 콜백과 충돌을 묻는 통로를 받고, 실패는 결과로 돌려준다
      * @return Unit
      */
     fun launchResolvingConflicts(
-        completionMessage: String,
         operationType: FileOperationType,
         onRefresh: suspend () -> Unit,
         block: suspend (onProgress: (ProgressState) -> Unit, resolveConflict: WriteConflictResolver) -> IoResult<Unit>
     ) {
         val handle = startHandle(operationType)
-        val callback = OperationCallback(completionMessage, cancelledMessageOf(operationType), onRefresh)
+        val callback = OperationCallback(operationType, onRefresh)
         launchOperation(handle, callback) {
-            protection.acquire().valueOr { return@launchOperation it }
+            protection.acquire().valueOr { return@launchOperation OperationOutcome.Finished(it) }
             val resolver = OperationConflictResolver(
                 operationType = operationType,
                 questions = questions,
@@ -129,9 +124,9 @@ class FileOperationOrchestrator(
                 onAnswered = { handle.latest?.let { notifier.progressNoti(it, handle.instanceId) } },
             )
             try {
-                block(progressReporterOf(handle, operationType), resolver)
+                OperationOutcome.Finished(block(progressReporterOf(handle, operationType), resolver))
             } catch (e: UnansweredConflict) {
-                IoResult.ItemFailed(unansweredMessageOf(operationType, e))
+                OperationOutcome.Unanswered(operationType, e.conflict.name)
             }
         }
     }
@@ -154,30 +149,6 @@ class FileOperationOrchestrator(
     }
 
     /**
-     * 충돌 질문에 답이 없어 멈춘 작업의 실패 메시지를 만든다.
-     * @param operationType 작업 종류
-     * @param unanswered 답을 받지 못한 질문
-     * @return 실패 메시지
-     */
-    private fun unansweredMessageOf(operationType: FileOperationType, unanswered: UnansweredConflict): String =
-        "${operationNameOf(operationType)} 중단: '${unanswered.conflict.name}' 충돌 질문에 ${MAX_CONFLICT_ANSWER_WAIT.inWholeHours}시간 동안 답이 없었습니다 — 이미 처리한 항목은 그대로 둡니다"
-
-    /**
-     * 메시지에 쓸 작업 이름을 정한다. 이 클래스의 모든 메시지가 작업 이름을 여기서만 얻는다 — 메시지마다 이름이 어긋나지 않도록.
-     * @param operationType 작업 종류
-     * @return 작업 이름
-     */
-    private fun operationNameOf(operationType: FileOperationType): String = when (operationType) {
-        FileOperationType.COPY -> "복사"
-        FileOperationType.MOVE -> "이동"
-        FileOperationType.DELETE -> "삭제"
-        FileOperationType.COMPRESS -> "압축"
-        FileOperationType.UNZIP -> "압축 해제"
-        FileOperationType.DOWNLOAD -> "다운로드"
-        FileOperationType.UPLOAD -> "업로드"
-    }
-
-    /**
      * 파일 작업을 [appScope]에서 실행하며 완료·실패·진행 상태를 통합 관리하는 실행 엔진.
      * 작업의 실패는 결과([IoResult.Failure])로 받는다. 작업이 던진 예외는 구현 오류이지만, 작업 하나 때문에 앱 수명 스코프가 무너지지 않도록
      * 이곳에서만 실패로 바꿔 그 작업만 끝낸다. 취소는 결과로 바꾸지 않고 알린 뒤 전파한다.
@@ -191,17 +162,23 @@ class FileOperationOrchestrator(
     private fun launchOperation(
         progressHandle: ProgressHandle,
         callback: OperationCallback,
-        work: suspend () -> IoResult<Unit>
+        work: suspend () -> OperationOutcome
     ) {
         val instanceId = progressHandle.instanceId
         val job = appScope.launch(start = CoroutineStart.LAZY) {
             try {
-                val result = runWork(instanceId, callback, work)
+                val outcome = runWork(instanceId, callback, work)
                 // 작업이 끝난 뒤에 온 취소 요청은 결과를 바꾸지 않는다 — 결과 알림·목록 갱신을 끝까지 한다
                 withContext(NonCancellable) {
-                    when (result) {
-                        is IoResult.Success -> callback.onSuccess(instanceId)
-                        is IoResult.Failure -> callback.onFailure(result.message ?: UNKNOWN_FAILURE_MESSAGE, instanceId)
+                    when (outcome) {
+                        is OperationOutcome.Finished -> when (val result = outcome.result) {
+                            is IoResult.Success -> callback.onSuccess(instanceId)
+                            is IoResult.Failure -> callback.onFailure(NoticeMessage.OperationFailed(result.message), instanceId)
+                        }
+                        is OperationOutcome.Unanswered -> callback.onFailure(
+                            NoticeMessage.UnansweredConflict(outcome.operationType, outcome.name, MAX_CONFLICT_ANSWER_WAIT.inWholeHours),
+                            instanceId
+                        )
                     }
                 }
             } finally {
@@ -221,7 +198,7 @@ class FileOperationOrchestrator(
      * @param work 실제 IO 작업 코드
      * @return 작업 결과
      */
-    private suspend fun runWork(instanceId: Int, callback: OperationCallback, work: suspend () -> IoResult<Unit>): IoResult<Unit> =
+    private suspend fun runWork(instanceId: Int, callback: OperationCallback, work: suspend () -> OperationOutcome): OperationOutcome =
         try {
             work()
         } catch (e: CancellationException) {
@@ -229,31 +206,23 @@ class FileOperationOrchestrator(
             withContext(NonCancellable) { callback.onCancelled(instanceId) }
             throw e
         } catch (e: Exception) {
-            IoResult.ItemFailed(e.message)
+            OperationOutcome.Finished(IoResult.ItemFailed(e.message))
         }
 
-    /**
-     * 작업을 취소했을 때 알릴 메시지를 만든다. 취소는 쓰다 만 파일만 지우고 이미 끝난 항목은 되돌리지 않으므로, 그 사실을 함께 알린다.
-     * 끝나기 직전에 취소해 모두 끝난 경우에도 맞는 문구다.
-     * @param operationType 작업 종류. null이면 순간 작업
-     * @return 취소 메시지
-     */
-    private fun cancelledMessageOf(operationType: FileOperationType?): String =
-        operationType?.let { "${operationNameOf(it)} 취소 — ${cancelledRemainderOf(it)}" } ?: "작업 취소"
+    /** 작업 실행의 결과. 작업이 돌려준 결과와, 충돌 질문에 답이 없어 멈춘 경우를 나눈다. */
+    private sealed interface OperationOutcome {
+        /**
+         * 작업이 끝까지 실행돼 결과를 돌려줬다(보호를 받지 못한 실패 포함).
+         * @param result 작업 결과
+         */
+        data class Finished(val result: IoResult<Unit>) : OperationOutcome
 
-    /**
-     * 작업을 취소했을 때 이미 처리한 항목이 어떻게 남는지 알리는 문구를 정한다.
-     * @param operationType 작업 종류
-     * @return 남는 항목에 대한 문구
-     */
-    private fun cancelledRemainderOf(operationType: FileOperationType): String = when (operationType) {
-        FileOperationType.COPY -> "이미 복사한 항목은 그대로 둡니다"
-        FileOperationType.MOVE -> "이미 이동한 항목은 그대로 둡니다"
-        FileOperationType.DELETE -> "이미 삭제한 항목은 되돌리지 않습니다"
-        FileOperationType.COMPRESS -> "끝나지 않은 압축 파일은 지웁니다"
-        FileOperationType.UNZIP -> "이미 푼 항목은 그대로 둡니다"
-        FileOperationType.DOWNLOAD -> "이미 받은 파일은 그대로 둡니다"
-        FileOperationType.UPLOAD -> "이미 올린 파일은 그대로 둡니다"
+        /**
+         * 충돌 질문 하나에 [MAX_CONFLICT_ANSWER_WAIT] 동안 답이 없어 멈췄다.
+         * @param operationType 멈춘 작업의 종류
+         * @param name 답을 받지 못한 항목의 이름
+         */
+        data class Unanswered(val operationType: FileOperationType, val name: String) : OperationOutcome
     }
 
     /**
@@ -282,25 +251,23 @@ class FileOperationOrchestrator(
 
     /**
      * 작업 완료·실패·취소 시 알림·메시지 보관·갱신을 일괄 처리하는 콜백.
-     * 순간 작업(진행 알림 없음)도 완료하면 완료 알림을 띄운다.
-     * @param completionMessage 작업 완료 시 표시할 메시지
-     * @param cancelledMessage 작업 취소 시 표시할 메시지
+     * 순간 작업(진행 알림 없음)도 완료하면 완료 알림을 띄운다. 완료·취소 메시지는 작업 종류로 정한다.
+     * @param operationType 작업 종류. null이면 순간 작업
      * @param onRefresh 작업 완료·실패·취소 후 디렉터리 목록을 갱신하는 콜백
      */
     private inner class OperationCallback(
-        private val completionMessage: String,
-        private val cancelledMessage: String,
+        private val operationType: FileOperationType?,
         private val onRefresh: suspend () -> Unit
     ) {
         /** 성공 시 완료 알림 전송·완료 메시지 보관·갱신을 수행한다. */
         suspend fun onSuccess(instanceId: Int) {
-            notifier.completedNotification(completionMessage, instanceId)
-            notices.report(OperationNoticeKind.COMPLETION, completionMessage)
+            notifier.completedNotification(operationType, instanceId)
+            notices.report(OperationNoticeKind.COMPLETION, NoticeMessage.Completed(operationType))
             onRefresh()
         }
 
         /** 실패 시 알림 취소·실패 메시지 보관·갱신을 수행한다. 진행 알림은 지우므로, 실패는 보관한 메시지로만 알린다. */
-        suspend fun onFailure(message: String, instanceId: Int) {
+        suspend fun onFailure(message: NoticeMessage, instanceId: Int) {
             notifier.cancelNotification(instanceId)
             notices.report(OperationNoticeKind.FAILURE, message)
             onRefresh()
@@ -309,7 +276,7 @@ class FileOperationOrchestrator(
         /** 취소 시 진행 알림 제거·취소 메시지 보관·갱신을 수행한다. 사용자가 요청한 결과이므로 완료와 같은 종류로 알린다. */
         suspend fun onCancelled(instanceId: Int) {
             notifier.cancelNotification(instanceId)
-            notices.report(OperationNoticeKind.COMPLETION, cancelledMessage)
+            notices.report(OperationNoticeKind.COMPLETION, NoticeMessage.Cancelled(operationType))
             onRefresh()
         }
     }

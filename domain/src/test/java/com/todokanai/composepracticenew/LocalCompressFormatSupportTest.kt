@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.model.ArchiveFormat
@@ -39,17 +40,17 @@ class LocalCompressFormatSupportTest {
     fun `저장소가 지원하지 않는 형식은 저장소를 호출하지 않고 진행 표시 없이 거부한다`() {
         val repo = SupportingRepository(supported = emptySet())
 
-        useCaseWith(repo).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP, "done") {}
+        useCaseWith(repo).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP) {}
 
         assertEquals(1, notices.failures.size)
-        assertTrue(notices.failures[0], notices.failures[0].startsWith("압축 실패"))
+        assertEquals(NoticeMessage.UnsupportedArchiveFormat(ArchiveFormat.ZIP.extension), notices.failures[0])
         assertTrue("저장소가 호출되면 안 됨: ${repo.calls}", repo.calls.isEmpty())
         assertTrue("진행이 시작되면 안 됨: ${progressRepo.started}", progressRepo.started.isEmpty())
     }
 
     @Test
     fun `저장소가 지원하는 형식은 거부하지 않는다`() {
-        useCaseWith(SupportingRepository(supported = setOf(ArchiveFormat.ZIP))).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP, "done") {}
+        useCaseWith(SupportingRepository(supported = setOf(ArchiveFormat.ZIP))).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP) {}
 
         assertTrue(notices.failures.toString(), notices.failures.isEmpty())
     }
@@ -88,7 +89,7 @@ class LocalCompressFormatSupportTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(message: String, instanceId: Int) {}
+        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
