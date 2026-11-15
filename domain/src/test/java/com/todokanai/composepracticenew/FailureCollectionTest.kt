@@ -40,7 +40,22 @@ class FailureCollectionTest {
         val result = forEachCollectingFailures(items, "업로드 실패", nameOf = { it }) {
             if (it != "f") IoResult.ItemFailed(null) else IoResult.Done
         }
-        assertEquals("업로드 실패: 5개 항목 (a, b, c 외 2개)", (result as IoResult.Failure).message)
+        assertEquals("업로드 실패: 5개 항목 — 원인 모름 (a, b, c 외 2개)", (result as IoResult.Failure).message)
+    }
+
+    @Test
+    fun `여러 항목이 같은 원인으로 실패하면 그 원인을 함께 표시한다`() = runBlocking {
+        val result = forEachCollectingFailures(listOf("a", "b"), "업로드 실패", nameOf = { it }) {
+            IoResult.ItemFailed("425 Can't open data connection")
+        }
+        assertEquals("업로드 실패: 2개 항목 — 425 Can't open data connection (a, b)", (result as IoResult.Failure).message)
+    }
+
+    @Test
+    fun `원인이 여러 종류면 가장 많은 원인과 나머지 원인의 종류·항목 수를 표시한다`() = runBlocking {
+        val reasons = mapOf("a" to "디스크 부족", "b" to "권한 없음", "c" to "권한 없음", "d" to null)
+        val result = forEachCollectingFailures(reasons.keys, "복사 실패", nameOf = { it }) { IoResult.ItemFailed(reasons.getValue(it)) }
+        assertEquals("복사 실패: 4개 항목 — 권한 없음 2개, 그 밖의 원인 2종 2개 (a, b, c 외 1개)", (result as IoResult.Failure).message)
     }
 
     @Test
@@ -116,7 +131,7 @@ class FailureCollectionTest {
         }
         result as IoResult.PartiallyFailed
         assertEquals(listOf("a.txt", "dir/sub/x.txt"), result.failures.map { it.path })
-        assertEquals("삭제 실패: 2개 항목 (a.txt, dir/sub/x.txt)", result.message)
+        assertEquals("삭제 실패: 2개 항목 — 원인 모름 1개, 그 밖의 원인 1종 1개 (a.txt, dir/sub/x.txt)", result.message)
     }
 
     @Test
