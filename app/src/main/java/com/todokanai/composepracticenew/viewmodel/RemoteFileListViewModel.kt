@@ -182,7 +182,7 @@ class RemoteFileListViewModel @Inject constructor(
         entryNaming.requestRename(item, newName) { _ ->
             remoteFileOperationUseCase.renameRemote(
                 path = item.path,
-                newName = newName,
+                newName = newName,
                 errorMessage = "rename 실패: ${item.name}",
                 onRefresh = { fileNavigatorUseCase.refresh() }
             )
@@ -197,7 +197,7 @@ class RemoteFileListViewModel @Inject constructor(
         val items = selection.items
         if (items.isEmpty()) return
         remoteFileOperationUseCase.deleteRemote(
-            targets = items.map { it.toDomain() },
+            targets = items.map { it.toDomain() },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -210,7 +210,7 @@ class RemoteFileListViewModel @Inject constructor(
     fun onMakeDirectory(target: String, dirName: String) {
         remoteFileOperationUseCase.makeDirectoryRemote(
             parentPath = target,
-            dirName = dirName,
+            dirName = dirName,
             errorMessage = "디렉터리 생성 실패: $dirName",
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

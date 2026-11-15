@@ -2,10 +2,8 @@ package com.todokanai.composepracticenew.ui.model
 
 import android.content.Context
 import androidx.annotation.StringRes
-import androidx.compose.runtime.Immutable
 
 /** 화면에 보일 문구. 문자열 리소스와 그 인자로 두어, Context가 있는 곳(화면·알림)에서 그때의 언어로 만든다. */
-@Immutable
 sealed interface UiText {
 
     /**

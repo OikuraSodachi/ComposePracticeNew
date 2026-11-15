@@ -238,7 +238,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private fun download(items: List<FileHolderItem>, localDestPath: String) {
         remoteFileOperationUseCase.download(
             items = items.map { it.toDomain() },
-            localDestPath = localDestPath,
+            localDestPath = localDestPath,
             onRefresh = { localNavigator.refresh() }
         )
     }
@@ -247,7 +247,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private fun upload(items: List<FileHolderItem>, remoteDestPath: String) {
         remoteFileOperationUseCase.upload(
             items = items.map { it.toDomain() },
-            remoteDestPath = remoteDestPath,
+            remoteDestPath = remoteDestPath,
             onRefresh = { remoteNavigator.refresh() }
         )
     }

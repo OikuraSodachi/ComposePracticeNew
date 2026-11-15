@@ -156,7 +156,7 @@ class FileListViewModel @Inject constructor(
     fun newFolder(target: String, name: String) {
         localFileOperationUseCase.makeDirectory(
             parentPath = target,
-            name = name,
+            name = name,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -207,7 +207,7 @@ class FileListViewModel @Inject constructor(
             files = targets,
             parentPath = folder,
             name = name,
-            format = archiveFormat,
+            format = archiveFormat,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -224,7 +224,7 @@ class FileListViewModel @Inject constructor(
             localFileOperationUseCase.rename(
                 path = item.path,
                 newName = name,
-                overwrite = overwrite,
+                overwrite = overwrite,
                 onRefresh = { fileNavigatorUseCase.refresh() }
             )
         }
@@ -236,7 +236,7 @@ class FileListViewModel @Inject constructor(
      */
     fun delete(selection: SubmittedSelection) {
         localFileOperationUseCase.delete(
-            files = selection.items.map { it.toDomain() },
+            files = selection.items.map { it.toDomain() },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
