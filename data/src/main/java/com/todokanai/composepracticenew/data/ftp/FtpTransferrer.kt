@@ -7,11 +7,12 @@ import com.todokanai.composepracticenew.datasource.FileReservation
 import com.todokanai.composepracticenew.datasource.LocalEntryKind
 import com.todokanai.composepracticenew.datasource.LocalTreeEntry
 import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
-import com.todokanai.composepracticenew.datasource.createDirectoryResolving
 import com.todokanai.composepracticenew.datasource.WriteSlot
+import com.todokanai.composepracticenew.datasource.createDirectoryResolving
 import com.todokanai.composepracticenew.datasource.entryKind
 import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.localTreeTopDown
+import com.todokanai.composepracticenew.datasource.map
 import com.todokanai.composepracticenew.datasource.reserveFileResolving
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.IoResult
@@ -238,11 +239,7 @@ class FtpTransferrer @Inject internal constructor(
     private suspend fun claimLocalFile(file: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<ClaimedFile>> =
         localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) {
             IoResult.Success(
-                when (val slot = reserveFileResolving(file) { resolveConflict.resolve(it) }) {
-                    is WriteSlot.Ready -> WriteSlot.Ready(ClaimedFile(file, createdHere = slot.value == FileReservation.CREATED))
-                    WriteSlot.Skipped -> WriteSlot.Skipped
-                    WriteSlot.Link -> WriteSlot.Link
-                }
+                reserveFileResolving(file) { resolveConflict.resolve(it) }.map { ClaimedFile(file, createdHere = it == FileReservation.CREATED) }
             )
         }
 

@@ -198,16 +198,12 @@ class LocalTreeTransfer internal constructor(
         }
         // 파일의 rename은 같은 이름의 파일을 말없이 대신하므로(POSIX rename), 먼저 "없을 때만 만들기"로 자리를 확보한 뒤 그 자리를 대신한다
         when (val slot = reserveFileResolving(target) { resolveConflict.resolve(it) }) {
-            is WriteSlot.Ready -> if (slot.value == FileReservation.EXISTING) {
+            // 확보한 자리를 rename으로 한 번에 대신한다 — 옮기지 못하면 이 이동이 만든 빈 파일만 지운다
+            is WriteSlot.Ready -> try {
                 replaceWith(src, target)
-            } else {
-                // 확보한 빈 파일을 rename으로 한 번에 대신한다 — 옮기지 못하면 확보한 빈 파일을 지운다
-                try {
-                    replaceWith(src, target)
-                } catch (e: IOException) {
-                    target.delete()
-                    throw e
-                }
+            } catch (e: IOException) {
+                if (slot.value == FileReservation.CREATED) target.delete()
+                throw e
             }
             WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, tracker, skippedLinks)
         }
