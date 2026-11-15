@@ -11,7 +11,7 @@ import com.todokanai.composepracticenew.repository.StoragePathRules
  * 선택 항목의 정보(속성, 하위 항목을 포함한 크기, 폴더의 하위 항목 수)를 구한다.
  * 목록 조회 결과의 값(크기·종류·수정 시각)은 쓰지 않고 저장소에서 다시 읽는다 — 목록 조회 뒤 바뀐 항목의 옛 값이 지금 값으로 보이지 않도록.
  * @param repo 저장소에서 속성·크기·하위 항목 수를 읽는 FileInfoRepository 구현체
- * @param paths 항목의 상위 폴더를 구하는 StoragePathRules 구현체
+ * @param paths 항목의 상위 폴더를 구하는 StoragePathRules 구현체. [repo]와 같은 저장소의 경로 규칙이어야 한다 — 다른 저장소의 규칙이면 상위를 찾지 못해 위치가 없는 것으로 보인다
  */
 class FileInfoUseCase(
     private val repo: FileInfoRepository,

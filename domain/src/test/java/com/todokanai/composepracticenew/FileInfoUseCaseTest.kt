@@ -42,6 +42,15 @@ class FileInfoUseCaseTest {
         assertEquals(listOf("/a"), repo.attributePaths)
     }
 
+    @Test
+    fun `위치는 저장소를 읽지 않고 경로 규칙의 상위 경로로 구한다`() {
+        val repo = FakeFileInfoRepository()
+
+        assertEquals("/d", FileInfoUseCase(repo, LocalPathRules()).locationOf(file("/d/a", 10)))
+        assertEquals(emptyList<String>(), repo.attributePaths)
+        assertEquals(emptyList<List<String>>(), repo.measuredPaths)
+    }
+
     private fun file(path: String, size: Long?) = FileHolderItem(path, isDirectory = false, name = path, sizeBytes = size, lastModifiedMillis = 0)
 
     private fun dir(path: String) = FileHolderItem(path, isDirectory = true, name = path, sizeBytes = null, lastModifiedMillis = 0)
