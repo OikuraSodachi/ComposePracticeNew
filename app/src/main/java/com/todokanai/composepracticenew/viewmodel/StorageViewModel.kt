@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageInputCheck
+import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
@@ -118,24 +119,40 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    /** 원격 스토리지 추가·수정 입력값을 검증한다. 통과하면 저장에 넘길 값을, 위반하면 위반한 규칙을 돌려준다. */
-    fun validateRemoteStorageInput(input: RemoteStorageInput): RemoteStorageInputCheck =
-        remoteStorageUseCase.validateInput(input.toDomain())
+    /** 원격 스토리지 추가·수정 입력값이 위반한 규칙을 돌려준다. 통과하면 빈 집합이다. */
+    fun remoteStorageInputViolations(input: RemoteStorageInput): Set<RemoteStorageInputError> =
+        when (val check = remoteStorageUseCase.validateInput(input.toDomain())) {
+            is RemoteStorageInputCheck.Valid -> emptySet()
+            is RemoteStorageInputCheck.Invalid -> check.errors
+        }
 
-    /** 검증을 통과한 접속 정보로 원격 스토리지를 추가한다. */
-    fun addRemoteStorage(input: RemoteStorageInputCheck.Valid) {
+    /** 위반한 규칙이 없는 접속 정보로 원격 스토리지를 추가한다. 규칙을 위반한 입력이면 구현 오류로 실패한다. */
+    fun addRemoteStorage(input: RemoteStorageInput) {
+        val valid = validInputOf(input)
         viewModelScope.launch {
-            remoteStorageUseCase.save(input)
+            remoteStorageUseCase.save(valid)
         }
     }
 
-    /** 기존 원격 스토리지 접속 정보를 검증을 통과한 값으로 수정한다. 연결 작업이 진행 중이면 무시한다. */
-    fun updateRemoteStorage(input: RemoteStorageInputCheck.Valid) {
+    /** 기존 원격 스토리지 접속 정보를 위반한 규칙이 없는 값으로 수정한다. 연결 작업이 진행 중이면 무시하고, 규칙을 위반한 입력이면 구현 오류로 실패한다. */
+    fun updateRemoteStorage(input: RemoteStorageInput) {
         if (connectInProgress.value) return
+        val valid = validInputOf(input)
         viewModelScope.launch {
-            remoteStorageUseCase.save(input)
+            remoteStorageUseCase.save(valid)
         }
     }
+
+    /**
+     * [input]을 검증해 저장에 넘길 값을 돌려준다. 화면은 위반이 없을 때만 확인을 허용하므로, 위반하면 저장하지 않고 닫히는 대신 구현 오류로 실패한다.
+     * @param input 저장할 접속 정보
+     * @return 검증을 통과한 값
+     */
+    private fun validInputOf(input: RemoteStorageInput): RemoteStorageInputCheck.Valid =
+        when (val check = remoteStorageUseCase.validateInput(input.toDomain())) {
+            is RemoteStorageInputCheck.Valid -> check
+            is RemoteStorageInputCheck.Invalid -> error("확인을 허용한 입력이 저장 직전 검증에 실패했다: ${check.errors}")
+        }
 
     /** 원격 스토리지 접속 정보를 삭제한다. 연결 작업이 진행 중이면 무시한다 — 삭제한 서버로 연결이 이어지거나 그 id가 마지막 연결 서버로 저장되지 않게 한다. */
     fun deleteRemoteStorage(item: RemoteStorageItem) {
