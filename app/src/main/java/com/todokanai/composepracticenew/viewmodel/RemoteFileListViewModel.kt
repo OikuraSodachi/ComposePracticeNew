@@ -182,7 +182,8 @@ class RemoteFileListViewModel @Inject constructor(
         entryNaming.requestRename(item, newName) { _ ->
             remoteFileOperationUseCase.renameRemote(
                 path = item.path,
-                newName = newName,                onRefresh = { fileNavigatorUseCase.refresh() }
+                newName = newName,
+                onRefresh = { fileNavigatorUseCase.refresh() }
             )
         }
     }
@@ -208,7 +209,8 @@ class RemoteFileListViewModel @Inject constructor(
     fun onMakeDirectory(target: String, dirName: String) {
         remoteFileOperationUseCase.makeDirectoryRemote(
             parentPath = target,
-            dirName = dirName,            onRefresh = { fileNavigatorUseCase.refresh() }
+            dirName = dirName,
+            onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
 
