@@ -3,14 +3,17 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.data.progress.TransferTotal
+import com.todokanai.composepracticenew.datasource.FileReservation
 import com.todokanai.composepracticenew.datasource.LocalEntryKind
 import com.todokanai.composepracticenew.datasource.LocalTreeEntry
 import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
 import com.todokanai.composepracticenew.datasource.WriteSlot
+import com.todokanai.composepracticenew.datasource.createDirectoryResolving
 import com.todokanai.composepracticenew.datasource.entryKind
 import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.localTreeTopDown
-import com.todokanai.composepracticenew.datasource.resolveExisting
+import com.todokanai.composepracticenew.datasource.map
+import com.todokanai.composepracticenew.datasource.reserveFileResolving
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.OperationNoticeKind
@@ -28,8 +31,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
-import java.nio.file.FileAlreadyExistsException
-import java.nio.file.Files
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -226,12 +227,8 @@ class FtpTransferrer @Inject internal constructor(
      * 받을 로컬 폴더 [dir] 자리를 확보한다. 같은 이름의 항목이 있으면 [resolveConflict]에 묻는다(폴더는 합치기, 파일이면 건너뛰기만). 링크면 묻지 않는다.
      * @return 그 폴더에 받을 수 있으면 [WriteSlot.Ready], 건너뛰기로 했으면 [WriteSlot.Skipped], 링크가 있으면 [WriteSlot.Link], 또는 폴더를 만들지 못한 실패
      */
-    private suspend fun claimLocalDirectory(dir: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<Unit>> {
-        val created = localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(createdNew { Files.createDirectory(dir.toPath()) }) }
-            .valueOr { return it }
-        if (created) return IoResult.Success(WriteSlot.Ready(Unit))
-        return IoResult.Success(resolveExisting(dir, sourceIsDirectory = true) { resolveConflict.resolve(it) })
-    }
+    private suspend fun claimLocalDirectory(dir: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<Unit>> =
+        localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(createDirectoryResolving(dir) { resolveConflict.resolve(it) }) }
 
     /**
      * 받을 로컬 파일 [file] 자리를 확보한다. 없으면 빈 파일을 만들어 이름을 잡아 두고, 있으면 [resolveConflict]에 묻는다. 링크면 묻지 않는다.
@@ -239,30 +236,12 @@ class FtpTransferrer @Inject internal constructor(
      * 덮어쓰기로 한 기존 파일은 여기서 비우지 않는다 — 서버가 전송을 받아들인 뒤에 연다(거부되면 기존 파일을 비우지 않도록).
      * @return 받을 자리를 담은 [WriteSlot.Ready], 건너뛰기로 했으면 [WriteSlot.Skipped], 링크가 있으면 [WriteSlot.Link], 또는 자리를 만들지 못한 실패
      */
-    private suspend fun claimLocalFile(file: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<ClaimedFile>> {
-        val created = localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(createdNew { Files.createFile(file.toPath()) }) }
-            .valueOr { return it }
-        if (created) return IoResult.Success(WriteSlot.Ready(ClaimedFile(file, createdHere = true)))
-        return IoResult.Success(
-            when (resolveExisting(file, sourceIsDirectory = false) { resolveConflict.resolve(it) }) {
-                is WriteSlot.Ready -> WriteSlot.Ready(ClaimedFile(file, createdHere = false))
-                WriteSlot.Skipped -> WriteSlot.Skipped
-                WriteSlot.Link -> WriteSlot.Link
-            }
-        )
-    }
-
-    /**
-     * "없을 때만 만들기"인 [create]를 실행한다.
-     * @return 새로 만들었으면 true. 같은 이름의 항목이 이미 있으면 false
-     * @throws java.io.IOException 그 밖의 이유로 만들지 못했을 때
-     */
-    private inline fun createdNew(create: () -> Unit): Boolean = try {
-        create()
-        true
-    } catch (e: FileAlreadyExistsException) {
-        false
-    }
+    private suspend fun claimLocalFile(file: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<ClaimedFile>> =
+        localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) {
+            IoResult.Success(
+                reserveFileResolving(file) { resolveConflict.resolve(it) }.map { ClaimedFile(file, createdHere = it == FileReservation.CREATED) }
+            )
+        }
 
     /**
      * [claimed] 자리로 받는 [receive]를 실행한다. 이 다운로드가 만든 빈 파일은 받기 시작하지 못하고 끝나면(거부·연결 끊김·취소) 지운다 —

@@ -40,6 +40,17 @@ internal sealed interface WriteSlot<out T> {
 }
 
 /**
+ * 확보했으면 그 값을 [transform]으로 바꾸고, 건너뛰기·링크는 그대로 돌려준다.
+ * @param transform 확보한 값을 바꾸는 함수. 확보하지 못했으면 부르지 않는다
+ * @return 바꾼 값을 담은 [WriteSlot.Ready], 또는 그대로의 [WriteSlot.Skipped]·[WriteSlot.Link]
+ */
+internal inline fun <T, R> WriteSlot<T>.map(transform: (T) -> R): WriteSlot<R> = when (this) {
+    is WriteSlot.Ready -> WriteSlot.Ready(transform(value))
+    WriteSlot.Skipped -> WriteSlot.Skipped
+    WriteSlot.Link -> WriteSlot.Link
+}
+
+/**
  * [dir] 폴더를 만든다. 같은 이름의 항목이 이미 있으면 [ask]에 묻는다.
  * @param dir 만들 폴더. 부모 폴더는 있어야 한다
  * @param ask 겹침의 처리 방법을 묻는 함수
@@ -85,13 +96,36 @@ internal inline fun openNewFileResolving(file: File, ask: (WriteConflict) -> Con
     try {
         return WriteSlot.Ready(Files.newOutputStream(file.toPath(), StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE))
     } catch (e: FileAlreadyExistsException) {
-        when (resolveExisting(file, sourceIsDirectory = false, ask)) {
-            is WriteSlot.Ready -> Unit
-            WriteSlot.Skipped -> return WriteSlot.Skipped
-            WriteSlot.Link -> return WriteSlot.Link
+        return resolveExisting(file, sourceIsDirectory = false, ask).map {
+            Files.newOutputStream(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE)
         }
     }
-    return WriteSlot.Ready(Files.newOutputStream(file.toPath(), StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE))
+}
+
+/**
+ * [file] 자리에 빈 파일을 만들어 이름을 확보한다. 같은 이름의 항목이 이미 있으면 [ask]에 묻는다.
+ * 덮어쓰기로 한 기존 파일은 여기서 비우지 않는다 — 언제 그 자리를 대신할지(rename으로 대신하기, 받기 시작한 뒤 열기)는 호출부가 정한다.
+ * @param file 확보할 파일 자리. 부모 폴더는 있어야 한다
+ * @param ask 겹침의 처리 방법을 묻는 함수
+ * @return 확보한 자리가 새로 만든 빈 파일인지 기존 파일인지를 담은 [WriteSlot.Ready]
+ * @throws java.io.IOException 빈 파일을 만들지 못했을 때
+ */
+internal inline fun reserveFileResolving(file: File, ask: (WriteConflict) -> ConflictChoice): WriteSlot<FileReservation> {
+    try {
+        Files.createFile(file.toPath())
+        return WriteSlot.Ready(FileReservation.CREATED)
+    } catch (e: FileAlreadyExistsException) {
+        return resolveExisting(file, sourceIsDirectory = false, ask).map { FileReservation.EXISTING }
+    }
+}
+
+/** [reserveFileResolving]이 확보한 파일 자리의 종류. */
+internal enum class FileReservation {
+    /** 이 호출이 새로 만든 빈 파일. 쓰지 못하고 끝나면 호출부가 지운다. */
+    CREATED,
+
+    /** 덮어쓰기로 한 기존 파일. 아직 비우지 않았다. */
+    EXISTING
 }
 
 /**
