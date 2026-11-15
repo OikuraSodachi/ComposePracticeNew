@@ -28,6 +28,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.ConfirmCancelDialog
+import com.todokanai.composepracticenew.model.RemoteStorageInputCheck
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.RemoteProtocolSettings
@@ -38,15 +39,15 @@ import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
  * 원격 스토리지 연결 정보(이름, 주소, 포트, 아이디, 비밀번호, 인코딩)를 입력받아 추가하거나 수정하는 다이얼로그.
  *
  * 입력 검증 규칙은 [validate]로 주입받고, 이 다이얼로그는 결과에 따라 확인 버튼 활성 여부와 필드 오류 표시만 담당한다.
- * 확인을 누른 순간에도 최신 입력을 다시 검증해, 위반이면 닫지 않고 입력을 유지한다.
+ * 확인을 누른 순간에도 최신 입력을 다시 검증해, 위반이면 닫지 않고 입력을 유지한다. 통과하면 그 검증 결과를 [onConfirm]으로 넘긴다.
  * 필수 입력이 비어 있다는 오류는 사용자가 그 필드를 한 번이라도 편집한 뒤에만 표시해, 빈 추가 폼을 열자마자 오류가 보이지 않게 한다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddRemoteStorageDialog(
-    onConfirm: (RemoteStorageInput) -> Unit,
+    onConfirm: (RemoteStorageInputCheck.Valid) -> Unit,
     onDismiss: () -> Unit,
-    validate: (RemoteStorageInput) -> Set<RemoteStorageInputError>,
+    validate: (RemoteStorageInput) -> RemoteStorageInputCheck,
     initialValue: RemoteStorageItem? = null
 ) {
     val encodingOptions = AppConstants.REMOTE_ENCODING_OPTIONS
@@ -77,8 +78,12 @@ fun AddRemoteStorageDialog(
 
     // rememberUpdatedState — 아래 derivedStateOf가 재생성 없이 항상 최신 validate를 호출하도록 보장
     val currentValidate by rememberUpdatedState(validate)
-    // 입력 필드 6개와 currentValidate를 추적 — 입력이 바뀔 때만 재검증하고, 결과 집합이 같으면 본문을 무효화하지 않음
-    val errors by remember { derivedStateOf { currentValidate(currentInput()) } }
+
+    /** 지금 입력이 검증을 통과했으면 그 결과, 아니면 null. 확인을 누른 순간의 값을 판정할 때 쓴다. */
+    fun validInputOrNull() = currentValidate(currentInput()) as? RemoteStorageInputCheck.Valid
+
+    // 입력 필드 6개와 currentValidate를 추적 — 입력이 바뀔 때만 재검증하고, 위반 집합이 같으면 본문을 무효화하지 않음
+    val errors by remember { derivedStateOf { violationsOf(currentValidate(currentInput())) } }
     val nameError = nameEdited && RemoteStorageInputError.NAME_BLANK in errors
     val addressError = addressEdited && RemoteStorageInputError.ADDRESS_BLANK in errors
     val portError = portEdited && RemoteStorageInputError.PORT_OUT_OF_RANGE in errors
@@ -86,10 +91,11 @@ fun AddRemoteStorageDialog(
     ConfirmCancelDialog(
         modifier = Modifier,
         title = stringResource(R.string.dialog_add_remote_storage_title),
-        onConfirm = { onConfirm(currentInput()) },
+        // canConfirm이 같은 클릭에서 막 통과를 확인했으므로 null이면 구현 오류다 — 저장하지 않고 닫히는 대신 명시적으로 실패한다
+        onConfirm = { onConfirm(checkNotNull(validInputOrNull()) { "확인 직전에 통과한 입력이 다시 검증에 실패했다" }) },
         onDismiss = onDismiss,
         confirmEnabled = errors.isEmpty(),
-        canConfirm = { currentValidate(currentInput()).isEmpty() }
+        canConfirm = { validInputOrNull() != null }
     ) {
         Column {
             TextField(
@@ -187,6 +193,12 @@ private fun initialEncodingOf(settings: RemoteProtocolSettings?): String = when 
     null -> RemoteProtocolSettings.Ftp.DEFAULT_ENCODING
 }
 
+/** 검증 결과가 위반한 규칙. 통과했으면 빈 집합이다. */
+private fun violationsOf(check: RemoteStorageInputCheck): Set<RemoteStorageInputError> = when (check) {
+    is RemoteStorageInputCheck.Valid -> emptySet()
+    is RemoteStorageInputCheck.Invalid -> check.errors
+}
+
 /** 오류일 때만 사유 문구를 보여주는 TextField supportingText 슬롯을 만든다. 오류가 아니면 슬롯을 두지 않는다. */
 private fun errorSupportingText(isError: Boolean, @StringRes messageRes: Int): (@Composable () -> Unit)? =
     if (isError) ({ Text(stringResource(messageRes)) }) else null
@@ -198,6 +210,7 @@ private fun AddRemoteStorageDialogPreview() {
     AddRemoteStorageDialog(
         onConfirm = {},
         onDismiss = {},
-        validate = { emptySet() }
+        // 빈 추가 폼의 실제 검증 결과 — 편집 전이라 오류 문구는 보이지 않는다
+        validate = { RemoteStorageInputCheck.Invalid(setOf(RemoteStorageInputError.NAME_BLANK, RemoteStorageInputError.ADDRESS_BLANK)) }
     )
 }
