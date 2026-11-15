@@ -14,7 +14,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [ConnectFailureNotice]가 다시 시도하면 될 수 있는 실패는 이벤트로, 서버를 쓸 수 없는 실패는 닫을 때까지 남는 다이얼로그 상태로 알리는지 검증하는 단위 테스트.
+ * [ConnectFailureNotice]가 다시 시도하면 될 수 있는 실패는 이벤트로, 서버나 접속 정보를 쓸 수 없는 실패는 닫을 때까지 남는 다이얼로그 상태로 알리는지 검증하는 단위 테스트.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConnectFailureNoticeTest {
@@ -51,6 +51,25 @@ class ConnectFailureNoticeTest {
         notice.dismissUnreadableServer()
 
         assertFalse(notice.unreadableServer.value)
+        collecting.cancel()
+    }
+
+    @Test
+    fun `잘못된 접속 정보는 이벤트 없이 닫을 때까지 다이얼로그 상태로 남는다`() = runTest {
+        val events = mutableListOf<Unit>()
+        val collecting = launch(UnconfinedTestDispatcher(testScheduler), start = CoroutineStart.UNDISPATCHED) {
+            notice.connectionFailed.toList(events)
+        }
+
+        notice.report(ConnectFailureReason.INVALID_SETTINGS)
+
+        assertTrue(notice.invalidSettings.value)
+        assertFalse(notice.unreadableServer.value)
+        assertEquals(0, events.size)
+
+        notice.dismissInvalidSettings()
+
+        assertFalse(notice.invalidSettings.value)
         collecting.cancel()
     }
 }

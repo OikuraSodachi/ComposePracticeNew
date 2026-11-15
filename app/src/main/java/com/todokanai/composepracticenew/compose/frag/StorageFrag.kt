@@ -20,6 +20,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
+import com.todokanai.composepracticenew.compose.dialog.InvalidServerSettingsDialog
 import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
@@ -117,6 +118,7 @@ fun StorageFrag(
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
+    val invalidSettings by viewModel.invalidSettings.collectAsStateWithLifecycle()
     val dialogState = rememberStorageDialogState()
 
     StorageConnectionEffects(
@@ -135,6 +137,9 @@ fun StorageFrag(
     )
     if (unreadableServer) {
         UnreadableServerDialog(onDismiss = viewModel::dismissUnreadableServer)
+    }
+    if (invalidSettings) {
+        InvalidServerSettingsDialog(onDismiss = viewModel::dismissInvalidSettings)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
