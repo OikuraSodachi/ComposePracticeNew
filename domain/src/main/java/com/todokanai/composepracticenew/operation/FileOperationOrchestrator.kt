@@ -179,8 +179,10 @@ class FileOperationOrchestrator(
 
     /**
      * 파일 작업을 [appScope]에서 실행하며 완료·실패·진행 상태를 통합 관리하는 실행 엔진.
-     * 작업의 실패는 결과([IoResult.Failure])로 받는다. 예외는 구현 오류이지만, 작업 하나 때문에 앱 수명 스코프가 무너지지 않도록
+     * 작업의 실패는 결과([IoResult.Failure])로 받는다. 작업이 던진 예외는 구현 오류이지만, 작업 하나 때문에 앱 수명 스코프가 무너지지 않도록
      * 이곳에서만 실패로 바꿔 그 작업만 끝낸다. 취소는 결과로 바꾸지 않고 알린 뒤 전파한다.
+     * 결과 보고([callback])는 그 경계 밖에서 한 번만 한다 — 보고 중 예외를 작업 실패로 바꾸면 이미 완료를 알린 작업을 실패로 또 알리게 되므로(#365).
+     * 보고 중 예외는 구현 오류로 [appScope]에 전파한다.
      * Job은 [runningJobs]에 넣은 뒤에 시작한다 — 시작하자마자 취소를 요청해도 찾을 수 있도록.
      * @param progressHandle 작업 인스턴스의 진행 상태 핸들
      * @param callback 완료·실패·취소 시 알림·이벤트·갱신을 처리하는 콜백
@@ -194,13 +196,7 @@ class FileOperationOrchestrator(
         val instanceId = progressHandle.instanceId
         val job = appScope.launch(start = CoroutineStart.LAZY) {
             try {
-                val result = try {
-                    work()
-                } catch (e: CancellationException) {
-                    // 취소된 코루틴에서도 알림 제거·메시지·목록 갱신을 끝까지 한다
-                    withContext(NonCancellable) { callback.onCancelled(instanceId) }
-                    throw e
-                }
+                val result = runWork(instanceId, callback, work)
                 // 작업이 끝난 뒤에 온 취소 요청은 결과를 바꾸지 않는다 — 결과 알림·목록 갱신을 끝까지 한다
                 withContext(NonCancellable) {
                     when (result) {
@@ -208,10 +204,6 @@ class FileOperationOrchestrator(
                         is IoResult.Failure -> callback.onFailure(result.message ?: UNKNOWN_FAILURE_MESSAGE, instanceId)
                     }
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                callback.onFailure(e.message ?: UNKNOWN_FAILURE_MESSAGE, instanceId)
             } finally {
                 progressHandle.clear()
             }
@@ -220,6 +212,25 @@ class FileOperationOrchestrator(
         job.invokeOnCompletion { runningJobs.remove(instanceId) }
         job.start()
     }
+
+    /**
+     * [work]를 실행해 결과를 돌려준다. 작업이 던진 예외(구현 오류)는 그 메시지의 실패 결과로 바꾼다.
+     * 취소되면 취소를 알린 뒤 전파한다.
+     * @param instanceId 작업 인스턴스 ID
+     * @param callback 취소를 알릴 콜백
+     * @param work 실제 IO 작업 코드
+     * @return 작업 결과
+     */
+    private suspend fun runWork(instanceId: Int, callback: OperationCallback, work: suspend () -> IoResult<Unit>): IoResult<Unit> =
+        try {
+            work()
+        } catch (e: CancellationException) {
+            // 취소된 코루틴에서도 알림 제거·메시지·목록 갱신을 끝까지 한다
+            withContext(NonCancellable) { callback.onCancelled(instanceId) }
+            throw e
+        } catch (e: Exception) {
+            IoResult.ItemFailed(e.message)
+        }
 
     /**
      * 작업을 취소했을 때 알릴 메시지를 만든다. 취소는 쓰다 만 파일만 지우고 이미 끝난 항목은 되돌리지 않으므로, 그 사실을 함께 알린다.
