@@ -8,7 +8,7 @@ import org.junit.Test
 import java.util.Locale
 
 /**
- * readableFileSize_td가 Long의 값 범위 전체에서 단위를 붙여 표시하는지 검증하는 단위 테스트.
+ * readableFileSize_td가 1 PiB 이상(PB·EB 구간)에서도 단위를 붙여 표시하는지 검증하는 단위 테스트.
  */
 class FileSizeFormatTest {
 
