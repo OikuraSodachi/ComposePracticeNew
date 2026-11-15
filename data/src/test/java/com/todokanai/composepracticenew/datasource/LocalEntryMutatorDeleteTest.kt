@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.runBlocking
@@ -54,7 +55,7 @@ class LocalEntryMutatorDeleteTest {
 
         val result = runBlocking { mutator.delete(setOf(target.path)) {} }
 
-        assertEquals("삭제 실패: target/locked/locked.txt", (result as IoResult.PartiallyFailed).message)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("target/locked/locked.txt", null))), result)
         assertFalse("지울 수 있는 항목은 지워야 함", free.exists())
         assertTrue(locked.exists())
     }
@@ -109,7 +110,7 @@ class LocalEntryMutatorDeleteTest {
 
         val result = runBlocking { mutator.delete(setOf(file.path)) {} }
 
-        assertEquals("삭제 실패: a.txt", (result as IoResult.PartiallyFailed).message)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", null))), result)
     }
 
     @Test
@@ -121,7 +122,7 @@ class LocalEntryMutatorDeleteTest {
 
         val result = runBlocking { mutator.delete(setOf(target.path, other.path)) {} }
 
-        assertEquals("삭제 실패: dir/sub/x.txt", (result as IoResult.PartiallyFailed).message)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("dir/sub/x.txt", null))), result)
         assertFalse(other.exists())
     }
 }

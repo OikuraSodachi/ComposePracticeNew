@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.ListingRequest
@@ -81,25 +82,25 @@ class FileListFlowProducerTest {
 
     @Test
     fun `조회가 실패하면 빈 목록이 아니라 서버 응답을 담은 실패 상태다`() = runTest {
-        responses["/a"] = { IoResult.ItemFailed("LIST 실패: 550 Permission denied") }
+        responses["/a"] = { IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 550 Permission denied")) }
         val listing = listingIn(this)
         val request = request("/a")
         runCurrent()
 
         assertEquals(
-            DirectoryListing.Failed(request, ListingFailureReason.UNREADABLE, "LIST 실패: 550 Permission denied"),
+            DirectoryListing.Failed(request, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 550 Permission denied"))),
             listing.value
         )
     }
 
     @Test
     fun `연결이 없거나 끊겨 조회하지 못하면 연결 끊김 실패다`() = runTest {
-        responses["/a"] = { IoResult.ConnectionLost("끊김") }
+        responses["/a"] = { IoResult.ConnectionLost(FailureReason.Raw("끊김")) }
         val listing = listingIn(this)
         val request = request("/a")
         runCurrent()
 
-        assertEquals(DirectoryListing.Failed(request, ListingFailureReason.CONNECTION_LOST, "끊김"), listing.value)
+        assertEquals(DirectoryListing.Failed(request, ListingFailureReason.CONNECTION_LOST, IoResult.ConnectionLost(FailureReason.Raw("끊김"))), listing.value)
     }
 
     @Test
@@ -110,7 +111,7 @@ class FileListFlowProducerTest {
         val failed = request("/a")
         runCurrent()
 
-        assertEquals(DirectoryListing.Failed(failed, ListingFailureReason.UNEXPECTED, detail = null), listing.value)
+        assertEquals(DirectoryListing.Failed(failed, ListingFailureReason.UNEXPECTED, failure = null), listing.value)
         assertEquals(listOf<Throwable>(bug), unexpectedFailures)
 
         val next = request("/b")
@@ -163,12 +164,12 @@ class FileListFlowProducerTest {
         request("/a")
         runCurrent()
 
-        responses["/a"] = { IoResult.ItemFailed("LIST 실패: 550 Permission denied") }
+        responses["/a"] = { IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 550 Permission denied")) }
         val refresh = request("/a")
         runCurrent()
 
         assertEquals(
-            DirectoryListing.Failed(refresh, ListingFailureReason.UNREADABLE, "LIST 실패: 550 Permission denied"),
+            DirectoryListing.Failed(refresh, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 550 Permission denied"))),
             listing.value
         )
     }

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.data.FileEntry
@@ -235,8 +236,8 @@ class FtpListingReader @Inject internal constructor(
             is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
-                else IoResult.ItemFailed("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}")
-            is DataCommandOutcome.NotConnected -> IoResult.ItemFailed("${command.label} 실패: ${dataConnectionFailure(outcome.cause)}")
+                else IoResult.ItemFailed(FailureReason.Raw("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}"))
+            is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(FailureReason.Raw("${command.label} 실패: ${dataConnectionFailure(outcome.cause)}"))
             is DataCommandOutcome.Finished ->
                 if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(lines, parser, received, path))
                 else FtpReplyRules.refusal(command, client.getReplyString())

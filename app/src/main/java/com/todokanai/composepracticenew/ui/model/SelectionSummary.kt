@@ -83,9 +83,9 @@ sealed interface AttributesInfo {
 
     /**
      * 항목을 읽지 못했다(그사이 지워진 항목 등).
-     * @param message 표시할 실패 메시지. 원인을 모르면 null
+     * @param message 표시할 실패 문구. 원인을 모르면 null
      */
-    data class Failed(val message: String?) : AttributesInfo
+    data class Failed(val message: UiText?) : AttributesInfo
 
     companion object {
         /**
@@ -99,7 +99,7 @@ sealed interface AttributesInfo {
                 kind = kindOf(result.value, name),
                 lastModified = DateFormat.getDateTimeInstance().format(result.value.lastModifiedMillis)
             )
-            is IoResult.Failure -> Failed(result.message)
+            is IoResult.Failure -> Failed(failureTextOf(result, operationType = null))
         }
 
         /** 항목 종류. 파일이면 이름에서 확장자를 나눈다. */
@@ -140,9 +140,9 @@ sealed interface SizeInfo {
 
     /**
      * 크기를 구하지 못했다.
-     * @param message 표시할 실패 메시지. 원인을 모르면 null
+     * @param message 표시할 실패 문구. 원인을 모르면 null
      */
-    data class Failed(val message: String?) : SizeInfo
+    data class Failed(val message: UiText?) : SizeInfo
 
     companion object {
         /**
@@ -155,7 +155,7 @@ sealed interface SizeInfo {
                 is SizeMeasurement.Complete -> Exact(readableFileSize_td(measurement.bytes))
                 is SizeMeasurement.LowerBound -> AtLeast(readableFileSize_td(measurement.bytes), measurement.unreadable.size)
             }
-            is IoResult.Failure -> Failed(result.message)
+            is IoResult.Failure -> Failed(failureTextOf(result, operationType = null))
         }
     }
 }
@@ -173,9 +173,9 @@ sealed interface ChildCountInfo {
 
     /**
      * 폴더를 읽지 못했다.
-     * @param message 표시할 실패 메시지. 원인을 모르면 null
+     * @param message 표시할 실패 문구. 원인을 모르면 null
      */
-    data class Failed(val message: String?) : ChildCountInfo
+    data class Failed(val message: UiText?) : ChildCountInfo
 
     companion object {
         /**
@@ -185,7 +185,7 @@ sealed interface ChildCountInfo {
          */
         fun from(result: IoResult<Int>): ChildCountInfo = when (result) {
             is IoResult.Success -> Known(result.value)
-            is IoResult.Failure -> Failed(result.message)
+            is IoResult.Failure -> Failed(failureTextOf(result, operationType = null))
         }
     }
 }

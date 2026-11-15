@@ -20,6 +20,8 @@ import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.ItemKind
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.ui.model.SizeInfo
+import com.todokanai.composepracticenew.ui.model.UiText
+import com.todokanai.composepracticenew.ui.model.asString
 
 /** 정보 다이얼로그에서 속성과 속성 사이의 간격. 한 속성의 이름·값보다 넓게 두어 어느 이름이 어느 값의 것인지 묶여 보이게 한다. */
 private val INFO_ROW_SPACING = 12.dp
@@ -190,8 +192,8 @@ private fun childCountText(childCount: ChildCountInfo): String = when (childCoun
 
 /** 읽기 실패의 표시 문구. 원인을 알면 함께 보여준다. */
 @Composable
-private fun failedText(message: String?): String =
-    message?.let { stringResource(R.string.dialog_info_failed_reason, it) } ?: stringResource(R.string.read_failed)
+private fun failedText(message: UiText?): String =
+    message?.let { stringResource(R.string.dialog_info_failed_reason, it.asString()) } ?: stringResource(R.string.read_failed)
 
 @Preview
 @Composable

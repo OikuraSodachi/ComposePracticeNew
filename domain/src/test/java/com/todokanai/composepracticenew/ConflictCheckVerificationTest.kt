@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingFailureReason
@@ -113,7 +114,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `조회에 실패했으면 판정하지 않고 거부를 알린다`() {
-        show(DirectoryListing.Failed(current, ListingFailureReason.UNREADABLE, "550"))
+        show(DirectoryListing.Failed(current, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.Raw("550"))))
 
         assertUnverified(useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
     }

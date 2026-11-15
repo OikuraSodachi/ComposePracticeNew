@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.model.SortMode
@@ -116,7 +117,7 @@ class DirectoryListingNavigationTest {
         sharingScopes += scope
         return DirectoryListingNavigation(DataConverter(), sortPreference, scope, started, initialPath = null) { _ ->
             fetchCount++
-            if (disconnected) IoResult.ConnectionLost("끊김") else IoResult.Success(ListedDirectory(emptyList(), unreadableCount = 0))
+            if (disconnected) IoResult.ConnectionLost(FailureReason.Raw("끊김")) else IoResult.Success(ListedDirectory(emptyList(), unreadableCount = 0))
         }
     }
 }

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
@@ -49,7 +50,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("MLSD 실패: 550 No such directory"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("MLSD 실패: 550 No such directory")), result)
         assertTrue("서버 오류 응답이므로 세션은 유지돼야 함", runBlocking { session.isReady() })
     }
 
@@ -74,7 +75,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: 550 No such directory"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 550 No such directory")), result)
         assertEquals(listOf("CWD /r", "LIST"), client.listRequests)
     }
 
@@ -85,7 +86,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("CWD 실패: 550 No such directory"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("CWD 실패: 550 No such directory")), result)
         assertEquals(listOf("CWD /r"), client.listRequests)
     }
 
@@ -101,7 +102,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다")), result)
         assertEquals(listOf("MLSD /r", "MLSD /r/a"), client.listRequests)
     }
 
@@ -145,7 +146,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/self/self 은(는) 상위 폴더와 같은 폴더입니다"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 순환 감지: /r/self/self 은(는) 상위 폴더와 같은 폴더입니다")), result)
         assertEquals(listOf("MLSD /r", "MLSD /r/self"), client.listRequests)
     }
 
@@ -159,7 +160,7 @@ class FtpTreeCollectorListingTest {
 
         // "/r" + "/a" × 2047 = 4096바이트 — 처음으로 한도에 이르는 경로
         val tooLong = "/r" + "/a".repeat(2047)
-        assertEquals(IoResult.ItemFailed("경로가 너무 깁니다(4096바이트 이상): $tooLong$UNIDENTIFIABLE"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("경로가 너무 깁니다(4096바이트 이상): $tooLong$UNIDENTIFIABLE")), result)
         assertEquals(2047, client.listRequests.count { it == "LIST" })
     }
 
@@ -171,7 +172,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("경로가 너무 깁니다(4096바이트 이상): /r${"/a".repeat(2047)}$UNIDENTIFIABLE"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("경로가 너무 깁니다(4096바이트 이상): /r${"/a".repeat(2047)}$UNIDENTIFIABLE")), result)
     }
 
     @Test(timeout = TEST_TIMEOUT_MILLIS)
@@ -183,7 +184,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("경로가 너무 깁니다(4096바이트 이상): /r${"/a".repeat(2047)}"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("경로가 너무 깁니다(4096바이트 이상): /r${"/a".repeat(2047)}")), result)
     }
 
     @Test(timeout = TEST_TIMEOUT_MILLIS)
@@ -196,7 +197,7 @@ class FtpTreeCollectorListingTest {
         val result = runBlocking { commands.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
         // "/r" + "/u/yy" × 819 = 4097바이트 — 처음으로 한도에 이르는 경로이며, 마지막 폴더(yy)는 식별값이 있다
-        assertEquals(IoResult.ItemFailed("경로가 너무 깁니다(4096바이트 이상): /r${"/u/yy".repeat(819)}$UNIDENTIFIABLE"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("경로가 너무 깁니다(4096바이트 이상): /r${"/u/yy".repeat(819)}$UNIDENTIFIABLE")), result)
     }
 
     @Test
@@ -214,7 +215,7 @@ class FtpTreeCollectorListingTest {
 
             val result = runBlocking { commands.transferrer(OperationNotices()).download(sources = listOf(DownloadSource("ftp://host/r", target.path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-            assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
+            assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다")), result)
             assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
             assertFalse("로컬 폴더를 만들지 않아야 함", target.exists())
         } finally {
@@ -248,7 +249,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { limited.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        val message = ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text
         assertTrue(message, message.startsWith("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/a"))
         assertTrue(message, message.endsWith(UNIDENTIFIABLE))
         // 항목 하나의 추정치는 170바이트 이상이므로, 상한까지 받을 수 있는 항목 수(곧 목록 조회 수)는 상한 / 170을 넘지 않는다
@@ -265,7 +266,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { limited.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        val message = ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text
         assertTrue(message, message.startsWith("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/d0"))
         assertFalse(message, message.endsWith(UNIDENTIFIABLE))
     }
@@ -286,7 +287,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { limited.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        val message = (result as IoResult.ItemFailed).message.orEmpty()
+        val message = ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text
         assertTrue(message, message.startsWith("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/d"))
         assertFalse(message, message.endsWith(UNIDENTIFIABLE))
     }
@@ -304,7 +305,7 @@ class FtpTreeCollectorListingTest {
 
         assertEquals(listOf("$DEEP_PATH/a"), tree.map { (it as ListedItem.Entry).entry.path })
         assertEquals(
-            IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME"),
+            IoResult.ItemFailed(FailureReason.Raw("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME")),
             runBlocking { FtpCommandParts(session, treeMemoryLimitBytes = 1357).trees.collectRemoteTree(DEEP_PATH, PreparationProgressReporter({})) }
         )
     }
@@ -320,7 +321,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { limited.trees.collectRemoteTree(DEEP_PATH, PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME")), result)
         assertTrue("받는 동안 멈췄다면 목록이 남아 있어야 함", client.lastListingStream!!.available() > 0)
     }
 
@@ -335,7 +336,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { limited.trees.collectRemoteTree(DEEP_PATH, PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /$DEEP_NAME")), result)
         assertTrue("받는 동안 멈췄다면 목록이 남아 있어야 함", client.lastListingStream!!.available() > 0)
     }
 
@@ -349,7 +350,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { limited.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r")), result)
         assertTrue("데이터 연결만 실패했으므로 세션은 유지돼야 함", runBlocking { session.isReady() })
     }
 
@@ -368,7 +369,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { limited.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) }
 
-        assertEquals(IoResult.ItemFailed("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/b"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 안의 항목이 너무 많아 처리하지 않았습니다: /r/b")), result)
     }
 
     @Test
@@ -414,7 +415,7 @@ class FtpTreeCollectorListingTest {
 
         val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {}.singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("폴더 순환 감지: /r/a/loop 은(는) 상위 폴더와 같은 폴더입니다")), result)
         assertEquals(emptyList<String>(), client.deleteRequests)
         assertEquals(emptyList<String>(), client.removeDirectoryRequests)
     }

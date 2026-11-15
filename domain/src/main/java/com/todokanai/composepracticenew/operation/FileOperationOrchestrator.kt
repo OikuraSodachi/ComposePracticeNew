@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.operation
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NoticeMessage
@@ -173,7 +174,7 @@ class FileOperationOrchestrator(
                     when (outcome) {
                         is OperationOutcome.Finished -> when (val result = outcome.result) {
                             is IoResult.Success -> callback.onSuccess(instanceId)
-                            is IoResult.Failure -> callback.onFailure(NoticeMessage.OperationFailed(result.message), instanceId)
+                            is IoResult.Failure -> callback.onOperationFailed(result, instanceId)
                         }
                         is OperationOutcome.Unanswered -> callback.onFailure(
                             NoticeMessage.UnansweredConflict(outcome.operationType, outcome.name, MAX_CONFLICT_ANSWER_WAIT.inWholeHours),
@@ -206,7 +207,7 @@ class FileOperationOrchestrator(
             withContext(NonCancellable) { callback.onCancelled(instanceId) }
             throw e
         } catch (e: Exception) {
-            OperationOutcome.Finished(IoResult.ItemFailed(e.message))
+            OperationOutcome.Finished(IoResult.ItemFailed(e.message?.let(FailureReason::Raw)))
         }
 
     /** 작업 실행의 결과. 작업이 돌려준 결과와, 충돌 질문에 답이 없어 멈춘 경우를 나눈다. */
@@ -265,6 +266,14 @@ class FileOperationOrchestrator(
             notices.report(OperationNoticeKind.COMPLETION, NoticeMessage.Completed(operationType))
             onRefresh()
         }
+
+        /**
+         * 작업이 실패 결과를 돌려줬을 때 그 실패를 작업 종류와 함께 알린다. 부분 실패의 머리말은 작업 종류로 정해지므로 함께 담는다.
+         * @param failure 작업이 돌려준 실패
+         * @param instanceId 작업 인스턴스 ID
+         */
+        suspend fun onOperationFailed(failure: IoResult.Failure, instanceId: Int) =
+            onFailure(NoticeMessage.OperationFailed(operationType, failure), instanceId)
 
         /** 실패 시 알림 취소·실패 메시지 보관·갱신을 수행한다. 진행 알림은 지우므로, 실패는 보관한 메시지로만 알린다. */
         suspend fun onFailure(message: NoticeMessage, instanceId: Int) {

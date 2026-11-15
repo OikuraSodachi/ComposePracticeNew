@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.WriteConflict
 import java.io.File
 import java.io.OutputStream
@@ -113,7 +114,7 @@ class ArchiveEntryWriter(
      * @param target 루트 아래의 자리
      * @return 루트 기준 경로와 [UNSUPPORTED_LINK_REASON]을 담은 실패
      */
-    private fun linkFailureAt(target: File): FailedItem = FailedItem(root.directory.slashRelativePathOf(target), UNSUPPORTED_LINK_REASON)
+    private fun linkFailureAt(target: File): FailedItem = FailedItem(root.directory.slashRelativePathOf(target), FailureReason.Raw(UNSUPPORTED_LINK_REASON))
 
     /**
      * 루트부터 [dir]까지의 폴더 자리를 위에서부터 차례로 돌려준다.
@@ -128,7 +129,7 @@ class ArchiveEntryWriter(
      * @return 풀 위치. 건너뛴 항목이면 null
      */
     private fun targetOrSkip(entryName: String): File? =
-        root.targetOf(entryName) ?: null.also { failureList += FailedItem(entryName, REJECTED_PATH_REASON) }
+        root.targetOf(entryName) ?: null.also { failureList += FailedItem(entryName, FailureReason.Raw(REJECTED_PATH_REASON)) }
 
     /** 아카이브 항목 결과에 쓰는 상수를 둔다. */
     companion object {

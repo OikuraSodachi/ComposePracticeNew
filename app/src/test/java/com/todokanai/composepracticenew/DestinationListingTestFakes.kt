@@ -33,7 +33,6 @@ import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
-import com.todokanai.composepracticenew.tools.ProtectionRefusedMessage
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -130,9 +129,8 @@ internal object GrantedProtection : OperationProtection {
 }
 
 /** 고정 문구를 돌려주는 테스트용 메시지 제공자. */
-internal object FixedMessages : NewFolderNameDefaults, ProtectionRefusedMessage {
+internal object FixedMessages : NewFolderNameDefaults {
     override val defaultNewFolderName = "새 폴더"
-    override val protectionRefused = "보호 거부"
 }
 
 /** 연결 상태를 테스트가 직접 바꾸는 테스트용 원격 연결 저장소. 연결·해제는 상태만 바꾼다. */

@@ -2,6 +2,8 @@ package com.todokanai.composepracticenew.ui.model
 
 import android.content.Context
 import androidx.annotation.StringRes
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 
 /** 화면에 보일 문구. 문자열 리소스와 그 인자로 두어, Context가 있는 곳(화면·알림)에서 그때의 언어로 만든다. */
 sealed interface UiText {
@@ -29,3 +31,7 @@ sealed interface UiText {
         is Resource -> context.getString(resId, *args.map { if (it is UiText) it.resolve(context) else it }.toTypedArray())
     }
 }
+
+/** 화면에서 이 문구를 지금 Context의 언어로 만든 문자열. */
+@Composable
+fun UiText.asString(): String = resolve(LocalContext.current)

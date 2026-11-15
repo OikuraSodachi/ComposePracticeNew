@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
@@ -54,7 +55,7 @@ class FtpListingStalledDataTest {
         val stalled = runBlocking { commands.listing.listFiles("ftp://host/r") }
         val next = runBlocking { commands.listing.listFiles("ftp://host/r") }
 
-        assertEquals(IoResult.ItemFailed("LIST 실패: Read timed out"), stalled)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: Read timed out")), stalled)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
         assertEquals(listOf("ftp://host/r/a.txt"), (next as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })

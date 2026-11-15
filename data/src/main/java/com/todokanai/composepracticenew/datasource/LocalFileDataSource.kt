@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.data.FileEntry
 import java.io.File
@@ -23,7 +24,7 @@ class LocalFileDataSource @Inject constructor() {
      * @return FileEntry 리스트. 비어 있으면 실제로 빈 디렉터리다. 경로가 없거나 디렉터리가 아니거나 읽을 권한이 없으면 실패
      */
     fun listFiles(path: String): IoResult<List<FileEntry>> {
-        val files = File(path).listFiles() ?: return IoResult.ItemFailed(UNREADABLE_MESSAGE)
+        val files = File(path).listFiles() ?: return IoResult.ItemFailed(FailureReason.Raw(UNREADABLE_MESSAGE))
         return IoResult.Success(files.map(::entryOf))
     }
 

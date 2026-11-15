@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
@@ -74,7 +75,7 @@ class LocalArchiveExtractionLayoutTest {
             extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(mutableListOf())) {}
         }
 
-        assertEquals(IoResult.PartiallyFailed("압축을 풀지 못함", listOf(FailedItem("a/../evil.txt", ArchiveEntryWriter.REJECTED_PATH_REASON))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a/../evil.txt", FailureReason.Raw(ArchiveEntryWriter.REJECTED_PATH_REASON)))), result)
         assertEquals("x", File(dest, "a/ok.txt").readText())
         assertFalse(File(dest, "evil.txt").exists())
     }

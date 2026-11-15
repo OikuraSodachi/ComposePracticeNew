@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.data.progress.ProgressThrottle
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.PreparationProgress
 import com.todokanai.composepracticenew.model.ProgressState
@@ -102,7 +103,7 @@ class FtpTreeProgressTest {
         val result = runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/a.txt"), directoryTarget("ftp://host/r"), fileTarget("ftp://host/ok.txt"))) {} }
 
         assertEquals(
-            IoResult.PartiallyFailed("삭제 실패", listOf(FailedItem("a.txt", "DELE 실패: 550 Permission denied"), FailedItem("r/sub/x.txt", "DELE 실패: 550 Permission denied"))),
+            IoResult.PartiallyFailed(listOf(FailedItem("a.txt", FailureReason.Raw("DELE 실패: 550 Permission denied")), FailedItem("r/sub/x.txt", FailureReason.Raw("DELE 실패: 550 Permission denied")))),
             result
         )
         assertEquals(listOf("/a.txt", "/r/sub/x.txt", "/ok.txt"), client.deleteRequests)

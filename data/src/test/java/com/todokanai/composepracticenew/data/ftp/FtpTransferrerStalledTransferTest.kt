@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
@@ -56,7 +57,7 @@ class FtpTransferrerStalledTransferTest {
 
         val result = runBlocking { FtpCommandParts(session).transferrer(OperationNotices()).download(sources = listOf(DownloadSource("ftp://host/a.bin", File(dir, "a.bin").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed("Read timed out"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("Read timed out")), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
     }
@@ -79,7 +80,7 @@ class FtpTransferrerStalledTransferTest {
 
         val result = runBlocking { FtpCommandParts(session).transferrer(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed("Write timed out"), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw("Write timed out")), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
     }
@@ -101,7 +102,7 @@ class FtpTransferrerStalledTransferTest {
             FtpCommandParts(session).transferrer(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { throw IOException(LOCAL_FAILURE) }.singleItemResult()
         }
 
-        assertEquals(IoResult.ItemFailed(LOCAL_FAILURE), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.Raw(LOCAL_FAILURE)), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
     }

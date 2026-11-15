@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.ConflictChoice
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -136,7 +137,7 @@ class WriteConflictResolutionTest {
         }
         runCurrent()
 
-        assertEquals(listOf(NoticeMessage.OperationFailed("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.Raw("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")))), notices.failures)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
@@ -52,25 +53,25 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
         // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다.
         // 어느 쪽이 링크면 같은 항목 판정이 링크를 따라가 링크와 그 대상을 같은 항목으로 보므로, 이 지름길을 타지 않는다(대상을 링크로 대신하지 않도록)
         if (source.entryKind != LocalEntryKind.LINK && dest.entryKind != LocalEntryKind.LINK && isSameEntry(source, dest)) {
-            return if (source.renameTo(dest)) IoResult.Done else IoResult.ItemFailed("이름 변경 실패: ${source.name} → $newName")
+            return if (source.renameTo(dest)) IoResult.Done else IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: ${source.name} → $newName"))
         }
         if (!dest.exists()) {
             // REPLACE_EXISTING 없이 이동 — 확인 직후 같은 이름이 생겨도 덮어쓰지 않고 실패한다
             Files.move(source.toPath(), dest.toPath())
             return IoResult.Done
         }
-        if (!overwrite) return IoResult.ItemFailed("이름 변경 실패: 같은 이름의 항목이 이미 있습니다 ($newName)")
+        if (!overwrite) return IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: 같은 이름의 항목이 이미 있습니다 ($newName)"))
         val sourceKind = source.entryKind
         val destKind = dest.entryKind
         return when {
             // 링크를 합치거나 덮어쓰면 링크가 가리키는 폴더 안을 옮기거나, 폴더로 보이던 링크를 말없이 바꾼다
-            sourceKind == LocalEntryKind.LINK || destKind == LocalEntryKind.LINK -> IoResult.ItemFailed("이름 변경 실패: $UNSUPPORTED_LINK_REASON ($newName)")
+            sourceKind == LocalEntryKind.LINK || destKind == LocalEntryKind.LINK -> IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: $UNSUPPORTED_LINK_REASON ($newName)"))
             sourceKind == LocalEntryKind.DIRECTORY && destKind == LocalEntryKind.DIRECTORY -> mergeDirectory(source, dest)
             sourceKind == LocalEntryKind.FILE && destKind == LocalEntryKind.FILE -> {
                 Files.move(source.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 IoResult.Done
             }
-            else -> IoResult.ItemFailed("이름 변경 실패: 종류가 다른 항목이 같은 이름으로 있습니다 ($newName)")
+            else -> IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: 종류가 다른 항목이 같은 이름으로 있습니다 ($newName)"))
         }
     }
 
@@ -82,7 +83,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @return 합치기 결과
      */
     private fun mergeDirectory(source: File, dest: File): IoResult<Unit> {
-        findMergeBlocker(source, dest)?.let { reason -> return IoResult.ItemFailed("이름 변경 실패: $reason") }
+        findMergeBlocker(source, dest)?.let { reason -> return IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: $reason")) }
         return mergeInto(source, dest)
     }
 
@@ -120,7 +121,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
             }
         }
         return if (source.delete()) IoResult.Done
-               else IoResult.ItemFailed("이름 변경 실패: 합친 뒤 원래 폴더를 지우지 못했습니다 (${source.name})")
+               else IoResult.ItemFailed(FailureReason.Raw("이름 변경 실패: 합친 뒤 원래 폴더를 지우지 못했습니다 (${source.name})"))
     }
 
     /**
@@ -152,7 +153,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
         onProgress(ProgressState(progress = 0))
         val trees = targetFiles.map { File(it).let { root -> root to root.localTreeBottomUp().map { entry -> entry.file }.toList() } }
         val progress = LocalDeletionProgress(trees.sumOf { (_, files) -> files.size }, onProgress)
-        forEachCollectingFailures(trees, "삭제 실패", nameOf = { (root, _) -> root.name }) { (root, files) ->
+        forEachCollectingFailures(trees, nameOf = { (root, _) -> root.name }) { (root, files) ->
             deleteTree(root, files, progress)
         }
     }
@@ -167,7 +168,6 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
     private suspend fun deleteTree(root: File, files: List<File>, progress: LocalDeletionProgress): IoResult<Unit> =
         forEachCollectingFailures(
             files,
-            "삭제 실패",
             // 대상 자신은 빈 경로 — 바깥 작업이 실패를 평탄화할 때 대상 이름 아래로 옮기므로 대상 이름 그대로 표시된다
             nameOf = { root.slashRelativePathOf(it) },
             isBlockedBy = { file, failed -> file.isAncestorOf(failed) }
@@ -200,7 +200,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @return 생성 결과
      */
     suspend fun makeDirectory(parentPath: String, name: String): IoResult<Unit> = withContext(Dispatchers.IO) {
-        if (File(parentPath, name).mkdir()) IoResult.Done else IoResult.ItemFailed("폴더 생성 실패: $name")
+        if (File(parentPath, name).mkdir()) IoResult.Done else IoResult.ItemFailed(FailureReason.Raw("폴더 생성 실패: $name"))
     }
 }
 

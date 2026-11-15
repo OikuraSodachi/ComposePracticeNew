@@ -1,8 +1,10 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.SearchQuery
+import com.todokanai.composepracticenew.model.failedItemsAt
 import com.todokanai.composepracticenew.data.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -63,7 +65,7 @@ class LocalFileSearchDataSource @Inject constructor(
             Files.walkFileTree(walkRoot, SearchVisitor(walkRoot, query, job, { path, attrs -> localFiles.entryOf(path.toFile(), attrs) }, reporter))
             IoResult.Done
         }
-        if (walked is IoResult.Failure) reporter.unreadable(FailedItem(root.toString(), walked.message))
+        if (walked is IoResult.Failure) walked.failedItemsAt(root.toString()).forEach(reporter::unreadable)
     }
 
     /**
@@ -101,13 +103,13 @@ class LocalFileSearchDataSource @Inject constructor(
         override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
             // 열지 못한 폴더도 이름은 알 수 있다 — 이름이 맞으면 결과에 넣고, 그 아래는 훑지 못했음을 함께 알린다
             if (file != root) check(file, null)
-            reporter.unreadable(FailedItem(file.toString(), exc.message))
+            reporter.unreadable(FailedItem(file.toString(), exc.message?.let(FailureReason::Raw)))
             return FileVisitResult.CONTINUE
         }
 
         override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
             // 디렉터리를 끝까지 나열하지 못했다 — 이미 찾은 항목은 남기고 이 디렉터리를 읽지 못한 항목으로 둔다
-            if (exc != null) reporter.unreadable(FailedItem(dir.toString(), exc.message))
+            if (exc != null) reporter.unreadable(FailedItem(dir.toString(), exc.message?.let(FailureReason::Raw)))
             return FileVisitResult.CONTINUE
         }
 

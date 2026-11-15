@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
@@ -56,7 +57,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 val result = runBlocking { run() }
                 assertTrue("$result", result is IoResult.ItemFailed)
                 val text = (behavior.serverBehavior as ServerBehavior.Refuse).text
-                assertEquals("${command.ftpName} 실패: $text${command.refusalNote}", (result as IoResult.ItemFailed).message)
+                assertEquals(IoResult.ItemFailed(FailureReason.Raw("${command.ftpName} 실패: $text${command.refusalNote}")), result)
                 assertEquals("거부 응답 뒤에는 기다릴 응답이 없다", 0, client.completePendingCalls)
                 assertSessionKept()
             }

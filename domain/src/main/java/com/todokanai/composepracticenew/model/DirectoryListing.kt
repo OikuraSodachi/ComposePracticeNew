@@ -36,9 +36,9 @@ sealed interface DirectoryListing {
      * [request]의 목록 조회에 실패한 상태.
      * @param request 조회에 실패한 요청
      * @param reason 실패 종류
-     * @param detail 서버 응답·시스템 메시지 등 실패의 상세 내용. 없으면 null
+     * @param failure 저장소가 돌려준 실패. 상세 내용(서버 응답·시스템 메시지 등)을 담는다. 조회가 결과 대신 예외로 끝났으면 null
      */
-    data class Failed(val request: ListingRequest, val reason: ListingFailureReason, val detail: String?) : DirectoryListing
+    data class Failed(val request: ListingRequest, val reason: ListingFailureReason, val failure: IoResult.Failure?) : DirectoryListing
 }
 
 /** 디렉터리 목록 조회 실패의 종류. 표시 문구는 app 레이어가 이 값에 대한 exhaustive `when`으로 정한다. */

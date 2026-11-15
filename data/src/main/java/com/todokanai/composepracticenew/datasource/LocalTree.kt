@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.FailedItem
+import com.todokanai.composepracticenew.model.FailureReason
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -71,5 +72,5 @@ private suspend fun SequenceScope<LocalTreeEntry>.visitTree(file: File, topDown:
 internal fun unsupportedLinkUnder(root: File, link: File): FailedItem {
     // 부모가 없는 경우는 파일시스템 루트를 선택한 것뿐이므로 루트 자신을 기준으로 한다
     val base = root.absoluteFile.parentFile ?: root.absoluteFile
-    return FailedItem(base.slashRelativePathOf(link.absoluteFile), UNSUPPORTED_LINK_REASON)
+    return FailedItem(base.slashRelativePathOf(link.absoluteFile), FailureReason.Raw(UNSUPPORTED_LINK_REASON))
 }

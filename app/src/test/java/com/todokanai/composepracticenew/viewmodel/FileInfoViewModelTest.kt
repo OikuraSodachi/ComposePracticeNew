@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
@@ -12,6 +13,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ItemKind
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
 import com.todokanai.composepracticenew.ui.model.SizeInfo
+import com.todokanai.composepracticenew.ui.model.UiText
 import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -92,10 +94,10 @@ class FileInfoViewModelTest {
     fun `속성을 읽지 못하면 목록의 값 대신 실패를 보여주고 하위 항목 수를 세지 않는다`() {
         viewModel.show(listOf(folder))
 
-        repo.attributes.complete(IoResult.ItemFailed("없음"))
+        repo.attributes.complete(IoResult.ItemFailed(FailureReason.Raw("없음")))
 
         val summary = viewModel.summary.value as SelectionSummary.Single
-        assertEquals(AttributesInfo.Failed("없음"), summary.attributes)
+        assertEquals(AttributesInfo.Failed(UiText.Raw("없음")), summary.attributes)
         assertNull(summary.childCount)
     }
 

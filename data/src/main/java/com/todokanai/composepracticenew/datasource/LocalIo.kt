@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.CancellationException
 import java.io.File
@@ -24,7 +25,7 @@ internal inline fun <T> localIo(describe: (IOException) -> String? = ::ioFailure
     try {
         block()
     } catch (e: IOException) {
-        IoResult.ItemFailed(describe(e))
+        IoResult.ItemFailed(describe(e)?.let(FailureReason::Raw))
     }
 
 /**
