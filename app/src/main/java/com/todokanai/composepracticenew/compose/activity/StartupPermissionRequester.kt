@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat
  */
 internal class StartupPermissionRequester(private val activity: ComponentActivity) {
 
-    // 알림 권한은 없어도 앱이 동작하므로(진행 알림만 보이지 않는다) 결과를 받아 할 일이 없다
+    /** 알림 권한 요청 창을 여는 런처. 알림 권한은 없어도 앱이 동작하므로(진행 알림만 보이지 않는다) 결과를 받아 할 일이 없다. */
     private val notificationPermission =
         activity.registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 

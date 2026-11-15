@@ -21,7 +21,7 @@ class MainActivity : ComponentActivity() {
 
     private val mViewModel: MainViewModel by viewModels()
     /** 시작 때 없는 권한을 요청한다. 런처 등록이 STARTED 전이어야 하므로 속성으로 만든다. */
-    private val permissions =StartupPermissionRequester(this)
+    private val permissions = StartupPermissionRequester(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -29,8 +29,6 @@ class MainActivity : ComponentActivity() {
             HomeScreen(viewModelStoreOwner = this, onExitApp = ::finishAndRemoveTask)
         }
 
-        // 볼륨 목록은 권한 없이 얻을 수 있으므로 권한 허가를 기다리지 않는다 — 권한에 묶으면 허가하고 돌아와도 빈 목록이 남는다(#364)
-        mViewModel.loadStorages()
         permissions.requestMissing()
 
         // 시스템은 회전·프로세스 복원·최근 앱 실행 때도 처음 실행한 intent를 다시 넘기므로, 새로 받은 경우만 처리한다
