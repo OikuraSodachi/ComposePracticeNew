@@ -111,13 +111,9 @@ class MainViewModel @Inject constructor(
             .distinctUntilChanged()
             .onEach { activeIds -> dialogSelection.update { it.onActiveIdsChanged(activeIds) } }
             .launchIn(viewModelScope)
+        // 볼륨 목록은 권한 없이 얻을 수 있으므로 권한 허가를 기다리지 않는다 — 권한에 묶으면 허가하고 돌아와도 빈 목록이 남는다(#364)
+        viewModelScope.launch(Dispatchers.IO) { getStorageListUseCase.execute() }
     }
-
-    /**
-     * 스토리지 목록을 로드해 UI 상태를 갱신한다.
-     * @return Unit
-     */
-    fun loadStorages() = viewModelScope.launch(Dispatchers.IO) { getStorageListUseCase.execute() }
 
     /**
      * 알림 클릭으로 전달된 작업의 진행률 다이얼로그를 띄운다. 그 작업이 이미 끝났으면 띄우지 않는다.
