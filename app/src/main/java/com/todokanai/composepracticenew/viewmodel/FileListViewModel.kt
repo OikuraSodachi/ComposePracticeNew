@@ -6,13 +6,11 @@ import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileNameParts
-import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.tools.CompletionMessages
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
-import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.opensOnClick
@@ -51,7 +49,7 @@ class FileListViewModel @Inject constructor(
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val messages: CompletionMessages,
-    private val folderNames: NewFolderNameDefaults,
+    folderNames: NewFolderNameDefaults,
 ) : ViewModel() {
 
     /**
@@ -80,10 +78,13 @@ class FileListViewModel @Inject constructor(
     /** 경로 breadcrumb 상태와 그 항목으로의 이동. */
     val dirTreeStateHolder = DirTreeStateHolder(fileNavigatorUseCase, viewModelScope)
 
-    /** 이름 변경의 "충돌 판정 → 즉시 실행 / 덮어쓰기 확인 대기" 흐름을 관리한다. */
-    private val renameGate = RenameConfirmGate()
-    /** 같은 이름의 항목이 있어 덮어쓰기(폴더는 합치기) 확인을 기다리는 이름 변경. */
-    val pendingRename: StateFlow<PendingRename?> = renameGate.pending
+    /** 이름 변경의 검증·충돌 판정·덮어쓰기 확인 대기와 새 폴더 이름 제안. */
+    val entryNaming = EntryNamingStateHolder(
+        validateEntryName = localFileOperationUseCase::validateEntryName,
+        conflictCheckUseCase = conflictCheckUseCase,
+        folder = fileNavigatorUseCase,
+        folderNames = folderNames,
+    )
 
     /** 새 폴더를 만들 대상인 현재 폴더. 없으면 만들 곳이 없어 화면이 새 폴더 메뉴를 두지 않는다. */
     val newFolderTarget: StateFlow<String?> = fileNavigatorUseCase.currentPath
@@ -97,24 +98,6 @@ class FileListViewModel @Inject constructor(
 
     /** [item]을 압축 해제할 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식을 따르는 UseCase가 한다. */
     fun canUnzip(item: FileHolderItem): Boolean = localFileOperationUseCase.canUnzip(item.toDomain())
-
-    /**
-     * [item]을 [name]으로 바꿀 때의 위반 규칙 집합을 반환한다. 이름 규칙에 더해, 같은 폴더에 종류가 다른 같은 이름 항목이 있으면
-     * [FileNameError.EXISTS_AS_OTHER_TYPE]을 포함한다. 같은 종류의 겹침은 오류가 아니라 확인 대상이다.
-     * @param item 이름을 바꿀 항목
-     * @param name 사용자가 입력한 새 이름
-     * @return 위반한 규칙의 집합. 비어 있으면 확인 버튼을 누를 수 있다
-     */
-    fun validateRename(item: FileHolderItem, name: String): Set<FileNameError> {
-        val errors = localFileOperationUseCase.validateEntryName(name, item.path)
-        val conflict = conflictCheckUseCase.previewRenameConflict(
-            targetPath = item.path,
-            targetIsDirectory = item.isDirectory,
-            newName = name,
-            folder = fileNavigatorUseCase,
-        )
-        return if (conflict == RenameConflict.TYPE_MISMATCH) errors + FileNameError.EXISTS_AS_OTHER_TYPE else errors
-    }
 
     /** 압축 다이얼로그가 만드는 아카이브 형식. 형식을 고르는 화면이 없으므로 ZIP 하나다. */
     private val archiveFormat = ArchiveFormat.ZIP
@@ -133,13 +116,6 @@ class FileListViewModel @Inject constructor(
      */
     fun validateArchiveName(folder: String, name: String): Set<FileNameError> =
         localFileOperationUseCase.validateArchiveName(name, folder, archiveFormat)
-
-    /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
-    fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
-        baseName = folderNames.defaultNewFolderName,
-        extension = "",
-        folder = fileNavigatorUseCase,
-    )
 
     /**
      * 압축 다이얼로그에 미리 채울 이름(확장자 제외). 같은 이름의 아카이브가 있으면 `이름 (n)`으로 겹치지 않게 고른다.
@@ -242,16 +218,14 @@ class FileListViewModel @Inject constructor(
     }
 
     /**
-     * selection의 항목 하나의 이름을 [name]으로 변경한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청한다.
-     * 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
+     * selection의 항목 하나의 이름을 [name]으로 변경한다. 겹침 판정과 덮어쓰기 확인 요청은 [entryNaming]이 한다.
      * 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      * @param selection 로컬 화면의 선택에서 꺼낸 항목. 이름 변경은 하나만 선택했을 때만 열리므로 항목이 정확히 하나다
      * @param name 새 이름
      */
     fun rename(selection: SubmittedSelection, name: String) {
         val item = selection.items.single()
-        val conflict = renameConflictOf(item, name) ?: return
-        renameGate.request(item, name, conflict) { overwrite ->
+        entryNaming.requestRename(item, name) { overwrite ->
             localFileOperationUseCase.rename(
                 path = item.path,
                 newName = name,
@@ -261,24 +235,6 @@ class FileListViewModel @Inject constructor(
             )
         }
     }
-
-    /** 확인을 기다리는 이름 변경을 덮어쓰기(폴더는 합치기)로 실행한다. */
-    fun confirmRename() = renameGate.confirm()
-
-    /** 확인을 기다리는 이름 변경을 취소한다. */
-    fun cancelRename() = renameGate.cancel()
-
-    /**
-     * [item]을 [name]으로 바꿀 때 현재 폴더의 기존 항목과 겹치는 방식을 판정한다.
-     * @return 겹치는 방식. 폴더 목록을 확인하지 못했으면 판정할 수 없으므로 null(거부 알림은 ConflictCheckUseCase가 한다)
-     */
-    private fun renameConflictOf(item: FileHolderItem, name: String): RenameConflict? =
-        conflictCheckUseCase.findRenameConflict(
-            targetPath = item.path,
-            targetIsDirectory = item.isDirectory,
-            newName = name,
-            folder = fileNavigatorUseCase,
-        )
 
     /**
      * selection의 파일들을 삭제한다.

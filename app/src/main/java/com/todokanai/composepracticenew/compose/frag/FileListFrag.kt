@@ -61,7 +61,7 @@ fun FileListFrag(
     searchViewModel: FileSearchViewModel
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
-    val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
+    val pendingRename by viewModel.entryNaming.pendingRename.collectAsStateWithLifecycle()
     val sortMode by viewModel.sortModeStateHolder.sortMode.collectAsStateWithLifecycle()
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTreeStateHolder.dirTree.collectAsStateWithLifecycle()
@@ -88,9 +88,9 @@ fun FileListFrag(
     val renameActions = remember(viewModel) {
         RenameActions(
             onRename = viewModel::rename,
-            validate = viewModel::validateRename,
-            onConfirmOverwrite = viewModel::confirmRename,
-            onCancelOverwrite = viewModel::cancelRename,
+            validate = viewModel.entryNaming::validateRename,
+            onConfirmOverwrite = viewModel.entryNaming::confirmRename,
+            onCancelOverwrite = viewModel.entryNaming::cancelRename,
         )
     }
 
@@ -115,7 +115,7 @@ fun FileListFrag(
             onSortModeSelected = viewModel.sortModeStateHolder::onSortModeSelected,
             newFolderTarget = newFolderTarget,
             onNewFolder = viewModel::newFolder,
-            suggestFolderName = viewModel::suggestNewFolderName,
+            suggestFolderName = viewModel.entryNaming::suggestNewFolderName,
             validateFolderName = viewModel::validateEntryName,
             onExit = onExit,
             // 다중 선택 중에는 검색을 열지 않는다 — 검색 결과의 선택·작업은 범위 밖이다
