@@ -108,7 +108,7 @@ class FtpTransferrerConnectionLostTest {
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-        assertTrue("$result", ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text.startsWith("전송 미완료"))
+        assertTrue("$result", (result as IoResult.ItemFailed).reason is FailureReason.TransferUnconfirmed)
         assertTrue(runBlocking { session.isReady() })
     }
 

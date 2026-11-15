@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
@@ -31,7 +32,7 @@ class FtpRemoveDirectoryRecursiveTest {
 
         val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
-        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("r/sub/x.txt", FailureReason.Raw("DELE 실패: 550 Permission denied")))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("r/sub/x.txt", FailureReason.ServerRefused(RemoteStep.DELETE_FILE, "550 Permission denied")))), result)
         assertEquals(listOf("/r/other/y.txt", "/r/sub/x.txt"), client.deleteRequests.sorted())
         assertEquals("실패를 품은 /r/sub와 /r에는 RMD를 보내지 않아야 함", listOf("/r/other"), client.removeDirectoryRequests)
     }
@@ -45,7 +46,7 @@ class FtpRemoveDirectoryRecursiveTest {
 
         val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {}.singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("RMD 실패: 550 Directory not empty" + FtpReplyRules.HIDDEN_ENTRIES_NOTE)), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.REMOVE_FOLDER, "550 Directory not empty", mayHaveHiddenEntries = true)), result)
         assertEquals(listOf("/r/a.txt"), client.deleteRequests)
     }
 
@@ -57,6 +58,6 @@ class FtpRemoveDirectoryRecursiveTest {
 
         val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {}.singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("RMD 실패: 550 Directory not empty" + FtpReplyRules.HIDDEN_ENTRIES_NOTE)), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.REMOVE_FOLDER, "550 Directory not empty", mayHaveHiddenEntries = true)), result)
     }
 }

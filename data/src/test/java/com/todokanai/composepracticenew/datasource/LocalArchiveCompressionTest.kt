@@ -187,7 +187,7 @@ class LocalArchiveCompressionTest {
 
         val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {}
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("쓰기 실패")), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.IoFailed("쓰기 실패")), result)
     }
 
     /**

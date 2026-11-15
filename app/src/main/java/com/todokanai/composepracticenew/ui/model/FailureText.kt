@@ -5,10 +5,16 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.FileSystemRefusal
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.ListingRefusal
+import com.todokanai.composepracticenew.model.RemoteStep
 
 /** 여러 항목 실패 메시지에 경로를 나열할 최대 항목 수. 나머지는 "외 n개"로 줄인다. */
 private const val MAX_LISTED_FAILURES = 3
+
+/** 공간 부족 문구에 KB로 보이기 위해 바이트 수를 나누는 값. */
+private const val BYTES_PER_KB = 1024
 
 /**
  * 파일 입출력 실패의 표시 문구를 만든다(#218). 실패 종류와 원인마다 exhaustive `when`으로 문자열 리소스에 대응시킨다.
@@ -28,11 +34,130 @@ fun failureTextOf(failure: IoResult.Failure, operationType: FileOperationType?):
  * @return 표시 문구
  */
 private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
-    is FailureReason.Raw -> UiText.Raw(reason.text)
     is FailureReason.RenameFailed -> namedFailureTextOf(R.string.notice_failure_prefix_rename, reason.name, reason.cause)
+    is FailureReason.RenameNotApplied ->
+        withCause(UiText.Resource(R.string.failure_rename_not_applied, listOf(reason.fromName, reason.toName)), reason.cause)
+    is FailureReason.RenameStopped ->
+        UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), reasonTextOf(reason.cause)))
     is FailureReason.MakeFolderFailed -> namedFailureTextOf(R.string.notice_failure_prefix_make_folder, reason.name, reason.cause)
+    is FailureReason.MoveInterrupted ->
+        UiText.Resource(R.string.failure_move_interrupted, listOf(reason.name, reasonOrUnknownTextOf(reason.cause), reason.movedCount))
     FailureReason.ProtectionRefused -> UiText.Resource(R.string.error_protection_refused)
+    is FailureReason.IoFailed -> UiText.Raw(reason.detail)
+    is FailureReason.FileSystemRefused -> fileSystemRefusedTextOf(reason)
+    is FailureReason.FolderNotListed -> UiText.Resource(listingRefusalRes(reason.kind))
+    FailureReason.FolderUnreadable -> UiText.Resource(R.string.failure_folder_unreadable)
+    is FailureReason.NotEnoughSpace ->
+        UiText.Resource(R.string.failure_not_enough_space, listOf(reason.neededBytes / BYTES_PER_KB, reason.freeBytes / BYTES_PER_KB))
+    FailureReason.NoFreeSpace -> UiText.Resource(R.string.failure_no_free_space)
+    is FailureReason.UnsupportedLink -> withLocation(UiText.Resource(R.string.failure_unsupported_link), reason.location)
+    FailureReason.UnsafeArchiveEntryPath -> UiText.Resource(R.string.failure_unsafe_archive_entry_path)
+    is FailureReason.UnsupportedArchiveFormat -> UiText.Resource(R.string.failure_unsupported_archive_format, listOf(reason.name))
+    FailureReason.NothingToCompress -> UiText.Resource(R.string.failure_nothing_to_compress)
+    is FailureReason.NameTaken -> UiText.Resource(R.string.failure_name_taken, listOf(reason.name))
+    is FailureReason.KindConflict -> UiText.Resource(R.string.failure_kind_conflict, listOf(reason.location))
+    is FailureReason.MergedSourceNotRemoved -> UiText.Resource(R.string.failure_merged_source_not_removed, listOf(reason.name))
+    FailureReason.UnsupportedPath -> UiText.Resource(R.string.failure_unsupported_path)
+    is FailureReason.ServerRefused -> serverRefusedTextOf(reason)
+    is FailureReason.RemoteStepFailed -> remoteStepTextOf(reason.step, reasonTextOf(reason.cause))
+    is FailureReason.TransferUnconfirmed -> UiText.Resource(R.string.failure_transfer_unconfirmed, listOf(reason.reply))
+    is FailureReason.TransferFailed -> reason.detail?.let { UiText.Raw(it) } ?: UiText.Resource(R.string.failure_transfer_failed)
+    is FailureReason.DataConnectionFailed -> UiText.Resource(R.string.failure_data_connection, listOf(reason.detail))
+    FailureReason.NotConnected -> UiText.Resource(R.string.failure_not_connected)
+    FailureReason.ConnectionClosed -> UiText.Resource(R.string.failure_connection_closed)
+    is FailureReason.NoResponse -> UiText.Resource(R.string.failure_no_response, listOf(reason.detail))
+    is FailureReason.UnreadableListingEntry -> UiText.Resource(R.string.failure_unreadable_listing_entry, listOf(reason.line))
+    is FailureReason.TooManyEntries ->
+        withCycleNote(UiText.Resource(R.string.failure_too_many_entries, listOf(reason.path)), reason.cycleUndecidable)
+    is FailureReason.FolderCycle -> UiText.Resource(R.string.failure_folder_cycle, listOf(reason.path))
+    is FailureReason.PathTooLong ->
+        withCycleNote(UiText.Resource(R.string.failure_path_too_long, listOf(reason.limitBytes, reason.path)), reason.cycleUndecidable)
+    is FailureReason.Unexpected -> UiText.Raw(reason.detail)
 }
+
+/**
+ * 파일 시스템 거부의 문구("항목: 거부 종류")를 만든다.
+ * @param reason 파일 시스템 거부
+ * @return 표시 문구. 항목을 모르면 거부 종류만이다
+ */
+private fun fileSystemRefusedTextOf(reason: FailureReason.FileSystemRefused): UiText {
+    val kind = when (val refusal = reason.kind) {
+        FileSystemRefusal.AlreadyExists -> UiText.Resource(R.string.failure_fs_already_exists)
+        FileSystemRefusal.AccessDenied -> UiText.Resource(R.string.failure_fs_access_denied)
+        FileSystemRefusal.NotFound -> UiText.Resource(R.string.failure_fs_not_found)
+        FileSystemRefusal.NotEmpty -> UiText.Resource(R.string.failure_fs_not_empty)
+        FileSystemRefusal.NotFolder -> UiText.Resource(R.string.failure_fs_not_folder)
+        is FileSystemRefusal.Other -> UiText.Resource(R.string.failure_fs_other, listOf(refusal.exceptionName))
+    }
+    return reason.target?.let { UiText.Resource(R.string.failure_at, listOf(it, kind)) } ?: kind
+}
+
+/**
+ * 폴더 안을 나열하지 못한 종류의 문구를 정한다.
+ * @param kind 나열하지 못한 종류
+ * @return 문구의 문자열 리소스 id
+ */
+@StringRes
+private fun listingRefusalRes(kind: ListingRefusal): Int = when (kind) {
+    ListingRefusal.NOT_FOLDER -> R.string.failure_listing_not_folder
+    ListingRefusal.ACCESS_DENIED -> R.string.failure_listing_access_denied
+    ListingRefusal.NOT_FOUND -> R.string.failure_listing_not_found
+}
+
+/**
+ * 원격 서버 거부의 문구("단계 실패: 응답")를 만든다. 숨은 항목이 남아 거부됐을 수 있으면 그 설명을 덧붙인다.
+ * @param reason 원격 서버 거부
+ * @return 표시 문구
+ */
+private fun serverRefusedTextOf(reason: FailureReason.ServerRefused): UiText {
+    val reply: UiText = if (reason.mayHaveHiddenEntries) UiText.Resource(R.string.failure_hidden_entries_note, listOf(reason.reply)) else UiText.Raw(reason.reply)
+    return remoteStepTextOf(reason.step, reply)
+}
+
+/**
+ * 원격 단계 실패의 문구("단계 실패: 원인")를 만든다.
+ * @param step 실패한 단계
+ * @param cause 원인 문구
+ * @return 표시 문구
+ */
+private fun remoteStepTextOf(step: RemoteStep, cause: UiText): UiText =
+    UiText.Resource(R.string.failure_remote_step, listOf(UiText.Resource(remoteStepRes(step)), cause))
+
+/**
+ * 원격 작업 단계의 이름을 정한다.
+ * @param step 원격 작업 단계
+ * @return 이름의 문자열 리소스 id
+ */
+@StringRes
+private fun remoteStepRes(step: RemoteStep): Int = when (step) {
+    RemoteStep.OPEN_FOLDER -> R.string.remote_step_open_folder
+    RemoteStep.LIST_FOLDER -> R.string.remote_step_list_folder
+    RemoteStep.RENAME -> R.string.remote_step_rename
+    RemoteStep.DELETE_FILE -> R.string.remote_step_delete_file
+    RemoteStep.MAKE_FOLDER -> R.string.remote_step_make_folder
+    RemoteStep.REMOVE_FOLDER -> R.string.remote_step_remove_folder
+    RemoteStep.DOWNLOAD -> R.string.remote_step_download
+    RemoteStep.UPLOAD -> R.string.remote_step_upload
+    RemoteStep.PREPARE_TRANSFER -> R.string.remote_step_prepare_transfer
+}
+
+/**
+ * 문구 뒤에 자리를 괄호로 붙인다.
+ * @param text 자리를 붙일 문구
+ * @param location 붙일 자리. null이면 [text] 그대로다
+ * @return 자리를 붙인 문구
+ */
+private fun withLocation(text: UiText, location: String?): UiText =
+    location?.let { UiText.Resource(R.string.failure_with_cause, listOf(text, it)) } ?: text
+
+/**
+ * 폴더 순환을 판별할 수 없었으면 문구 뒤에 그 설명을 붙인다.
+ * @param text 설명을 붙일 문구
+ * @param cycleUndecidable 서버의 목록으로 폴더 순환을 판별할 수 없었는지
+ * @return 설명을 붙인 문구
+ */
+private fun withCycleNote(text: UiText, cycleUndecidable: Boolean): UiText =
+    if (cycleUndecidable) UiText.Resource(R.string.failure_cycle_undecidable, listOf(text)) else text
 
 /**
  * 이름 붙은 항목의 실패 문구("머리말: 이름 (원인)")를 만든다.

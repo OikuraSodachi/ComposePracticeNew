@@ -143,7 +143,7 @@ class FtpSessionConnectionStateTest {
 
     @Test
     fun `서버 거부처럼 결과로 돌아온 실패는 연결 상태를 바꾸지 않는다`() = runBlocking {
-        session.withConnectedClient { IoResult.ItemFailed(FailureReason.Raw("550")) }
+        session.withConnectedClient { IoResult.ItemFailed(FailureReason.IoFailed("550")) }
 
         assertEquals(RemoteConnectionState.Connected("server"), session.connectionState.value)
     }

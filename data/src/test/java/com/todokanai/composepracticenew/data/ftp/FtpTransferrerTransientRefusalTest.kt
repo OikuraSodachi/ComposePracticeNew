@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
@@ -37,7 +38,7 @@ class FtpTransferrerTransientRefusalTest {
 
             val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-            assertEquals("${refusal.code}", IoResult.ItemFailed(FailureReason.Raw("RETR 실패: ${refusal.text}")), result)
+            assertEquals("${refusal.code}", IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.DOWNLOAD, refusal.text)), result)
             assertTrue("${refusal.code}: 세션이 유지돼야 함", runBlocking { session.isReady() })
             assertEquals(0, client.disconnectCalls)
         }
@@ -50,7 +51,7 @@ class FtpTransferrerTransientRefusalTest {
 
         val result = runBlocking { transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("STOR 실패: 452 Insufficient storage")), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.UPLOAD, "452 Insufficient storage")), result)
         assertTrue(runBlocking { session.isReady() })
         assertEquals(0, client.disconnectCalls)
     }
@@ -76,7 +77,7 @@ class FtpTransferrerTransientRefusalTest {
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("LIST 실패: 450 File busy")), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.LIST_FOLDER, "450 File busy")), result)
         assertTrue(runBlocking { session.isReady() })
     }
 

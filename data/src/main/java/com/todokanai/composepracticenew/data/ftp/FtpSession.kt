@@ -105,12 +105,12 @@ internal class FtpSession(
      * @return block의 결과, 또는 연결 끊김
      */
     override suspend fun <T> withConnectedClient(block: suspend (FtpCommandClient) -> IoResult<T>): IoResult<T> = withClient { client ->
-        if (!isReady()) return@withClient IoResult.ConnectionLost(FailureReason.Raw(NOT_CONNECTED_MESSAGE))
+        if (!isReady()) return@withClient IoResult.ConnectionLost(FailureReason.NotConnected)
         try {
             block(client)
         } catch (e: IOException) {
             endUnusableSession()
-            IoResult.ConnectionLost(FailureReason.Raw(unusableSessionMessage(e)))
+            IoResult.ConnectionLost(unusableSessionReason(e))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -163,13 +163,13 @@ internal class FtpSession(
     }
 
     /**
-     * 세션을 종료하게 된 실패를 사용자에게 보여줄 메시지로 바꾼다.
+     * 세션을 종료하게 된 실패를 원인으로 바꾼다.
      * @param cause 세션을 종료하게 된 예외
-     * @return 표시할 메시지
+     * @return 연결이 끊긴 원인
      */
-    private fun unusableSessionMessage(cause: IOException): String =
-        if (cause is FTPConnectionClosedException) CONNECTION_LOST_MESSAGE
-        else "$NO_RESPONSE_MESSAGE (${cause.message ?: cause.javaClass.simpleName})"
+    private fun unusableSessionReason(cause: IOException): FailureReason =
+        if (cause is FTPConnectionClosedException) FailureReason.ConnectionClosed
+        else FailureReason.NoResponse(cause.message ?: cause.javaClass.simpleName)
 
     /**
      * FTP 연결이 서버 측에서 끊긴 경우 로그인 상태를 초기화한다. 진행 중인 작업은 다음 명령에서 [withConnectedClient]가 끊김으로 알린다.
@@ -300,11 +300,5 @@ internal class FtpSession(
     companion object {
         /** 소켓 읽기·쓰기 한 번을 기다리는 기본 상한(ms). FileZilla의 기본 무응답 제한(20초)과 비슷한 수준이다. */
         private const val IO_TIMEOUT_MILLIS = 15_000
-        /** 연결되지 않은 상태에서 명령을 실행하려 할 때 표시할 메시지. */
-        private const val NOT_CONNECTED_MESSAGE = "FTP 서버에 연결되어 있지 않습니다"
-        /** 서버가 연결을 닫았을 때 표시할 메시지. */
-        private const val CONNECTION_LOST_MESSAGE = "FTP 서버와의 연결이 끊겼습니다"
-        /** 서버 응답을 받지 못해 세션을 종료했을 때 표시할 메시지. */
-        private const val NO_RESPONSE_MESSAGE = "FTP 서버 응답을 받지 못해 연결을 종료했습니다"
     }
 }

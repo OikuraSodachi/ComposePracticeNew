@@ -48,7 +48,7 @@ class ArchiveEntryWriterTest {
         writer.createFolder("../evil/")
         writer.createFolder("./")
 
-        assertEquals(listOf("../evil.txt", "../evil/", "./").map { FailedItem(it, FailureReason.Raw(ArchiveEntryWriter.REJECTED_PATH_REASON)) }, writer.failures)
+        assertEquals(listOf("../evil.txt", "../evil/", "./").map { FailedItem(it, FailureReason.UnsafeArchiveEntryPath) }, writer.failures)
         assertEquals(listOf("out"), dir.list()!!.toList())
     }
 }

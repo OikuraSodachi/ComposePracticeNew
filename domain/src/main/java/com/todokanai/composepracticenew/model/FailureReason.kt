@@ -2,15 +2,9 @@ package com.todokanai.composepracticenew.model
 
 /**
  * 파일 입출력 실패의 원인. 문장 대신 무엇이 실패했는지만 담고, 표시 문구는 app 레이어가 종류별로 문자열 리소스에서 정한다(#218).
- * 서버 응답 원문·항목 이름처럼 번역하지 않는 값은 각 종류의 필드로 담는다.
+ * 서버 응답 원문·예외 메시지·항목 이름처럼 번역하지 않는 값은 각 종류의 필드로 담는다.
  */
 sealed interface FailureReason {
-
-    /**
-     * data가 만든 원인 문장 그대로. data의 원인을 종류로 바꾸는 #218의 다음 단계까지만 쓴다.
-     * @param text 표시할 원인 문장
-     */
-    data class Raw(val text: String) : FailureReason
 
     /**
      * 이름을 바꾸지 못했다.
@@ -20,12 +14,250 @@ sealed interface FailureReason {
     data class RenameFailed(val name: String, val cause: FailureReason?) : FailureReason
 
     /**
+     * 항목의 이름 바꾸기를 저장소가 해내지 못했다.
+     * @param fromName 원래 이름
+     * @param toName 바꾸려던 새 이름
+     * @param cause 저장소가 알린 원인. 모르면 null
+     */
+    data class RenameNotApplied(val fromName: String, val toName: String, val cause: FailureReason?) : FailureReason
+
+    /**
+     * 이름 바꾸기를 끝내지 못했다(바꾸기 전에 막았거나, 합친 뒤 정리하지 못했다).
+     * @param cause 끝내지 못한 원인
+     */
+    data class RenameStopped(val cause: FailureReason) : FailureReason
+
+    /**
      * 폴더를 만들지 못했다.
      * @param name 만들려던 폴더 이름
      * @param cause 저장소가 알린 원인. 모르면 null
      */
     data class MakeFolderFailed(val name: String, val cause: FailureReason?) : FailureReason
 
+    /**
+     * 항목을 옮기는 도중 멈췄다.
+     * @param name 옮기던 항목 이름
+     * @param movedCount 멈추기 전에 이미 옮긴 항목 수
+     * @param cause 멈춘 원인. 모르면 null
+     */
+    data class MoveInterrupted(val name: String, val movedCount: Int, val cause: FailureReason?) : FailureReason
+
     /** 시스템이 프로세스 보호를 거부해 작업을 시작하지 않았다. */
     data object ProtectionRefused : FailureReason
+
+    /**
+     * 입출력이 실패했다. 원인은 시스템이 알린 메시지 그대로다.
+     * @param detail 시스템이 알린 메시지
+     */
+    data class IoFailed(val detail: String) : FailureReason
+
+    /**
+     * 파일 시스템이 항목에 대한 요청을 거부했다.
+     * @param target 거부된 항목(시스템이 알린 경로). 모르면 null
+     * @param kind 거부 종류
+     */
+    data class FileSystemRefused(val target: String?, val kind: FileSystemRefusal) : FailureReason
+
+    /**
+     * 폴더 안을 나열하지 못했다.
+     * @param kind 나열하지 못한 종류
+     */
+    data class FolderNotListed(val kind: ListingRefusal) : FailureReason
+
+    /** 폴더가 아니거나 읽을 권한이 없어 폴더 안을 읽지 못했다. */
+    data object FolderUnreadable : FailureReason
+
+    /**
+     * 쓸 자리의 여유 공간이 모자란다.
+     * @param neededBytes 필요한 바이트 수
+     * @param freeBytes 여유 바이트 수
+     */
+    data class NotEnoughSpace(val neededBytes: Long, val freeBytes: Long) : FailureReason
+
+    /** 쓸 자리에 여유 공간이 전혀 없다. */
+    data object NoFreeSpace : FailureReason
+
+    /**
+     * 심볼릭 링크라 다루지 않았다(지원 범위 밖).
+     * @param location 링크가 있는 자리. 실패 항목의 경로가 곧 자리면 null
+     */
+    data class UnsupportedLink(val location: String? = null) : FailureReason
+
+    /** 압축 파일 항목의 경로가 압축을 풀 폴더 밖을 가리켜 풀지 않았다. */
+    data object UnsafeArchiveEntryPath : FailureReason
+
+    /**
+     * 지원하지 않는 압축 형식이다.
+     * @param name 형식을 알아본 이름(확장자나 파일 이름)
+     */
+    data class UnsupportedArchiveFormat(val name: String) : FailureReason
+
+    /** 압축에 넣을 항목이 없다. */
+    data object NothingToCompress : FailureReason
+
+    /**
+     * 같은 이름의 항목이 이미 있다.
+     * @param name 겹친 이름
+     */
+    data class NameTaken(val name: String) : FailureReason
+
+    /**
+     * 종류(파일·폴더)가 다른 항목이 같은 이름으로 있다.
+     * @param location 겹친 자리
+     */
+    data class KindConflict(val location: String) : FailureReason
+
+    /**
+     * 안쪽 항목을 합친 뒤 원래 폴더를 지우지 못했다.
+     * @param name 원래 폴더 이름
+     */
+    data class MergedSourceNotRemoved(val name: String) : FailureReason
+
+    /** 이 저장소가 다루지 않는 경로다. */
+    data object UnsupportedPath : FailureReason
+
+    /**
+     * 원격 서버가 요청을 거부했다.
+     * @param step 거부된 단계
+     * @param reply 서버가 보낸 응답 원문
+     * @param mayHaveHiddenEntries 목록에 보이지 않는 항목이 남아 거부됐을 수 있는지
+     */
+    data class ServerRefused(val step: RemoteStep, val reply: String, val mayHaveHiddenEntries: Boolean = false) : FailureReason
+
+    /**
+     * 원격 단계가 도중에 실패했다.
+     * @param step 실패한 단계
+     * @param cause 실패 원인
+     */
+    data class RemoteStepFailed(val step: RemoteStep, val cause: FailureReason) : FailureReason
+
+    /**
+     * 데이터를 다 주고받았지만 서버가 전송 완료를 확인하지 않았다.
+     * @param reply 서버가 보낸 응답 원문
+     */
+    data class TransferUnconfirmed(val reply: String) : FailureReason
+
+    /**
+     * 전송이 실패했다.
+     * @param detail 시스템이 알린 메시지. 없으면 null
+     */
+    data class TransferFailed(val detail: String?) : FailureReason
+
+    /**
+     * 데이터 연결을 열지 못했다.
+     * @param detail 시스템이 알린 메시지(없으면 예외 종류)
+     */
+    data class DataConnectionFailed(val detail: String) : FailureReason
+
+    /** 원격 서버에 연결되어 있지 않다. */
+    data object NotConnected : FailureReason
+
+    /** 원격 서버와의 연결이 끊겼다. */
+    data object ConnectionClosed : FailureReason
+
+    /**
+     * 원격 서버 응답을 받지 못해 연결을 종료했다.
+     * @param detail 시스템이 알린 메시지(없으면 예외 종류)
+     */
+    data class NoResponse(val detail: String) : FailureReason
+
+    /**
+     * 원격 목록의 한 줄을 해석하지 못했다.
+     * @param line 해석하지 못한 줄(표시용)
+     */
+    data class UnreadableListingEntry(val line: String) : FailureReason
+
+    /**
+     * 폴더 안의 항목이 너무 많아 처리하지 않았다.
+     * @param path 그 폴더의 경로
+     * @param cycleUndecidable 서버의 목록으로 폴더 순환을 판별할 수 없는지
+     */
+    data class TooManyEntries(val path: String, val cycleUndecidable: Boolean) : FailureReason
+
+    /**
+     * 폴더가 자기 상위 폴더와 같은 폴더다(순환).
+     * @param path 그 폴더의 경로
+     */
+    data class FolderCycle(val path: String) : FailureReason
+
+    /**
+     * 경로가 한도보다 길어 처리하지 않았다.
+     * @param path 그 경로
+     * @param limitBytes 경로 길이 한도(바이트)
+     * @param cycleUndecidable 서버의 목록으로 폴더 순환을 판별할 수 없는지
+     */
+    data class PathTooLong(val path: String, val limitBytes: Int, val cycleUndecidable: Boolean) : FailureReason
+
+    /**
+     * 예상하지 못한 오류로 작업이 끝났다.
+     * @param detail 오류 메시지
+     */
+    data class Unexpected(val detail: String) : FailureReason
+}
+
+/** 파일 시스템이 항목에 대한 요청을 거부한 종류. */
+sealed interface FileSystemRefusal {
+
+    /** 같은 이름의 항목이 이미 있다. */
+    data object AlreadyExists : FileSystemRefusal
+
+    /** 권한이 없다. */
+    data object AccessDenied : FileSystemRefusal
+
+    /** 항목을 찾을 수 없다. */
+    data object NotFound : FileSystemRefusal
+
+    /** 비어 있지 않은 폴더다. */
+    data object NotEmpty : FileSystemRefusal
+
+    /** 폴더가 아니다. */
+    data object NotFolder : FileSystemRefusal
+
+    /**
+     * 그 밖의 파일 시스템 오류.
+     * @param exceptionName 시스템이 알린 오류 종류 이름
+     */
+    data class Other(val exceptionName: String) : FileSystemRefusal
+}
+
+/** 폴더 안을 나열하지 못한 종류. */
+enum class ListingRefusal {
+    /** 폴더가 아니다. */
+    NOT_FOLDER,
+
+    /** 읽을 권한이 없다. */
+    ACCESS_DENIED,
+
+    /** 항목이 없다. */
+    NOT_FOUND,
+}
+
+/** 원격 작업의 단계. 프로토콜의 명령이 아니라 무엇을 하던 중이었는지로 나눈다. */
+enum class RemoteStep {
+    /** 폴더로 들어가기. */
+    OPEN_FOLDER,
+
+    /** 폴더 목록 읽기. */
+    LIST_FOLDER,
+
+    /** 이름 바꾸기. */
+    RENAME,
+
+    /** 파일 지우기. */
+    DELETE_FILE,
+
+    /** 폴더 만들기. */
+    MAKE_FOLDER,
+
+    /** 폴더 지우기. */
+    REMOVE_FOLDER,
+
+    /** 내려받기. */
+    DOWNLOAD,
+
+    /** 올리기. */
+    UPLOAD,
+
+    /** 데이터 연결 준비. */
+    PREPARE_TRANSFER,
 }

@@ -2,22 +2,23 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.RemoteStep
 import org.apache.commons.net.ftp.FTPFile
 import org.apache.commons.net.ftp.FTPReply
 import org.apache.commons.net.ftp.parser.MLSxEntryParser
 
 /**
  * 이 앱이 보내는 FTP 명령. 응답 해석 규칙이 명령마다 다를 수 있어 [FtpReplyRules]의 행(行)이 된다.
- * @param label 실패 메시지에 표시할 명령 이름
+ * @param step 이 명령이 하는 원격 작업 단계(실패 원인에 담는다)
  */
-internal enum class FtpCommand(val label: String) {
-    CWD("CWD"),
-    LIST("LIST"),
-    MLSD("MLSD"),
-    RENAME("RENAME"),
-    DELE("DELE"),
-    MKD("MKD"),
-    RMD("RMD"),
+internal enum class FtpCommand(val step: RemoteStep) {
+    CWD(RemoteStep.OPEN_FOLDER),
+    LIST(RemoteStep.LIST_FOLDER),
+    MLSD(RemoteStep.LIST_FOLDER),
+    RENAME(RemoteStep.RENAME),
+    DELE(RemoteStep.DELETE_FILE),
+    MKD(RemoteStep.MAKE_FOLDER),
+    RMD(RemoteStep.REMOVE_FOLDER),
 }
 
 /**
@@ -53,27 +54,27 @@ internal object FtpReplyRules {
      * [command]를 서버가 거부한 마지막 응답을 이 항목만의 실패로 만든다.
      * @param command 거부된 명령
      * @param reply 서버가 보낸 거부 응답 문자열
-     * @return 서버 응답을 메시지로 담은 실패
+     * @return 서버 응답을 원인으로 담은 실패
      */
     fun refusal(command: FtpCommand, reply: String): IoResult.ItemFailed =
-        IoResult.ItemFailed(FailureReason.Raw("${command.label} 실패: ${reply.trim()}${refusalNote(command)}"))
+        IoResult.ItemFailed(FailureReason.ServerRefused(command.step, reply.trim(), mayHaveHiddenEntries(command)))
 
     /**
      * 데이터 연결을 쓰는 명령이 데이터 연결을 열기 전에 거부된 것([DataCommandOutcome.Refused])을 이 항목만의 실패로 만든다.
      * 거부된 명령은 보낸 데이터 명령(LIST·RETR 등)이 아니라 그 앞의 준비 명령(PASV·EPSV·REST)일 수 있으므로, 실제로 거부된 명령의 이름을 받는다.
      * @param refusedCommand 서버가 거부한 명령 이름([FtpCommandClient.lastSentCommand])
      * @param reply 서버가 보낸 거부 응답 문자열
-     * @return 거부된 명령과 서버 응답을 메시지로 담은 실패
+     * @return 거부된 단계와 서버 응답을 원인으로 담은 실패
      */
     fun dataCommandRefusal(refusedCommand: String, reply: String): IoResult.ItemFailed =
-        IoResult.ItemFailed(FailureReason.Raw("$refusedCommand 실패: ${reply.trim()}"))
+        IoResult.ItemFailed(FailureReason.ServerRefused(dataCommandStepOf(refusedCommand), reply.trim()))
 
     /**
      * 데이터를 다 주고받았지만 서버가 완료를 확인하지 않은 전송을 이 항목만의 실패로 만든다.
      * @param reply 서버가 보낸 완료 응답 문자열
-     * @return 서버 응답을 메시지로 담은 실패
+     * @return 서버 응답을 원인으로 담은 실패
      */
-    fun unacknowledgedTransfer(reply: String): IoResult.ItemFailed = IoResult.ItemFailed(FailureReason.Raw("전송 미완료: ${reply.trim()}"))
+    fun unacknowledgedTransfer(reply: String): IoResult.ItemFailed = IoResult.ItemFailed(FailureReason.TransferUnconfirmed(reply.trim()))
 
     /**
      * MLST 응답에서 파일 크기를 읽는다. 항목 줄은 응답의 둘째 줄이며 공백으로 시작한다(RFC 3659 §7.2).
@@ -102,17 +103,26 @@ internal object FtpReplyRules {
     }
 
     /**
-     * 서버 응답만으로는 원인을 알 수 없는 거부에 덧붙일 설명.
+     * 목록에 보이지 않는 항목이 남아 거부됐을 수 있는 명령인지 판별한다. 서버 응답만으로는 원인을 알 수 없어 가능성으로 알린다.
      * RMD는 목록에서 본 하위 항목을 모두 지운 뒤에만 보내지만, 목록은 서버가 드러내는 항목뿐이라(RFC 3659 §7.1, LIST의 유닉스 계열 `.` 항목 등)
      * 서버가 숨긴 항목이 남아 거부됐을 수 있다. 클라이언트는 그런 항목을 알아낼 방법이 없고, 거부 응답은 권한 없음과 비어 있지 않음을 구분하지 않으므로 가능성으로 알린다.
      * @param command 거부된 명령
-     * @return 덧붙일 설명. 없으면 빈 문자열
+     * @return 숨은 항목이 남아 거부됐을 수 있으면 true
      */
-    private fun refusalNote(command: FtpCommand): String = when (command) {
-        FtpCommand.RMD -> HIDDEN_ENTRIES_NOTE
-        FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD -> ""
+    private fun mayHaveHiddenEntries(command: FtpCommand): Boolean = when (command) {
+        FtpCommand.RMD -> true
+        FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD -> false
     }
 
-    /** 숨김 항목이 남아 RMD가 거부됐을 수 있을 때 거부 메시지 뒤에 덧붙이는 설명([refusalNote]). */
-    internal const val HIDDEN_ENTRIES_NOTE = " (폴더가 비어 있지 않아 거부됐다면 목록에 보이지 않는 항목(숨김 파일 등)이 남아 있을 수 있습니다)"
+    /**
+     * 데이터 연결을 쓰는 명령 중 서버가 거부한 명령을 원격 작업 단계로 바꾼다. 데이터 명령이 아니면 그 앞의 준비 명령(PASV·EPSV·REST 등)이다.
+     * @param command 서버가 거부한 명령 이름
+     * @return 거부된 단계
+     */
+    private fun dataCommandStepOf(command: String): RemoteStep = when (command.uppercase()) {
+        "LIST", "MLSD", "NLST" -> RemoteStep.LIST_FOLDER
+        "RETR" -> RemoteStep.DOWNLOAD
+        "STOR", "APPE" -> RemoteStep.UPLOAD
+        else -> RemoteStep.PREPARE_TRANSFER
+    }
 }

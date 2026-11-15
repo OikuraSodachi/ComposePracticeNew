@@ -137,7 +137,7 @@ class WriteConflictResolutionTest {
         }
         runCurrent()
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.Raw("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.Unexpected("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")))), notices.failures)
     }
 
     @Test

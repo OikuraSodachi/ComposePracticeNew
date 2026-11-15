@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.FileReservation
 import com.todokanai.composepracticenew.datasource.LocalEntryKind
 import com.todokanai.composepracticenew.datasource.LocalTreeEntry
-import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
 import com.todokanai.composepracticenew.datasource.WriteSlot
 import com.todokanai.composepracticenew.datasource.createDirectoryResolving
 import com.todokanai.composepracticenew.datasource.entryKind
@@ -103,7 +102,7 @@ class FtpTransferrer @Inject internal constructor(
             val progress = ByteProgressTracker(files.sumOf { it.length() }, files.size, onProgress)
             forEachCollectingFailures(plans, nameOf = { it.localFile.name }) { plan ->
                 when (plan) {
-                    is UploadPlan.Link -> IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON))
+                    is UploadPlan.Link -> IoResult.ItemFailed(FailureReason.UnsupportedLink())
                     is UploadPlan.SingleFile -> uploadFile(plan.localFile, plan.ftpPath, progress)
                     is UploadPlan.Tree -> uploadDirectory(plan, progress)
                 }
@@ -151,7 +150,7 @@ class FtpTransferrer @Inject internal constructor(
         val claimed = when (val slot = claimLocalFile(localFile, resolveConflict).valueOr { return it }) {
             is WriteSlot.Ready -> slot.value
             WriteSlot.Skipped -> return IoResult.Done.also { progress.passOver(localFile.name, plan.size) }
-            WriteSlot.Link -> return IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON)).also { progress.passOver(localFile.name, plan.size) }
+            WriteSlot.Link -> return IoResult.ItemFailed(FailureReason.UnsupportedLink()).also { progress.passOver(localFile.name, plan.size) }
         }
         progress.startFile()
         return receivingInto(claimed) { onOpened ->
@@ -179,7 +178,7 @@ class FtpTransferrer @Inject internal constructor(
             is WriteSlot.Ready -> Unit
             WriteSlot.Skipped, WriteSlot.Link -> {
                 plan.fileEntries.forEach { progress.passOver(it.name, it.size) }
-                return if (slot == WriteSlot.Link) IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON)) else IoResult.Done
+                return if (slot == WriteSlot.Link) IoResult.ItemFailed(FailureReason.UnsupportedLink()) else IoResult.Done
             }
         }
         // 건너뛰기로 했거나 링크가 있는 폴더. 그 아래 항목은 묻지 않고 건너뛴다 — 링크 아래에 만들면 링크가 가리키는 곳에 쓰므로
@@ -190,21 +189,21 @@ class FtpTransferrer @Inject internal constructor(
                 is ListedItem.Entry -> item.entry
                 // 건너뛰기로 한 폴더 안이면 받을 것이 아니었으므로 완료다
                 is ListedItem.Unreadable -> return@forEachCollectingFailures if (skippedDirs.any { localTarget.startsWith(it) }) IoResult.Done
-                    else IoResult.ItemFailed(FailureReason.Raw(item.failureReason))
+                    else IoResult.ItemFailed(item.failureReason)
             }
             when {
                 skippedDirs.any { localTarget.startsWith(it) } -> IoResult.Done.also { if (!entry.isDirectory) progress.passOver(entry.name, entry.size) }
                 entry.isDirectory -> when (claimLocalDirectory(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }) {
                     is WriteSlot.Ready -> IoResult.Done
                     WriteSlot.Skipped -> IoResult.Done.also { skippedDirs += localTarget }
-                    WriteSlot.Link -> IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON)).also { skippedDirs += localTarget }
+                    WriteSlot.Link -> IoResult.ItemFailed(FailureReason.UnsupportedLink()).also { skippedDirs += localTarget }
                 }
                 else -> {
                     localTarget.parentFile?.mkdirs()
                     val claimed = when (val slot = claimLocalFile(localTarget, resolveConflict).valueOr { return@forEachCollectingFailures it }) {
                         is WriteSlot.Ready -> slot.value
                         WriteSlot.Skipped -> return@forEachCollectingFailures IoResult.Done.also { progress.passOver(entry.name, entry.size) }
-                        WriteSlot.Link -> return@forEachCollectingFailures IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON)).also { progress.passOver(entry.name, entry.size) }
+                        WriteSlot.Link -> return@forEachCollectingFailures IoResult.ItemFailed(FailureReason.UnsupportedLink()).also { progress.passOver(entry.name, entry.size) }
                     }
                     progress.startFile()
                     val entryFtpPath = extractFtpPath(entry.path)
@@ -233,7 +232,7 @@ class FtpTransferrer @Inject internal constructor(
      * @return 그 폴더에 받을 수 있으면 [WriteSlot.Ready], 건너뛰기로 했으면 [WriteSlot.Skipped], 링크가 있으면 [WriteSlot.Link], 또는 폴더를 만들지 못한 실패
      */
     private suspend fun claimLocalDirectory(dir: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<Unit>> =
-        localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(createDirectoryResolving(dir) { resolveConflict.resolve(it) }) }
+        localIo(describe = { FailureReason.TransferFailed(it.message) }) { IoResult.Success(createDirectoryResolving(dir) { resolveConflict.resolve(it) }) }
 
     /**
      * 받을 로컬 파일 [file] 자리를 확보한다. 없으면 빈 파일을 만들어 이름을 잡아 두고, 있으면 [resolveConflict]에 묻는다. 링크면 묻지 않는다.
@@ -242,7 +241,7 @@ class FtpTransferrer @Inject internal constructor(
      * @return 받을 자리를 담은 [WriteSlot.Ready], 건너뛰기로 했으면 [WriteSlot.Skipped], 링크가 있으면 [WriteSlot.Link], 또는 자리를 만들지 못한 실패
      */
     private suspend fun claimLocalFile(file: File, resolveConflict: WriteConflictResolver): IoResult<WriteSlot<ClaimedFile>> =
-        localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) {
+        localIo(describe = { FailureReason.TransferFailed(it.message) }) {
             IoResult.Success(
                 reserveFileResolving(file) { resolveConflict.resolve(it) }.map { ClaimedFile(file, createdHere = it == FileReservation.CREATED) }
             )
@@ -370,7 +369,7 @@ class FtpTransferrer @Inject internal constructor(
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
             when (treeEntry.kind) {
-                LocalEntryKind.LINK -> IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON))
+                LocalEntryKind.LINK -> IoResult.ItemFailed(FailureReason.UnsupportedLink())
                 LocalEntryKind.DIRECTORY -> cmd.ensureDirectory(entryFtpPath)
                 LocalEntryKind.FILE -> uploadFile(entry, entryFtpPath, progress)
             }
@@ -385,7 +384,7 @@ class FtpTransferrer @Inject internal constructor(
      * @return [upload]의 결과, 또는 파일을 열지 못한 실패
      */
     private suspend fun uploadingFrom(localFile: File, upload: suspend (InputStream) -> IoResult<Unit>): IoResult<Unit> {
-        val input = localIo(describe = { it.message ?: TRANSFER_FAILED_MESSAGE }) { IoResult.Success(localFile.inputStream()) }.valueOr { return it }
+        val input = localIo(describe = { FailureReason.TransferFailed(it.message) }) { IoResult.Success(localFile.inputStream()) }.valueOr { return it }
         return try {
             upload(input)
         } finally {
@@ -482,8 +481,8 @@ class FtpTransferrer @Inject internal constructor(
         onAcked: suspend () -> Unit
     ): IoResult<Unit> = when (outcome) {
         is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
-        is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(FailureReason.Raw(outcome.cause.message ?: TRANSFER_FAILED_MESSAGE))
-        is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(FailureReason.Raw(dataConnectionFailure(outcome.cause)))
+        is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(FailureReason.TransferFailed(outcome.cause.message))
+        is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(dataConnectionFailure(outcome.cause))
         is DataCommandOutcome.Finished ->
             if (!outcome.acknowledged) FtpReplyRules.unacknowledgedTransfer(client.getReplyString())
             else {
@@ -528,8 +527,6 @@ class FtpTransferrer @Inject internal constructor(
 
     companion object {
         private const val BUFFER_SIZE = 128 * 1024
-        /** 원인을 알 수 없는 전송 실패의 메시지. */
-        private const val TRANSFER_FAILED_MESSAGE = "전송 실패"
     }
 }
 

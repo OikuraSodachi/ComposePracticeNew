@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import android.system.ErrnoException
 import android.system.Os
+import com.todokanai.composepracticenew.model.FailureReason
 import java.io.File
 import java.io.IOException
 
@@ -21,10 +22,7 @@ internal object LocalFileChecks {
             false
         }
 
-    /** 대상 파티션의 여유 공간 [free]가 [needed] 바이트 미만이면 오류 메시지를 반환하고, 충분하면 null을 반환한다. */
-    fun checkDiskSpace(needed: Long, free: Long): String? {
-        return if (free < needed)
-            "디스크 공간 부족: 필요 ${needed / 1024} KB, 여유 ${free / 1024} KB"
-        else null
-    }
+    /** 대상 파티션의 여유 공간 [free]가 [needed] 바이트 미만이면 공간 부족 원인을 반환하고, 충분하면 null을 반환한다. */
+    fun checkDiskSpace(needed: Long, free: Long): FailureReason? =
+        if (free < needed) FailureReason.NotEnoughSpace(needed, free) else null
 }

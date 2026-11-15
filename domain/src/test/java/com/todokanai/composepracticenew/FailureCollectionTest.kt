@@ -29,10 +29,10 @@ class FailureCollectionTest {
         val processed = mutableListOf<String>()
         val result = forEachCollectingFailures(listOf("a", "b", "c"), nameOf = { it }) {
             processed += it
-            if (it == "a") IoResult.ItemFailed(FailureReason.Raw("권한 없음")) else IoResult.Done
+            if (it == "a") IoResult.ItemFailed(FailureReason.IoFailed("권한 없음")) else IoResult.Done
         }
         assertEquals(listOf("a", "b", "c"), processed)
-        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a", FailureReason.Raw("권한 없음")))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a", FailureReason.IoFailed("권한 없음")))), result)
     }
 
     @Test
@@ -47,16 +47,16 @@ class FailureCollectionTest {
     @Test
     fun `여러 항목이 같은 원인으로 실패하면 그 원인을 함께 표시한다`() = runBlocking {
         val result = forEachCollectingFailures(listOf("a", "b"), nameOf = { it }) {
-            IoResult.ItemFailed(FailureReason.Raw("425 Can't open data connection"))
+            IoResult.ItemFailed(FailureReason.IoFailed("425 Can't open data connection"))
         }
-        assertEquals(listOf("a", "b").map { FailedItem(it, FailureReason.Raw("425 Can't open data connection")) }, (result as IoResult.PartiallyFailed).failures)
+        assertEquals(listOf("a", "b").map { FailedItem(it, FailureReason.IoFailed("425 Can't open data connection")) }, (result as IoResult.PartiallyFailed).failures)
     }
 
     @Test
     fun `원인이 여러 종류면 가장 많은 원인과 나머지 원인의 종류·항목 수를 표시한다`() = runBlocking {
         val reasons = mapOf("a" to "디스크 부족", "b" to "권한 없음", "c" to "권한 없음", "d" to null)
-        val result = forEachCollectingFailures(reasons.keys, nameOf = { it }) { IoResult.ItemFailed(reasons.getValue(it)?.let(FailureReason::Raw)) }
-        assertEquals(reasons.map { (path, reason) -> FailedItem(path, reason?.let(FailureReason::Raw)) }, (result as IoResult.PartiallyFailed).failures)
+        val result = forEachCollectingFailures(reasons.keys, nameOf = { it }) { IoResult.ItemFailed(reasons.getValue(it)?.let(FailureReason::IoFailed)) }
+        assertEquals(reasons.map { (path, reason) -> FailedItem(path, reason?.let(FailureReason::IoFailed)) }, (result as IoResult.PartiallyFailed).failures)
     }
 
     @Test
@@ -65,13 +65,13 @@ class FailureCollectionTest {
         val result = forEachCollectingFailures(listOf("a", "b", "c"), nameOf = { it }) {
             processed += it
             when (it) {
-                "a" -> IoResult.ItemFailed(FailureReason.Raw("일반 실패"))
-                "b" -> IoResult.ConnectionLost(FailureReason.Raw("끊김"))
+                "a" -> IoResult.ItemFailed(FailureReason.IoFailed("일반 실패"))
+                "b" -> IoResult.ConnectionLost(FailureReason.IoFailed("끊김"))
                 else -> IoResult.Done
             }
         }
         assertEquals(listOf("a", "b"), processed)
-        assertEquals(IoResult.ConnectionLost(FailureReason.Raw("끊김")), result)
+        assertEquals(IoResult.ConnectionLost(FailureReason.IoFailed("끊김")), result)
     }
 
     @Test
@@ -113,10 +113,10 @@ class FailureCollectionTest {
             isBlockedBy = { item, failed -> failed.startsWith("$item/") }
         ) {
             processed += it
-            if (it == "a/b/x") IoResult.ItemFailed(FailureReason.Raw("권한 없음")) else IoResult.Done
+            if (it == "a/b/x") IoResult.ItemFailed(FailureReason.IoFailed("권한 없음")) else IoResult.Done
         }
         assertEquals(listOf("a/b/x", "c"), processed)
-        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a/b/x", FailureReason.Raw("권한 없음")))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a/b/x", FailureReason.IoFailed("권한 없음")))), result)
     }
 
     @Test
@@ -125,20 +125,20 @@ class FailureCollectionTest {
             when (item) {
                 // 대상 자신의 실패는 안쪽에서 빈 경로로 온다
                 "a.txt" -> IoResult.PartiallyFailed(listOf(FailedItem("", null)))
-                "dir" -> IoResult.PartiallyFailed(listOf(FailedItem("sub/x.txt", FailureReason.Raw("DELE 실패: 550"))))
+                "dir" -> IoResult.PartiallyFailed(listOf(FailedItem("sub/x.txt", FailureReason.IoFailed("DELE 실패: 550"))))
                 else -> IoResult.Done
             }
         }
         result as IoResult.PartiallyFailed
         assertEquals(listOf("a.txt", "dir/sub/x.txt"), result.failures.map { it.path })
-        assertEquals(listOf(null, FailureReason.Raw("DELE 실패: 550")), result.failures.map { it.reason })
+        assertEquals(listOf(null, FailureReason.IoFailed("DELE 실패: 550")), result.failures.map { it.reason })
     }
 
     @Test
     fun `평탄화된 실패가 하나면 그 경로와 안쪽 원인을 바로 보여준다`() = runBlocking {
         val result = forEachCollectingFailures(listOf("dir"), nameOf = { it }) {
-            IoResult.PartiallyFailed(listOf(FailedItem("sub/x.txt", FailureReason.Raw("DELE 실패: 550"))))
+            IoResult.PartiallyFailed(listOf(FailedItem("sub/x.txt", FailureReason.IoFailed("DELE 실패: 550"))))
         }
-        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("dir/sub/x.txt", FailureReason.Raw("DELE 실패: 550")))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("dir/sub/x.txt", FailureReason.IoFailed("DELE 실패: 550")))), result)
     }
 }

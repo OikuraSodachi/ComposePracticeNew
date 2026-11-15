@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
+import com.todokanai.composepracticenew.model.ListingRefusal
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.model.failedItemsAt
 import kotlinx.coroutines.Dispatchers
@@ -63,7 +64,7 @@ class LocalFileInfoDataSource @Inject constructor() {
      * @return 바로 아래 항목 수, 또는 디렉터리를 읽지 못한 실패(디렉터리가 아님, 권한 없음 등)
      */
     suspend fun countChildren(path: String): IoResult<Int> = withContext(Dispatchers.IO) {
-        localIo(describe = ::listFailureMessage) {
+        localIo(describe = ::listFailureReason) {
             IoResult.Success(Files.newDirectoryStream(Paths.get(path)).use { entries -> entries.count() })
         }
     }
@@ -105,15 +106,15 @@ class LocalFileInfoDataSource @Inject constructor() {
         root.slashRelativePathOf(folder).let { relative -> if (relative.isEmpty()) root.name else "${root.name}/$relative" }
 
     /**
-     * 디렉터리를 나열하지 못한 원인을 표시 문구로 바꾼다. NIO 예외의 메시지는 경로뿐인 경우가 많아 예외 종류로 원인을 적는다.
+     * 디렉터리를 나열하지 못한 원인을 정한다. NIO 예외의 메시지는 경로뿐인 경우가 많아 예외 종류로 원인을 정한다.
      * @param e 나열 중 난 입출력 실패
-     * @return 표시할 실패 메시지
+     * @return 실패 원인. 종류로 정할 수 없고 메시지도 없으면 null
      */
-    private fun listFailureMessage(e: IOException): String? = when (e) {
-        is NotDirectoryException -> "디렉터리가 아닙니다"
-        is AccessDeniedException -> "읽을 권한이 없습니다"
-        is NoSuchFileException -> "항목이 없습니다"
-        else -> e.message
+    private fun listFailureReason(e: IOException): FailureReason? = when (e) {
+        is NotDirectoryException -> FailureReason.FolderNotListed(ListingRefusal.NOT_FOLDER)
+        is AccessDeniedException -> FailureReason.FolderNotListed(ListingRefusal.ACCESS_DENIED)
+        is NoSuchFileException -> FailureReason.FolderNotListed(ListingRefusal.NOT_FOUND)
+        else -> e.message?.let(FailureReason::IoFailed)
     }
 
     /**
@@ -153,13 +154,13 @@ class LocalFileInfoDataSource @Inject constructor() {
         }
 
         override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
-            addUnreadable(FailedItem(file.toString(), exc.message?.let(FailureReason::Raw)))
+            addUnreadable(FailedItem(file.toString(), exc.message?.let(FailureReason::IoFailed)))
             return FileVisitResult.CONTINUE
         }
 
         override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
             // 디렉터리를 끝까지 나열하지 못했다 — 이미 더한 항목은 남기고 이 디렉터리를 읽지 못한 항목으로 둔다
-            if (exc != null) addUnreadable(FailedItem(dir.toString(), exc.message?.let(FailureReason::Raw)))
+            if (exc != null) addUnreadable(FailedItem(dir.toString(), exc.message?.let(FailureReason::IoFailed)))
             return FileVisitResult.CONTINUE
         }
 

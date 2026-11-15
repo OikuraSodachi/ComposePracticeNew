@@ -30,7 +30,7 @@ class FileInfoUseCaseTest {
         val lowerBound = IoResult.Success(SizeMeasurement.LowerBound(100, listOf(FailedItem("/d/x", null))))
         assertEquals(lowerBound, FileInfoUseCase(FakeFileInfoRepository(measurement = lowerBound), LocalPathRules()).measureSize(listOf(dir("/d"))))
 
-        val failed = IoResult.ItemFailed(FailureReason.Raw("원인"))
+        val failed = IoResult.ItemFailed(FailureReason.IoFailed("원인"))
         assertEquals(failed, FileInfoUseCase(FakeFileInfoRepository(measurement = failed), LocalPathRules()).measureSize(listOf(dir("/d"))))
     }
 

@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
@@ -125,7 +126,7 @@ class FtpTransferrerLocalFileFailureTest {
         val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
 
         assertTrue("폴더가 없는데 성공으로 보고하면 안 됨: $result", result is IoResult.Failure)
-        assertTrue("MKD의 거부 응답을 알려야 함: $result", ((result as IoResult.ItemFailed).reason as FailureReason.Raw).text.contains("No write access"))
+        assertTrue("MKD의 거부 응답을 알려야 함: $result", ((result as IoResult.ItemFailed).reason as FailureReason.ServerRefused).let { it.step == RemoteStep.MAKE_FOLDER && it.reply.contains("No write access") })
         assertTrue(runBlocking { session.isReady() })
     }
 
@@ -140,7 +141,7 @@ class FtpTransferrerLocalFileFailureTest {
 
         val failure = (result as IoResult.PartiallyFailed).failures.single()
         assertEquals(folder.name, failure.path)
-        assertTrue("MKD의 거부 응답을 알려야 함: $failure", (failure.reason as FailureReason.Raw).text.contains("No write access"))
+        assertTrue("MKD의 거부 응답을 알려야 함: $failure", (failure.reason as FailureReason.ServerRefused).let { it.step == RemoteStep.MAKE_FOLDER && it.reply.contains("No write access") })
     }
 
     @Test

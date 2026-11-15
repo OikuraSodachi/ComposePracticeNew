@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
+import com.todokanai.composepracticenew.model.ListingRefusal
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -141,14 +142,14 @@ class LocalFileInfoDataSourceTest {
 
     @Test
     fun `읽지 못한 폴더의 하위 항목 수는 0이 아니라 실패다`() = runTest {
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("항목이 없습니다")), dataSource.countChildren(temp.root.resolve("missing").absolutePath))
+        assertEquals(IoResult.ItemFailed(FailureReason.FolderNotListed(ListingRefusal.NOT_FOUND)), dataSource.countChildren(temp.root.resolve("missing").absolutePath))
     }
 
     @Test
     fun `폴더가 아닌 항목의 하위 항목 수는 그 원인을 적은 실패다`() = runTest {
         val file = temp.newFile("a.txt")
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("디렉터리가 아닙니다")), dataSource.countChildren(file.absolutePath))
+        assertEquals(IoResult.ItemFailed(FailureReason.FolderNotListed(ListingRefusal.NOT_FOLDER)), dataSource.countChildren(file.absolutePath))
     }
 
     @Test

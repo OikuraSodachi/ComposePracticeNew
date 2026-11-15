@@ -104,8 +104,8 @@ class FtpListingInterpretationTest {
         assertEquals(
             IoResult.PartiallyFailed(
                 listOf(
-                    FailedItem("r/$PROFTPD_LINK", FailureReason.Raw("목록 항목을 읽지 못했습니다: $PROFTPD_LINK")),
-                    FailedItem("r/sub/$UNPARSEABLE_SIZE", FailureReason.Raw("목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE"))
+                    FailedItem("r/$PROFTPD_LINK", FailureReason.UnreadableListingEntry("$PROFTPD_LINK")),
+                    FailedItem("r/sub/$UNPARSEABLE_SIZE", FailureReason.UnreadableListingEntry("$UNPARSEABLE_SIZE"))
                 )
             ),
             result
@@ -127,8 +127,8 @@ class FtpListingInterpretationTest {
         assertEquals(
             IoResult.PartiallyFailed(
                 listOf(
-                    FailedItem("r/$PROFTPD_LINK", FailureReason.Raw("목록 항목을 읽지 못했습니다: $PROFTPD_LINK")),
-                    FailedItem("r/$UNPARSEABLE_SIZE", FailureReason.Raw("목록 항목을 읽지 못했습니다: $UNPARSEABLE_SIZE"))
+                    FailedItem("r/$PROFTPD_LINK", FailureReason.UnreadableListingEntry("$PROFTPD_LINK")),
+                    FailedItem("r/$UNPARSEABLE_SIZE", FailureReason.UnreadableListingEntry("$UNPARSEABLE_SIZE"))
                 )
             ),
             result
@@ -159,8 +159,8 @@ class FtpListingInterpretationTest {
         assertEquals(
             IoResult.PartiallyFailed(
                 listOf(
-                    FailedItem("r/(빈 줄)", FailureReason.Raw("목록 항목을 읽지 못했습니다: (빈 줄)")),
-                    FailedItem("r/sub/(빈 줄)", FailureReason.Raw("목록 항목을 읽지 못했습니다: (빈 줄)"))
+                    FailedItem("r/(빈 줄)", FailureReason.UnreadableListingEntry("(빈 줄)")),
+                    FailedItem("r/sub/(빈 줄)", FailureReason.UnreadableListingEntry("(빈 줄)"))
                 )
             ),
             result

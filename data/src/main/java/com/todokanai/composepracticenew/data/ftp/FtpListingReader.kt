@@ -236,8 +236,8 @@ class FtpListingReader @Inject internal constructor(
             is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
-                else IoResult.ItemFailed(FailureReason.Raw("${command.label} 실패: ${outcome.cause.message ?: outcome.cause.javaClass.simpleName}"))
-            is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(FailureReason.Raw("${command.label} 실패: ${dataConnectionFailure(outcome.cause)}"))
+                else IoResult.ItemFailed(FailureReason.RemoteStepFailed(command.step, FailureReason.IoFailed(outcome.cause.message ?: outcome.cause.javaClass.simpleName)))
+            is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(FailureReason.RemoteStepFailed(command.step, dataConnectionFailure(outcome.cause)))
             is DataCommandOutcome.Finished ->
                 if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(lines, parser, received, path))
                 else FtpReplyRules.refusal(command, client.getReplyString())

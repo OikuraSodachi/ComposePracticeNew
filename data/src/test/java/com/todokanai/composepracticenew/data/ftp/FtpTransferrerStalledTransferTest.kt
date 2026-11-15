@@ -57,7 +57,7 @@ class FtpTransferrerStalledTransferTest {
 
         val result = runBlocking { FtpCommandParts(session).transferrer(OperationNotices()).download(sources = listOf(DownloadSource("ftp://host/a.bin", File(dir, "a.bin").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("Read timed out")), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed("Read timed out")), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
     }
@@ -80,7 +80,7 @@ class FtpTransferrerStalledTransferTest {
 
         val result = runBlocking { FtpCommandParts(session).transferrer(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("Write timed out")), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed("Write timed out")), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
     }
@@ -102,7 +102,7 @@ class FtpTransferrerStalledTransferTest {
             FtpCommandParts(session).transferrer(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { throw IOException(LOCAL_FAILURE) }.singleItemResult()
         }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw(LOCAL_FAILURE)), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed(LOCAL_FAILURE)), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
         assertTrue(runBlocking { session.isReady() })
     }

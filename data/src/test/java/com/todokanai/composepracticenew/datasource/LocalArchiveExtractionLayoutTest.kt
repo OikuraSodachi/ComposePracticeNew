@@ -75,7 +75,7 @@ class LocalArchiveExtractionLayoutTest {
             extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(mutableListOf())) {}
         }
 
-        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a/../evil.txt", FailureReason.Raw(ArchiveEntryWriter.REJECTED_PATH_REASON)))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a/../evil.txt", FailureReason.UnsafeArchiveEntryPath))), result)
         assertEquals("x", File(dest, "a/ok.txt").readText())
         assertFalse(File(dest, "evil.txt").exists())
     }

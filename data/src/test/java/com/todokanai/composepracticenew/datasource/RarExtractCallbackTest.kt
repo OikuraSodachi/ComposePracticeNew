@@ -99,7 +99,7 @@ class RarExtractCallbackTest {
         assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
         callback.setOperationResult(ExtractOperationResult.OK)
 
-        assertEquals(listOf(FailedItem("../evil.txt", FailureReason.Raw(ArchiveEntryWriter.REJECTED_PATH_REASON))), writer.failures)
+        assertEquals(listOf(FailedItem("../evil.txt", FailureReason.UnsafeArchiveEntryPath)), writer.failures)
         assertNull(callback.failure)
     }
 

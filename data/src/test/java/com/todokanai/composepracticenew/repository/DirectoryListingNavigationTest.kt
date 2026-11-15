@@ -117,7 +117,7 @@ class DirectoryListingNavigationTest {
         sharingScopes += scope
         return DirectoryListingNavigation(DataConverter(), sortPreference, scope, started, initialPath = null) { _ ->
             fetchCount++
-            if (disconnected) IoResult.ConnectionLost(FailureReason.Raw("끊김")) else IoResult.Success(ListedDirectory(emptyList(), unreadableCount = 0))
+            if (disconnected) IoResult.ConnectionLost(FailureReason.IoFailed("끊김")) else IoResult.Success(ListedDirectory(emptyList(), unreadableCount = 0))
         }
     }
 }

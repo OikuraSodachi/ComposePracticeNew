@@ -207,7 +207,7 @@ class FileOperationOrchestrator(
             withContext(NonCancellable) { callback.onCancelled(instanceId) }
             throw e
         } catch (e: Exception) {
-            OperationOutcome.Finished(IoResult.ItemFailed(e.message?.let(FailureReason::Raw)))
+            OperationOutcome.Finished(IoResult.ItemFailed(e.message?.let(FailureReason::Unexpected)))
         }
 
     /** 작업 실행의 결과. 작업이 돌려준 결과와, 충돌 질문에 답이 없어 멈춘 경우를 나눈다. */

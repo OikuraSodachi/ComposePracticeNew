@@ -150,7 +150,7 @@ class FtpTreeCollector internal constructor(
         budget: TreeMemoryBudget,
         undecidable: Boolean
     ): IoResult<DirectoryVisit> {
-        val tooMany = IoResult.ItemFailed(FailureReason.Raw("$TOO_MANY_ENTRIES_MESSAGE: ${extractFtpPath(dirPath)}" + if (undecidable) UNIDENTIFIABLE_NOTE else ""))
+        val tooMany = IoResult.ItemFailed(FailureReason.TooManyEntries(extractFtpPath(dirPath), undecidable))
         val listed = listing.list(dirPath, withIdentities = true, ListingLimit(budget.remainingBytes, tooMany)).valueOr { return it }
         if (!budget.admit(listed.items)) return tooMany
         return IoResult.Success(DirectoryVisit(listed, identity))
@@ -162,7 +162,7 @@ class FtpTreeCollector internal constructor(
      * @return 순환을 알리는 실패
      */
     private fun cycleRefusal(path: String): IoResult.ItemFailed =
-        IoResult.ItemFailed(FailureReason.Raw("폴더 순환 감지: ${extractFtpPath(path)} 은(는) 상위 폴더와 같은 폴더입니다"))
+        IoResult.ItemFailed(FailureReason.FolderCycle(extractFtpPath(path)))
 
     /**
      * 트리 수집이 하위 디렉터리 [path]로 내려가면 안 되는 이유를 실패로 만든다.
@@ -178,9 +178,7 @@ class FtpTreeCollector internal constructor(
      */
     private fun descentRefusal(path: String, identity: String?, ancestorIdentities: Set<String>, undecidable: Boolean): IoResult.ItemFailed? = when {
         identity != null && identity in ancestorIdentities -> cycleRefusal(path)
-        exceedsPathMax(path) -> IoResult.ItemFailed(
-            FailureReason.Raw("경로가 너무 깁니다(${PATH_MAX_BYTES}바이트 이상): ${extractFtpPath(path)}" + if (undecidable) UNIDENTIFIABLE_NOTE else "")
-        )
+        exceedsPathMax(path) -> IoResult.ItemFailed(FailureReason.PathTooLong(extractFtpPath(path), PATH_MAX_BYTES, undecidable))
         else -> null
     }
 
@@ -199,9 +197,5 @@ class FtpTreeCollector internal constructor(
          * 흔한 앱 힙(약 256MB, 기기마다 다름)의 일부로, 경로 80자인 항목이면 약 9만 개, 경로가 [PATH_MAX_BYTES]에 이르는 항목이면 약 4천 개다.
          */
         private const val TREE_MEMORY_LIMIT_BYTES = 32L * 1024 * 1024
-        /** 트리 수집이 메모리 상한([TREE_MEMORY_LIMIT_BYTES])에 이르렀을 때의 실패 메시지. 뒤에 멈춘 디렉터리 경로가 붙는다([enterDirectory]). */
-        private const val TOO_MANY_ENTRIES_MESSAGE = "폴더 안의 항목이 너무 많아 처리하지 않았습니다"
-        /** 식별값 없이 경로 한도나 메모리 상한에서 멈췄을 때 덧붙이는 설명([descentRefusal], [enterDirectory]). */
-        private const val UNIDENTIFIABLE_NOTE = " — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다"
     }
 }

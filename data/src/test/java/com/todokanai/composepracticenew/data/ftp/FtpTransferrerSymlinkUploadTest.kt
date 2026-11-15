@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import com.todokanai.composepracticenew.datasource.UNSUPPORTED_LINK_REASON
 import com.todokanai.composepracticenew.datasource.assumeSymlink
 import com.todokanai.composepracticenew.datasource.localTreeBottomUp
 import com.todokanai.composepracticenew.model.FailedItem
@@ -56,7 +55,7 @@ class FtpTransferrerSymlinkUploadTest {
 
         val result = runBlocking { transferrer.upload(listOf(UploadSource(link.path, "ftp://host/r/link"))).singleItemResult() }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_LINK_REASON)), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.UnsupportedLink()), result)
         assertEquals(emptyList<String>(), client.storeRequests)
     }
 
@@ -67,7 +66,7 @@ class FtpTransferrerSymlinkUploadTest {
         val result = runBlocking { transferrer.upload(listOf(UploadSource(source.path, "ftp://host/r"))) }
 
         // 폴더 안쪽 실패는 바깥 묶음이 올린 항목 이름 아래로 옮긴다
-        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("${source.name}/loop", FailureReason.Raw(UNSUPPORTED_LINK_REASON)))), result)
+        assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("${source.name}/loop", FailureReason.UnsupportedLink()))), result)
         assertEquals(listOf("/r/a.txt"), client.storeRequests)
     }
 }

@@ -96,7 +96,7 @@ class FtpRemoteDeletion @Inject internal constructor(
         ) { item ->
             progress.beforeDeleting(item.progressName)
             when (item) {
-                is ListedItem.Unreadable -> IoResult.ItemFailed(FailureReason.Raw(item.failureReason))
+                is ListedItem.Unreadable -> IoResult.ItemFailed(item.failureReason)
                 is ListedItem.Entry -> {
                     val entryFtpPath = extractFtpPath(item.entry.path)
                     if (item.isDirectoryEntry) commands.run(FtpCommand.RMD, commands.leavingTarget(entryFtpPath, outside)) { it.removeDirectory(entryFtpPath) }

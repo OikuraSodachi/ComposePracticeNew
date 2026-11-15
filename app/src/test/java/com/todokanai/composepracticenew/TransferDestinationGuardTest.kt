@@ -102,7 +102,7 @@ class TransferDestinationGuardTest {
 
     @Test
     fun `업로드 대상 목록 조회에 실패했으면 업로드하지 않고 알리며 대기 목록을 유지한다`() {
-        remoteNav.directoryListing.value = DirectoryListing.Failed(remoteRequest, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.Raw("550")))
+        remoteNav.directoryListing.value = DirectoryListing.Failed(remoteRequest, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.IoFailed("550")))
         enterUpload()
 
         viewModel.confirmUpload()

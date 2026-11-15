@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.data.FileEntry
+import com.todokanai.composepracticenew.model.FailureReason
 
 /**
  * 원격 목록이 알려준 것 하나. 해석하지 못한 줄도 버리지 않고 담는다 — 버리면 목록에서 항목이 말없이 빠져, 폴더 다운로드가 빠뜨린 채 성공으로 끝난다(#255).
@@ -52,8 +53,8 @@ internal sealed interface ListedItem {
          */
         val shownLine: String get() = line.trim().ifEmpty { BLANK_LINE_LABEL }
 
-        /** 이 줄을 읽지 못했음을 알리는 실패 사유. */
-        val failureReason: String get() = "목록 항목을 읽지 못했습니다: $shownLine"
+        /** 이 줄을 읽지 못했음을 알리는 실패 원인. */
+        val failureReason: FailureReason get() = FailureReason.UnreadableListingEntry(shownLine)
 
         override val locationPath: String get() = dirPath
         override val occupiedPath: String get() = childFtpUriPrefix(dirPath)
