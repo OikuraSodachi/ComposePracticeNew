@@ -8,14 +8,12 @@ import com.todokanai.composepracticenew.model.SizeMeasurement
 import javax.inject.Inject
 
 /**
- * 로컬 파일 시스템 항목의 정보를 읽는 FileInfoRepository 구현체.
+ * 로컬 파일 시스템 항목의 정보와 업로드할 폴더 안쪽 이름을 읽는 FileInfoRepository·FolderEntryNamesRepository 구현체.
  * @param dataSource 로컬 항목의 속성·크기·하위 항목 수·폴더 안 항목 이름을 읽는 LocalFileInfoDataSource
  */
 class LocalFileInfoRepositoryImpl @Inject constructor(
     private val dataSource: LocalFileInfoDataSource
-) : FileInfoRepository {
-
-    override fun locationOf(path: String): String? = dataSource.locationOf(path)
+) : FileInfoRepository, FolderEntryNamesRepository {
 
     override suspend fun readAttributes(path: String): IoResult<ItemAttributes> = dataSource.readAttributes(path)
 

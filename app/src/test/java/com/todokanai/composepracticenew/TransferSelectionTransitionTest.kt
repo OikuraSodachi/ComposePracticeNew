@@ -37,7 +37,7 @@ class TransferSelectionTransitionTest {
     /** 원격 세션 끊김을 테스트가 일으키는 연결 저장소. 연결된 상태로 시작한다. */
     private val connection = FakeConnectionRepository()
     /** 업로드 전 겹침 확인이 읽을 폴더 안 항목 이름. */
-    private val folderEntries = FolderEntriesInfoRepository()
+    private val folderEntries = FakeFolderEntryNamesRepository()
     private lateinit var viewModel: FileTransferCoordinatorViewModel
 
     private val localA = item("/local/a.txt")

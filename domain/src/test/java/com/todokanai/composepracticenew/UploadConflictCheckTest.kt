@@ -3,14 +3,11 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FolderEntryNames
-import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NameCollision
 import com.todokanai.composepracticenew.model.NavigateResult
-import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.model.UploadConflicts
-import com.todokanai.composepracticenew.repository.FileInfoRepository
+import com.todokanai.composepracticenew.repository.FolderEntryNamesRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
@@ -111,17 +108,13 @@ class UploadConflictCheckTest {
     }
 
     /** 폴더 안 항목 이름을 테스트가 정하고, 읽기 요청을 기록하는 원본 저장소. */
-    private class FakeSourceInfo : FileInfoRepository {
+    private class FakeSourceInfo : FolderEntryNamesRepository {
         /** [folderEntryNames]가 돌려줄 폴더별 항목 이름. */
         var entries = emptyList<FolderEntryNames>()
 
         /** 받은 읽기 요청의 경로 목록(받은 순서). */
         val requests = mutableListOf<List<String>>()
 
-        override fun locationOf(path: String): String? = error("쓰지 않음")
-        override suspend fun readAttributes(path: String): IoResult<ItemAttributes> = error("쓰지 않음")
-        override suspend fun measureSize(paths: List<String>): IoResult<SizeMeasurement> = error("쓰지 않음")
-        override suspend fun countChildren(path: String): IoResult<Int> = error("쓰지 않음")
         override suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> {
             requests += paths
             return entries

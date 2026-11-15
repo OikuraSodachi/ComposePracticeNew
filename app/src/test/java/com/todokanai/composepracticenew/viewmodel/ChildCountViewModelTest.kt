@@ -1,10 +1,10 @@
 package com.todokanai.composepracticenew.viewmodel
 
-import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import com.todokanai.composepracticenew.repository.FileInfoRepository
+import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingKey
@@ -32,7 +32,7 @@ class ChildCountViewModelTest {
     /** 테스트가 경로별로 세기 결과를 내주는 저장소. */
     private val repo = GatedFileInfoRepository()
     /** 검증 대상 ViewModel. */
-    private val viewModel = ChildCountViewModel(FileInfoUseCase(repo))
+    private val viewModel = ChildCountViewModel(FileInfoUseCase(repo, NoParentPaths))
 
     /** viewModelScope가 쓰는 Main 디스패처를 테스트 디스패처로 바꾼다 — 세기가 즉시 실행되도록. */
     @Before
@@ -191,8 +191,6 @@ class ChildCountViewModelTest {
             pending.remove(path)!!.complete(result)
         }
 
-        override fun locationOf(path: String): String? = null
-
         override suspend fun readAttributes(path: String): IoResult<ItemAttributes> = IoResult.ItemFailed(null)
 
         override suspend fun measureSize(paths: List<String>): IoResult<SizeMeasurement> = IoResult.ItemFailed(null)
@@ -201,7 +199,11 @@ class ChildCountViewModelTest {
             requests[path] = requestCount(path) + 1
             return CompletableDeferred<IoResult<Int>>().also { pending[path] = it }.await()
         }
+    }
 
-        override suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = emptyList()
+    /** 어느 경로에도 상위가 없다고 답하는 경로 규칙. 하위 항목 수 세기는 위치를 쓰지 않는다. */
+    private object NoParentPaths : StoragePathRules {
+        override fun getParentPath(path: String): String? = null
+        override fun displayNameOf(path: String): String = path
     }
 }

@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.NameCollision
 import com.todokanai.composepracticenew.model.UploadConflicts
-import com.todokanai.composepracticenew.repository.FileInfoRepository
+import com.todokanai.composepracticenew.repository.FolderEntryNamesRepository
 import com.todokanai.composepracticenew.repository.StorageNameMatching
 
 /**
@@ -11,12 +11,12 @@ import com.todokanai.composepracticenew.repository.StorageNameMatching
  * 목적지 저장소의 비교 규칙으로 묶어 찾는다 — 원본에서는 다른 이름이어도 목적지에서 같은 항목이 되면 뒤에 올린 항목이 앞의 항목을 덮어쓰므로.
  * 비교 규칙은 같은 항목이 될 수 있는 이름을 묶을 뿐이며, 목적지가 실제로 두 이름을 합치는지는 판정하지 않는다(지원 범위 밖).
  * @param conflictCheck 목적지의 확인된 목록으로 이미 있는 이름과의 겹침을 판정하는 ConflictCheckUseCase
- * @param sourceInfo 올릴 폴더 안의 항목 이름을 읽는, 업로드 원본 저장소의 FileInfoRepository
+ * @param sourceInfo 올릴 폴더 안의 항목 이름을 읽는, 업로드 원본 저장소의 FolderEntryNamesRepository
  * @param nameMatching 목적지 저장소가 같은 항목으로 다룰 수 있는 이름을 가려내는 StorageNameMatching
  */
 class UploadConflictCheckUseCase(
     private val conflictCheck: ConflictCheckUseCase,
-    private val sourceInfo: FileInfoRepository,
+    private val sourceInfo: FolderEntryNamesRepository,
     private val nameMatching: StorageNameMatching,
 ) {
 

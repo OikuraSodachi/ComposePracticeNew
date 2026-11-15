@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
+import com.todokanai.composepracticenew.repository.FolderEntryNamesRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -65,8 +66,8 @@ object UseCaseModule {
         OpenFileUseCase(nav, launcher, notices)
 
     @Provides @Singleton
-    fun provideFileInfoUseCase(repo: FileInfoRepository) =
-        FileInfoUseCase(repo)
+    fun provideFileInfoUseCase(repo: FileInfoRepository, paths: StoragePathRules) =
+        FileInfoUseCase(repo, paths)
 
     @Provides @Singleton
     fun provideFileSearchUseCase(repo: FileSearchRepository, storage: StorageVolumeRepository, nav: FileNavigatorRepository, paths: StoragePathRules) =
@@ -135,7 +136,7 @@ object UseCaseModule {
         ConflictCheckUseCase(notices, nameMatching) { messages.destinationUnverified }
 
     @Provides @Singleton
-    fun provideUploadConflictCheckUseCase(conflictCheck: ConflictCheckUseCase, sourceInfo: FileInfoRepository, nameMatching: StorageNameMatching) =
+    fun provideUploadConflictCheckUseCase(conflictCheck: ConflictCheckUseCase, sourceInfo: FolderEntryNamesRepository, nameMatching: StorageNameMatching) =
         UploadConflictCheckUseCase(conflictCheck, sourceInfo, nameMatching)
 
     @Provides @Singleton
