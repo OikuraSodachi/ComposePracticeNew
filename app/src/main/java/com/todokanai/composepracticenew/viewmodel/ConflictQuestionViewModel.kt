@@ -1,11 +1,15 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
-import com.todokanai.composepracticenew.model.ConflictAnswer
-import com.todokanai.composepracticenew.model.ConflictQuestion
+import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.ui.model.ConflictAnswer
+import com.todokanai.composepracticenew.ui.model.ConflictQuestion
 import com.todokanai.composepracticenew.usecase.ConflictQuestionUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
@@ -19,11 +23,17 @@ class ConflictQuestionViewModel @Inject constructor(
 
     /** 지금 물을 질문. 없으면 null. 작업이 화면 밖에서 물은 질문도 화면이 다시 보일 때 여기서 나온다. */
     val question: StateFlow<ConflictQuestion?> = conflictQuestionUseCase.current
+        .map { current -> current?.let(ConflictQuestion::from) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = conflictQuestionUseCase.current.value?.let(ConflictQuestion::from)
+        )
 
     /**
-     * [question]에 [answer]로 답한다.
+     * [question]에 [answer]로 답한다. 이미 답했거나 거둔 질문이면 아무것도 하지 않는다.
      * @param question 답할 질문
      * @param answer 사용자의 답
      */
-    fun answer(question: ConflictQuestion, answer: ConflictAnswer) = conflictQuestionUseCase.answer(question, answer)
+    fun answer(question: ConflictQuestion, answer: ConflictAnswer) = conflictQuestionUseCase.answer(question.id, answer.toDomain())
 }

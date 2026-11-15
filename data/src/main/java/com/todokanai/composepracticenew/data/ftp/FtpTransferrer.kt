@@ -24,7 +24,7 @@ import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.data.FileEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

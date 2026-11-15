@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.SearchQuery
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.data.FileEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.toList

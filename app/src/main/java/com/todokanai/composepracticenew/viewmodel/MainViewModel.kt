@@ -4,12 +4,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.model.ConnectFailureAlert
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.OperationNotice
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.tools.AppExitHandler
+import com.todokanai.composepracticenew.ui.model.OperationNotice
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ConnectFailureAlertUseCase
 import com.todokanai.composepracticenew.usecase.ConnectionLossNoticeUseCase
@@ -113,7 +113,8 @@ class MainViewModel @Inject constructor(
      * 보이는 화면이 없을 때 생긴 메시지(저장소 화면에 있거나 Activity가 없을 때 끝난 작업)와 보여 주는 도중 화면이 사라진 메시지도 부르면 받는다.
      * @param show 메시지를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
      */
-    suspend fun showOperationNotices(show: suspend (OperationNotice) -> Unit): Nothing = operationNoticeUseCase.deliver(show)
+    suspend fun showOperationNotices(show: suspend (OperationNotice) -> Unit): Nothing =
+        operationNoticeUseCase.deliver { notice -> show(OperationNotice.from(notice)) }
 
     init {
         // 화면이 다이얼로그를 수집하지 않는 동안에도 새 작업의 시작을 놓치지 않도록 ViewModel이 살아 있는 동안 계속 본다

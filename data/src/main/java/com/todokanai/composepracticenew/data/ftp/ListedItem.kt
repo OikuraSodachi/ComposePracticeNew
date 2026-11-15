@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.data.FileEntry
 
 /**
  * 원격 목록이 알려준 것 하나. 해석하지 못한 줄도 버리지 않고 담는다 — 버리면 목록에서 항목이 말없이 빠져, 폴더 다운로드가 빠뜨린 채 성공으로 끝난다(#255).

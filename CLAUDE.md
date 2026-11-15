@@ -16,7 +16,7 @@ SOLID 원칙을 준수한다.
 
 - `domain`: 모델·Repository 인터페이스·UseCase (순수 Kotlin).
 - `data`: domain 인터페이스의 구현과 그 Hilt 모듈.
-- `fileExplorer`: 저장소에서 읽은 항목 모델(`FileEntry`)과 '/' 구분 경로 도우미(`defaultDisplayName`, `defaultParentPath`). data만 의존하는 JVM 모듈이다.
+- `fileExplorer`: '/' 구분 경로 도우미(`defaultDisplayName`, `defaultParentPath`). data만 의존하는 JVM 모듈이다. 저장소에서 읽은 항목 모델(`FileEntry`)은 그 모델을 만들고 쓰는 data에 있다.
 - `core`: 여러 모듈이 함께 쓰는 DI 한정자(`@ApplicationScope`, `@RemoteNavigator`). javax.inject만 쓰는 JVM 모듈이다.
 - `app`: 화면·서비스·DI 조립. data는 `runtimeOnly`로만 의존한다. Hilt는 집계 태스크로 data의 모듈을 찾으므로, app 코드는 data의 클래스·리소스를 컴파일 단계에서 참조할 수 없다. app과 data가 함께 써야 하는 것은 `domain`이나 `core`에 둔다.
 

@@ -1,4 +1,4 @@
-package com.todokanai.fileexplorer
+package com.todokanai.composepracticenew.data
 
 /**
  * A single file or directory entry read from a storage location (a local filesystem or a remote server such as FTP).

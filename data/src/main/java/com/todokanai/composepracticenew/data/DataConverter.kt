@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.data
 
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.SortMode
-import com.todokanai.fileexplorer.FileEntry
 import javax.inject.Inject
 import javax.inject.Singleton
 

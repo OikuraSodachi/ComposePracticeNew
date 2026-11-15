@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.map
-import com.todokanai.fileexplorer.FileEntry
+import com.todokanai.composepracticenew.data.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.commons.net.ftp.FTPFile
