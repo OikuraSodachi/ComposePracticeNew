@@ -7,9 +7,11 @@ import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +22,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * [FileOperationOrchestrator.launch]가 작업 결과를 완료·실패 처리로 나누고, 구현 오류 하나로 작업 스코프가 무너지지 않게 그 작업만 실패로 끝내며,
+ * [FileOperationOrchestrator.launch]가 작업 결과를 완료·실패 처리로 나누고, 작업의 구현 오류 하나로 작업 스코프가 무너지지 않게 그 작업만 실패로 끝내며,
+ * 결과 보고 중 예외는 작업 실패로 다시 알리지 않고 스코프에 전파하며,
  * 진행·완료·취소 알림을 모두 그 작업에 발급한 인스턴스 ID로 보내며, 취소 요청([FileOperationOrchestrator.cancel])으로 작업을 멈추고 취소를 알리는지 검증하는 단위 테스트.
  * 작업이 일시 중단하지 않으므로 Unconfined 스코프에서 호출 즉시 끝난다. 첫 작업의 ID는 1이고 시작 순서대로 1씩 커진다.
  */
@@ -73,6 +76,22 @@ class OperationLauncherTest {
 
         assertEquals(listOf("구현 오류"), notices.failures)
         assertEquals(listOf("done"), notices.completions)
+    }
+
+    @Test
+    fun `완료를 알린 뒤 보고 중 예외는 실패로 또 알리지 않고 스코프에 전파한다`() {
+        val thrown = mutableListOf<Throwable>()
+        val handlerScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> thrown += e })
+        val reportingOrchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, handlerScope)
+
+        reportingOrchestrator.launch(completionMessage = "done", operationType = null, onRefresh = { throw IllegalStateException("갱신 오류") }) { IoResult.Done }
+
+        assertEquals(listOf("done"), notices.completions)
+        assertTrue(notices.failures.isEmpty())
+        assertEquals(listOf("completed 1"), notifier.calls)
+        assertEquals(listOf("갱신 오류"), thrown.map { it.message })
+        assertEquals(listOf(1), progressRepo.removed)
+        handlerScope.cancel()
     }
 
     @Test
