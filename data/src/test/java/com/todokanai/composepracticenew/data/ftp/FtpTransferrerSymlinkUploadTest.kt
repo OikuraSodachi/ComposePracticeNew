@@ -34,7 +34,7 @@ class FtpTransferrerSymlinkUploadTest {
     private val session = FtpSession(client, ConnectionLossNotices())
 
     /** 검증 대상. */
-    private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
+    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
 
     @Before
     fun setUp() {

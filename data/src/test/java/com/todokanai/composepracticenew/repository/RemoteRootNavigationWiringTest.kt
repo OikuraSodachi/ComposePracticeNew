@@ -1,13 +1,11 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.DataConverter
-import com.todokanai.composepracticenew.data.ftp.DataCommandRunner
 import com.todokanai.composepracticenew.data.ftp.FakeFtpClient
-import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
+import com.todokanai.composepracticenew.data.ftp.FtpCommandParts
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
 import com.todokanai.composepracticenew.data.ftp.FtpKeepAlive
 import com.todokanai.composepracticenew.data.ftp.FtpSession
-import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.di.RepositoryModule
 import com.todokanai.composepracticenew.model.NavigateResult
@@ -29,9 +27,9 @@ class RemoteRootNavigationWiringTest {
     /** 테스트 세션. 루트 경로 계산과 원격 이동은 서버에 명령을 보내지 않는다. */
     private val session = FtpSession(FakeFtpClient(), ConnectionLossNotices())
     /** 원격 파일 시스템과 FTP 저장소가 함께 쓰는 명령 실행기. */
-    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
+    private val commands = FtpCommandParts(session)
     /** 루트 경로를 정하는 실제 FTP 연결 저장소. */
-    private val connection = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, session, TestScope())), commands, FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices()))
+    private val connection = FtpRepositoryImpl(session, FtpConnector(session, FtpKeepAlive(session, session, TestScope())), commands.executor, commands.deletion, commands.transferrer(OperationNotices()))
     /** DI 공급 함수로 만든 원격 탐색 저장소. 파일 시스템 집합은 DI에 등록된 것과 같다. */
     private val nav = RepositoryModule.provideRemoteFileNavigatorRepository(
         DataConverter(),
@@ -40,7 +38,7 @@ class RemoteRootNavigationWiringTest {
             override fun saveSortBy(value: SortMode) { sortBy.value = value }
         },
         appScope = TestScope(),
-        fileSystems = setOf(FtpPathAwareFileSystem(commands), LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
+        fileSystems = setOf(FtpPathAwareFileSystem(commands.executor), LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
         notices = OperationNotices()
     )
 

@@ -31,7 +31,7 @@ class FtpListingInterpretationTest {
     /** [client]를 쓰는 세션. */
     private val session = FtpSession(client, ConnectionLossNotices())
     /** 검증 대상 명령 실행기. */
-    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
+    private val commands = FtpCommandParts(session)
 
     @Before
     fun setUp() {
@@ -47,7 +47,7 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄과 MLSD 링크 줄은 버리지 않고 받은 순서대로 남긴다`() {
         client.mlsdListings = mapOf("/r" to listOf(PROFTPD_LINK, PURE_FTPD_LINK, UNPARSEABLE_SIZE, "type=file;size=3; a.txt"))
 
-        val items = (runBlocking { commands.listFiles("ftp://host/r") } as IoResult.Success).value
+        val items = (runBlocking { commands.executor.listFiles("ftp://host/r") } as IoResult.Success).value
 
         assertEquals(
             listOf("ftp://host/r" to PROFTPD_LINK, "ftp://host/r" to PURE_FTPD_LINK, "ftp://host/r" to UNPARSEABLE_SIZE),
@@ -61,7 +61,7 @@ class FtpListingInterpretationTest {
         // 숫자가 아닌 size는 commons-net 해석기가 예외를 던지는 줄이고, 공백이 없는 줄은 해석기가 null을 돌려주는 줄이다
         client.mlsdListings = mapOf("/r" to listOf(UNPARSEABLE_SIZE, "garbage", "type=file;size=3; a.txt", PROFTPD_LINK))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(commands.executor).listFiles("ftp://host/r") }
 
         assertEquals(listOf("a.txt"), (result as IoResult.Success).value.entries.map { it.name })
         assertEquals("빠진 줄 수를 목록 상태로 표시하고 이름 충돌 판정에서 빼도록 돌려줘야 함", 3, result.value.unreadableCount)
@@ -77,7 +77,7 @@ class FtpListingInterpretationTest {
         val listSession = FtpSession(listClient, ConnectionLossNotices())
         runBlocking { listSession.markLoggedIn(listSession.closeRequestMark(), home = null, serverName = "server") }
 
-        val items = (runBlocking { FtpCommandExecutor(listSession, DataCommandRunner(listSession)).listFiles("ftp://host/r") } as IoResult.Success).value
+        val items = (runBlocking { FtpCommandParts(listSession).executor.listFiles("ftp://host/r") } as IoResult.Success).value
 
         assertEquals(listOf("a.txt"), items.map { (it as ListedItem.Entry).entry.name })
     }
@@ -86,7 +86,7 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄이 없으면 화면 목록의 뺀 줄 수는 0이다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(commands.executor).listFiles("ftp://host/r") }
 
         assertEquals(0, (result as IoResult.Success).value.unreadableCount)
     }
@@ -98,7 +98,7 @@ class FtpListingInterpretationTest {
             "/r/sub" to listOf(UNPARSEABLE_SIZE)
         )
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
         assertEquals(
             IoResult.PartiallyFailed(
@@ -120,7 +120,7 @@ class FtpListingInterpretationTest {
         client.streamContent = "abc".toByteArray()
 
         val result = runBlocking {
-            FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices())
+            commands.transferrer(OperationNotices())
                 .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), UnexpectedConflictResolver)
         }
 
@@ -142,7 +142,7 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄이 여러 개면 실패 이름은 나온 폴더가 아니라 받은 줄로 서로 구분된다`() {
         client.mlsdListings = mapOf("/r" to listOf(PROFTPD_LINK, UNPARSEABLE_SIZE))
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
         assertEquals(
             "같은 폴더 이름만 반복되지 않아야 함(#347)",
@@ -155,7 +155,7 @@ class FtpListingInterpretationTest {
     fun `빈 줄은 실패 이름이 줄이 나온 폴더를 가리키지 않고 빈 줄 문구로 보인다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=dir; sub", ""), "/r/sub" to listOf(""))
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) {} }
 
         assertEquals(
             IoResult.PartiallyFailed(
@@ -175,7 +175,7 @@ class FtpListingInterpretationTest {
         client.mlsdListings = mapOf("/r" to listOf("type=dir; sub"), "/r/sub" to listOf(UNPARSEABLE_SIZE))
 
         val result = runBlocking {
-            FtpTransferrer(session, commands, DataCommandRunner(session), OperationNotices())
+            commands.transferrer(OperationNotices())
                 .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), WriteConflictResolver { conflict ->
                     // 받을 폴더 r은 합치고, 그 안의 sub만 건너뛴다
                     if (conflict.name == "sub") ConflictChoice.SKIP else ConflictChoice.PROCEED

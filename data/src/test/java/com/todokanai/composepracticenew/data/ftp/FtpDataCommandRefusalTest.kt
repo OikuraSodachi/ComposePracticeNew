@@ -38,9 +38,9 @@ class FtpDataCommandRefusalTest {
     fun `목록 조회의 PASV가 거부되면 LIST가 아니라 PASV 실패로 알리고 세션을 유지한다`() {
         val scripted = ScriptedFtpServer(mapOf("PASV" to { exchange -> exchange.send("500 PASV not understood") })).also { server = it }
         val session = connectedSession(scripted)
-        val executor = FtpCommandExecutor(session, DataCommandRunner(session))
+        val executor = FtpCommandParts(session)
 
-        val result = runBlocking { executor.listFiles("ftp://host/r") }
+        val result = runBlocking { executor.executor.listFiles("ftp://host/r") }
 
         assertEquals(IoResult.ItemFailed("PASV 실패: 500 PASV not understood"), result)
         assertFalse("준비 명령이 거부되면 LIST를 보내지 않아야 함", "LIST" in scripted.received)
@@ -73,7 +73,7 @@ class FtpDataCommandRefusalTest {
      */
     private fun downloadFailureReason(scripted: ScriptedFtpServer): String? {
         val session = connectedSession(scripted)
-        val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
+        val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
         val result = runBlocking {
             transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver)
         }

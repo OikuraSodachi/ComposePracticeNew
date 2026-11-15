@@ -39,6 +39,14 @@ internal fun extractFtpPath(path: String): String {
 internal fun childFtpUriPrefix(dirPath: String): String = dirPath.trimEnd('/') + "/"
 
 /**
+ * [ancestorPath]가 [path]를 하위 항목으로 품는 원격 디렉터리 경로인지 판별한다.
+ * @param ancestorPath 상위 후보 디렉터리 경로
+ * @param path 하위 후보 항목 경로
+ * @return [path]가 [ancestorPath] 아래에 있으면 true
+ */
+internal fun isRemoteAncestorOf(ancestorPath: String, path: String): Boolean = path.startsWith(childFtpUriPrefix(ancestorPath))
+
+/**
  * ftp:// 형식의 디렉터리 경로 아래 항목의 경로를 만든다. 목록 항목의 경로도 이 규칙으로 만든다.
  * @param dirPath 디렉터리의 ftp:// 경로
  * @param name 항목 이름

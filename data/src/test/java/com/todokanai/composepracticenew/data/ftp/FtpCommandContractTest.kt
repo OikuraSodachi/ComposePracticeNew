@@ -35,9 +35,9 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /** 검증 대상 세션. */
     private val session = FtpSession(client, ConnectionLossNotices())
     /** 검증 대상 파일 명령 실행기. */
-    private val executor = FtpCommandExecutor(session, DataCommandRunner(session))
+    private val parts = FtpCommandParts(session)
     /** 검증 대상 전송기. */
-    private val transferrer = FtpTransferrer(session, executor, DataCommandRunner(session), OperationNotices())
+    private val transferrer = parts.transferrer(OperationNotices())
 
     @After
     fun tearDown() {
@@ -49,7 +49,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
         command.prepare(client)
         behavior.serverBehavior?.let { client.serverBehaviors = mapOf(command.ftpName to it) }
         if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
-        val run = suspend { command.run(Fixture(executor, transferrer, dir)) }
+        val run = suspend { command.run(Fixture(parts, transferrer, dir)) }
 
         when (expectedOutcome(command, behavior)) {
             Outcome.ITEM_FAILED -> {
@@ -93,11 +93,11 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
 
     /**
      * 명령 행이 실행에 쓰는 대상.
-     * @param executor FTP 파일 명령 실행기
+     * @param parts FTP 명령 부품(화면 명령·트리 수집·삭제)
      * @param transferrer FTP 전송기
      * @param dir 전송에 쓸 로컬 임시 디렉터리
      */
-    internal class Fixture(val executor: FtpCommandExecutor, val transferrer: FtpTransferrer, val dir: File)
+    internal class Fixture(val parts: FtpCommandParts<*>, val transferrer: FtpTransferrer, val dir: File)
 
     /**
      * 행렬의 명령 행.
@@ -138,24 +138,24 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     companion object {
         /** 모든 명령 행. */
         private val commands = listOf(
-            CommandRow("LIST") { it.executor.listFiles("ftp://host/r") },
-            CommandRow("LIST", name = "LIST(트리 수집)") { it.executor.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
+            CommandRow("LIST") { it.parts.executor.listFiles("ftp://host/r") },
+            CommandRow("LIST", name = "LIST(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
             // LIST 서버는 디렉터리로 이동한 뒤 LIST를 보낸다
-            CommandRow("CWD", name = "CWD(화면 목록)") { it.executor.listFiles("ftp://host/r") },
-            CommandRow("CWD", name = "CWD(트리 수집)") { it.executor.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
+            CommandRow("CWD", name = "CWD(화면 목록)") { it.parts.executor.listFiles("ftp://host/r") },
+            CommandRow("CWD", name = "CWD(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
             CommandRow("MLSD", prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r" to emptyList()) }) {
-                it.executor.listFiles("ftp://host/r")
+                it.parts.executor.listFiles("ftp://host/r")
             },
-            CommandRow("RENAME") { it.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") },
-            CommandRow("DELE") { it.executor.delete(listOf(fileTarget("ftp://host/r/a.txt"))) {}.singleItemResult() },
-            CommandRow("MKD") { it.executor.makeDirectory("ftp://host/r/new") },
+            CommandRow("RENAME") { it.parts.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") },
+            CommandRow("DELE") { it.parts.deletion.delete(listOf(fileTarget("ftp://host/r/a.txt"))) {}.singleItemResult() },
+            CommandRow("MKD") { it.parts.executor.makeDirectory("ftp://host/r/new") },
             // MLSD 목록은 숨김 항목을 빠뜨릴 수 있어, 그 항목이 남아 거부됐을 가능성을 덧붙인다
             CommandRow(
                 "RMD",
                 refusalNote = FtpReplyRules.HIDDEN_ENTRIES_NOTE,
                 prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r/d" to emptyList()) }
             ) {
-                it.executor.delete(listOf(directoryTarget("ftp://host/r/d"))) {}.singleItemResult()
+                it.parts.deletion.delete(listOf(directoryTarget("ftp://host/r/d"))) {}.singleItemResult()
             },
             // 크기 조회는 진행률에만 쓰므로, 거부되면 크기를 모르는 채로 전송을 이어 간다
             CommandRow("MLST", refused = Outcome.CONTINUES, prepare = { it.streamContent = "data".toByteArray() }) {

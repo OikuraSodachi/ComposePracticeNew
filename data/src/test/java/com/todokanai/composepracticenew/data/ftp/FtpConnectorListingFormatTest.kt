@@ -91,7 +91,7 @@ class FtpConnectorListingFormatTest {
 
         val result = connectTo(scripted)
         val systSentOnConnect = server!!.received.count { it == "SYST" }
-        val listing = runBlocking { FtpCommandExecutor(session, DataCommandRunner(session)).listFiles("ftp://host/r") }
+        val listing = runBlocking { FtpCommandParts(session).executor.listFiles("ftp://host/r") }
 
         assertEquals(ConnectResult.Connected, result)
         assertEquals(listOf("ftp://host/r/a.txt"), (listing as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })

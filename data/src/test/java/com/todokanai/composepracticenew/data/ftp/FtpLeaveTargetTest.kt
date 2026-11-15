@@ -18,14 +18,14 @@ class FtpLeaveTargetTest {
     /** [client]를 소유하고 현재 디렉터리를 기록하는 세션. */
     private val session = FtpSession(client, ConnectionLossNotices())
     /** 검증 대상. */
-    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
+    private val commands = FtpCommandParts(session)
 
     @Test
     fun `폴더를 지우면 트리 수집이 들어간 폴더에서 상위 폴더로 한 번 나간 뒤 RMD를 보낸다`() {
         loggedIn()
         client.remoteFiles = listOf("a.txt")
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r"), client.listRequests)
@@ -39,7 +39,7 @@ class FtpLeaveTargetTest {
         client.remoteFiles = emptyList()
         client.onChangeWorkingDirectory = { path -> path != "/r" }
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r", "CWD /home/u"), client.listRequests)
@@ -52,7 +52,7 @@ class FtpLeaveTargetTest {
         client.remoteFiles = emptyList()
         client.onChangeWorkingDirectory = { path -> path == "/r/x" }
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r", "CWD /home/u"), client.listRequests)
@@ -65,7 +65,7 @@ class FtpLeaveTargetTest {
         client.remoteFiles = emptyList()
         client.onChangeWorkingDirectory = { path -> path != "/r" }
 
-        runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
+        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(listOf("CWD /r/x", "LIST", "CWD /r"), client.listRequests)
         assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
@@ -77,7 +77,7 @@ class FtpLeaveTargetTest {
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r/x" to emptyList())
 
-        runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
+        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertEquals(listOf("MLSD /r/x", "CWD /r"), client.listRequests)
         assertEquals(listOf("/r/x"), client.removeDirectoryRequests)
@@ -86,9 +86,9 @@ class FtpLeaveTargetTest {
     @Test
     fun `방금 연 폴더의 이름을 바꾸면 상위 폴더로 나간 뒤 RENAME을 보낸다`() {
         loggedIn()
-        runBlocking { commands.listFiles("ftp://host/r/x") }
+        runBlocking { commands.executor.listFiles("ftp://host/r/x") }
 
-        val result = runBlocking { commands.rename("ftp://host/r/x", "ftp://host/r/y") }
+        val result = runBlocking { commands.executor.rename("ftp://host/r/x", "ftp://host/r/y") }
 
         assertEquals(IoResult.Done, result)
         assertEquals("CWD /r", client.listRequests.last())
@@ -98,9 +98,9 @@ class FtpLeaveTargetTest {
     @Test
     fun `세션이 대상 밖에 있으면 이름을 바꿀 때 디렉터리를 옮기지 않는다`() {
         loggedIn()
-        runBlocking { commands.listFiles("ftp://host/r") }
+        runBlocking { commands.executor.listFiles("ftp://host/r") }
 
-        runBlocking { commands.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") }
+        runBlocking { commands.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") }
 
         assertEquals(listOf("CWD /r", "LIST"), client.listRequests)
     }
@@ -111,7 +111,7 @@ class FtpLeaveTargetTest {
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r/x" to listOf("type=file;size=1; a.txt"))
 
-        runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
+        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r/x"))) {} }
 
         assertFalse(client.listRequests.toString(), client.listRequests.any { it.startsWith("CWD") })
     }

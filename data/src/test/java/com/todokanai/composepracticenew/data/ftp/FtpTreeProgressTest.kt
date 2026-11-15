@@ -16,14 +16,14 @@ import org.junit.Test
 import java.net.SocketTimeoutException
 
 /**
- * 트리 수집([FtpCommandExecutor.collectRemoteTree])이 받은 항목마다 준비 단계 진행을 알려 그 보고에서 취소를 받고,
- * 삭제([FtpCommandExecutor.delete])가 모든 대상을 먼저 모은 뒤 작업 전체의 항목 수 기준으로 진행을 보고하고, 대상별 실패를 모아 알리는지 검증하는 단위 테스트(#284).
+ * 트리 수집([FtpTreeCollector.collectRemoteTree])이 받은 항목마다 준비 단계 진행을 알려 그 보고에서 취소를 받고,
+ * 삭제([FtpRemoteDeletion.delete])가 모든 대상을 먼저 모은 뒤 작업 전체의 항목 수 기준으로 진행을 보고하고, 대상별 실패를 모아 알리는지 검증하는 단위 테스트(#284).
  */
 class FtpTreeProgressTest {
 
     private val client = FakeFtpClient()
     private val session = FtpSession(client, ConnectionLossNotices())
-    private val commands = FtpCommandExecutor(session, DataCommandRunner(session))
+    private val commands = FtpCommandParts(session)
 
     @Test
     fun `수집하는 동안 받은 항목마다 찾은 항목 수를 알린다`() {
@@ -35,7 +35,7 @@ class FtpTreeProgressTest {
         )
         val reported = mutableListOf<ProgressState>()
 
-        runBlocking { commands.collectRemoteTree("ftp://host/r", everyEntry { reported += it }) }
+        runBlocking { commands.trees.collectRemoteTree("ftp://host/r", everyEntry { reported += it }) }
 
         assertEquals(
             listOf(PreparationProgress(1, "sub"), PreparationProgress(2, "b.txt"), PreparationProgress(3, "a.txt")),
@@ -54,7 +54,7 @@ class FtpTreeProgressTest {
         )
 
         assertThrows(CancellationException::class.java) {
-            runBlocking { commands.collectRemoteTree("ftp://host/r", everyEntry { throw CancellationException("cancelled") }) }
+            runBlocking { commands.trees.collectRemoteTree("ftp://host/r", everyEntry { throw CancellationException("cancelled") }) }
         }
         assertEquals(listOf("MLSD /r"), client.listRequests)
     }
@@ -67,7 +67,7 @@ class FtpTreeProgressTest {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt", "type=file;size=1; b.txt"))
         val deleting = mutableListOf<ProgressState>()
 
-        runBlocking { commands.delete(listOf(directoryTarget("ftp://host/r"))) { if (it.preparing == null) deleting += it } }
+        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) { if (it.preparing == null) deleting += it } }
 
         assertEquals(listOf(0 to "b.txt", 1 to "a.txt", 2 to "r"), deleting.map { it.currentIndex to it.currentFileName })
         assertTrue(deleting.all { it.listSize == 3 && it.progress!! < 100 })
@@ -81,7 +81,7 @@ class FtpTreeProgressTest {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt"))
         val reported = mutableListOf<ProgressState>()
 
-        runBlocking { commands.delete(listOf(fileTarget("ftp://host/x.txt"), directoryTarget("ftp://host/r"))) { reported += it } }
+        runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/x.txt"), directoryTarget("ftp://host/r"))) { reported += it } }
 
         val firstDeletion = reported.indexOfFirst { it.preparing == null }
         assertEquals(PreparationProgress(1, "x.txt"), reported.first().preparing)
@@ -99,7 +99,7 @@ class FtpTreeProgressTest {
         client.mlsdListings = mapOf("/r" to listOf("type=dir; sub"), "/r/sub" to listOf("type=file;size=1; x.txt"))
         client.onDeleteFile = { path -> path != "/a.txt" && path != "/r/sub/x.txt" }
 
-        val result = runBlocking { commands.delete(listOf(fileTarget("ftp://host/a.txt"), directoryTarget("ftp://host/r"), fileTarget("ftp://host/ok.txt"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/a.txt"), directoryTarget("ftp://host/r"), fileTarget("ftp://host/ok.txt"))) {} }
 
         assertEquals(
             IoResult.PartiallyFailed("삭제 실패", listOf(FailedItem("a.txt", "DELE 실패: 550 Permission denied"), FailedItem("r/sub/x.txt", "DELE 실패: 550 Permission denied"))),
@@ -114,7 +114,7 @@ class FtpTreeProgressTest {
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/ok" to emptyList())
 
-        val result = runBlocking { commands.delete(listOf(directoryTarget("ftp://host/missing"), directoryTarget("ftp://host/ok"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/missing"), directoryTarget("ftp://host/ok"))) {} }
 
         assertEquals(listOf("missing"), (result as IoResult.PartiallyFailed).failures.map { it.path })
         assertEquals(listOf("/ok"), client.removeDirectoryRequests)
@@ -125,7 +125,7 @@ class FtpTreeProgressTest {
         loggedIn()
         client.onDeleteFile = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { commands.delete(listOf(fileTarget("ftp://host/a.txt"), fileTarget("ftp://host/b.txt"))) {} }
+        val result = runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/a.txt"), fileTarget("ftp://host/b.txt"))) {} }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/a.txt"), client.deleteRequests)
@@ -137,7 +137,7 @@ class FtpTreeProgressTest {
         val reporter: (ProgressState) -> Unit = { if (it.preparing == null) throw CancellationException("cancelled") }
 
         assertThrows(CancellationException::class.java) {
-            runBlocking { commands.delete(listOf(fileTarget("ftp://host/r/a.txt")), reporter) }
+            runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/r/a.txt")), reporter) }
         }
         assertEquals(emptyList<String>(), client.deleteRequests)
     }

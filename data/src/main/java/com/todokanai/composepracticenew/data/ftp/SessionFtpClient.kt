@@ -57,7 +57,7 @@ internal open class SessionFtpClient : FTPClient(), FtpCommandClient {
     override fun sendMlst(pathname: String): Int = sendCommand(FTPCmd.MLST, pathname)
 
     /**
-     * 인자 없는 LIST를 보내 현재 디렉터리 목록의 데이터 스트림을 연다. 인자를 붙이지 않는 이유는 [FtpCommandExecutor]의 LIST 조회에 있다.
+     * 인자 없는 LIST를 보내 현재 디렉터리 목록의 데이터 스트림을 연다. 인자를 붙이지 않는 이유는 [FtpListingReader]의 LIST 조회에 있다.
      * @return 서버가 전송을 시작(1xx)하면 데이터 스트림, 데이터 연결을 열기 전에 거부하면 null(거부 응답은 [getReplyCode]에 남는다)
      * @throws IOException 응답을 읽지 못했거나 데이터 소켓을 열지 못한 경우
      */

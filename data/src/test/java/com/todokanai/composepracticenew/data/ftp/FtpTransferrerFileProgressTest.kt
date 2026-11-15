@@ -25,7 +25,7 @@ class FtpTransferrerFileProgressTest {
     /** 검증 대상 세션. */
     private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
     /** 검증 대상 전송기. */
-    private val transferrer = FtpTransferrer(session, FtpCommandExecutor(session, DataCommandRunner(session)), DataCommandRunner(session), OperationNotices())
+    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
     /** 보고된 진행 상태. */
     private val reports = mutableListOf<ProgressState>()
 

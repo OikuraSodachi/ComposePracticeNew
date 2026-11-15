@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.ftp.DownloadSource
 import com.todokanai.composepracticenew.data.ftp.UploadSource
 import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
+import com.todokanai.composepracticenew.data.ftp.FtpRemoteDeletion
 import com.todokanai.composepracticenew.data.ftp.FtpConnectionStatus
 import com.todokanai.composepracticenew.data.ftp.FtpConnector
 import com.todokanai.composepracticenew.data.ftp.FtpTransferrer
@@ -25,7 +26,8 @@ import javax.inject.Singleton
  * 원격 스토리지 역할 인터페이스(연결·전송·변경)의 FTP 구현체.
  * @param session FTP 연결 상태를 노출하는 세션
  * @param connector FTP 접속·해제를 수행하는 커넥터
- * @param commandExecutor FTP 파일 명령을 실행하는 실행기
+ * @param commandExecutor FTP 파일 명령(이름 변경·폴더 생성)을 실행하는 실행기
+ * @param remoteDeletion 고른 원격 항목을 하나의 작업으로 지우는 FtpRemoteDeletion
  * @param transferrer FTP 파일 전송을 수행하는 전송기
  */
 @Singleton
@@ -33,6 +35,7 @@ class FtpRepositoryImpl @Inject internal constructor(
     session: FtpConnectionStatus,
     private val connector: FtpConnector,
     private val commandExecutor: FtpCommandExecutor,
+    private val remoteDeletion: FtpRemoteDeletion,
     private val transferrer: FtpTransferrer
 ) : RemoteConnectionRepository, RemoteFileTransferRepository, RemoteFileMutationRepository {
 
@@ -60,7 +63,7 @@ class FtpRepositoryImpl @Inject internal constructor(
     override suspend fun rename(path: String, newName: String) = commandExecutor.rename(path, siblingFtpUri(path, newName))
 
     override suspend fun delete(items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) =
-        commandExecutor.delete(items.map { RemoteDeletionTarget(it.path, it.name, it.isDirectory) }, onProgress)
+        remoteDeletion.delete(items.map { RemoteDeletionTarget(it.path, it.name, it.isDirectory) }, onProgress)
 
     override suspend fun makeDirectory(parentPath: String, name: String) = commandExecutor.makeDirectory(childFtpUri(parentPath, name))
 }
