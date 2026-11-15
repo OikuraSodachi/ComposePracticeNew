@@ -23,7 +23,7 @@ import org.junit.Test
 
 /**
  * [FileOperationOrchestrator.launch]가 작업 결과를 완료·실패 처리로 나누고, 작업의 구현 오류 하나로 작업 스코프가 무너지지 않게 그 작업만 실패로 끝내며,
- * 결과 보고 중 예외는 작업 실패로 다시 알리지 않고 스코프에 전파하며,
+ * 완료·실패·취소 보고 중 예외는 작업 실패로 다시 알리지 않고 스코프에 전파하며,
  * 진행·완료·취소 알림을 모두 그 작업에 발급한 인스턴스 ID로 보내며, 취소 요청([FileOperationOrchestrator.cancel])으로 작업을 멈추고 취소를 알리는지 검증하는 단위 테스트.
  * 작업이 일시 중단하지 않으므로 Unconfined 스코프에서 호출 즉시 끝난다. 첫 작업의 ID는 1이고 시작 순서대로 1씩 커진다.
  */
@@ -41,8 +41,18 @@ class OperationLauncherTest {
     /** 검증 대상. */
     private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope)
 
+    /** 작업 코루틴에서 전파된 예외. 받은 순서대로 쌓는다. */
+    private val propagated = mutableListOf<Throwable>()
+    /** 작업에서 전파된 예외를 [propagated]에 모으는 스코프 — 앱 수명 스코프처럼 한 작업의 실패가 다른 작업을 취소하지 않는다. */
+    private val propagatingScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> propagated += e })
+    /** [propagatingScope]에서 작업을 실행하는 검증 대상. 보고 중 예외의 전파를 볼 때 쓴다. */
+    private val propagatingOrchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, propagatingScope)
+
     @After
-    fun tearDown() = scope.cancel()
+    fun tearDown() {
+        scope.cancel()
+        propagatingScope.cancel()
+    }
 
     @Test
     fun `성공하면 완료를 알리고 진행 상태를 지운다`() {
@@ -80,18 +90,38 @@ class OperationLauncherTest {
 
     @Test
     fun `완료를 알린 뒤 보고 중 예외는 실패로 또 알리지 않고 스코프에 전파한다`() {
-        val thrown = mutableListOf<Throwable>()
-        val handlerScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> thrown += e })
-        val reportingOrchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, handlerScope)
-
-        reportingOrchestrator.launch(completionMessage = "done", operationType = null, onRefresh = { throw IllegalStateException("갱신 오류") }) { IoResult.Done }
+        launchFailingRefresh { IoResult.Done }
 
         assertEquals(listOf("done"), notices.completions)
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf("completed 1"), notifier.calls)
-        assertEquals(listOf("갱신 오류"), thrown.map { it.message })
+        assertEquals(listOf("갱신 오류"), propagated.map { it.message })
         assertEquals(listOf(1), progressRepo.removed)
-        handlerScope.cancel()
+    }
+
+    @Test
+    fun `실패를 알린 뒤 보고 중 예외는 실패로 또 알리지 않고 스코프에 전파한다`() {
+        launchFailingRefresh { IoResult.ItemFailed("실패") }
+
+        assertEquals(listOf("실패"), notices.failures)
+        assertTrue(notices.completions.isEmpty())
+        assertEquals(listOf("cancel 1"), notifier.calls)
+        assertEquals(listOf("갱신 오류"), propagated.map { it.message })
+        assertEquals(listOf(1), progressRepo.removed)
+    }
+
+    @Test
+    fun `취소를 알린 뒤 보고 중 예외는 실패로 알리지 않고 스코프에 전파한다`() {
+        val gate = CompletableDeferred<Unit>()
+        launchFailingRefresh(FileOperationType.COPY) { gate.await(); IoResult.Done }
+
+        propagatingOrchestrator.cancel(1)
+
+        assertEquals(listOf("복사 취소 — 이미 복사한 항목은 그대로 둡니다"), notices.completions)
+        assertTrue(notices.failures.isEmpty())
+        assertEquals(listOf("cancel 1"), notifier.calls)
+        assertEquals(listOf("갱신 오류"), propagated.map { it.message })
+        assertEquals(listOf(1), progressRepo.removed)
     }
 
     @Test
@@ -173,6 +203,18 @@ class OperationLauncherTest {
         operationType: FileOperationType? = null,
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) = orchestrator.launch(completionMessage = "done", operationType = operationType, onRefresh = {}, block = block)
+
+    /**
+     * 목록 갱신이 언제나 던지는 작업 하나로 [block]을 [propagatingOrchestrator]에서 실행한다.
+     * @param operationType 작업 종류. null이면 순간 작업
+     * @param block 결과를 돌려주는 작업
+     */
+    private fun launchFailingRefresh(operationType: FileOperationType? = null, block: suspend () -> IoResult<Unit>) =
+        propagatingOrchestrator.launch(
+            completionMessage = "done",
+            operationType = operationType,
+            onRefresh = { throw IllegalStateException("갱신 오류") }
+        ) { block() }
 
     /** 지운 진행 상태를 기록하는 테스트용 진행 저장소. */
     private class RecordingProgressRepository : ProgressRepository {
