@@ -75,11 +75,11 @@ class RemoteFileListViewModel @Inject constructor(
     /** 서버의 파일 목록을 읽을 수 없다는 다이얼로그를 닫는다. */
     fun dismissUnreadableServer() = reconnectFailureNotice.dismissUnreadableServer()
 
-    /** 자동 재연결할 서버의 저장된 접속 정보가 잘못돼 연결을 시도하지 않았음을 알리는 다이얼로그를 보여야 하면 true. */
-    val invalidSettings: StateFlow<Boolean> = reconnectFailureNotice.invalidSettings
+    /** 자동 재연결할 서버의 저장된 포트가 범위를 벗어나 연결을 시도하지 않았음을 알리는 다이얼로그를 보여야 하면 true. */
+    val invalidPort: StateFlow<Boolean> = reconnectFailureNotice.invalidPort
 
-    /** 접속 정보가 잘못됐다는 다이얼로그를 닫는다. */
-    fun dismissInvalidSettings() = reconnectFailureNotice.dismissInvalidSettings()
+    /** 포트가 범위를 벗어났다는 다이얼로그를 닫는다. */
+    fun dismissInvalidPort() = reconnectFailureNotice.dismissInvalidPort()
 
     /**
      * 연결된 세션이 끊겨(서버 측 종료·idle timeout 등) 이 화면이 보여줄 원격 세션이 없으면 true.

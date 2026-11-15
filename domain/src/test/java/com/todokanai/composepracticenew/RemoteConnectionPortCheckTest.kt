@@ -20,11 +20,11 @@ class RemoteConnectionPortCheckTest {
     private val useCase = RemoteConnectionUseCase(connection, FakeNavigator(), NoOpLastConnectionRepository)
 
     @Test
-    fun `포트가 범위를 벗어나면 연결을 시도하지 않고 접속 정보 오류로 알린다`() {
+    fun `포트가 범위를 벗어나면 연결을 시도하지 않고 포트 오류로 알린다`() {
         listOf(0, 65536, -1).forEach { port ->
             val result = runBlocking { useCase.connectAndNavigate(itemWithPort(port)) }
 
-            assertEquals("port=$port", ConnectResult.Failed(ConnectFailureReason.INVALID_SETTINGS), result)
+            assertEquals("port=$port", ConnectResult.Failed(ConnectFailureReason.INVALID_PORT), result)
         }
         assertEquals(emptyList<Int>(), connectedPorts())
     }

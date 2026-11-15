@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
-import com.todokanai.composepracticenew.compose.dialog.InvalidServerSettingsDialog
+import com.todokanai.composepracticenew.compose.dialog.InvalidPortDialog
 import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
@@ -93,7 +93,7 @@ fun RemoteFileListFrag(
     val newFolderTarget by viewModel.newFolderTarget.collectAsStateWithLifecycle()
     val pendingRename by viewModel.pendingRename.collectAsStateWithLifecycle()
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
-    val invalidSettings by viewModel.invalidSettings.collectAsStateWithLifecycle()
+    val invalidPort by viewModel.invalidPort.collectAsStateWithLifecycle()
     /** 목록 스크롤 상태. 목록(FileListView)을 화면에서 빼는 분기보다 위에서 만든다 — 위치가 남는 기간을 목록의 컴포지션 여부가 아니라 경로로 정한다 */
     val listState = rememberListingScrollState(uiState.value.listing)
     /** 이름 변경 다이얼로그의 콜백 묶음. */
@@ -122,8 +122,8 @@ fun RemoteFileListFrag(
     if (unreadableServer) {
         UnreadableServerDialog(onDismiss = viewModel::dismissUnreadableServer)
     }
-    if (invalidSettings) {
-        InvalidServerSettingsDialog(onDismiss = viewModel::dismissInvalidSettings)
+    if (invalidPort) {
+        InvalidPortDialog(onDismiss = viewModel::dismissInvalidPort)
     }
 
     BackHandler(enabled = selectMode == SelectMode.MultiSelect, onBack = onResetSelection)
