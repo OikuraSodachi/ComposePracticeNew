@@ -3,11 +3,7 @@ package com.todokanai.composepracticenew.compose.listview
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
-import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.InfoDialog
-import com.todokanai.composepracticenew.compose.dialog.RenameConflictDialog
-import com.todokanai.composepracticenew.compose.dialog.RenameDialog
 import com.todokanai.composepracticenew.compose.dialog.CompressDialog
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingRename
@@ -49,35 +45,24 @@ fun BottomButtonDialogHost(
                 validate = { name -> compress.validateName(folder, name) }
             )
         }
-        // 대상은 선택에서만 구한다(#369) — 열림 플래그와 따로 두면 선택이 하나가 아니게 됐을 때 대상 없이 열린다
-        selectedList.singleOrNull()?.takeIf { dialogState.renameDialog }?.let { target ->
-            RenameDialog(
-                currentName = target.name,
-                isDirectory = target.isDirectory,
-                onConfirm = { name -> onSubmitSelection()?.let { rename.onRename(it, name) } },
-                onDismiss = { dialogState.dismissRename() },
-                validate = { name -> rename.validate(target, name) }
-            )
-        }
     }
-    pendingRename?.let { pending ->
-        RenameConflictDialog(
-            pending = pending,
-            isRemote = false,
-            onConfirm = rename.onConfirmOverwrite,
-            onDismiss = rename.onCancelOverwrite
-        )
-    }
+    SelectionEntryDialogs(
+        openId = dialogState.openId,
+        selectedList = selectedList,
+        renameOpen = dialogState.renameDialog,
+        onDismissRename = dialogState::dismissRename,
+        deleteOpen = dialogState.deleteDialog,
+        onDismissDelete = dialogState::dismissDelete,
+        isRemote = false,
+        onSubmitSelection = onSubmitSelection,
+        rename = rename,
+        pendingRename = pendingRename,
+        onDelete = onDelete,
+    )
     info.summary()?.let { summary ->
         InfoDialog(
             summary = summary,
             onDismiss = info.onDismiss
-        )
-    }
-    if (dialogState.deleteDialog) {
-        DeleteDialog(
-            onConfirm = { onSubmitSelection()?.let(onDelete) },
-            onDismiss = { dialogState.dismissDelete() }
         )
     }
 }
