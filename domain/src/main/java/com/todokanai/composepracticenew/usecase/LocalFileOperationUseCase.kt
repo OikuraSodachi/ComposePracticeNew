@@ -142,7 +142,7 @@ class LocalFileOperationUseCase(
      */
     fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, completionMessage: String, onRefresh: suspend () -> Unit) {
         if (rejectsUnsupportedFormat(format)) return
-        if (rejectsInvalidName(validateArchiveName(name, parentPath, format), "$name${format.extension}", "압축 실패")) return
+        if (notices.rejectsInvalidName(validateArchiveName(name, parentPath, format), "$name${format.extension}", "압축 실패")) return
         orchestrator.launch(completionMessage, FileOperationType.COMPRESS, onRefresh) { onProgress ->
             fileActionRepo.compressAction(files, parentPath, name, format, onProgress)
         }
@@ -181,7 +181,7 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun rename(path: String, newName: String, overwrite: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
+        if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             fileActionRepo.renameFile(path, newName, overwrite)
         }
@@ -196,23 +196,10 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(name, parentPath), name, "폴더 생성 실패")) return
+        if (notices.rejectsInvalidName(validateEntryName(name, parentPath), name, "폴더 생성 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             fileActionRepo.makeDirectory(parentPath, name)
         }
-    }
-
-    /**
-     * 검증 결과에 위반이 있으면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다. 메시지는 copy·move의 목적지 거부와 같은 경로로 표시된다.
-     * @param errors [FileNameUseCase.validate]가 반환한 위반 규칙 집합
-     * @param displayName 오류 메시지에 표시할 이름
-     * @param failurePrefix 오류 메시지 머리말(예: "이름 변경 실패")
-     * @return 위반이 있어 작업을 실행하지 않아야 하면 true
-     */
-    private fun rejectsInvalidName(errors: Set<FileNameError>, displayName: String, failurePrefix: String): Boolean {
-        if (errors.isEmpty()) return false
-        notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
-        return true
     }
 
     /**

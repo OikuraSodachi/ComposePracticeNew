@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.withFailureMessage
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -76,7 +75,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
+        if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             failingWith(errorMessage) { mutationRepo.rename(path, newName) }
         }
@@ -105,7 +104,7 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, "디렉터리 생성 실패")) return
+        if (notices.rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, "디렉터리 생성 실패")) return
         orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
             failingWith(errorMessage) { mutationRepo.makeDirectory(parentPath, dirName) }
         }
@@ -119,17 +118,4 @@ class RemoteFileOperationUseCase(
      */
     private suspend fun failingWith(message: String, block: suspend () -> IoResult<Unit>): IoResult<Unit> =
         block().withFailureMessage(message)
-
-    /**
-     * 검증 결과에 위반이 있으면 거부 메시지를 보관하고 작업을 중단해야 함을 알린다.
-     * @param errors [FileNameUseCase.validate]가 반환한 위반 규칙 집합
-     * @param displayName 오류 메시지에 표시할 이름
-     * @param failurePrefix 오류 메시지 머리말(예: "이름 변경 실패")
-     * @return 위반이 있어 작업을 실행하지 않아야 하면 true
-     */
-    private fun rejectsInvalidName(errors: Set<FileNameError>, displayName: String, failurePrefix: String): Boolean {
-        if (errors.isEmpty()) return false
-        notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
-        return true
-    }
 }
