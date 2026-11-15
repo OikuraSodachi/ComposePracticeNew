@@ -40,7 +40,7 @@ class FtpDataCommandRefusalTest {
         val session = connectedSession(scripted)
         val executor = FtpCommandParts(session)
 
-        val result = runBlocking { executor.executor.listFiles("ftp://host/r") }
+        val result = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
         assertEquals(IoResult.ItemFailed("PASV 실패: 500 PASV not understood"), result)
         assertFalse("준비 명령이 거부되면 LIST를 보내지 않아야 함", "LIST" in scripted.received)

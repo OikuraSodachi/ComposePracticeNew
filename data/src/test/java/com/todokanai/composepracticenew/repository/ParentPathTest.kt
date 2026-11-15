@@ -15,7 +15,7 @@ class ParentPathTest {
 
     @Test
     fun `FTP 경로는 서버 루트까지 올라가고 그 위는 없다`() {
-        val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandParts(session).executor })
+        val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandParts(session).listing })
 
         assertEquals(listOf("ftp://host/a/b", "ftp://host/a", "ftp://host"), ancestorChain(ftp, "ftp://host/a/b"))
     }

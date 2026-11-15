@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.map
 import com.todokanai.fileexplorer.FileEntry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,7 +44,7 @@ private class ListingTooLargeException : IOException("목록이 메모리 상한
  * 서버가 목록을 끝없이 보낼 때 세기 전에 메모리가 바닥난다. 데이터가 조금씩이라도 계속 오면 읽기 상한에도 걸리지 않는다.
  *
  * 변환한 항목의 경로는 조회한 디렉터리의 경로를 앞부분으로 가지지만 받은 데이터에는 그 앞부분이 없으므로, 줄마다 앞부분의 길이를 문자당
- * 2바이트로 더한다 — 세지 않으면 깊은 폴더(앞부분 수천 자)의 큰 목록은 받는 동안의 추정치보다 수십 배의 메모리를 받은 뒤의 추정([TreeMemoryBudget])
+ * 2바이트로 더한다 — 세지 않으면 깊은 폴더(앞부분 수천 자)의 큰 목록은 받는 동안의 추정치보다 수십 배의 메모리를 받은 뒤의 추정([FtpTreeCollector]의 `TreeMemoryBudget`)
  * 전에 쓴다. 그래서 받는 동안의 추정치가 같은 목록의 받은 뒤 추정치보다 항상 크다.
  *
  * 줄 끝은 해석기(`BufferedReader.readLine`)와 같은 규칙으로 센다 — CR·LF·CRLF가 각각 줄 끝 하나다. 해석기가 들고 있는 줄 수와 달리 세면
@@ -125,7 +126,7 @@ private class BoundedListingStream(
 }
 
 /**
- * 원격 디렉터리의 목록을 FtpSession을 통해 받아 항목으로 해석한다. 화면 목록([FtpCommandExecutor.listFiles])과 트리 수집([FtpTreeCollector])이
+ * 원격 디렉터리의 목록을 FtpSession을 통해 받아 항목으로 해석한다. 화면 목록([listFiles])과 트리 수집([FtpTreeCollector])이
  * 같은 조회를 써서 둘이 보는 항목과 응답 해석이 같다.
  * 실패는 결과로 알리며, 연결이 없거나 끊기면 [IoResult.ConnectionLost]를 돌려준다. 서버 응답의 해석은 [FtpReplyRules]에 맡긴다.
  * @param session 조회할 FTPClient와 잠금을 소유한 FTP 세션
@@ -136,6 +137,13 @@ class FtpListingReader @Inject internal constructor(
     private val session: FtpCommandSession,
     private val dataCommands: DataCommandRunner
 ) {
+
+    /**
+     * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
+     * @param path ftp://server/path 형식의 절대 경로
+     * @return 원격 경로의 항목과 해석하지 못한 줄, 또는 서버가 거부한 실패
+     */
+    internal suspend fun listFiles(path: String): IoResult<List<ListedItem>> = list(path, withIdentities = false).map { it.items }
 
     /**
      * 원격 경로의 파일 목록을 조회한다.

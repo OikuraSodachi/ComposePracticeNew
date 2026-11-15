@@ -86,7 +86,7 @@ class FtpLeaveTargetTest {
     @Test
     fun `방금 연 폴더의 이름을 바꾸면 상위 폴더로 나간 뒤 RENAME을 보낸다`() {
         loggedIn()
-        runBlocking { commands.executor.listFiles("ftp://host/r/x") }
+        runBlocking { commands.listing.listFiles("ftp://host/r/x") }
 
         val result = runBlocking { commands.executor.rename("ftp://host/r/x", "ftp://host/r/y") }
 
@@ -98,7 +98,7 @@ class FtpLeaveTargetTest {
     @Test
     fun `세션이 대상 밖에 있으면 이름을 바꿀 때 디렉터리를 옮기지 않는다`() {
         loggedIn()
-        runBlocking { commands.executor.listFiles("ftp://host/r") }
+        runBlocking { commands.listing.listFiles("ftp://host/r") }
 
         runBlocking { commands.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") }
 

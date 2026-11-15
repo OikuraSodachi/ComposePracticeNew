@@ -1,33 +1,23 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.map
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * FTP 파일 명령(화면 목록 조회·이름변경·생성)을 FtpSession을 통해 실행한다. 트리 수집은 [FtpTreeCollector], 삭제는 [FtpRemoteDeletion]이 맡는다.
+ * FTP 파일 명령(이름변경·생성·폴더 확인)을 FtpSession을 통해 실행한다. 목록 조회는 [FtpListingReader], 트리 수집은 [FtpTreeCollector], 삭제는 [FtpRemoteDeletion]이 맡는다.
  * 모든 명령은 실패를 결과로 알리며, 연결이 없거나 끊기면 [IoResult.ConnectionLost]를 돌려준다.
  * 서버 응답의 해석은 [FtpReplyRules]에 맡긴다.
  * @param session 폴더 확인([ensureDirectory])을 실행할 FTPClient와 잠금을 소유한 FTP 세션
- * @param listing 목록을 받아 해석하는 FtpListingReader
  * @param commands 이름 변경·생성 명령과 대상 밖으로 나가는 이동을 실행하는 FtpCommandRunner
  */
 @Singleton
 class FtpCommandExecutor @Inject internal constructor(
     private val session: FtpCommandSession,
-    private val listing: FtpListingReader,
     private val commands: FtpCommandRunner
 ) {
-
-    /**
-     * 화면에 보여줄 원격 경로의 파일 목록을 조회한다.
-     * @param path ftp://server/path 형식의 절대 경로
-     * @return 원격 경로의 항목과 해석하지 못한 줄, 또는 서버가 거부한 실패
-     */
-    internal suspend fun listFiles(path: String): IoResult<List<ListedItem>> = listing.list(path, withIdentities = false).map { it.items }
 
     /**
      * fromPath를 toPath로 이름 변경 또는 이동한다.

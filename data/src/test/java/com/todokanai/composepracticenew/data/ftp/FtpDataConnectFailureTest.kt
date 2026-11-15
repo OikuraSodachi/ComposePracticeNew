@@ -63,14 +63,14 @@ class FtpDataConnectFailureTest {
         val session = connectedSession(scripted)
         val executor = FtpCommandParts(session)
 
-        val failed = runBlocking { executor.executor.listFiles("ftp://host/r") }
+        val failed = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
         assertTrue("데이터 연결 실패로 알려야 함: $failed", (failed as IoResult.ItemFailed).message.orEmpty().startsWith("LIST 실패: 데이터 연결을 열지 못했습니다"))
         assertFalse("데이터 소켓을 연결하지 못했으면 LIST를 보내지 않아야 함", "LIST" in scripted.received)
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })
         assertEquals(RemoteConnectionState.Connected("server"), session.connectionState.value)
 
-        val listed = runBlocking { executor.executor.listFiles("ftp://host/r") }
+        val listed = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
         assertEquals(listOf("ftp://host/r/a.txt"), (listed as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })
     }

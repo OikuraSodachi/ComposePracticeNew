@@ -38,7 +38,7 @@ class RemoteRootNavigationWiringTest {
             override fun saveSortBy(value: SortMode) { sortBy.value = value }
         },
         appScope = TestScope(),
-        fileSystems = setOf(FtpPathAwareFileSystem(commands.executor), LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
+        fileSystems = setOf(FtpPathAwareFileSystem(commands.listing), LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
         notices = OperationNotices()
     )
 

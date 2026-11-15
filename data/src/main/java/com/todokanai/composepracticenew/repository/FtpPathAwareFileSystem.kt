@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.data.ftp.FtpCommandExecutor
+import com.todokanai.composepracticenew.data.ftp.FtpListingReader
 import com.todokanai.composepracticenew.data.ftp.ListedItem
 import com.todokanai.composepracticenew.data.ftp.ftpUriOf
 import com.todokanai.composepracticenew.data.ftp.isFtpUri
@@ -13,16 +13,16 @@ import javax.inject.Inject
 
 /**
  * ftp:// 스킴으로 시작하는 원격 경로를 처리하는 PathAwareFileSystem 구현체.
- * @param ftpCommands FTP 디렉터리 목록 조회를 담당하는 FtpCommandExecutor
+ * @param listing FTP 디렉터리 목록 조회를 담당하는 FtpListingReader
  */
 class FtpPathAwareFileSystem @Inject constructor(
-    private val ftpCommands: FtpCommandExecutor
+    private val listing: FtpListingReader
 ) : PathAwareFileSystem {
     override fun handles(path: String): Boolean = isFtpUri(path)
 
     // 해석하지 못한 줄은 목록에서 빼고 읽은 항목만 돌려주되, 뺀 수를 목록 결과에 담아 화면이 목록 상태로 표시하게 한다(#255, #348)
     override suspend fun listFiles(path: String): IoResult<ListedDirectory> =
-        ftpCommands.listFiles(path).map { items ->
+        listing.listFiles(path).map { items ->
             ListedDirectory(
                 entries = items.mapNotNull { (it as? ListedItem.Entry)?.entry },
                 unreadableCount = items.count { it is ListedItem.Unreadable }

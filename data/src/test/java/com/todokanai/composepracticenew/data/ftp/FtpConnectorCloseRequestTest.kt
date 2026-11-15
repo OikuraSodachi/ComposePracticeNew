@@ -123,7 +123,7 @@ class FtpConnectorCloseRequestTest {
             }
         }
 
-        val listing = runBlocking { FtpCommandParts(session).executor.listFiles("ftp://host/r") }
+        val listing = runBlocking { FtpCommandParts(session).listing.listFiles("ftp://host/r") }
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertTrue(listing.toString(), listing is IoResult.ConnectionLost)
@@ -202,7 +202,7 @@ class FtpConnectorCloseRequestTest {
      * @return 항목 이름 집합
      */
     private fun listedNamesOf(path: String): Set<String> {
-        val listing = runBlocking { FtpCommandParts(session).executor.listFiles(path) }
+        val listing = runBlocking { FtpCommandParts(session).listing.listFiles(path) }
         return (listing as IoResult.Success).value.mapTo(HashSet()) { (it as ListedItem.Entry).entry.name }
     }
 

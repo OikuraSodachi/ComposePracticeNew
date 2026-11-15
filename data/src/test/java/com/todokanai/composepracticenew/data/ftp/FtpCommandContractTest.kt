@@ -138,13 +138,13 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     companion object {
         /** 모든 명령 행. */
         private val commands = listOf(
-            CommandRow("LIST") { it.parts.executor.listFiles("ftp://host/r") },
+            CommandRow("LIST") { it.parts.listing.listFiles("ftp://host/r") },
             CommandRow("LIST", name = "LIST(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
             // LIST 서버는 디렉터리로 이동한 뒤 LIST를 보낸다
-            CommandRow("CWD", name = "CWD(화면 목록)") { it.parts.executor.listFiles("ftp://host/r") },
+            CommandRow("CWD", name = "CWD(화면 목록)") { it.parts.listing.listFiles("ftp://host/r") },
             CommandRow("CWD", name = "CWD(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
             CommandRow("MLSD", prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r" to emptyList()) }) {
-                it.parts.executor.listFiles("ftp://host/r")
+                it.parts.listing.listFiles("ftp://host/r")
             },
             CommandRow("RENAME") { it.parts.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") },
             CommandRow("DELE") { it.parts.deletion.delete(listOf(fileTarget("ftp://host/r/a.txt"))) {}.singleItemResult() },

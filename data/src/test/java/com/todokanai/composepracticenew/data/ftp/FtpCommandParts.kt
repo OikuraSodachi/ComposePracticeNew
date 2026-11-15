@@ -15,8 +15,8 @@ internal class FtpCommandParts<S>(private val session: S, treeMemoryLimitBytes: 
     /** 성공 여부를 반환하는 명령과 대상 밖 이동을 실행하는 부품. */
     val runner = FtpCommandRunner(session)
 
-    /** 화면 목록·이름 변경·폴더 생성을 실행하는 부품. */
-    val executor = FtpCommandExecutor(session, listing, runner)
+    /** 이름 변경·폴더 생성·폴더 확인을 실행하는 부품. */
+    val executor = FtpCommandExecutor(session, runner)
 
     /** 원격 트리를 모으는 부품. */
     val trees = treeMemoryLimitBytes?.let { FtpTreeCollector(listing, it) } ?: FtpTreeCollector(listing)

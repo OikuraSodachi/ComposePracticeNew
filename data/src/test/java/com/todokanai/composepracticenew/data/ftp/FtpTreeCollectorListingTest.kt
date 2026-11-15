@@ -384,7 +384,7 @@ class FtpTreeCollectorListingTest {
         client.mlsdListings = mapOf("/r" to (0 until 1000).map { "type=file;size=1; f$it" })
         val limited = FtpCommandParts(session, treeMemoryLimitBytes = SMALL_LIMIT_BYTES)
 
-        val listing = runBlocking { limited.executor.listFiles("ftp://host/r") }
+        val listing = runBlocking { limited.listing.listFiles("ftp://host/r") }
 
         assertEquals(1000, (listing as IoResult.Success).value.size)
     }

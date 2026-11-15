@@ -51,8 +51,8 @@ class FtpListingStalledDataTest {
         }
         val commands = FtpCommandParts(session)
 
-        val stalled = runBlocking { commands.executor.listFiles("ftp://host/r") }
-        val next = runBlocking { commands.executor.listFiles("ftp://host/r") }
+        val stalled = runBlocking { commands.listing.listFiles("ftp://host/r") }
+        val next = runBlocking { commands.listing.listFiles("ftp://host/r") }
 
         assertEquals(IoResult.ItemFailed("LIST 실패: Read timed out"), stalled)
         assertEquals(DataEnd.RESET, serverEnd.get())

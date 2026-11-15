@@ -47,7 +47,7 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄과 MLSD 링크 줄은 버리지 않고 받은 순서대로 남긴다`() {
         client.mlsdListings = mapOf("/r" to listOf(PROFTPD_LINK, PURE_FTPD_LINK, UNPARSEABLE_SIZE, "type=file;size=3; a.txt"))
 
-        val items = (runBlocking { commands.executor.listFiles("ftp://host/r") } as IoResult.Success).value
+        val items = (runBlocking { commands.listing.listFiles("ftp://host/r") } as IoResult.Success).value
 
         assertEquals(
             listOf("ftp://host/r" to PROFTPD_LINK, "ftp://host/r" to PURE_FTPD_LINK, "ftp://host/r" to UNPARSEABLE_SIZE),
@@ -61,7 +61,7 @@ class FtpListingInterpretationTest {
         // 숫자가 아닌 size는 commons-net 해석기가 예외를 던지는 줄이고, 공백이 없는 줄은 해석기가 null을 돌려주는 줄이다
         client.mlsdListings = mapOf("/r" to listOf(UNPARSEABLE_SIZE, "garbage", "type=file;size=3; a.txt", PROFTPD_LINK))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands.executor).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(commands.listing).listFiles("ftp://host/r") }
 
         assertEquals(listOf("a.txt"), (result as IoResult.Success).value.entries.map { it.name })
         assertEquals("빠진 줄 수를 목록 상태로 표시하고 이름 충돌 판정에서 빼도록 돌려줘야 함", 3, result.value.unreadableCount)
@@ -77,7 +77,7 @@ class FtpListingInterpretationTest {
         val listSession = FtpSession(listClient, ConnectionLossNotices())
         runBlocking { listSession.markLoggedIn(listSession.closeRequestMark(), home = null, serverName = "server") }
 
-        val items = (runBlocking { FtpCommandParts(listSession).executor.listFiles("ftp://host/r") } as IoResult.Success).value
+        val items = (runBlocking { FtpCommandParts(listSession).listing.listFiles("ftp://host/r") } as IoResult.Success).value
 
         assertEquals(listOf("a.txt"), items.map { (it as ListedItem.Entry).entry.name })
     }
@@ -86,7 +86,7 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄이 없으면 화면 목록의 뺀 줄 수는 0이다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands.executor).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(commands.listing).listFiles("ftp://host/r") }
 
         assertEquals(0, (result as IoResult.Success).value.unreadableCount)
     }
