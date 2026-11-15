@@ -77,6 +77,12 @@ class StorageViewModel @Inject constructor(
     /** 서버의 파일 목록을 읽을 수 없다는 다이얼로그를 닫는다. */
     fun dismissUnreadableServer() = connectFailureNotice.dismissUnreadableServer()
 
+    /** 저장된 포트가 범위를 벗어나 연결을 시도하지 않았음을 알리는 다이얼로그를 보여야 하면 true. */
+    val invalidPort: StateFlow<Boolean> = connectFailureNotice.invalidPort
+
+    /** 포트가 범위를 벗어났다는 다이얼로그를 닫는다. */
+    fun dismissInvalidPort() = connectFailureNotice.dismissInvalidPort()
+
     private val _connectionSucceeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 원격 연결 성공 이벤트. */
     val connectionSucceeded: SharedFlow<Unit> = _connectionSucceeded.asSharedFlow()

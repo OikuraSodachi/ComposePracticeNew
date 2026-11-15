@@ -20,6 +20,9 @@ enum class ConnectFailureReason {
 
     /** 접속과 로그인은 됐지만 서버가 파일 목록 형식을 알려주지 않거나 해석할 수 없는 형식이어서, 어느 폴더도 볼 수 없어 연결을 종료했다. */
     LISTING_FORMAT_UNKNOWN,
+
+    /** 저장된 접속 정보의 포트가 [RemoteStorageItem.PORT_RANGE]를 벗어나 연결을 시도하지 않았다. 다시 시도해도 되지 않으며, 포트를 고쳐야 한다(#367). */
+    INVALID_PORT,
 }
 
 /** 마지막으로 접속한 서버에 자동으로 다시 연결한 결과. */

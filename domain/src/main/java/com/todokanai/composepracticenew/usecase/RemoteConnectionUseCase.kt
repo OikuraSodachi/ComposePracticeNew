@@ -24,14 +24,14 @@ class RemoteConnectionUseCase(
     /**
      * 원격 스토리지에 연결하고, 연결되면 루트 경로로 이동한 뒤 그 서버를 마지막 연결 서버로 기록한다.
      * 기록을 연결 안에 두어, 어느 경로로 연결하든 재연결 대상이 연결한 서버와 어긋나지 않게 한다.
-     * 포트가 범위를 벗어난 접속 정보(입력 검증이 생기기 전에 저장된 값 등)는 접속할 수 없으므로 연결을 시도하지 않고 실패로 알린다.
+     * 포트가 범위를 벗어난 접속 정보(입력 검증이 생기기 전에 저장된 값 등)는 접속할 수 없으므로 연결을 시도하지 않고 [ConnectFailureReason.INVALID_PORT]로 알린다.
      * @param item 연결할 원격 스토리지 접속 정보
      * @return 연결 결과. 실패하면 기록하지 않고 이동하지 않는다
      * @throws IllegalStateException 연결한 서버의 루트 경로로 이동이 거부됐을 때. [nav]는 이 이동을 권한으로 거부하지 않으므로,
      * 루트 경로 형식과 탐색 저장소가 다루는 경로가 어긋난 배선 오류다
      */
     suspend fun connectAndNavigate(item: RemoteStorageItem): ConnectResult {
-        if (item.port !in RemoteStorageItem.PORT_RANGE) return ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
+        if (item.port !in RemoteStorageItem.PORT_RANGE) return ConnectResult.Failed(ConnectFailureReason.INVALID_PORT)
         val result = connection.connect(item)
         if (result == ConnectResult.Connected) {
             navigateToRoot(item)
