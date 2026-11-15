@@ -5,6 +5,8 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
 import com.todokanai.composepracticenew.repository.ConflictQuestionRepository
+import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
+import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileInfoRepository
@@ -30,6 +32,8 @@ import com.todokanai.composepracticenew.tools.DestinationUnverifiedMessage
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.ConflictQuestionUseCase
+import com.todokanai.composepracticenew.usecase.ConnectFailureAlertUseCase
+import com.todokanai.composepracticenew.usecase.ConnectFailureReportUseCase
 import com.todokanai.composepracticenew.usecase.ConnectionLossNoticeUseCase
 import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
@@ -104,6 +108,14 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideConnectionLossNoticeUseCase(repo: ConnectionLossNoticeRepository) =
         ConnectionLossNoticeUseCase(repo)
+
+    @Provides @Singleton
+    fun provideConnectFailureAlertUseCase(repo: ConnectFailureAlertRepository) =
+        ConnectFailureAlertUseCase(repo)
+
+    @Provides @Singleton
+    fun provideConnectFailureReportUseCase(reporter: ConnectFailureAlertReporter) =
+        ConnectFailureReportUseCase(reporter)
 
     @Provides @Singleton
     fun provideProgressUseCase(repo: ProgressRepository) =

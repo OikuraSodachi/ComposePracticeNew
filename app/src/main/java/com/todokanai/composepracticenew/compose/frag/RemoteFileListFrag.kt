@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.compose.frag
 
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,9 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.InvalidPortDialog
 import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
@@ -27,31 +24,19 @@ import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 
 /**
- * 원격 스토리지 재연결 실패 이벤트와 세션 끊김 상태를 관찰해 콜백을 실행한다.
- * 끊김 Toast는 끊긴 순간 앱 전역에서 띄우므로 여기서는 화면을 떠나는 콜백만 실행한다.
+ * 원격 세션 끊김 상태를 관찰해 콜백을 실행한다.
+ * 끊김과 재연결 실패는 화면 호스트가 앱 전역에서 알리므로 여기서는 화면을 떠나는 콜백만 실행한다.
  *
- * @param viewModel 이벤트 Flow와 끊김 상태를 제공하는 ViewModel
- * @param onReconnectFailed 재연결 실패 시 실행할 콜백
- * @param onReconnectSettingsUnreadable 설정을 읽지 못해 재연결할 서버를 알 수 없을 때 실행할 콜백
+ * @param viewModel 끊김 상태를 제공하는 ViewModel
  * @param onConnectionLost 세션이 끊긴 상태일 때(이 화면에 들어왔을 때 이미 끊겨 있던 경우 포함) 실행할 콜백
  */
 @Composable
 private fun RemoteFileListConnectionEffects(
     viewModel: RemoteFileListViewModel,
-    onReconnectFailed: () -> Unit,
-    onReconnectSettingsUnreadable: () -> Unit,
     onConnectionLost: () -> Unit,
 ) {
     val sessionLost by viewModel.sessionLost.collectAsStateWithLifecycle()
 
-    // Unit 키 — 화면이 살아 있는 동안 한 번만 수집해, 리컴포지션마다 재연결 실패 이벤트를 다시 구독하지 않는다
-    LaunchedEffect(Unit) {
-        viewModel.reconnectFailed.collect { onReconnectFailed() }
-    }
-    // Unit 키 — 위와 같은 이유로 한 번만 수집한다. 실패 이유가 달라 따로 받는다
-    LaunchedEffect(Unit) {
-        viewModel.reconnectSettingsUnreadable.collect { onReconnectSettingsUnreadable() }
-    }
     // sessionLost를 키로 — 끊긴 상태가 되거나 끊긴 상태로 들어왔을 때 한 번 화면을 떠난다
     LaunchedEffect(sessionLost) {
         if (sessionLost) onConnectionLost()
@@ -107,15 +92,8 @@ fun RemoteFileListFrag(
         )
     }
 
-    val context = LocalContext.current
     RemoteFileListConnectionEffects(
         viewModel = viewModel,
-        onReconnectFailed = {
-            Toast.makeText(context, context.getString(R.string.toast_connection_failed), Toast.LENGTH_SHORT).show()
-        },
-        onReconnectSettingsUnreadable = {
-            Toast.makeText(context, context.getString(R.string.toast_reconnect_settings_unreadable), Toast.LENGTH_SHORT).show()
-        },
         onConnectionLost = onConnectionLost,
     )
 

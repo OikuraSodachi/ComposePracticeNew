@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ConnectFailureAlert
 import com.todokanai.composepracticenew.model.ConnectionLossNotice
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.OperationNotice
@@ -7,12 +8,14 @@ import com.todokanai.composepracticenew.model.PendingNotice
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.StorageVolumeInfo
+import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.tools.AppExitHandler
+import com.todokanai.composepracticenew.usecase.ConnectFailureAlertUseCase
 import com.todokanai.composepracticenew.usecase.ConnectionLossNoticeUseCase
 import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
@@ -164,7 +167,8 @@ class ProgressDialogVisibilityTest {
         exitHandler = NoOpExitHandler,
         connectionLossNoticeUseCase = ConnectionLossNoticeUseCase(NoConnectionLosses),
         preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures),
-        cancelOperationUseCase = idleCancelOperationUseCase()
+        cancelOperationUseCase = idleCancelOperationUseCase(),
+        connectFailureAlertUseCase = ConnectFailureAlertUseCase(NoConnectFailures)
     )
 
     /** 띄울 작업의 ID가 [expected]가 될 때까지 기다린다. 끝내 되지 않으면 runTest 시간 제한으로 실패한다. */
@@ -221,6 +225,15 @@ internal object NoOperationNotices : OperationNoticeRepository {
 /** 끊김을 알리지 않는 테스트용 연결 끊김 알림함. 이 테스트는 연결 끊김을 쓰지 않는다. */
 internal object NoConnectionLosses : ConnectionLossNoticeRepository {
     override val pending: StateFlow<List<PendingNotice<ConnectionLossNotice>>> = MutableStateFlow(emptyList())
+    override val claimedIds: Flow<Set<Long>> = flowOf(emptySet())
+    override fun claim(id: Long): Boolean = false
+    override fun complete(id: Long) {}
+    override fun release(id: Long) {}
+}
+
+/** 연결 실패를 알리지 않는 테스트용 연결 실패 알림함. 이 테스트는 연결 실패를 쓰지 않는다. */
+internal object NoConnectFailures : ConnectFailureAlertRepository {
+    override val pending: StateFlow<List<PendingNotice<ConnectFailureAlert>>> = MutableStateFlow(emptyList())
     override val claimedIds: Flow<Set<Long>> = flowOf(emptySet())
     override fun claim(id: Long): Boolean = false
     override fun complete(id: Long) {}

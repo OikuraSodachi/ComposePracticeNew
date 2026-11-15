@@ -37,6 +37,7 @@ import com.todokanai.composepracticenew.compose.listview.LocalTransferActions
 import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
+import com.todokanai.composepracticenew.model.ConnectFailureAlert
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
@@ -74,7 +75,7 @@ fun AppNavHost(
     }
 
     val context = LocalContext.current
-    // 키 없음 — AppNavHost가 살아 있는 동안 하나만 둔다. 설정 실패·작업 메시지·연결 끊김이 한 Snackbar 대기열을 함께 써 한 번에 하나만 보이도록
+    // 키 없음 — AppNavHost가 살아 있는 동안 하나만 둔다. 설정 실패·작업 메시지·연결 끊김·연결 실패가 한 Snackbar 대기열을 함께 써 한 번에 하나만 보이도록
     val snackbarHostState = remember { SnackbarHostState() }
     val lifecycleOwner = LocalLifecycleOwner.current
     // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유).
@@ -104,6 +105,16 @@ fun AppNavHost(
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             mainViewModel.showConnectionLosses {
                 snackbarHostState.showSnackbar(context.getString(R.string.notice_connection_lost), duration = SnackbarDuration.Short)
+            }
+        }
+    }
+
+    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 연결·재연결 실패를 어느 화면에 있든 알린다(#371).
+    // 화면이 보이는 동안만 꺼내, 실패를 받은 화면이 그사이 사라졌거나 보이지 않는 동안 실패한 것도 다시 보일 때 알리도록. Snackbar로 알리는 이유는 위와 같다
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            mainViewModel.showConnectFailures { alert ->
+                snackbarHostState.showSnackbar(context.getString(connectFailureMessage(alert)), duration = SnackbarDuration.Short)
             }
         }
     }
@@ -345,4 +356,15 @@ private fun preferenceFailureMessage(failure: PreferenceFailure): Int = when (fa
     PreferenceFailure.READ -> R.string.toast_preference_read_failed
     PreferenceFailure.SAVE -> R.string.toast_preference_save_failed
     PreferenceFailure.RESET -> R.string.toast_preference_reset
+}
+
+/**
+ * 원격 연결 실패 [alert]를 사용자에게 알릴 문구로 바꾼다.
+ * @param alert 일어난 연결 실패
+ * @return 알릴 문구의 문자열 리소스 id
+ */
+@StringRes
+private fun connectFailureMessage(alert: ConnectFailureAlert): Int = when (alert) {
+    ConnectFailureAlert.CONNECTION_FAILED -> R.string.toast_connection_failed
+    ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE -> R.string.toast_reconnect_settings_unreadable
 }

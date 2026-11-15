@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.compose.frag
 
-import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,10 +12,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
@@ -31,22 +28,20 @@ import com.todokanai.composepracticenew.viewmodel.StorageViewModel
 import kotlinx.coroutines.launch
 
 /**
- * 원격 스토리지 연결 결과와 로컬 스토리지 열기 결과 Flow를 수집하고 부수 효과를 실행한다.
+ * 원격 스토리지 연결 성공과 로컬 스토리지 열기 결과 Flow를 수집하고 부수 효과를 실행한다.
+ * 연결 실패는 화면 호스트가 앱 전역에서 알린다.
  *
  * @param viewModel 연결·열기 결과 Flow를 제공하는 ViewModel
- * @param onConnectionFailed 연결 실패 시 실행할 콜백
  * @param onConnectionSucceeded 연결 성공 시 실행할 콜백
  * @param onLocalStorageOpened 로컬 스토리지 루트로 이동했을 때 실행할 콜백
  */
 @Composable
 private fun StorageConnectionEffects(
     viewModel: StorageViewModel,
-    onConnectionFailed: () -> Unit,
     onConnectionSucceeded: () -> Unit,
     onLocalStorageOpened: () -> Unit,
 ) {
     LaunchedEffect(Unit) {
-        launch { viewModel.connectionFailed.collect    { onConnectionFailed()    } }
         launch { viewModel.connectionSucceeded.collect { onConnectionSucceeded() } }
         launch { viewModel.localStorageOpened.collect  { onLocalStorageOpened()  } }
     }
@@ -114,7 +109,6 @@ fun StorageFrag(
     onExit: () -> Unit,
     viewModel: StorageViewModel = hiltViewModel()
 ) {
-    val context = LocalContext.current
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
@@ -123,7 +117,6 @@ fun StorageFrag(
 
     StorageConnectionEffects(
         viewModel = viewModel,
-        onConnectionFailed    = { Toast.makeText(context, R.string.toast_connection_failed, Toast.LENGTH_SHORT).show() },
         onConnectionSucceeded = exitToRemoteFileFrag,
         onLocalStorageOpened  = exitStorageFrag,
     )

@@ -31,6 +31,9 @@ import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
 import com.todokanai.composepracticenew.repository.ConflictQuestionRepository
 import com.todokanai.composepracticenew.repository.ConflictQuestions
+import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
+import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
+import com.todokanai.composepracticenew.repository.ConnectFailureAlerts
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeReporter
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
@@ -109,6 +112,12 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindConnectionLossNoticeReporter(impl: ConnectionLossNotices): ConnectionLossNoticeReporter
+
+    @Binds
+    abstract fun bindConnectFailureAlertRepository(impl: ConnectFailureAlerts): ConnectFailureAlertRepository
+
+    @Binds
+    abstract fun bindConnectFailureAlertReporter(impl: ConnectFailureAlerts): ConnectFailureAlertReporter
 
     @Binds
     abstract fun bindConflictQuestionAsker(impl: ConflictQuestions): ConflictQuestionAsker
