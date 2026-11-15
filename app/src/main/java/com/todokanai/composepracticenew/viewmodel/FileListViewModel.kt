@@ -117,7 +117,6 @@ class FileListViewModel @Inject constructor(
     fun validateArchiveName(folder: String, name: String): Set<FileNameError> =
         localFileOperationUseCase.validateArchiveName(name, folder, archiveFormat)
 
-
     /**
      * 압축 다이얼로그에 미리 채울 이름(확장자 제외). 같은 이름의 아카이브가 있으면 `이름 (n)`으로 겹치지 않게 고른다.
      * @param selectedList 압축할 항목

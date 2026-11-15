@@ -27,7 +27,7 @@ class EntryNamingStateHolder(
     /** 이름 변경의 "충돌 판정 → 즉시 실행 / 덮어쓰기 확인 대기" 흐름을 관리한다. */
     private val renameGate = RenameConfirmGate()
 
-    /** 같은 이름의 항목이 있어 덮어쓰기(폴더는 합치기) 확인을 기다리는 이름 변경. */
+    /** 같은 이름의 항목이 있어 확인을 기다리는 이름 변경. */
     val pendingRename: StateFlow<PendingRename?> = renameGate.pending
 
     /**
@@ -49,8 +49,8 @@ class EntryNamingStateHolder(
     }
 
     /**
-     * [item]을 [name]으로 바꾸는 요청을 판정한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 덮어쓰기 확인을 요청하고,
-     * 아니면 덮어쓰지 않는 실행을 즉시 한다. 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
+     * [item]을 [name]으로 바꾸는 요청을 판정한다. 같은 이름의 파일·폴더가 있으면 실행하지 않고 [pendingRename]으로 확인을 요청하고,
+     * 아니면 [execute]를 덮어쓰기 없음(false)으로 즉시 부른다. 덮어쓰기 여부를 어떻게 처리할지는 [execute]를 넘긴 쪽이 정한다. 폴더 목록을 확인하지 못했으면 겹침을 판정할 수 없으므로 실행하지 않는다(거부 알림은 ConflictCheckUseCase가 한다).
      * @param item 이름을 바꿀 항목
      * @param name 새 이름
      * @param execute 덮어쓰기 여부를 받아 이름 변경을 실행하는 함수
@@ -60,7 +60,7 @@ class EntryNamingStateHolder(
         renameGate.request(item, name, conflict, execute)
     }
 
-    /** 확인을 기다리는 이름 변경을 덮어쓰기(폴더는 합치기)로 실행한다. */
+    /** 확인을 기다리는 이름 변경을 [requestRename]에 넘긴 실행 함수에 덮어쓰기(true)로 넘겨 실행한다. */
     fun confirmRename() = renameGate.confirm()
 
     /** 확인을 기다리는 이름 변경을 취소한다. */
