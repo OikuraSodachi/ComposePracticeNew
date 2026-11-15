@@ -19,10 +19,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
-import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.ConflictChoice
-import com.todokanai.composepracticenew.model.ConflictQuestion
 import com.todokanai.composepracticenew.model.WriteConflictKind
+import com.todokanai.composepracticenew.ui.model.ConflictAnswer
+import com.todokanai.composepracticenew.ui.model.ConflictQuestion
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
 
 /**
@@ -36,7 +36,6 @@ fun WriteConflictDialog(
     question: ConflictQuestion,
     onAnswer: (ConflictAnswer) -> Unit,
 ) {
-    val conflict = question.conflict
     // question.id를 키로 — 다음 질문이 오면 체크를 다시 끄고, 화면 회전에도 이 질문의 체크 상태를 유지한다
     var applyToRest by rememberSaveable(question.id) { mutableStateOf(false) }
     val choose = { choice: ConflictChoice -> onAnswer(ConflictAnswer.Choose(choice, applyToRest)) }
@@ -46,7 +45,7 @@ fun WriteConflictDialog(
         title = { Text(stringResource(R.string.dialog_write_conflict_title, stringResource(operationLabelRes(question.operationType)))) },
         text = {
             Column {
-                Text(stringResource(messageRes(conflict.kind), conflict.name, conflict.folderPath))
+                Text(stringResource(messageRes(question.kind), question.name, question.folderPath))
                 Spacer(Modifier.height(8.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = applyToRest, onCheckedChange = { applyToRest = it })
@@ -55,7 +54,7 @@ fun WriteConflictDialog(
             }
         },
         confirmButton = {
-            proceedLabelRes(conflict.kind)?.let { label ->
+            proceedLabelRes(question.kind)?.let { label ->
                 Button(onClick = { choose(ConflictChoice.PROCEED) }) { Text(stringResource(label)) }
             }
         },

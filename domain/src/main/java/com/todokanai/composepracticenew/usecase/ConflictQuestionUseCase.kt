@@ -15,10 +15,10 @@ class ConflictQuestionUseCase(private val questions: ConflictQuestionRepository)
     val current: StateFlow<ConflictQuestion?> get() = questions.current
 
     /**
-     * [question]에 [answer]로 답한다. 이미 답했거나 거둔 질문이면 아무것도 하지 않는다.
-     * @param question 답할 질문
+     * [questionId]가 가리키는 질문에 [answer]로 답한다. 이미 답했거나 거둔 질문이면 아무것도 하지 않는다.
+     * @param questionId 답할 질문의 식별자([ConflictQuestion.id])
      * @param answer 사용자의 답
      * @return Unit
      */
-    fun answer(question: ConflictQuestion, answer: ConflictAnswer) = questions.answer(question.id, answer)
+    fun answer(questionId: Long, answer: ConflictAnswer) = questions.answer(questionId, answer)
 }
