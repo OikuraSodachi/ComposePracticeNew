@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.RelocateOperation
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.model.ArchiveFormat
@@ -48,58 +50,58 @@ class LocalSamePathTest {
 
     @Test
     fun `목적지가 원본의 부모면 복사를 거부한다`() {
-        local.copy(setOf("src"), "root", "done") {}
+        local.copy(setOf("src"), "root") {}
 
-        assertEquals(listOf("복사 실패: 출발지와 목적지가 동일합니다."), notices.failures)
+        assertEquals(listOf(NoticeMessage.SameDestination(RelocateOperation.COPY)), notices.failures)
     }
 
     @Test
     fun `목적지가 원본 자신이면 복사를 거부한다`() {
-        local.copy(setOf("src"), "src", "done") {}
+        local.copy(setOf("src"), "src") {}
 
-        assertEquals(listOf("복사 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationInsideSource(RelocateOperation.COPY, "src")), notices.failures)
     }
 
     @Test
     fun `목적지가 원본 자신이면 이동을 거부한다`() {
-        local.move(setOf("src"), "src", "done") {}
+        local.move(setOf("src"), "src") {}
 
-        assertEquals(listOf("이동 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationInsideSource(RelocateOperation.MOVE, "src")), notices.failures)
     }
 
     @Test
     fun `목적지가 원본 안쪽이면 이동을 거부한다`() {
-        local.move(setOf("src"), "inner", "done") {}
+        local.move(setOf("src"), "inner") {}
 
-        assertEquals(listOf("이동 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationInsideSource(RelocateOperation.MOVE, "src")), notices.failures)
     }
 
     @Test
     fun `목적지가 원본보다 여러 단계 안쪽이어도 이동을 거부한다`() {
-        local.move(setOf("src"), "deep", "done") {}
+        local.move(setOf("src"), "deep") {}
 
-        assertEquals(listOf("이동 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationInsideSource(RelocateOperation.MOVE, "src")), notices.failures)
     }
 
     @Test
     fun `여러 원본 중 하나라도 목적지를 안에 품으면 그 원본 이름으로 거부한다`() {
-        local.copy(setOf("other", "src"), "inner", "done") {}
+        local.copy(setOf("other", "src"), "inner") {}
 
-        assertEquals(listOf("복사 실패: 대상 폴더가 원본 폴더 안에 있습니다 (src)"), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationInsideSource(RelocateOperation.COPY, "src")), notices.failures)
     }
 
     @Test
     fun `목적지가 원본과 관계없는 곳이면 거부하지 않는다`() {
-        local.copy(setOf("src"), "other", "done") {}
+        local.copy(setOf("src"), "other") {}
 
-        assertEquals(emptyList<String>(), notices.failures)
+        assertEquals(emptyList<NoticeMessage>(), notices.failures)
     }
 
     @Test
     fun `목적지가 원본의 형제 안쪽이면 거부하지 않는다`() {
-        local.move(setOf("src"), "otherInner", "done") {}
+        local.move(setOf("src"), "otherInner") {}
 
-        assertEquals(emptyList<String>(), notices.failures)
+        assertEquals(emptyList<NoticeMessage>(), notices.failures)
     }
 
     /** 경로별 부모를 표로 정한 테스트용 경로 규칙. 표에 없는 경로는 루트다. */
@@ -131,7 +133,7 @@ class LocalSamePathTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(message: String, instanceId: Int) {}
+        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }

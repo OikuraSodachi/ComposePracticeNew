@@ -16,6 +16,8 @@ import com.todokanai.composepracticenew.datasource.map
 import com.todokanai.composepracticenew.datasource.reserveFileResolving
 import com.todokanai.composepracticenew.datasource.slashRelativePathOf
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.LeftoverCause
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.ProgressState
@@ -457,12 +459,12 @@ class FtpTransferrer @Inject internal constructor(
      * @param ftpPath 취소된 업로드의 원격 파일 FTP 경로
      */
     private suspend fun discardCancelledUpload(client: FtpCommandClient, ftpPath: String) {
-        val reason = when (val cleanup = dataCommands.cleanUpAfterCancel(client) { client.deleteFile(ftpPath) }) {
+        val cause = when (val cleanup = dataCommands.cleanUpAfterCancel(client) { client.deleteFile(ftpPath) }) {
             CancelCleanup.Done -> return
-            is CancelCleanup.Refused -> FtpReplyRules.refusal(FtpCommand.DELE, cleanup.reply).message
-            CancelCleanup.SessionEnded -> "연결이 끊겨 지우지 못했습니다"
+            is CancelCleanup.Refused -> LeftoverCause.Refused(cleanup.reply.trim())
+            CancelCleanup.SessionEnded -> LeftoverCause.SessionEnded
         }
-        notices.report(OperationNoticeKind.FAILURE, "업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 ($ftpPath) — $reason")
+        notices.report(OperationNoticeKind.FAILURE, NoticeMessage.UploadLeftover(ftpPath, cause))
     }
 
     /**

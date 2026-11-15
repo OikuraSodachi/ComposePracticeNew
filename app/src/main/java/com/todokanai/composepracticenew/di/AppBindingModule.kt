@@ -11,8 +11,6 @@ import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.tools.AndroidFileLauncher
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.tools.AppExitHandlerImpl
-import com.todokanai.composepracticenew.tools.CompletionMessages
-import com.todokanai.composepracticenew.tools.DestinationUnverifiedMessage
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.tools.ProtectionRefusedMessage
@@ -36,13 +34,7 @@ abstract class AppBindingModule {
     abstract fun bindOperationProtection(impl: FileOperationProtection): OperationProtection
 
     @Binds
-    abstract fun bindCompletionMessages(impl: ResourceOperationMessages): CompletionMessages
-
-    @Binds
     abstract fun bindNewFolderNameDefaults(impl: ResourceOperationMessages): NewFolderNameDefaults
-
-    @Binds
-    abstract fun bindDestinationUnverifiedMessage(impl: ResourceOperationMessages): DestinationUnverifiedMessage
 
     @Binds
     abstract fun bindProtectionRefusedMessage(impl: ResourceOperationMessages): ProtectionRefusedMessage

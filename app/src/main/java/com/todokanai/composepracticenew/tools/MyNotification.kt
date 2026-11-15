@@ -20,6 +20,7 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTIO
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_INSTANCE_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_PROCESS_TOKEN
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.ui.model.completionTextRes
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -175,10 +176,10 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
      * 진행 보고가 몰린 직후 완료를 갱신으로 보내면 버려져 진행 알림이 남을 수 있다. 취소와 새 알림은 이 한도를 받지 않고,
      * 취소는 아직 게시 전인 같은 알림의 갱신이 게시된 뒤에 적용된다.
      */
-    override fun completedNotification(message: String, instanceId: Int) {
+    override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {
         cancelProgress(instanceId)
         val notificationId = ids.idFor(instanceId)
-        notifyIfPermitted(COMPLETED_TAG, notificationId, finishedBuilder(notificationId).setContentText(message))
+        notifyIfPermitted(COMPLETED_TAG, notificationId, finishedBuilder(notificationId).setContentText(context.getString(completionTextRes(operationType))))
         ids.release(instanceId)
     }
 

@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.withFailureMessage
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -40,12 +41,11 @@ class RemoteFileOperationUseCase(
      * 같은 이름의 로컬 항목은 받는 중에 그 항목을 쓰려 할 때 사용자에게 묻는다.
      * @param items 다운로드할 원격 파일 또는 디렉터리 항목
      * @param localDestPath 로컬 저장 대상 디렉터리의 절대 경로
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun download(items: List<FileHolderItem>, localDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.DOWNLOAD, onRefresh) { onProgress, resolveConflict ->
+    fun download(items: List<FileHolderItem>, localDestPath: String, onRefresh: suspend () -> Unit) {
+        orchestrator.launchResolvingConflicts(FileOperationType.DOWNLOAD, onRefresh) { onProgress, resolveConflict ->
             transferRepo.download(items, localDestPath, resolveConflict, onProgress)
         }
     }
@@ -55,12 +55,11 @@ class RemoteFileOperationUseCase(
      * (취소·진행률이 모두 이 묶음 전체에 걸리도록, #356).
      * @param items 업로드할 로컬 파일 또는 디렉터리 항목
      * @param remoteDestPath 업로드 대상 원격 디렉터리 경로
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun upload(items: List<FileHolderItem>, remoteDestPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, FileOperationType.UPLOAD, onRefresh) { onProgress ->
+    fun upload(items: List<FileHolderItem>, remoteDestPath: String, onRefresh: suspend () -> Unit) {
+        orchestrator.launch(FileOperationType.UPLOAD, onRefresh) { onProgress ->
             transferRepo.upload(items, remoteDestPath, onProgress)
         }
     }
@@ -69,14 +68,13 @@ class RemoteFileOperationUseCase(
      * [path]의 원격 파일 이름을 [newName]으로 변경한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
      * @param path 이름을 변경할 원격 파일의 경로
      * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param errorMessage 이름 변경 실패 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun renameRemote(path: String, newName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
-        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
+    fun renameRemote(path: String, newName: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, NamingOperation.RENAME)) return
+        orchestrator.launch(onRefresh = onRefresh) { _ ->
             failingWith(errorMessage) { mutationRepo.rename(path, newName) }
         }
     }
@@ -86,26 +84,24 @@ class RemoteFileOperationUseCase(
      * 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다. 연결이 끊기면 즉시 중단한다.
      * 폴더는 하위 항목 수에 비례해 오래 걸릴 수 있으므로 진행 표시·보호·취소가 있는 삭제 작업으로 실행한다(#334). 취소하면 이미 지운 항목은 그대로 둔다.
      * @param targets 삭제할 원격 파일·디렉터리 항목
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun deleteRemote(targets: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress -> mutationRepo.delete(targets, onProgress) }
+    fun deleteRemote(targets: List<FileHolderItem>, onRefresh: suspend () -> Unit) {
+        orchestrator.launch(FileOperationType.DELETE, onRefresh) { onProgress -> mutationRepo.delete(targets, onProgress) }
     }
 
     /**
      * [parentPath] 아래에 [dirName] 디렉터리를 원격 서버에 생성한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
      * @param parentPath 디렉터리를 생성할 원격 부모 경로
      * @param dirName 생성할 디렉터리 이름
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param errorMessage 디렉터리 생성 실패 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun makeDirectoryRemote(parentPath: String, dirName: String, completionMessage: String, errorMessage: String, onRefresh: suspend () -> Unit) {
-        if (notices.rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, "디렉터리 생성 실패")) return
-        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
+    fun makeDirectoryRemote(parentPath: String, dirName: String, errorMessage: String, onRefresh: suspend () -> Unit) {
+        if (notices.rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, NamingOperation.MAKE_FOLDER)) return
+        orchestrator.launch(onRefresh = onRefresh) { _ ->
             failingWith(errorMessage) { mutationRepo.makeDirectory(parentPath, dirName) }
         }
     }

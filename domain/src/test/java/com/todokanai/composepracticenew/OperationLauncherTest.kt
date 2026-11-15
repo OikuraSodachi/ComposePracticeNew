@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
@@ -58,7 +59,7 @@ class OperationLauncherTest {
     fun `성공하면 완료를 알리고 진행 상태를 지운다`() {
         launch { IoResult.Done }
 
-        assertEquals(listOf("done"), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(null)), notices.completions)
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf(1), progressRepo.removed)
     }
@@ -67,16 +68,16 @@ class OperationLauncherTest {
     fun `실패 결과는 그 메시지로 실패를 알리고 진행 상태를 지운다`() {
         launch { IoResult.ConnectionLost("끊김") }
 
-        assertEquals(listOf("끊김"), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed("끊김")), notices.failures)
         assertTrue(notices.completions.isEmpty())
         assertEquals(listOf(1), progressRepo.removed)
     }
 
     @Test
-    fun `메시지가 없는 실패는 알 수 없는 오류로 알린다`() {
+    fun `메시지가 없는 실패는 메시지 없는 실패로 알린다`() {
         launch { IoResult.ItemFailed(null) }
 
-        assertEquals(listOf("알 수 없는 오류"), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(null)), notices.failures)
     }
 
     @Test
@@ -84,15 +85,15 @@ class OperationLauncherTest {
         launch { throw IllegalStateException("구현 오류") }
         launch { IoResult.Done }
 
-        assertEquals(listOf("구현 오류"), notices.failures)
-        assertEquals(listOf("done"), notices.completions)
+        assertEquals(listOf(NoticeMessage.OperationFailed("구현 오류")), notices.failures)
+        assertEquals(listOf(NoticeMessage.Completed(null)), notices.completions)
     }
 
     @Test
     fun `완료를 알린 뒤 보고 중 예외는 실패로 또 알리지 않고 스코프에 전파한다`() {
         launchFailingRefresh { IoResult.Done }
 
-        assertEquals(listOf("done"), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(null)), notices.completions)
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf("completed 1"), notifier.calls)
         assertEquals(listOf("갱신 오류"), propagated.map { it.message })
@@ -103,7 +104,7 @@ class OperationLauncherTest {
     fun `실패를 알린 뒤 보고 중 예외는 실패로 또 알리지 않고 스코프에 전파한다`() {
         launchFailingRefresh { IoResult.ItemFailed("실패") }
 
-        assertEquals(listOf("실패"), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed("실패")), notices.failures)
         assertTrue(notices.completions.isEmpty())
         assertEquals(listOf("cancel 1"), notifier.calls)
         assertEquals(listOf("갱신 오류"), propagated.map { it.message })
@@ -117,7 +118,7 @@ class OperationLauncherTest {
 
         propagatingOrchestrator.cancel(1)
 
-        assertEquals(listOf("복사 취소 — 이미 복사한 항목은 그대로 둡니다"), notices.completions)
+        assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.COPY)), notices.completions)
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf("cancel 1"), notifier.calls)
         assertEquals(listOf("갱신 오류"), propagated.map { it.message })
@@ -148,7 +149,7 @@ class OperationLauncherTest {
 
         orchestrator.cancel(1)
 
-        assertEquals(listOf("복사 취소 — 이미 복사한 항목은 그대로 둡니다"), notices.completions)
+        assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.COPY)), notices.completions)
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf("cancel 1"), notifier.calls)
         assertEquals(listOf(1), progressRepo.removed)
@@ -165,7 +166,7 @@ class OperationLauncherTest {
         }
 
         assertFalse(reachedAfterProgress)
-        assertEquals(listOf("업로드 취소 — 이미 올린 파일은 그대로 둡니다"), notices.completions)
+        assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.UPLOAD)), notices.completions)
         // 취소를 확인한 뒤의 진행은 보고하지 않는다
         assertEquals(listOf("cancel 1"), notifier.calls)
     }
@@ -174,12 +175,12 @@ class OperationLauncherTest {
     fun `작업이 끝난 뒤에 온 취소 요청은 결과 알림과 목록 갱신을 바꾸지 않는다`() {
         val refreshGate = CompletableDeferred<Unit>()
         var refreshed = false
-        orchestrator.launch(completionMessage = "done", operationType = FileOperationType.COPY, onRefresh = { refreshGate.await(); refreshed = true }) { IoResult.Done }
+        orchestrator.launch(operationType = FileOperationType.COPY, onRefresh = { refreshGate.await(); refreshed = true }) { IoResult.Done }
 
         orchestrator.cancel(1)
         refreshGate.complete(Unit)
 
-        assertEquals(listOf("done"), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.COPY)), notices.completions)
         assertTrue(refreshed)
         assertEquals(listOf("completed 1"), notifier.calls)
     }
@@ -191,7 +192,7 @@ class OperationLauncherTest {
         orchestrator.cancel(1)
         orchestrator.cancel(99)
 
-        assertEquals(listOf("done"), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(null)), notices.completions)
     }
 
     /**
@@ -202,7 +203,7 @@ class OperationLauncherTest {
     private fun launch(
         operationType: FileOperationType? = null,
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
-    ) = orchestrator.launch(completionMessage = "done", operationType = operationType, onRefresh = {}, block = block)
+    ) = orchestrator.launch(operationType = operationType, onRefresh = {}, block = block)
 
     /**
      * 목록 갱신이 언제나 던지는 작업 하나로 [block]을 [propagatingOrchestrator]에서 실행한다.
@@ -211,7 +212,6 @@ class OperationLauncherTest {
      */
     private fun launchFailingRefresh(operationType: FileOperationType? = null, block: suspend () -> IoResult<Unit>) =
         propagatingOrchestrator.launch(
-            completionMessage = "done",
             operationType = operationType,
             onRefresh = { throw IllegalStateException("갱신 오류") }
         ) { block() }
@@ -228,7 +228,7 @@ class OperationLauncherTest {
     private class RecordingNotifier : FileOperationNotifier {
         val calls = mutableListOf<String>()
         override fun progressNoti(state: ProgressState, instanceId: Int) { calls += "progress $instanceId" }
-        override fun completedNotification(message: String, instanceId: Int) { calls += "completed $instanceId" }
+        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) { calls += "completed $instanceId" }
         override fun cancelNotification(instanceId: Int) { calls += "cancel $instanceId" }
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }

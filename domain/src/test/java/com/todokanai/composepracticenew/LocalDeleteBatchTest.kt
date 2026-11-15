@@ -50,7 +50,7 @@ class LocalDeleteBatchTest {
 
     @Test
     fun `여러 대상을 지우면 저장소를 한 번만 부르고 모든 대상을 함께 넘긴다`() {
-        local.delete(listOf(item("/d/a"), item("/d/b.txt"), item("/d/c")), "done") {}
+        local.delete(listOf(item("/d/a"), item("/d/b.txt"), item("/d/c"))) {}
 
         assertEquals(listOf(setOf("/d/a", "/d/b.txt", "/d/c")), fileActionRepo.deleteCalls)
     }
@@ -84,7 +84,7 @@ class LocalDeleteBatchTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(message: String, instanceId: Int) {}
+        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }

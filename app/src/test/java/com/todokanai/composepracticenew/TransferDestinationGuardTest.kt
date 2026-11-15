@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.ListingFailureReason
@@ -84,8 +85,7 @@ class TransferDestinationGuardTest {
             FileNavigatorUseCase(localNav, localNav),
             FileNavigatorUseCase(remoteNav, remoteNav),
             remoteOps,
-            UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified }, folderEntries, ExactNameMatching),
-            FixedMessages,
+            UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), folderEntries, ExactNameMatching),
             RemoteConnectionStateUseCase(connection)
         )
         localRequest = localNav.moveTo("/local")
@@ -106,7 +106,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmUpload()
 
         assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationUnverified), notices.failures)
         assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
     }
 
@@ -118,7 +118,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmUpload()
 
         assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationUnverified), notices.failures)
     }
 
     @Test
@@ -129,7 +129,7 @@ class TransferDestinationGuardTest {
         viewModel.confirmUpload()
 
         assertTrue(transferRepo.calls.isEmpty())
-        assertEquals(listOf(FixedMessages.destinationUnverified), notices.failures)
+        assertEquals(listOf(NoticeMessage.DestinationUnverified), notices.failures)
     }
 
     @Test

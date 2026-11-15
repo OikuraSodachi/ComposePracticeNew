@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.FileNameError
+import com.todokanai.composepracticenew.model.NamingOperation
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
@@ -9,11 +11,11 @@ import com.todokanai.composepracticenew.repository.OperationNoticeReporter
  * 메시지는 다른 실행 전 거부(copy·move의 목적지 거부 등)와 같은 [OperationNoticeReporter] 경로로 표시된다.
  * @param errors [FileNameUseCase.validate]가 반환한 위반 규칙 집합
  * @param displayName 오류 메시지에 표시할 이름
- * @param failurePrefix 오류 메시지 머리말(예: "이름 변경 실패")
+ * @param operation 이름을 쓰려던 작업
  * @return 위반이 있어 작업을 실행하지 않아야 하면 true
  */
-internal fun OperationNoticeReporter.rejectsInvalidName(errors: Set<FileNameError>, displayName: String, failurePrefix: String): Boolean {
+internal fun OperationNoticeReporter.rejectsInvalidName(errors: Set<FileNameError>, displayName: String, operation: NamingOperation): Boolean {
     if (errors.isEmpty()) return false
-    report(OperationNoticeKind.FAILURE, "$failurePrefix: 사용할 수 없는 이름입니다 ($displayName)")
+    report(OperationNoticeKind.FAILURE, NoticeMessage.InvalidName(operation, displayName))
     return true
 }

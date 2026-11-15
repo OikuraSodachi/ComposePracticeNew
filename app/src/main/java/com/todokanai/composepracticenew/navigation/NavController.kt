@@ -94,7 +94,7 @@ fun AppNavHost(
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             mainViewModel.showOperationNotices { notice ->
-                snackbarHostState.showSnackbar(notice.message, duration = snackbarDurationOf(notice.kind))
+                snackbarHostState.showSnackbar(notice.message.resolve(context), duration = snackbarDurationOf(notice.kind))
             }
         }
     }

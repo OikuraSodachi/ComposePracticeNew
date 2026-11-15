@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
-import com.todokanai.composepracticenew.tools.CompletionMessages
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
@@ -41,7 +40,6 @@ import javax.inject.Inject
  * @param connectionStateUseCase 원격 연결 상태(끊김 포함)를 제공하는 UseCase
  * @param conflictCheckUseCase 이름 변경 시 같은 이름 항목과의 겹침을 판정하는 UseCase
  * @param connectFailureReportUseCase 다시 시도하면 될 수 있는 자동 재연결 실패를 알림함에 맡기는 UseCase
- * @param messages 작업 완료 메시지 제공자
  * @param folderNames 새 폴더 다이얼로그의 기본 이름 제공자
  */
 @HiltViewModel
@@ -53,7 +51,6 @@ class RemoteFileListViewModel @Inject constructor(
     connectionStateUseCase: RemoteConnectionStateUseCase,
     conflictCheckUseCase: ConflictCheckUseCase,
     connectFailureReportUseCase: ConnectFailureReportUseCase,
-    private val messages: CompletionMessages,
     folderNames: NewFolderNameDefaults,
 ) : ViewModel() {
 
@@ -185,8 +182,7 @@ class RemoteFileListViewModel @Inject constructor(
         entryNaming.requestRename(item, newName) { _ ->
             remoteFileOperationUseCase.renameRemote(
                 path = item.path,
-                newName = newName,
-                completionMessage = messages.notiComplete,
+                newName = newName,
                 errorMessage = "rename 실패: ${item.name}",
                 onRefresh = { fileNavigatorUseCase.refresh() }
             )
@@ -201,8 +197,7 @@ class RemoteFileListViewModel @Inject constructor(
         val items = selection.items
         if (items.isEmpty()) return
         remoteFileOperationUseCase.deleteRemote(
-            targets = items.map { it.toDomain() },
-            completionMessage = messages.notiDeleteComplete,
+            targets = items.map { it.toDomain() },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }
@@ -215,8 +210,7 @@ class RemoteFileListViewModel @Inject constructor(
     fun onMakeDirectory(target: String, dirName: String) {
         remoteFileOperationUseCase.makeDirectoryRemote(
             parentPath = target,
-            dirName = dirName,
-            completionMessage = messages.notiComplete,
+            dirName = dirName,
             errorMessage = "디렉터리 생성 실패: $dirName",
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

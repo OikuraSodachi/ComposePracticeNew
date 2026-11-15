@@ -170,6 +170,42 @@
     <string name="noti_upload_complete">업로드 완료</string>
     <string name="noti_complete">완료</string>
 
+    <!-- File operation notices (#218) -->
+    <string name="op_name_copy">복사</string>
+    <string name="op_name_move">이동</string>
+    <string name="op_name_delete">삭제</string>
+    <string name="op_name_compress">압축</string>
+    <string name="op_name_unzip">압축 해제</string>
+    <string name="op_name_download">다운로드</string>
+    <string name="op_name_upload">업로드</string>
+    <string name="notice_cancelled">%1$s 취소 — %2$s</string>
+    <string name="notice_cancelled_instant">작업 취소</string>
+    <string name="notice_cancel_remainder_copy">이미 복사한 항목은 그대로 둡니다</string>
+    <string name="notice_cancel_remainder_move">이미 이동한 항목은 그대로 둡니다</string>
+    <string name="notice_cancel_remainder_delete">이미 삭제한 항목은 되돌리지 않습니다</string>
+    <string name="notice_cancel_remainder_compress">끝나지 않은 압축 파일은 지웁니다</string>
+    <string name="notice_cancel_remainder_unzip">이미 푼 항목은 그대로 둡니다</string>
+    <string name="notice_cancel_remainder_download">이미 받은 파일은 그대로 둡니다</string>
+    <string name="notice_cancel_remainder_upload">이미 올린 파일은 그대로 둡니다</string>
+    <string name="notice_unknown_failure">알 수 없는 오류</string>
+    <string name="notice_unanswered_conflict">%1$s 중단: \'%2$s\' 충돌 질문에 %3$d시간 동안 답이 없었습니다 — 이미 처리한 항목은 그대로 둡니다</string>
+    <string name="notice_failure_prefix_rename">이름 변경 실패</string>
+    <string name="notice_failure_prefix_make_folder">폴더 생성 실패</string>
+    <string name="notice_failure_prefix_compress">압축 실패</string>
+    <string name="notice_failure_prefix_copy">복사 실패</string>
+    <string name="notice_failure_prefix_move">이동 실패</string>
+    <string name="notice_invalid_name">%1$s: 사용할 수 없는 이름입니다 (%2$s)</string>
+    <string name="notice_destination_inside_source">%1$s: 대상 폴더가 원본 폴더 안에 있습니다 (%2$s)</string>
+    <string name="notice_same_destination">%1$s: 출발지와 목적지가 동일합니다.</string>
+    <string name="notice_unsupported_archive_format">압축 실패: 지원하지 않는 압축 형식입니다 (%1$s)</string>
+    <string name="notice_open_unknown_type">열기 실패: 형식을 알 수 없는 파일입니다 (%1$s)</string>
+    <string name="notice_open_no_handler">열기 실패: 이 파일을 열 수 있는 앱이 없습니다 (%1$s)</string>
+    <string name="notice_open_refused">열기 실패: 이 파일을 여는 앱이 열기를 허용하지 않습니다 (%1$s)</string>
+    <string name="notice_folder_unreadable">폴더를 열 수 없습니다 (%1$s)</string>
+    <string name="notice_upload_leftover">업로드 취소: 서버에 받다 만 파일이 남았을 수 있습니다 (%1$s) — %2$s</string>
+    <string name="notice_leftover_refused">DELE 실패: %1$s</string>
+    <string name="notice_leftover_session_ended">연결이 끊겨 지우지 못했습니다</string>
+
     <string name="dialog_error_title">오류</string>
 
     <!-- Toast / Errors -->

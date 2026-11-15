@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -42,7 +43,7 @@ class WriteConflictResolutionTest {
         val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = false))
         val choices = mutableListOf<ConflictChoice>()
 
-        orchestrator(asker).launchResolvingConflicts("done", FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             choices += resolve.resolve(fileConflict)
             IoResult.Done
         }
@@ -60,7 +61,7 @@ class WriteConflictResolutionTest {
         )
         val choices = mutableListOf<ConflictChoice>()
 
-        orchestrator(asker).launchResolvingConflicts("done", FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             choices += resolve.resolve(fileConflict)
             choices += resolve.resolve(otherFileConflict)
             choices += resolve.resolve(folderConflict)
@@ -81,7 +82,7 @@ class WriteConflictResolutionTest {
         val orchestrator = orchestrator(asker)
 
         repeat(2) {
-            orchestrator.launchResolvingConflicts("done", FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+            orchestrator.launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
                 resolve.resolve(fileConflict)
                 IoResult.Done
             }
@@ -95,47 +96,47 @@ class WriteConflictResolutionTest {
     fun `질문에서 취소하면 작업을 취소로 끝낸다`() = runTest {
         val asker = ScriptedAsker(ConflictAnswer.Cancel)
 
-        orchestrator(asker).launchResolvingConflicts("done", FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             resolve.resolve(fileConflict)
             IoResult.Done
         }
         runCurrent()
 
-        assertEquals(listOf("복사 취소 — 이미 복사한 항목은 그대로 둡니다"), notices.completions)
-        assertEquals(emptyList<String>(), notices.failures)
+        assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.COPY)), notices.completions)
+        assertEquals(emptyList<NoticeMessage>(), notices.failures)
     }
 
     @Test
     fun `질문에 6시간 동안 답이 없으면 작업을 실패로 끝낸다`() = runTest {
-        orchestrator(NeverAnsweringAsker).launchResolvingConflicts("done", FileOperationType.MOVE, onRefresh = {}) { _, resolve ->
+        orchestrator(NeverAnsweringAsker).launchResolvingConflicts(FileOperationType.MOVE, onRefresh = {}) { _, resolve ->
             resolve.resolve(fileConflict)
             IoResult.Done
         }
 
         advanceTimeBy((6.hours - 1.seconds).inWholeMilliseconds)
         runCurrent()
-        assertEquals(emptyList<String>(), notices.failures)
+        assertEquals(emptyList<NoticeMessage>(), notices.failures)
 
         advanceTimeBy(2.seconds.inWholeMilliseconds)
         runCurrent()
         assertEquals(
-            listOf("이동 중단: 'a.txt' 충돌 질문에 6시간 동안 답이 없었습니다 — 이미 처리한 항목은 그대로 둡니다"),
+            listOf(NoticeMessage.UnansweredConflict(FileOperationType.MOVE, "a.txt", 6)),
             notices.failures
         )
-        assertEquals(emptyList<String>(), notices.completions)
+        assertEquals(emptyList<NoticeMessage>(), notices.completions)
     }
 
     @Test
     fun `종류가 엇갈린 겹침에 진행으로 답하면 구현 오류로 실패한다`() = runTest {
         val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.PROCEED, applyToRest = false))
 
-        orchestrator(asker).launchResolvingConflicts("done", FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             resolve.resolve(mismatch)
             IoResult.Done
         }
         runCurrent()
 
-        assertEquals(listOf("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다"), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")), notices.failures)
     }
 
     @Test
@@ -143,7 +144,7 @@ class WriteConflictResolutionTest {
         val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = false))
         val progress = ProgressState(progress = 40)
 
-        orchestrator(asker).launchResolvingConflicts("done", FileOperationType.UNZIP, onRefresh = {}) { onProgress, resolve ->
+        orchestrator(asker).launchResolvingConflicts(FileOperationType.UNZIP, onRefresh = {}) { onProgress, resolve ->
             onProgress(progress)
             resolve.resolve(fileConflict)
             IoResult.Done
@@ -187,7 +188,7 @@ class WriteConflictResolutionTest {
         val events = mutableListOf<String>()
         override fun progressNoti(state: ProgressState, instanceId: Int) { events += "progress ${state.progress}" }
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) { events += "awaiting $operationType" }
-        override fun completedNotification(message: String, instanceId: Int) {}
+        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
     }
 

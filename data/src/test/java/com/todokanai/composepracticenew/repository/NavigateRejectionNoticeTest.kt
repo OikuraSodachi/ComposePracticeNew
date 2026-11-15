@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.NavigateResult
@@ -50,7 +51,7 @@ class NavigateRejectionNoticeTest {
 
         assertEquals(NavigateResult.Rejected, result)
         assertEquals(null, nav.currentPath.value)
-        assertEquals(listOf(OperationNotice(OperationNoticeKind.FAILURE, "폴더를 열 수 없습니다 (missing_279)")), noticesReported())
+        assertEquals(listOf(OperationNotice(OperationNoticeKind.FAILURE, NoticeMessage.FolderUnreadable("missing_279"))), noticesReported())
     }
 
     @Test

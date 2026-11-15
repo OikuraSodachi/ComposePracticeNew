@@ -6,7 +6,10 @@ import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.NamingOperation
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
+import com.todokanai.composepracticenew.model.RelocateOperation
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -51,16 +54,16 @@ class LocalFileOperationUseCase(
      * 맞지 않는 위치는 원본의 부모(제자리)와 원본 자신이거나 그 안쪽(자기 안으로) 두 가지이며, 사유마다 다른 메시지로 알린다.
      * @param files 복사·이동할 원본 경로 집합
      * @param destPath 목적지 디렉터리 경로
-     * @param failurePrefix 오류 메시지 머리말(예: "복사 실패")
+     * @param operation 실행하지 않을 작업. 거부 메시지의 머리말을 정한다
      * @return 맞지 않는 위치라 작업을 실행하지 않아야 하면 true
      */
-    private fun rejectsDestination(files: Set<String>, destPath: String, failurePrefix: String): Boolean {
+    private fun rejectsDestination(files: Set<String>, destPath: String, operation: RelocateOperation): Boolean {
         files.firstOrNull { isIntoItself(it, destPath) }?.let { srcPath ->
-            notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 대상 폴더가 원본 폴더 안에 있습니다 (${paths.displayNameOf(srcPath)})")
+            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.DestinationInsideSource(operation, paths.displayNameOf(srcPath)))
             return true
         }
         if (files.any { isInPlace(it, destPath) }) {
-            notices.report(OperationNoticeKind.FAILURE, "$failurePrefix: 출발지와 목적지가 동일합니다.")
+            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.SameDestination(operation))
             return true
         }
         return false
@@ -89,13 +92,12 @@ class LocalFileOperationUseCase(
      * 같은 이름의 항목은 복사하는 중에 그 항목을 쓰려 할 때 사용자에게 묻는다.
      * @param files 복사할 파일의 절대 경로 집합
      * @param destPath 복사 대상 디렉터리의 절대 경로
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun copy(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsDestination(files, destPath, "복사 실패")) return
-        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.COPY, onRefresh) { onProgress, resolveConflict ->
+    fun copy(files: Set<String>, destPath: String, onRefresh: suspend () -> Unit) {
+        if (rejectsDestination(files, destPath, RelocateOperation.COPY)) return
+        orchestrator.launchResolvingConflicts(FileOperationType.COPY, onRefresh) { onProgress, resolveConflict ->
             fileActionRepo.copyAction(files, destPath, resolveConflict, onProgress)
         }
     }
@@ -103,12 +105,11 @@ class LocalFileOperationUseCase(
     /**
      * [files]를 삭제한다. 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다.
      * @param files 삭제할 파일·디렉터리 항목
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun delete(files: List<FileHolderItem>, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(completionMessage, FileOperationType.DELETE, onRefresh) { onProgress ->
+    fun delete(files: List<FileHolderItem>, onRefresh: suspend () -> Unit) {
+        orchestrator.launch(FileOperationType.DELETE, onRefresh) { onProgress ->
             fileActionRepo.deleteFiles(files.mapTo(LinkedHashSet()) { it.path }, onProgress)
         }
     }
@@ -118,13 +119,12 @@ class LocalFileOperationUseCase(
      * 같은 이름의 항목은 이동하는 중에 그 항목을 쓰려 할 때 사용자에게 묻는다. 건너뛴 항목은 원래 자리에 남는다.
      * @param files 이동할 파일의 절대 경로 집합
      * @param destPath 이동 대상 디렉터리의 절대 경로
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun move(files: Set<String>, destPath: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (rejectsDestination(files, destPath, "이동 실패")) return
-        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.MOVE, onRefresh) { onProgress, resolveConflict ->
+    fun move(files: Set<String>, destPath: String, onRefresh: suspend () -> Unit) {
+        if (rejectsDestination(files, destPath, RelocateOperation.MOVE)) return
+        orchestrator.launchResolvingConflicts(FileOperationType.MOVE, onRefresh) { onProgress, resolveConflict ->
             fileActionRepo.moveFile(files, destPath, resolveConflict, onProgress)
         }
     }
@@ -136,14 +136,13 @@ class LocalFileOperationUseCase(
      * @param parentPath 아카이브를 생성할 디렉터리의 절대 경로
      * @param name 생성할 아카이브 이름(확장자 제외)
      * @param format 만들 아카이브 형식
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, completionMessage: String, onRefresh: suspend () -> Unit) {
+    fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, onRefresh: suspend () -> Unit) {
         if (rejectsUnsupportedFormat(format)) return
-        if (notices.rejectsInvalidName(validateArchiveName(name, parentPath, format), "$name${format.extension}", "압축 실패")) return
-        orchestrator.launch(completionMessage, FileOperationType.COMPRESS, onRefresh) { onProgress ->
+        if (notices.rejectsInvalidName(validateArchiveName(name, parentPath, format), "$name${format.extension}", NamingOperation.COMPRESS)) return
+        orchestrator.launch(FileOperationType.COMPRESS, onRefresh) { onProgress ->
             fileActionRepo.compressAction(files, parentPath, name, format, onProgress)
         }
     }
@@ -153,12 +152,11 @@ class LocalFileOperationUseCase(
      * @param zipFiles 압축 해제할 zip/rar 파일의 절대 경로 집합
      * @param destPath 압축 해제 대상 디렉터리의 절대 경로
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun unzip(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, completionMessage: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launchResolvingConflicts(completionMessage, FileOperationType.UNZIP, onRefresh) { onProgress, resolveConflict ->
+    fun unzip(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onRefresh: suspend () -> Unit) {
+        orchestrator.launchResolvingConflicts(FileOperationType.UNZIP, onRefresh) { onProgress, resolveConflict ->
             fileActionRepo.unzipAction(zipFiles, destPath, layout, resolveConflict, onProgress)
         }
     }
@@ -176,13 +174,12 @@ class LocalFileOperationUseCase(
      * @param path 이름을 변경할 파일의 절대 경로
      * @param newName 변경할 새 파일 이름 (전체 경로가 아닌 이름만)
      * @param overwrite 사용자가 덮어쓰기를 확인했으면 true
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun rename(path: String, newName: String, overwrite: Boolean, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, "이름 변경 실패")) return
-        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
+    fun rename(path: String, newName: String, overwrite: Boolean, onRefresh: suspend () -> Unit) {
+        if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, NamingOperation.RENAME)) return
+        orchestrator.launch(onRefresh = onRefresh) { _ ->
             fileActionRepo.renameFile(path, newName, overwrite)
         }
     }
@@ -191,13 +188,12 @@ class LocalFileOperationUseCase(
      * [parentPath] 아래에 [name] 이름의 디렉터리를 생성한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.
      * @param parentPath 디렉터리를 생성할 부모 디렉터리의 절대 경로
      * @param name 생성할 디렉터리 이름
-     * @param completionMessage 작업 완료 시 표시할 메시지
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun makeDirectory(parentPath: String, name: String, completionMessage: String, onRefresh: suspend () -> Unit) {
-        if (notices.rejectsInvalidName(validateEntryName(name, parentPath), name, "폴더 생성 실패")) return
-        orchestrator.launch(completionMessage, onRefresh = onRefresh) { _ ->
+    fun makeDirectory(parentPath: String, name: String, onRefresh: suspend () -> Unit) {
+        if (notices.rejectsInvalidName(validateEntryName(name, parentPath), name, NamingOperation.MAKE_FOLDER)) return
+        orchestrator.launch(onRefresh = onRefresh) { _ ->
             fileActionRepo.makeDirectory(parentPath, name)
         }
     }
@@ -209,7 +205,7 @@ class LocalFileOperationUseCase(
      */
     private fun rejectsUnsupportedFormat(format: ArchiveFormat): Boolean {
         if (format in fileActionRepo.supportedArchiveFormats()) return false
-        notices.report(OperationNoticeKind.FAILURE, "압축 실패: 지원하지 않는 압축 형식입니다 (${format.extension})")
+        notices.report(OperationNoticeKind.FAILURE, NoticeMessage.UnsupportedArchiveFormat(format.extension))
         return true
     }
 }

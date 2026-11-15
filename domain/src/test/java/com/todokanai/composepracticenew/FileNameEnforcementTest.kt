@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NamingOperation
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.model.ArchiveFormat
@@ -51,44 +53,44 @@ class FileNameEnforcementTest {
 
     @Test
     fun `로컬 이름 변경·새 폴더·압축은 규칙 위반 이름을 거부하고 오류를 방출한다`() {
-        local.rename("/dir/a.txt", "x/y", false, "done") {}
-        local.makeDirectory("/dir", "..", "done") {}
-        local.compress(setOf("/dir/a.txt"), "/dir", " archive", ArchiveFormat.ZIP, "done") {}
+        local.rename("/dir/a.txt", "x/y", false) {}
+        local.makeDirectory("/dir", "..") {}
+        local.compress(setOf("/dir/a.txt"), "/dir", " archive", ArchiveFormat.ZIP) {}
 
         assertEquals(3, notices.failures.size)
-        assertTrue(notices.failures[0].startsWith("이름 변경 실패"))
-        assertTrue(notices.failures[1].startsWith("폴더 생성 실패"))
-        assertTrue(notices.failures[2].startsWith("압축 실패"))
+        assertEquals(NoticeMessage.InvalidName(NamingOperation.RENAME, "x/y"), notices.failures[0])
+        assertEquals(NoticeMessage.InvalidName(NamingOperation.MAKE_FOLDER, ".."), notices.failures[1])
+        assertEquals(NoticeMessage.InvalidName(NamingOperation.COMPRESS, " archive.zip"), notices.failures[2])
         assertTrue("저장소가 호출되면 안 됨: ${fileActionRepo.calls}", fileActionRepo.calls.isEmpty())
     }
 
     @Test
     fun `원격 이름 변경·새 폴더는 규칙 위반 이름을 거부하고 오류를 방출한다`() {
-        remote.renameRemote("/r/a.txt", "a\\b", "done", "fail") {}
-        remote.makeDirectoryRemote("/r", "", "done", "fail") {}
+        remote.renameRemote("/r/a.txt", "a\\b", "fail") {}
+        remote.makeDirectoryRemote("/r", "", "fail") {}
 
         assertEquals(2, notices.failures.size)
-        assertTrue(notices.failures[0].startsWith("이름 변경 실패"))
-        assertTrue(notices.failures[1].startsWith("디렉터리 생성 실패"))
+        assertEquals(NoticeMessage.InvalidName(NamingOperation.RENAME, "a\\b"), notices.failures[0])
+        assertEquals(NoticeMessage.InvalidName(NamingOperation.MAKE_FOLDER, ""), notices.failures[1])
         assertTrue("저장소가 호출되면 안 됨: ${mutationRepo.calls}", mutationRepo.calls.isEmpty())
     }
 
     @Test
     fun `규칙을 지킨 이름은 오류 없이 실행 단계로 넘어간다`() {
-        local.rename("/dir/a.txt", "a.md", false, "done") {}
-        local.makeDirectory("/dir", "new folder", "done") {}
-        remote.renameRemote("/r/a.txt", "b.txt", "done", "fail") {}
+        local.rename("/dir/a.txt", "a.md", false) {}
+        local.makeDirectory("/dir", "new folder") {}
+        remote.renameRemote("/r/a.txt", "b.txt", "fail") {}
 
         assertTrue(notices.failures.toString(), notices.failures.isEmpty())
     }
 
     @Test
     fun `저장소의 제약은 이름이 놓일 위치로 묻는다 — 새 항목은 만들 폴더, 이름 변경은 그 항목 자신`() {
-        local.rename("/dir/a.txt", "a.md", false, "done") {}
-        local.makeDirectory("/dir", "new folder", "done") {}
-        local.compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP, "done") {}
-        remote.renameRemote("/r/a.txt", "b.txt", "done", "fail") {}
-        remote.makeDirectoryRemote("/r", "sub", "done", "fail") {}
+        local.rename("/dir/a.txt", "a.md", false) {}
+        local.makeDirectory("/dir", "new folder") {}
+        local.compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP) {}
+        remote.renameRemote("/r/a.txt", "b.txt", "fail") {}
+        remote.makeDirectoryRemote("/r", "sub", "fail") {}
 
         assertEquals(
             listOf("a.md" to "/dir/a.txt", "new folder" to "/dir", "archive.zip" to "/dir", "b.txt" to "/r/a.txt", "sub" to "/r"),
@@ -101,10 +103,10 @@ class FileNameEnforcementTest {
         val tooLong = RecordingStorageNameRules(setOf(FileNameError.TOO_LONG))
         val strictLocal = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(tooLong), LocalPathRules())
 
-        strictLocal.makeDirectory("/dir", "new folder", "done") {}
+        strictLocal.makeDirectory("/dir", "new folder") {}
 
         assertEquals(1, notices.failures.size)
-        assertTrue(notices.failures[0].startsWith("폴더 생성 실패"))
+        assertEquals(NoticeMessage.InvalidName(NamingOperation.MAKE_FOLDER, "new folder"), notices.failures[0])
         assertTrue("저장소가 호출되면 안 됨: ${fileActionRepo.calls}", fileActionRepo.calls.isEmpty())
     }
 
@@ -146,7 +148,7 @@ class FileNameEnforcementTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(message: String, instanceId: Int) {}
+        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }

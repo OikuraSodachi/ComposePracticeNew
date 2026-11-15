@@ -38,7 +38,7 @@ class FileOperationStartTest {
 
     @Test
     fun `진행 표시가 있는 작업은 진행률을 보고하기 전부터 등록된다`() {
-        orchestrator.launch("done", FileOperationType.COPY, onRefresh = {}) { _ ->
+        orchestrator.launch(FileOperationType.COPY, onRefresh = {}) { _ ->
             gate.await()
             IoResult.Done
         }
@@ -48,12 +48,12 @@ class FileOperationStartTest {
 
     @Test
     fun `나중에 시작한 작업이 먼저 진행률을 보고해도 시작한 순서대로 등록된다`() {
-        orchestrator.launch("done", FileOperationType.COPY, onRefresh = {}) { onProgress ->
+        orchestrator.launch(FileOperationType.COPY, onRefresh = {}) { onProgress ->
             gate.await()
             onProgress(ProgressState(progress = 0))
             IoResult.Done
         }
-        orchestrator.launch("done", FileOperationType.UPLOAD, onRefresh = {}) { onProgress ->
+        orchestrator.launch(FileOperationType.UPLOAD, onRefresh = {}) { onProgress ->
             onProgress(ProgressState(progress = 0))
             gate.await()
             IoResult.Done
@@ -66,7 +66,7 @@ class FileOperationStartTest {
 
     @Test
     fun `순간 작업은 등록하지 않는다`() {
-        orchestrator.launch("done", onRefresh = {}) { _ ->
+        orchestrator.launch(onRefresh = {}) { _ ->
             gate.await()
             IoResult.Done
         }
@@ -90,7 +90,7 @@ class FileOperationStartTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(message: String, instanceId: Int) {}
+        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
     }
