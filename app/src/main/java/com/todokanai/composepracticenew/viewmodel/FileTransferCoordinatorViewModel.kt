@@ -69,6 +69,19 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /** 업로드 실행 전 사용자 확인을 기다리는 충돌. */
     val uploadConflict: StateFlow<PendingConflict?> = uploadGate.pending
 
+    /** 진행 중인 업로드 전 겹침 확인들의 부모 Job. 원격 세션이 끊기면 이 아래의 확인을 모두 멈춘다. */
+    private val uploadChecks = SupervisorJob(viewModelScope.coroutineContext[Job])
+
+    /** 진행 중인 업로드 전 겹침 확인(시작한 순서). 맨 앞이 [cancelUploadCheck]의 대상이다. */
+    private val runningChecks = MutableStateFlow<List<RunningCheck>>(emptyList())
+
+    /** 업로드 전 겹침 확인이 진행 중인지. 표시 전용이며, 확인 흐름의 판단에는 쓰지 않는다. */
+    val uploadChecking: StateFlow<Boolean> = runningChecks
+        .map { it.isNotEmpty() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    // 이 init은 모든 상태 선언 뒤에 둔다(#363) — viewModelScope는 Main.immediate이고 연결 상태는 현재 값을 바로 내보내므로,
+    // 생성할 때 이미 끊겨 있으면 생성자 안에서 discardRemoteSessionState가 실행된다. 이 아래에 선언한 상태는 그때 아직 null이다.
     init {
         // 끊김을 상태로 본다 — 어느 화면에 있든, 끊긴 뒤에 이 ViewModel이 만들어졌든 끊긴 세션에 기대는 상태를 남기지 않는다
         connectionStateUseCase.connectionState
@@ -145,17 +158,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         download(pending, destPath)
         local.reset()
     }
-
-    /** 진행 중인 업로드 전 겹침 확인들의 부모 Job. 원격 세션이 끊기면 이 아래의 확인을 모두 멈춘다. */
-    private val uploadChecks = SupervisorJob(viewModelScope.coroutineContext[Job])
-
-    /** 진행 중인 업로드 전 겹침 확인(시작한 순서). 맨 앞이 [cancelUploadCheck]의 대상이다. */
-    private val runningChecks = MutableStateFlow<List<RunningCheck>>(emptyList())
-
-    /** 업로드 전 겹침 확인이 진행 중인지. 표시 전용이며, 확인 흐름의 판단에는 쓰지 않는다. */
-    val uploadChecking: StateFlow<Boolean> = runningChecks
-        .map { it.isNotEmpty() }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /**
      * 업로드 대기 목록을 꺼내 현재 원격 경로(충돌을 판정한 확인된 목록의 경로)로 업로드한다.

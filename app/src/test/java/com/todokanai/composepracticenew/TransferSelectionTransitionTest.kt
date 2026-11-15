@@ -48,16 +48,7 @@ class TransferSelectionTransitionTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val notices = RecordingOperationNotices()
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), notices, GrantedProtection, UnexpectedConflictQuestions, operationScope)
-        viewModel = FileTransferCoordinatorViewModel(
-            FakeNavigator().let { FileNavigatorUseCase(it, it) },
-            FakeNavigator().let { FileNavigatorUseCase(it, it) },
-            RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase(NoStorageNameRules)),
-            UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified }, folderEntries, ExactNameMatching),
-            FixedMessages,
-            RemoteConnectionStateUseCase(connection)
-        )
+        viewModel = createViewModel()
     }
 
     @After
@@ -211,6 +202,52 @@ class TransferSelectionTransitionTest {
         assertEquals(listOf(remoteX), submitted?.items)
         assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
         assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `원격 세션이 이미 끊긴 뒤에 만들어도 크래시 없이 기본 모드로 시작한다`() {
+        connection.connectionState.value = RemoteConnectionState.Lost
+
+        val (created, uncaught) = capturingUncaught { createViewModel() }
+
+        assertEquals(emptyList<Throwable>(), uncaught)
+        assertEquals(SelectionState.Default, created.localSelection.value)
+        assertEquals(SelectionState.Default, created.remoteSelection.value)
+    }
+
+    /**
+     * 이 테스트의 가짜 저장소로 검증 대상을 만든다. 생성자 안에서 끊김 감시가 바로 실행되므로 만들 때의 [connection] 상태가 반영된다.
+     * @return 새 ViewModel
+     */
+    private fun createViewModel(): FileTransferCoordinatorViewModel {
+        val notices = RecordingOperationNotices()
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), notices, GrantedProtection, UnexpectedConflictQuestions, operationScope)
+        return FileTransferCoordinatorViewModel(
+            FakeNavigator().let { FileNavigatorUseCase(it, it) },
+            FakeNavigator().let { FileNavigatorUseCase(it, it) },
+            RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase(NoStorageNameRules)),
+            UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching) { FixedMessages.destinationUnverified }, folderEntries, ExactNameMatching),
+            FixedMessages,
+            RemoteConnectionStateUseCase(connection)
+        )
+    }
+
+    /**
+     * [block]을 실행하는 동안 이 스레드에서 잡히지 않은 예외를 모은다. viewModelScope의 코루틴이 던진 예외는 생성자 밖으로 나오지 않고
+     * 스레드의 처리기로 가므로(앱에서는 크래시), 테스트는 이렇게 모아서 확인한다.
+     * @param block 실행할 코드
+     * @return [block]의 결과와 그동안 잡히지 않은 예외
+     */
+    private fun <T> capturingUncaught(block: () -> T): Pair<T, List<Throwable>> {
+        val thread = Thread.currentThread()
+        val previous = thread.uncaughtExceptionHandler
+        val uncaught = mutableListOf<Throwable>()
+        thread.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { _, e -> uncaught += e }
+        try {
+            return block() to uncaught
+        } finally {
+            thread.uncaughtExceptionHandler = previous
+        }
     }
 
     /** 원격 화면에서 [item]을 다중 선택한 뒤 다운로드 대기 목록으로 로컬 화면에 넘긴다. */
