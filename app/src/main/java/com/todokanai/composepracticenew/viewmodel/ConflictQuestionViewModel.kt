@@ -26,7 +26,7 @@ class ConflictQuestionViewModel @Inject constructor(
         .map { current -> current?.let(ConflictQuestion::from) }
         .stateIn(
             scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
+            started = SharingStarted.Eagerly,
             initialValue = conflictQuestionUseCase.current.value?.let(ConflictQuestion::from)
         )
 
