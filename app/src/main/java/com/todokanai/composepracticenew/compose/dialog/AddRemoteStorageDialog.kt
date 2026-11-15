@@ -86,7 +86,7 @@ fun AddRemoteStorageDialog(
 
     ConfirmCancelDialog(
         modifier = Modifier,
-        title = stringResource(R.string.dialog_add_remote_storage_title),
+        title = stringResource(titleResOf(initialValue)),
         onConfirm = { onConfirm(currentInput()) },
         onDismiss = onDismiss,
         confirmEnabled = errors.isEmpty(),
@@ -187,6 +187,11 @@ private fun initialEncodingOf(settings: RemoteProtocolSettings?): String = when 
     is RemoteProtocolSettings.Ftp -> settings.encoding
     null -> RemoteProtocolSettings.Ftp.DEFAULT_ENCODING
 }
+
+/** 편집 대상 [initialValue]가 있으면 수정 제목을, 없으면 추가 제목을 고른다. */
+@StringRes
+private fun titleResOf(initialValue: RemoteStorageItem?): Int =
+    if (initialValue != null) R.string.dialog_edit_remote_storage_title else R.string.dialog_add_remote_storage_title
 
 /** 오류일 때만 사유 문구를 보여주는 TextField supportingText 슬롯을 만든다. 오류가 아니면 슬롯을 두지 않는다. */
 private fun errorSupportingText(isError: Boolean, @StringRes messageRes: Int): (@Composable () -> Unit)? =
