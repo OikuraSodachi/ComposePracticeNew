@@ -76,5 +76,7 @@ class ConnectFailureNoticeTest {
         override fun report(alert: ConnectFailureAlert) {
             reported += alert
         }
+
+        override fun connectionStarted() = Unit
     }
 }

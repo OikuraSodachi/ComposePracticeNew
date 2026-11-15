@@ -26,7 +26,7 @@ class RemoteRootNavigationTest {
     fun `연결에 성공하면 연결 저장소가 정한 루트 경로로 이동한다`() {
         val nav = FakeNavigator()
 
-        val result = runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(), nav, NoOpLastConnection).connectAndNavigate(nas) }
+        val result = runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(), nav, NoOpLastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
 
         assertEquals(ConnectResult.Connected, result)
         assertEquals(listOf(FakeRemoteConnection.rootPathFor(nas)), nav.navigated)
@@ -37,14 +37,14 @@ class RemoteRootNavigationTest {
         val nav = FakeNavigator()
         val failed = ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
 
-        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(failed), nav, NoOpLastConnection).connectAndNavigate(nas) }
+        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(failed), nav, NoOpLastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
 
         assertEquals(emptyList<String>(), nav.navigated)
     }
 
     @Test
     fun `루트 경로로 이동을 거부당하면 연결 성공을 돌려주지 않고 구현 오류로 실패한다`() {
-        val useCase = RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(NavigateResult.Rejected), NoOpLastConnection)
+        val useCase = RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(NavigateResult.Rejected), NoOpLastConnection, RecordingConnectFailureAlerts())
 
         assertThrows(IllegalStateException::class.java) { runBlocking { useCase.connectAndNavigate(nas) } }
     }

@@ -42,7 +42,7 @@ class ReconnectLastSavedIdTest {
      */
     private fun reconnectWith(saved: SavedRemoteId): ReconnectResult = runBlocking {
         val lastConnection = FixedLastConnection(saved)
-        RemoteConnectionResilienceUseCase(lastConnection, SingleServerStorage(nas), RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(), lastConnection))
+        RemoteConnectionResilienceUseCase(lastConnection, SingleServerStorage(nas), RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(), lastConnection, RecordingConnectFailureAlerts()))
             .reconnectLast()
     }
 

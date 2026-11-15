@@ -96,8 +96,8 @@ class MainViewModel @Inject constructor(
 
     /**
      * 다시 시도하면 될 수 있는 원격 연결 실패를 [show]로 하나씩, 앞 알림을 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 보이는 화면이 없을 때 실패한 것과 보여 주는 도중 화면이 사라진 알림도 부르면 받는다.
-     * @param show 연결 실패를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
+     * 보이는 화면이 없을 때 실패한 것과 보여 주는 도중 화면이 사라진 알림도 부르면 받고, 그 사이 새 연결 시도를 시작했으면 받지 않는다. 보여 주는 도중 새 연결 시도를 시작하면 [show]를 취소한다.
+     * @param show 연결 실패를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수. 취소되면 보여 주던 것을 거둬야 한다
      */
     suspend fun showConnectFailures(show: suspend (ConnectFailureAlert) -> Unit): Nothing = connectFailureAlertUseCase.deliver(show)
 

@@ -26,4 +26,13 @@ class ConnectFailureAlertsTest {
         assertEquals(listOf(ConnectFailureAlert.CONNECTION_FAILED, ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE), shown)
         assertEquals(0, alerts.pending.value.size)
     }
+
+    @Test
+    fun `새 연결 시도를 시작하면 아직 알리지 않은 이전 실패를 뺀다`() {
+        alerts.report(ConnectFailureAlert.CONNECTION_FAILED)
+
+        alerts.connectionStarted()
+
+        assertEquals(0, alerts.pending.value.size)
+    }
 }

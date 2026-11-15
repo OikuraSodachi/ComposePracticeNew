@@ -133,8 +133,9 @@ object UseCaseModule {
     fun provideRemoteConnectionUseCase(
         connection: RemoteConnectionRepository,
         @RemoteNavigator nav: FileNavigatorRepository,
-        lastConnectionRepo: LastConnectionRepository
-    ) = RemoteConnectionUseCase(connection, nav, lastConnectionRepo)
+        lastConnectionRepo: LastConnectionRepository,
+        failureAlerts: ConnectFailureAlertReporter
+    ) = RemoteConnectionUseCase(connection, nav, lastConnectionRepo, failureAlerts)
 
     @Provides @Singleton
     fun provideRemoteConnectionResilienceUseCase(

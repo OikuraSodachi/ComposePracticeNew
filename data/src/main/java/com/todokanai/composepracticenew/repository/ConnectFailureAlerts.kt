@@ -20,6 +20,8 @@ class ConnectFailureAlerts @Inject constructor() : ConnectFailureAlertRepository
 
     override fun report(alert: ConnectFailureAlert) = box.report(alert)
 
+    override fun connectionStarted() = box.discard { true }
+
     override fun claim(id: Long): Boolean = box.claim(id)
 
     override fun complete(id: Long) = box.complete(id)

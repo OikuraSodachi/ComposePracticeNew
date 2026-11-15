@@ -9,4 +9,7 @@ interface ConnectFailureAlertReporter {
      * @param alert 알릴 연결 실패
      */
     fun report(alert: ConnectFailureAlert)
+
+    /** 새 연결 시도를 시작할 때 부른다. 아직 다 알리지 않은 이전 시도의 실패를 뺀다 — 새 연결이 실패한 것으로 보이지 않도록. */
+    fun connectionStarted()
 }
