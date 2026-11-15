@@ -36,7 +36,7 @@ class FtpTransferrerStreamOpenFailureTest {
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
-        assertEquals("다운로드 실패: 2개 항목 (r/a.txt, r/b.txt)", (result as IoResult.PartiallyFailed).message)
+        assertEquals(listOf("r/a.txt", "r/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)
         assertEquals(0, client.completePendingCalls)
         assertTrue("5xx는 연결 끊김이 아니므로 세션이 유지돼야 함", runBlocking { session.isReady() })
