@@ -49,13 +49,14 @@ fun BottomButtonDialogHost(
                 validate = { name -> compress.validateName(folder, name) }
             )
         }
-        if (dialogState.renameDialog) {
+        // 대상은 선택에서만 구한다(#369) — 열림 플래그와 따로 두면 선택이 하나가 아니게 됐을 때 대상 없이 열린다
+        selectedList.singleOrNull()?.takeIf { dialogState.renameDialog }?.let { target ->
             RenameDialog(
-                currentName = selectedList.first().name,
-                isDirectory = selectedList.first().isDirectory,
+                currentName = target.name,
+                isDirectory = target.isDirectory,
                 onConfirm = { name -> onSubmitSelection()?.let { rename.onRename(it, name) } },
                 onDismiss = { dialogState.dismissRename() },
-                validate = { name -> rename.validate(selectedList.first(), name) }
+                validate = { name -> rename.validate(target, name) }
             )
         }
     }
