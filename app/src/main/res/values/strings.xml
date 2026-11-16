@@ -136,6 +136,13 @@
     <string name="dialog_rename_hint">Name</string>
     <string name="dialog_zip_title">ZipFile Name</string>
     <string name="dialog_zip_hint">Name</string>
+    <string name="dialog_zip_password_protect">비밀번호 설정</string>
+    <string name="dialog_password_label">비밀번호</string>
+    <string name="dialog_password_confirm_label">비밀번호 확인</string>
+    <string name="dialog_password_mismatch">비밀번호가 일치하지 않습니다</string>
+    <string name="dialog_archive_password_title">비밀번호 입력</string>
+    <string name="dialog_archive_password_message">%1$s 은(는) 비밀번호가 걸린 압축 파일입니다.</string>
+    <string name="dialog_archive_password_wrong">비밀번호가 틀렸습니다</string>
     <string name="dialog_info_selected">Selected</string>
     <string name="dialog_info_size">Size</string>
     <string name="dialog_info_selected_count">%d 개</string>

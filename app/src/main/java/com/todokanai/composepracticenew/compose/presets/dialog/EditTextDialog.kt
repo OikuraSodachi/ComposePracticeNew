@@ -22,6 +22,7 @@ import com.todokanai.composepracticenew.R
  * 빈 입력으로 열면 오류는 사용자가 입력을 한 번이라도 바꾼 뒤에만 표시해, 열자마자 오류가 보이지 않게 한다.
  * [initialText]로 미리 채워 열면 처음부터 표시해, 미리 채운 값이 규칙을 어길 때 확인 버튼이 이유 없이 비활성으로 보이지 않게 한다.
  * 열면 입력란에 포커스를 주고 [initialSelection]을 선택해 두어, 바로 타이핑하면 선택한 부분이 바뀐다.
+ * 입력란 아래에 [extraContent]를 두며, [extraValid]가 false면 입력이 규칙을 지켜도 확인할 수 없다.
  *
  * @param E 검증 오류 사유의 타입
  */
@@ -37,7 +38,9 @@ fun <E> EditTextDialog(
     validate: (String) -> Set<E>,
     errorMessage: @Composable (E) -> String,
     onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    extraValid: () -> Boolean = { true },
+    extraContent: @Composable () -> Unit = {}
 ) {
     // 입력값(선택 범위 포함)과 편집 여부는 같은 rememberSaveable로 함께 보존 — 키 없음: initialText가 바뀌어도 입력 중인 값을 덮어쓰지 않음.
     // 호스트가 표시 상태를 구성 변경에 유지하면 입력값과 오류 표시가 짝을 이뤄 복원되고(한쪽만 복원되어 빈 입력에 오류가 뜨는 일 방지),
@@ -62,27 +65,31 @@ fun <E> EditTextDialog(
         title = title,
         onConfirm = { onConfirm(field.text) },
         onDismiss = onDismiss,
-        confirmEnabled = errors.isEmpty(),
+        confirmEnabled = errors.isEmpty() && extraValid(),
+        canConfirm = extraValid,
         confirmText = confirmText,
         dismissText = dismissText
     ) {
-        TextField(
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester),
-            value = field,
-            placeholder = {Text(defaultText)},
-            onValueChange = {
-                if (it.text != field.text) edited = true
-                field = it
-            },
-            singleLine = true,
-            isError = shownError != null,
-            supportingText = shownError?.let { error -> @Composable { Text(errorMessage(error)) } }
-        )
-        // 열릴 때 한 번 포커스를 준다 — 포커스가 없으면 미리 선택한 범위가 보이지 않고, 입력란을 누르는 순간 선택이 풀린다.
-        // AlertDialog는 내용을 별도 창에서 구성하므로, 입력란과 같은 구성 안에 두어야 요청 시점에 요청자가 연결돼 있다
-        LaunchedEffect(Unit) { focusRequester.requestFocus() }
+        Column {
+            TextField(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester),
+                value = field,
+                placeholder = {Text(defaultText)},
+                onValueChange = {
+                    if (it.text != field.text) edited = true
+                    field = it
+                },
+                singleLine = true,
+                isError = shownError != null,
+                supportingText = shownError?.let { error -> @Composable { Text(errorMessage(error)) } }
+            )
+            // 열릴 때 한 번 포커스를 준다 — 포커스가 없으면 미리 선택한 범위가 보이지 않고, 입력란을 누르는 순간 선택이 풀린다.
+            // AlertDialog는 내용을 별도 창에서 구성하므로, 입력란과 같은 구성 안에 두어야 요청 시점에 요청자가 연결돼 있다
+            LaunchedEffect(Unit) { focusRequester.requestFocus() }
+            extraContent()
+        }
     }
 }
 
