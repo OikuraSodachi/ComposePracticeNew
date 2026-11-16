@@ -12,7 +12,7 @@ import org.junit.Test
 class IoResultFailureReasonTest {
 
     /** 저장소가 알린 원인. */
-    private val refused = FailureReason.Raw("550")
+    private val refused = FailureReason.IoFailed("550")
 
     @Test
     fun `성공은 그대로 둔다`() {

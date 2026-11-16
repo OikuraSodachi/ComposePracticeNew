@@ -67,9 +67,9 @@ class OperationLauncherTest {
 
     @Test
     fun `실패 결과는 그 메시지로 실패를 알리고 진행 상태를 지운다`() {
-        launch { IoResult.ConnectionLost(FailureReason.Raw("끊김")) }
+        launch { IoResult.ConnectionLost(FailureReason.IoFailed("끊김")) }
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(null, IoResult.ConnectionLost(FailureReason.Raw("끊김")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(null, IoResult.ConnectionLost(FailureReason.IoFailed("끊김")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
         assertEquals(listOf(1), progressRepo.removed)
     }
@@ -86,7 +86,7 @@ class OperationLauncherTest {
         launch { throw IllegalStateException("구현 오류") }
         launch { IoResult.Done }
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(null, IoResult.ItemFailed(FailureReason.Raw("구현 오류")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(null, IoResult.ItemFailed(FailureReason.Unexpected("구현 오류")))), notices.failures)
         assertEquals(listOf(NoticeMessage.Completed(null)), notices.completions)
     }
 
@@ -103,9 +103,9 @@ class OperationLauncherTest {
 
     @Test
     fun `실패를 알린 뒤 보고 중 예외는 실패로 또 알리지 않고 스코프에 전파한다`() {
-        launchFailingRefresh { IoResult.ItemFailed(FailureReason.Raw("실패")) }
+        launchFailingRefresh { IoResult.ItemFailed(FailureReason.IoFailed("실패")) }
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(null, IoResult.ItemFailed(FailureReason.Raw("실패")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(null, IoResult.ItemFailed(FailureReason.IoFailed("실패")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
         assertEquals(listOf("cancel 1"), notifier.calls)
         assertEquals(listOf("갱신 오류"), propagated.map { it.message })
@@ -138,7 +138,7 @@ class OperationLauncherTest {
     @Test
     fun `실패하면 그 작업에 발급한 ID의 알림을 지운다`() {
         launch { IoResult.Done }
-        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.ItemFailed(FailureReason.Raw("실패")) }
+        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.ItemFailed(FailureReason.IoFailed("실패")) }
 
         assertEquals(listOf("completed 1", "progress 2", "cancel 2"), notifier.calls)
     }

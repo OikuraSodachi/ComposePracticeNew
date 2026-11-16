@@ -14,8 +14,6 @@ internal class FileSystemRouter(private val fileSystems: Set<PathAwareFileSystem
 
     private companion object {
         const val TAG = "FileExplorerRepo"
-        /** 경로를 처리할 파일 시스템이 없어 목록을 조회하지 못했을 때의 실패 메시지. */
-        const val UNSUPPORTED_PATH_MESSAGE = "지원하지 않는 경로입니다"
     }
 
     /**
@@ -42,7 +40,7 @@ internal class FileSystemRouter(private val fileSystems: Set<PathAwareFileSystem
      */
     suspend fun listFiles(path: String): IoResult<ListedDirectory> {
         Log.d(TAG, "fileList 갱신 — path=$path")
-        val fileSystem = resolve(path) ?: return IoResult.ItemFailed(FailureReason.Raw(UNSUPPORTED_PATH_MESSAGE))
+        val fileSystem = resolve(path) ?: return IoResult.ItemFailed(FailureReason.UnsupportedPath)
         return fileSystem.listFiles(path).onSuccess {
             Log.d(TAG, "fileList 결과 — path=$path size=${it.entries.size} unreadable=${it.unreadableCount}")
         }

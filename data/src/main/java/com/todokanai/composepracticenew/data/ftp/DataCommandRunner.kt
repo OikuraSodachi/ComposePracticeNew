@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.model.FailureReason
 import kotlinx.coroutines.CancellationException
 import java.io.Closeable
 import java.io.IOException
@@ -37,12 +38,12 @@ internal sealed interface DataCommandOutcome {
 }
 
 /**
- * 데이터 소켓을 연결하지 못한 실패([DataCommandOutcome.NotConnected])를 사용자에게 보여줄 메시지로 바꾼다.
+ * 데이터 소켓을 연결하지 못한 실패([DataCommandOutcome.NotConnected])를 원인으로 바꾼다.
  * @param cause 데이터 소켓을 연결하지 못한 실패
- * @return 표시할 메시지
+ * @return 데이터 연결 실패 원인
  */
-internal fun dataConnectionFailure(cause: IOException): String =
-    "데이터 연결을 열지 못했습니다 (${cause.message ?: cause.javaClass.simpleName})"
+internal fun dataConnectionFailure(cause: IOException): FailureReason =
+    FailureReason.DataConnectionFailed(cause.message ?: cause.javaClass.simpleName)
 
 /** 취소로 멈춘 명령 뒤의 정리 명령([DataCommandRunner.cleanUpAfterCancel])의 결과. */
 internal sealed interface CancelCleanup {

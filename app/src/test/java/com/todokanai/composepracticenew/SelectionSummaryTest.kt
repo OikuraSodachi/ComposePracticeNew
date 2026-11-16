@@ -42,7 +42,7 @@ class SelectionSummaryTest {
         val folder = AttributesInfo.from(IoResult.Success(ItemAttributes(isDirectory = true, lastModifiedMillis = 0)), "Music")
 
         assertEquals(ItemKind.Folder, (folder as AttributesInfo.Known).kind)
-        assertEquals(AttributesInfo.Failed(UiText.Raw("원인")), AttributesInfo.from(IoResult.ItemFailed(FailureReason.Raw("원인")), "Music"))
+        assertEquals(AttributesInfo.Failed(UiText.Raw("원인")), AttributesInfo.from(IoResult.ItemFailed(FailureReason.IoFailed("원인")), "Music"))
     }
 
     @Test
@@ -79,13 +79,13 @@ class SelectionSummaryTest {
             SizeInfo.AtLeast(readableFileSize_td(10), 2),
             SizeInfo.from(IoResult.Success(SizeMeasurement.LowerBound(10, listOf(FailedItem("a", null), FailedItem("b", null)))))
         )
-        assertEquals(SizeInfo.Failed(UiText.Raw("원인")), SizeInfo.from(IoResult.ItemFailed(FailureReason.Raw("원인"))))
+        assertEquals(SizeInfo.Failed(UiText.Raw("원인")), SizeInfo.from(IoResult.ItemFailed(FailureReason.IoFailed("원인"))))
     }
 
     @Test
     fun `하위 항목 수 실패는 0개가 아니라 실패로 바뀐다`() {
         assertEquals(ChildCountInfo.Known(0), ChildCountInfo.from(IoResult.Success(0)))
-        assertEquals(ChildCountInfo.Failed(UiText.Raw("원인")), ChildCountInfo.from(IoResult.ItemFailed(FailureReason.Raw("원인"))))
+        assertEquals(ChildCountInfo.Failed(UiText.Raw("원인")), ChildCountInfo.from(IoResult.ItemFailed(FailureReason.IoFailed("원인"))))
     }
 
     private fun kindOf(name: String): ItemKind =

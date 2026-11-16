@@ -46,7 +46,7 @@ class LocalTreeTransfer internal constructor(
             val roots = targetFiles.map(::File)
             val totals = roots.map(::treeTotalOf)
             val totalBytes = totals.sumOf { it.bytes }
-            checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(FailureReason.Raw(it)) }
+            checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(it) }
             val tracker = ByteProgressTracker(totalBytes, totals.sumOf { it.fileCount }, onProgress)
             tracker.reportStart()
 
@@ -83,8 +83,8 @@ class LocalTreeTransfer internal constructor(
                 .sumOf { totals[it].bytes }
             if (crossBytes > 0) {
                 val free = freeSpaceOf(destDir)
-                if (free == 0L) return@move IoResult.ItemFailed(FailureReason.Raw("디스크 공간 부족: 여유 공간 없음"))
-                checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(FailureReason.Raw(it)) }
+                if (free == 0L) return@move IoResult.ItemFailed(FailureReason.NoFreeSpace)
+                checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(it) }
             }
             val tracker = ByteProgressTracker(totals.sumOf { it.bytes }, totals.sumOf { it.fileCount }, onProgress)
             tracker.reportStart()
@@ -94,7 +94,7 @@ class LocalTreeTransfer internal constructor(
                 val dest = File(targetPath, root.name)
                 val links = mutableListOf<File>()
                 // 입출력 실패에 어느 항목에서 멈췄는지와 이미 옮긴 항목 수를 붙인다 — 두 이동 경로가 같은 문맥을 알린다
-                localIo(describe = { e -> "이동 실패: ${root.name} — ${ioFailureMessageOf(e)} (${i}개 항목은 이미 이동됨)" }) step@{
+                localIo(describe = { e -> FailureReason.MoveInterrupted(root.name, i, ioFailureReasonOf(e)) }) step@{
                     if (samePartition[i]) renameEntry(root, dest, tracker, resolveConflict, links)
                     else copyEntry(root, dest, tracker, resolveConflict, deleteSource = true, links)
                     IoResult.Done

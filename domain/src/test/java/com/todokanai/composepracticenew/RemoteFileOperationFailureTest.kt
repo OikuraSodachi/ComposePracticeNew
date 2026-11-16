@@ -47,21 +47,21 @@ class RemoteFileOperationFailureTest {
 
     @Test
     fun `다운로드가 실패하면 완료 대신 오류를 알린다`() {
-        transferRepo.failure = IoResult.ItemFailed(FailureReason.Raw("RETR 실패: 550 No such file"))
+        transferRepo.failure = IoResult.ItemFailed(FailureReason.IoFailed("RETR 실패: 550 No such file"))
 
         remote.download(listOf(item("ftp://h/r/a.txt", isDirectory = false)), "/local") {}
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.DOWNLOAD, IoResult.ItemFailed(FailureReason.Raw("RETR 실패: 550 No such file")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.DOWNLOAD, IoResult.ItemFailed(FailureReason.IoFailed("RETR 실패: 550 No such file")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
     }
 
     @Test
     fun `업로드 중 연결이 끊기면 완료 대신 오류를 알린다`() {
-        transferRepo.failure = IoResult.ConnectionLost(FailureReason.Raw("FTP 서버와의 연결이 끊겼습니다"))
+        transferRepo.failure = IoResult.ConnectionLost(FailureReason.IoFailed("FTP 서버와의 연결이 끊겼습니다"))
 
         remote.upload(listOf(item("/local/a.txt", isDirectory = false)), "ftp://h/r") {}
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.UPLOAD, IoResult.ConnectionLost(FailureReason.Raw("FTP 서버와의 연결이 끊겼습니다")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.UPLOAD, IoResult.ConnectionLost(FailureReason.IoFailed("FTP 서버와의 연결이 끊겼습니다")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
     }
 
@@ -107,27 +107,27 @@ class RemoteFileOperationFailureTest {
 
     @Test
     fun `원격 이름 변경이 실패하면 새 이름과 서버가 알린 원인을 함께 알린다`() {
-        mutationRepo.renameResult = IoResult.ItemFailed(FailureReason.Raw("RNTO 실패: 553"))
+        mutationRepo.renameResult = IoResult.ItemFailed(FailureReason.IoFailed("RNTO 실패: 553"))
 
         remote.renameRemote("ftp://h/r/a.txt", "b.txt") {}
 
-        val expected = IoResult.ItemFailed(FailureReason.RenameFailed("b.txt", FailureReason.Raw("RNTO 실패: 553")))
+        val expected = IoResult.ItemFailed(FailureReason.RenameFailed("b.txt", FailureReason.IoFailed("RNTO 실패: 553")))
         assertEquals(listOf(NoticeMessage.OperationFailed(null, expected)), notices.failures)
     }
 
     @Test
     fun `원격 폴더 생성 중 연결이 끊기면 끊김으로 남기고 폴더 이름과 원인을 함께 알린다`() {
-        mutationRepo.makeDirectoryResult = IoResult.ConnectionLost(FailureReason.Raw("연결 끊김"))
+        mutationRepo.makeDirectoryResult = IoResult.ConnectionLost(FailureReason.IoFailed("연결 끊김"))
 
         remote.makeDirectoryRemote("ftp://h/r", "new") {}
 
-        val expected = IoResult.ConnectionLost(FailureReason.MakeFolderFailed("new", FailureReason.Raw("연결 끊김")))
+        val expected = IoResult.ConnectionLost(FailureReason.MakeFolderFailed("new", FailureReason.IoFailed("연결 끊김")))
         assertEquals(listOf(NoticeMessage.OperationFailed(null, expected)), notices.failures)
     }
 
     @Test
     fun `원격 삭제가 일부 실패하면 완료 대신 저장소가 모은 실패를 알린다`() {
-        mutationRepo.deleteResult = IoResult.PartiallyFailed(listOf(FailedItem("b.txt", FailureReason.Raw("DELE 실패: 550"))))
+        mutationRepo.deleteResult = IoResult.PartiallyFailed(listOf(FailedItem("b.txt", FailureReason.IoFailed("DELE 실패: 550"))))
 
         remote.deleteRemote(targets = listOf(item("ftp://h/r/b.txt", false))) {}
 

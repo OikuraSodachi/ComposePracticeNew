@@ -103,13 +103,13 @@ class LocalFileSearchDataSource @Inject constructor(
         override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
             // 열지 못한 폴더도 이름은 알 수 있다 — 이름이 맞으면 결과에 넣고, 그 아래는 훑지 못했음을 함께 알린다
             if (file != root) check(file, null)
-            reporter.unreadable(FailedItem(file.toString(), exc.message?.let(FailureReason::Raw)))
+            reporter.unreadable(FailedItem(file.toString(), exc.message?.let(FailureReason::IoFailed)))
             return FileVisitResult.CONTINUE
         }
 
         override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
             // 디렉터리를 끝까지 나열하지 못했다 — 이미 찾은 항목은 남기고 이 디렉터리를 읽지 못한 항목으로 둔다
-            if (exc != null) reporter.unreadable(FailedItem(dir.toString(), exc.message?.let(FailureReason::Raw)))
+            if (exc != null) reporter.unreadable(FailedItem(dir.toString(), exc.message?.let(FailureReason::IoFailed)))
             return FileVisitResult.CONTINUE
         }
 

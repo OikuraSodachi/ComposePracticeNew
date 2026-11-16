@@ -44,7 +44,7 @@ class LocalArchiveCompression @Inject constructor(
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo {
-            val compressor = compressors[format] ?: return@localIo IoResult.ItemFailed(FailureReason.Raw("지원하지 않는 압축 형식: ${format.extension}"))
+            val compressor = compressors[format] ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(format.extension))
             compressEntries(compressor, targetFiles, File(parentPath, "$baseName${format.extension}"), onProgress)
         }
     }
@@ -70,13 +70,13 @@ class LocalArchiveCompression @Inject constructor(
             }
         }
         if (entries.isEmpty()) {
-            return if (skippedLinks.isEmpty()) IoResult.ItemFailed(FailureReason.Raw("압축할 항목이 없습니다."))
+            return if (skippedLinks.isEmpty()) IoResult.ItemFailed(FailureReason.NothingToCompress)
                    else IoResult.PartiallyFailed(skippedLinks)
         }
         val files = entries.filterIsInstance<ArchiveSource.Regular>()
         val totalBytes = files.sumOf { it.bytes }
         checkDiskSpace(totalBytes, (desired.parentFile ?: desired).freeSpace)
-            ?.let { return IoResult.ItemFailed(FailureReason.Raw(it)) }
+            ?.let { return IoResult.ItemFailed(it) }
         val tracker = ByteProgressTracker(totalBytes, files.size, onProgress)
         tracker.reportStart()
         // 압축 대상 목록을 만든 뒤에 새 파일을 확보 — 기존 파일(선택 항목 자신 포함)은 절대 열지 않으므로 잘라내기·자기 참조가 생기지 않는다

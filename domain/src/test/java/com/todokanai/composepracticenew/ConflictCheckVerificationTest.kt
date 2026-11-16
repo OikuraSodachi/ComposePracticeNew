@@ -114,7 +114,7 @@ class ConflictCheckVerificationTest {
 
     @Test
     fun `조회에 실패했으면 판정하지 않고 거부를 알린다`() {
-        show(DirectoryListing.Failed(current, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.Raw("550"))))
+        show(DirectoryListing.Failed(current, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.IoFailed("550"))))
 
         assertUnverified(useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
     }

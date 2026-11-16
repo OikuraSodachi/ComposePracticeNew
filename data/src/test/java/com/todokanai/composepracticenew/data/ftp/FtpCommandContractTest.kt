@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
@@ -57,7 +58,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
                 val result = runBlocking { run() }
                 assertTrue("$result", result is IoResult.ItemFailed)
                 val text = (behavior.serverBehavior as ServerBehavior.Refuse).text
-                assertEquals(IoResult.ItemFailed(FailureReason.Raw("${command.ftpName} 실패: $text${command.refusalNote}")), result)
+                assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(requireNotNull(command.step), text, command.mayHaveHiddenEntries)), result)
                 assertEquals("거부 응답 뒤에는 기다릴 응답이 없다", 0, client.completePendingCalls)
                 assertSessionKept()
             }
@@ -104,7 +105,8 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
      * 행렬의 명령 행.
      * @param ftpName [FakeFtpClient.serverBehaviors]의 명령 이름
      * @param name 테스트 이름에 표시할 행 이름. 같은 명령을 다른 용도로 쓰는 행을 구분한다
-     * @param refusalNote 거부 메시지에서 서버 응답 뒤에 붙는 설명. 원인을 응답만으로 알 수 없는 거부에만 붙는다([FtpReplyRules.refusal])
+     * @param step 서버가 거부했을 때 기대하는 단계. 거부 결과가 없는 행은 null
+     * @param mayHaveHiddenEntries 거부된 원인이 목록에 보이지 않는 항목일 수 있는 행인지([FtpReplyRules.refusal])
      * @param refused 서버가 이 명령을 거부했을 때의 기대 결과
      * @param prepare 명령이 그 단계까지 정상 진행되도록 가짜 클라이언트를 준비하는 함수
      * @param run 공개 API로 명령을 실행하는 함수
@@ -112,7 +114,8 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     internal class CommandRow(
         val ftpName: String,
         val name: String = ftpName,
-        val refusalNote: String = "",
+        val step: RemoteStep? = null,
+        val mayHaveHiddenEntries: Boolean = false,
         val refused: Outcome = Outcome.ITEM_FAILED,
         val prepare: (FakeFtpClient) -> Unit = {},
         val run: suspend (Fixture) -> IoResult<*>
@@ -139,21 +142,22 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     companion object {
         /** 모든 명령 행. */
         private val commands = listOf(
-            CommandRow("LIST") { it.parts.listing.listFiles("ftp://host/r") },
-            CommandRow("LIST", name = "LIST(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
+            CommandRow("LIST", step = RemoteStep.LIST_FOLDER) { it.parts.listing.listFiles("ftp://host/r") },
+            CommandRow("LIST", step = RemoteStep.LIST_FOLDER, name = "LIST(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
             // LIST 서버는 디렉터리로 이동한 뒤 LIST를 보낸다
-            CommandRow("CWD", name = "CWD(화면 목록)") { it.parts.listing.listFiles("ftp://host/r") },
-            CommandRow("CWD", name = "CWD(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
-            CommandRow("MLSD", prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r" to emptyList()) }) {
+            CommandRow("CWD", step = RemoteStep.OPEN_FOLDER, name = "CWD(화면 목록)") { it.parts.listing.listFiles("ftp://host/r") },
+            CommandRow("CWD", step = RemoteStep.OPEN_FOLDER, name = "CWD(트리 수집)") { it.parts.trees.collectRemoteTree("ftp://host/r", PreparationProgressReporter({})) },
+            CommandRow("MLSD", step = RemoteStep.LIST_FOLDER, prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r" to emptyList()) }) {
                 it.parts.listing.listFiles("ftp://host/r")
             },
-            CommandRow("RENAME") { it.parts.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") },
-            CommandRow("DELE") { it.parts.deletion.delete(listOf(fileTarget("ftp://host/r/a.txt"))) {}.singleItemResult() },
-            CommandRow("MKD") { it.parts.executor.makeDirectory("ftp://host/r/new") },
+            CommandRow("RENAME", step = RemoteStep.RENAME) { it.parts.executor.rename("ftp://host/r/a.txt", "ftp://host/r/b.txt") },
+            CommandRow("DELE", step = RemoteStep.DELETE_FILE) { it.parts.deletion.delete(listOf(fileTarget("ftp://host/r/a.txt"))) {}.singleItemResult() },
+            CommandRow("MKD", step = RemoteStep.MAKE_FOLDER) { it.parts.executor.makeDirectory("ftp://host/r/new") },
             // MLSD 목록은 숨김 항목을 빠뜨릴 수 있어, 그 항목이 남아 거부됐을 가능성을 덧붙인다
             CommandRow(
                 "RMD",
-                refusalNote = FtpReplyRules.HIDDEN_ENTRIES_NOTE,
+                step = RemoteStep.REMOVE_FOLDER,
+                mayHaveHiddenEntries = true,
                 prepare = { it.features = setOf("MLST"); it.mlsdListings = mapOf("/r/d" to emptyList()) }
             ) {
                 it.parts.deletion.delete(listOf(directoryTarget("ftp://host/r/d"))) {}.singleItemResult()
@@ -162,10 +166,10 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
             CommandRow("MLST", refused = Outcome.CONTINUES, prepare = { it.streamContent = "data".toByteArray() }) {
                 it.transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
             },
-            CommandRow("RETR", prepare = { it.streamContent = "data".toByteArray() }) {
+            CommandRow("RETR", step = RemoteStep.DOWNLOAD, prepare = { it.streamContent = "data".toByteArray() }) {
                 it.transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
             },
-            CommandRow("STOR", prepare = { it.streamContent = "data".toByteArray() }) {
+            CommandRow("STOR", step = RemoteStep.UPLOAD, prepare = { it.streamContent = "data".toByteArray() }) {
                 val local = File(it.dir, "a.txt").apply { writeText("A") }
                 it.transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult()
             },

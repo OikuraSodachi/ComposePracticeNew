@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
@@ -43,7 +44,7 @@ class FtpDataCommandRefusalTest {
 
         val result = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.Raw("PASV 실패: 500 PASV not understood")), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.PREPARE_TRANSFER, "500 PASV not understood")), result)
         assertFalse("준비 명령이 거부되면 LIST를 보내지 않아야 함", "LIST" in scripted.received)
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })
     }
@@ -54,7 +55,7 @@ class FtpDataCommandRefusalTest {
 
         val reason = downloadFailureReason(scripted)
 
-        assertEquals(FailureReason.Raw("PASV 실패: 500 PASV not understood"), reason)
+        assertEquals(FailureReason.ServerRefused(RemoteStep.PREPARE_TRANSFER, "500 PASV not understood"), reason)
         assertFalse("준비 명령이 거부되면 RETR를 보내지 않아야 함", "RETR" in scripted.received)
     }
 
@@ -64,7 +65,7 @@ class FtpDataCommandRefusalTest {
 
         val reason = downloadFailureReason(scripted)
 
-        assertEquals(FailureReason.Raw("RETR 실패: 550 No such file"), reason)
+        assertEquals(FailureReason.ServerRefused(RemoteStep.DOWNLOAD, "550 No such file"), reason)
     }
 
     /**

@@ -94,7 +94,7 @@ class FileInfoViewModelTest {
     fun `속성을 읽지 못하면 목록의 값 대신 실패를 보여주고 하위 항목 수를 세지 않는다`() {
         viewModel.show(listOf(folder))
 
-        repo.attributes.complete(IoResult.ItemFailed(FailureReason.Raw("없음")))
+        repo.attributes.complete(IoResult.ItemFailed(FailureReason.IoFailed("없음")))
 
         val summary = viewModel.summary.value as SelectionSummary.Single
         assertEquals(AttributesInfo.Failed(UiText.Raw("없음")), summary.attributes)

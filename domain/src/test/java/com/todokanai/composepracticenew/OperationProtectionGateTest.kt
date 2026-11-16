@@ -65,10 +65,10 @@ class OperationProtectionGateTest {
             IoResult.Done
         }
 
-        protection.result.complete(IoResult.ItemFailed(FailureReason.Raw("보호 거부")))
+        protection.result.complete(IoResult.ItemFailed(FailureReason.IoFailed("보호 거부")))
 
         assertFalse(ran)
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.Raw("보호 거부")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.IoFailed("보호 거부")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
         assertTrue(progressRepo.progressMap.value.isEmpty())
     }

@@ -6,12 +6,6 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
 
-/**
- * 항목을 하나씩 다루는 로컬 작업(복사·이동·이름 변경의 합치기·압축·업로드)이 심볼릭 링크를 만나 건너뛸 때의 실패 원인.
- * 링크는 지원 범위 밖이다(#320) — 따라가면 선택하지 않은 데이터를 지우거나 옮기고, 순환 링크에서 끝나지 않는다.
- */
-internal const val UNSUPPORTED_LINK_REASON = "심볼릭 링크는 지원하지 않습니다"
-
 /** 로컬 트리 항목의 종류. 심볼릭 링크를 따라가지 않고 항목 자신으로 정한다. */
 internal enum class LocalEntryKind {
     /** 링크가 아닌 폴더. 순회가 안으로 들어간다. */
@@ -72,5 +66,5 @@ private suspend fun SequenceScope<LocalTreeEntry>.visitTree(file: File, topDown:
 internal fun unsupportedLinkUnder(root: File, link: File): FailedItem {
     // 부모가 없는 경우는 파일시스템 루트를 선택한 것뿐이므로 루트 자신을 기준으로 한다
     val base = root.absoluteFile.parentFile ?: root.absoluteFile
-    return FailedItem(base.slashRelativePathOf(link.absoluteFile), FailureReason.Raw(UNSUPPORTED_LINK_REASON))
+    return FailedItem(base.slashRelativePathOf(link.absoluteFile), FailureReason.UnsupportedLink())
 }

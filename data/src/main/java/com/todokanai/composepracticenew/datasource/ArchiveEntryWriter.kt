@@ -26,8 +26,8 @@ class ArchiveEntryWriter(
 ) {
 
     /**
-     * 풀지 않고 실패로 알릴 항목. 경로 검증 실패는 아카이브 안의 항목 경로와 [REJECTED_PATH_REASON]을,
-     * 링크 자리는 루트 기준 '/' 구분 경로와 [UNSUPPORTED_LINK_REASON]을 담는다.
+     * 풀지 않고 실패로 알릴 항목. 경로 검증 실패는 아카이브 안의 항목 경로와 [FailureReason.UnsafeArchiveEntryPath]을,
+     * 링크 자리는 루트 기준 '/' 구분 경로와 [FailureReason.UnsupportedLink]을 담는다.
      */
     val failures: List<FailedItem>
         get() = failureList
@@ -112,9 +112,9 @@ class ArchiveEntryWriter(
     /**
      * 링크가 있어 풀지 않은 자리 [target]의 실패 항목을 만든다.
      * @param target 루트 아래의 자리
-     * @return 루트 기준 경로와 [UNSUPPORTED_LINK_REASON]을 담은 실패
+     * @return 루트 기준 경로와 [FailureReason.UnsupportedLink]을 담은 실패
      */
-    private fun linkFailureAt(target: File): FailedItem = FailedItem(root.directory.slashRelativePathOf(target), FailureReason.Raw(UNSUPPORTED_LINK_REASON))
+    private fun linkFailureAt(target: File): FailedItem = FailedItem(root.directory.slashRelativePathOf(target), FailureReason.UnsupportedLink())
 
     /**
      * 루트부터 [dir]까지의 폴더 자리를 위에서부터 차례로 돌려준다.
@@ -129,13 +129,7 @@ class ArchiveEntryWriter(
      * @return 풀 위치. 건너뛴 항목이면 null
      */
     private fun targetOrSkip(entryName: String): File? =
-        root.targetOf(entryName) ?: null.also { failureList += FailedItem(entryName, FailureReason.Raw(REJECTED_PATH_REASON)) }
-
-    /** 아카이브 항목 결과에 쓰는 상수를 둔다. */
-    companion object {
-        /** 루트 밖이나 루트 자신을 가리켜 풀지 않은 항목의 실패 사유. */
-        const val REJECTED_PATH_REASON = "경로 검증 실패"
-    }
+        root.targetOf(entryName) ?: null.also { failureList += FailedItem(entryName, FailureReason.UnsafeArchiveEntryPath) }
 
     /**
      * 쓰지 않은 파일 항목 하나를 [tracker]에 처리한 것으로 넘긴다.

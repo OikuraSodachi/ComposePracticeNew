@@ -115,7 +115,7 @@ class ChildCountViewModelTest {
         val counts = viewModel.countsFor(listing)
 
         val result = async { counts.countOf(music).first() }
-        repo.complete(music.path, IoResult.ItemFailed(FailureReason.Raw("권한 없음")))
+        repo.complete(music.path, IoResult.ItemFailed(FailureReason.IoFailed("권한 없음")))
 
         assertEquals(ChildCountInfo.Failed(UiText.Raw("권한 없음")), result.await())
     }

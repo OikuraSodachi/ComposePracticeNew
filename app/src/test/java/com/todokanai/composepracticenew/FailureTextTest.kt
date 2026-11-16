@@ -3,7 +3,9 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.FileSystemRefusal
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.ui.model.UiText
 import com.todokanai.composepracticenew.ui.model.failureTextOf
 import org.junit.Assert.assertEquals
@@ -14,7 +16,7 @@ import org.junit.Test
 class FailureTextTest {
 
     /** 권한 없음 원인. */
-    private val denied = FailureReason.Raw("권한 없음")
+    private val denied = FailureReason.IoFailed("권한 없음")
 
     /** 삭제 작업 부분 실패의 머리말. */
     private val deleteHeading = UiText.Resource(R.string.failure_partial_heading_delete)
@@ -36,7 +38,44 @@ class FailureTextTest {
             listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), "b.txt")), UiText.Raw("550"))
         )
 
-        assertEquals(expected, failureTextOf(IoResult.ConnectionLost(FailureReason.RenameFailed("b.txt", FailureReason.Raw("550"))), null))
+        assertEquals(expected, failureTextOf(IoResult.ConnectionLost(FailureReason.RenameFailed("b.txt", FailureReason.IoFailed("550"))), null))
+    }
+
+    @Test
+    fun `이름 변경을 서버가 거부하면 머리말과 겹치는 단계 이름 없이 응답만 보인다`() {
+        val expected = UiText.Resource(
+            R.string.failure_with_cause,
+            listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), "b.txt")), UiText.Raw("550 denied"))
+        )
+        val reason = FailureReason.RenameFailed("b.txt", FailureReason.ServerRefused(RemoteStep.RENAME, "550 denied"))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), null))
+    }
+
+    @Test
+    fun `머리말과 다른 단계의 서버 거부는 단계 이름을 남긴다`() {
+        val refused = UiText.Resource(R.string.failure_remote_step, listOf(UiText.Resource(R.string.remote_step_open_folder), UiText.Raw("550 no")))
+        val expected = UiText.Resource(
+            R.string.failure_with_cause,
+            listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_make_folder), "new")), refused)
+        )
+        val reason = FailureReason.MakeFolderFailed("new", FailureReason.ServerRefused(RemoteStep.OPEN_FOLDER, "550 no"))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), null))
+    }
+
+    @Test
+    fun `다운로드 부분 실패는 다운로드 단계 거부를 응답만으로 보인다`() {
+        val refused = FailureReason.ServerRefused(RemoteStep.DOWNLOAD, "550 gone")
+        val heading = UiText.Resource(R.string.failure_partial_heading_download)
+        val single = UiText.Resource(R.string.failure_with_cause, listOf(UiText.Resource(R.string.failure_at, listOf(heading, "a.txt")), UiText.Raw("550 gone")))
+        val multiple = UiText.Resource(R.string.failure_partial_multiple, listOf(heading, 2, UiText.Raw("550 gone"), UiText.Raw("a.txt, b.txt")))
+
+        assertEquals(single, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused))), FileOperationType.DOWNLOAD))
+        assertEquals(
+            multiple,
+            failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused), FailedItem("b.txt", refused))), FileOperationType.DOWNLOAD)
+        )
     }
 
     @Test
@@ -101,7 +140,7 @@ class FailureTextTest {
     fun `원인이 여러 종류면 가장 많은 원인과 나머지 원인의 종류와 항목 수를 보인다`() {
         val failures = listOf(
             FailedItem("a", denied),
-            FailedItem("b", FailureReason.Raw("공간 부족")),
+            FailedItem("b", FailureReason.IoFailed("공간 부족")),
             FailedItem("c", denied),
             FailedItem("d", null)
         )
@@ -123,6 +162,84 @@ class FailureTextTest {
         assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), FileOperationType.DELETE))
     }
 
-    /** 원문 원인의 표시 문구. */
-    private fun FailureReason.Raw.asText(): UiText = UiText.Raw(text)
+    @Test
+    fun `서버 거부는 단계 이름과 응답을 보이고 숨은 항목 가능성이 있으면 그 설명을 붙인다`() {
+        val step = UiText.Resource(R.string.remote_step_remove_folder)
+        val expected = UiText.Resource(
+            R.string.failure_remote_step,
+            listOf(step, UiText.Resource(R.string.failure_hidden_entries_note, listOf("550 Not empty")))
+        )
+
+        val reason = FailureReason.ServerRefused(RemoteStep.REMOVE_FOLDER, "550 Not empty", mayHaveHiddenEntries = true)
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), null))
+    }
+
+    @Test
+    fun `숨은 항목 가능성이 없는 서버 거부는 응답만 보인다`() {
+        val expected = UiText.Resource(R.string.failure_remote_step, listOf(UiText.Resource(R.string.remote_step_download), UiText.Raw("550 No such file")))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.DOWNLOAD, "550 No such file")), null))
+    }
+
+    @Test
+    fun `공간 부족은 필요한 양과 여유를 KB로 보인다`() {
+        val expected = UiText.Resource(R.string.failure_not_enough_space, listOf(2L, 1L))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.NotEnoughSpace(neededBytes = 2048, freeBytes = 1500)), null))
+    }
+
+    @Test
+    fun `파일 시스템 거부는 항목과 거부 종류를 보이고 항목을 모르면 종류만 보인다`() {
+        val denied = UiText.Resource(R.string.failure_fs_access_denied)
+
+        assertEquals(
+            UiText.Resource(R.string.failure_at, listOf("/a", denied)),
+            failureTextOf(IoResult.ItemFailed(FailureReason.FileSystemRefused("/a", FileSystemRefusal.AccessDenied)), null)
+        )
+        assertEquals(denied, failureTextOf(IoResult.ItemFailed(FailureReason.FileSystemRefused(null, FileSystemRefusal.AccessDenied)), null))
+    }
+
+    @Test
+    fun `이동 중단은 원인을 모르면 원인 모름으로 보인다`() {
+        val expected = UiText.Resource(R.string.failure_move_interrupted, listOf("dir", UiText.Resource(R.string.failure_reason_unknown), 3))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.MoveInterrupted("dir", 3, null)), FileOperationType.MOVE))
+    }
+
+    @Test
+    fun `이름 변경을 끝내지 못한 원인은 이름 변경 실패 뒤에 보인다`() {
+        val expected = UiText.Resource(
+            R.string.failure_at,
+            listOf(UiText.Resource(R.string.notice_failure_prefix_rename), UiText.Resource(R.string.failure_name_taken, listOf("b")))
+        )
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.NameTaken("b"))), null))
+    }
+
+    @Test
+    fun `자리가 있는 링크 실패는 자리를 괄호로 붙인다`() {
+        val expected = UiText.Resource(R.string.failure_with_cause, listOf(UiText.Resource(R.string.failure_unsupported_link), "d/x"))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.UnsupportedLink("d/x")), null))
+    }
+
+    @Test
+    fun `순환을 판별할 수 없는 경로 한도 실패는 그 설명을 붙인다`() {
+        val tooLong = UiText.Resource(R.string.failure_path_too_long, listOf(4096, "/deep"))
+
+        assertEquals(
+            UiText.Resource(R.string.failure_cycle_undecidable, listOf(tooLong)),
+            failureTextOf(IoResult.ItemFailed(FailureReason.PathTooLong("/deep", 4096, cycleUndecidable = true)), null)
+        )
+        assertEquals(tooLong, failureTextOf(IoResult.ItemFailed(FailureReason.PathTooLong("/deep", 4096, cycleUndecidable = false)), null))
+    }
+
+    @Test
+    fun `메시지 없는 전송 실패는 기본 문구를 보인다`() {
+        assertEquals(UiText.Resource(R.string.failure_transfer_failed), failureTextOf(IoResult.ItemFailed(FailureReason.TransferFailed(null)), null))
+        assertEquals(UiText.Raw("reset"), failureTextOf(IoResult.ItemFailed(FailureReason.TransferFailed("reset")), null))
+    }
+
+    /** 시스템 메시지 원인의 표시 문구. */
+    private fun FailureReason.IoFailed.asText(): UiText = UiText.Raw(detail)
 }
