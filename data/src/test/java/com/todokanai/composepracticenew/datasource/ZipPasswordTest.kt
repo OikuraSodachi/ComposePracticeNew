@@ -16,11 +16,12 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 
 /**
  * 비밀번호를 건 ZIP의 생성([ZipArchiveCompressor])과 해제([ZipArchiveExtractor] + [ArchivePasswordSession])를 검증하는 단위 테스트.
- * AES-256으로 만들어지는지, 필요할 때만 묻는지, 틀리면 이유를 담아 다시 묻는지, 확인 전에는 출력을 만들지 않는지, 항목마다 다른 비밀번호를 다시 묻는지 확인한다.
+ * AES-256으로 만들어지는지, 필요할 때만 묻는지, 틀리면 이유를 담아 다시 묻는지, 확인 전에는 출력을 만들지 않는지, 항목마다 다른 비밀번호(지원 범위 밖)는 다시 묻지 않고 실패하는지 확인한다.
  */
 class ZipPasswordTest {
 
@@ -115,15 +116,15 @@ class ZipPasswordTest {
     }
 
     @Test
-    fun `항목마다 비밀번호가 다르면 확인한 비밀번호가 맞지 않는 항목에서 처음부터 다시 묻는다`() {
+    fun `항목마다 비밀번호가 다르면 다시 묻지 않고 확인한 비밀번호가 맞지 않는 항목에서 실패한다`() {
         val zip = zipOf(listOf("a.txt" to "first", "b.txt" to "second"), EncryptionMethod.AES)
         val asked = mutableListOf<ArchivePasswordPrompt>()
 
-        extract(zip, session(asked, "first", "second"))
+        assertThrows(IOException::class.java) { extract(zip, session(asked, "first", "second")) }
 
-        assertEquals(listOf(ArchivePasswordPrompt.FIRST, ArchivePasswordPrompt.FIRST), asked)
+        assertEquals(listOf(ArchivePasswordPrompt.FIRST), asked)
         assertEquals(CONTENT, File(out, "a.txt").readText())
-        assertEquals(CONTENT, File(out, "b.txt").readText())
+        assertFalse(File(out, "b.txt").exists())
     }
 
     /**

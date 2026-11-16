@@ -83,17 +83,18 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     private fun knownSizeOf(header: FileHeader): Long? = header.uncompressedSize.takeIf { it >= 0 }
 
     /**
-     * 항목의 내용 스트림을 연다. 암호화된 항목은 확인된 비밀번호로 연다 — 앞 항목에서 확인한 비밀번호가 이 항목의 검증값과 맞지 않으면(항목마다 다른 비밀번호) 잊고 다시 묻는다.
+     * 항목의 내용 스트림을 연다. 암호화된 항목은 확인된 비밀번호로 연다 — 한 아카이브 안에서 항목마다 다른 비밀번호를 쓴 경우는 지원 범위 밖이므로,
+     * 앞 항목에서 확인한 비밀번호가 이 항목의 검증값과 맞지 않으면 다시 묻지 않고 풀 수 없는 항목으로 실패한다(RAR과 같은 범위).
      * @param zf 연 ZIP 파일
      * @param header 열 항목
      * @param passwords 이 아카이브의 비밀번호 세션
      * @return 항목 내용 스트림. 끝까지 읽으면 zip4j가 내용을 검증한다
+     * @throws IOException 확인한 비밀번호가 이 항목에 맞지 않을 때
      */
     private fun openEntry(zf: ZipFile, header: FileHeader, passwords: ArchivePasswordSession): InputStream {
         if (!header.isEncrypted) return zf.getInputStream(header)
         passwords.verified?.let { known ->
-            openWith(zf, header, known)?.let { return it }
-            passwords.forget()
+            return openWith(zf, header, known) ?: throw IOException("확인한 비밀번호가 맞지 않아 풀 수 없는 항목입니다: ${header.fileName}")
         }
         val password = passwords.verifiedPassword { candidate -> check(zf, header, candidate, passwords.ensureActive) }
         // 방금 같은 비밀번호로 끝까지 풀어 본 항목이라 검증값이 맞지 않을 수 없다

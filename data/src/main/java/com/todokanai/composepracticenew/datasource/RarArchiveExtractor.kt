@@ -82,8 +82,8 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
         try {
             return SevenZip.openInArchive(null, RandomAccessFileInStream(raf), first)
         } catch (e: SevenZipException) {
+            // 확인된 비밀번호로도 열지 못했으면 아래 verifiedPassword가 그 비밀번호를 그대로 돌려줘 다시 열기가 실패로 끝난다
             if (!first.passwordRequested) throw e
-            passwords.forget()
         }
         val password = passwords.verifiedPassword { candidate ->
             try {

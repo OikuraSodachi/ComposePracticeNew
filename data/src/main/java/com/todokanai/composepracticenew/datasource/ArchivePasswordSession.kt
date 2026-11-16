@@ -37,11 +37,6 @@ class ArchivePasswordSession(
             }
         }
     }
-
-    /** 확인된 비밀번호가 지금 항목에 맞지 않을 때(항목마다 다른 비밀번호를 쓴 압축 파일) 잊는다. 다음 [verifiedPassword]가 처음부터 묻는다. */
-    fun forget() {
-        verified = null
-    }
 }
 
 /** 후보 비밀번호로 내용을 풀어 본 결과. */
