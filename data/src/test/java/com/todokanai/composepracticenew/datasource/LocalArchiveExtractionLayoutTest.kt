@@ -44,7 +44,7 @@ class LocalArchiveExtractionLayoutTest {
         val asked = mutableListOf<WriteConflict>()
 
         val result = runBlocking {
-            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoDestination, skipping(asked)) {}
+            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoDestination, skipping(asked), UnexpectedPasswordProvider) {}
         }
 
         assertEquals(IoResult.Done, result)
@@ -59,7 +59,7 @@ class LocalArchiveExtractionLayoutTest {
         val asked = mutableListOf<WriteConflict>()
 
         val result = runBlocking {
-            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(asked)) {}
+            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(asked), UnexpectedPasswordProvider) {}
         }
 
         assertEquals(IoResult.Done, result)
@@ -72,7 +72,7 @@ class LocalArchiveExtractionLayoutTest {
         val zip = zipOf("a.zip", "../evil.txt", "ok.txt")
 
         val result = runBlocking {
-            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(mutableListOf())) {}
+            extraction.unzip(setOf(zip.path), dest.path, ExtractLayout.IntoArchiveFolder, skipping(mutableListOf()), UnexpectedPasswordProvider) {}
         }
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a/../evil.txt", FailureReason.UnsafeArchiveEntryPath))), result)

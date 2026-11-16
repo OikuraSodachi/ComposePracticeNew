@@ -11,8 +11,11 @@ import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.WriteConflict
+import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -33,6 +36,7 @@ class LocalArchiveExtraction @Inject constructor(
      * @param destPath 압축 해제 대상 디렉터리 경로
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
      * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로. 폴더끼리는 묻지 않고 합친다
+     * @param askPassword 암호화된 아카이브의 비밀번호를 묻는 통로. 아카이브마다 필요할 때 따로 묻는다
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 압축 해제 결과. 지원하지 않는 형식이 있으면 아무것도 해제하지 않고 실패한다. 루트 밖을 가리키거나(경로 검증 실패) 자리에 심볼릭 링크가 있어 풀지 않은 항목이 있으면, 그 항목들을 담은 [IoResult.PartiallyFailed]
      */
@@ -41,6 +45,7 @@ class LocalArchiveExtraction @Inject constructor(
         destPath: String,
         layout: ExtractLayout,
         resolveConflict: WriteConflictResolver,
+        askPassword: ArchivePasswordProvider,
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> = withContext(Dispatchers.IO) {
         // 추출 라이브러리의 콜백은 일시 중단할 수 없으므로 그 자리에서 답을 기다린다. 이 작업의 Job을 부모로 두어 작업 취소가 기다림을 끝낸다
@@ -50,7 +55,9 @@ class LocalArchiveExtraction @Inject constructor(
             val archives = zipFiles.map { path ->
                 path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(File(path).name)))
             }
-            val sizes = archives.map { (path, extractor) -> extractor.measure(path) }
+            // 아카이브마다 비밀번호 세션을 따로 둔다 — 한 아카이브에서 확인한 비밀번호를 다른 아카이브에 쓰지 않도록. 산정과 추출은 같은 세션을 쓴다
+            val sessions = archives.map { (path, _) -> passwordSessionOf(File(path).name, askPassword, job) }
+            val sizes = archives.mapIndexed { i, (path, extractor) -> extractor.measure(path, sessions[i]) }
             val knownBytes = sizes.sumOf { it.knownBytes }
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
             checkDiskSpace(knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
@@ -71,13 +78,25 @@ class LocalArchiveExtraction @Inject constructor(
                     return@forEachIndexed
                 }
                 val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker)
-                extractor.extract(zipFilePath, writer, tracker)
+                extractor.extract(zipFilePath, writer, sessions[i], tracker)
                 failures += writer.failures.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
             }
             tracker.reportComplete()
             if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failures)
         }
     }
+
+    /**
+     * 아카이브 하나의 비밀번호 세션을 만든다. 추출 라이브러리의 콜백 안에서도 묻도록, 일시 중단하지 않고 [job]을 부모로 답을 기다린다 — 작업 취소가 기다림을 끝낸다.
+     * @param archiveName 비밀번호를 물을 때 보일 아카이브 이름
+     * @param askPassword 비밀번호를 묻는 통로
+     * @param job 이 작업의 Job
+     * @return 새 비밀번호 세션
+     */
+    private fun passwordSessionOf(archiveName: String, askPassword: ArchivePasswordProvider, job: Job) = ArchivePasswordSession(
+        ask = { prompt -> runBlocking(job) { askPassword.passwordFor(archiveName, prompt) } },
+        ensureActive = { job.ensureActive() },
+    )
 
     /**
      * [layout]에 따라 [zipFile]의 항목을 풀 루트 디렉터리를 정한다.

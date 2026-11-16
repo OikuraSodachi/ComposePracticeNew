@@ -1,0 +1,201 @@
+package com.todokanai.composepracticenew.datasource
+
+import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
+import kotlinx.coroutines.CancellationException
+import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.AesKeyStrength
+import net.lingala.zip4j.model.enums.CompressionMethod
+import net.lingala.zip4j.model.enums.EncryptionMethod
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.io.File
+import java.nio.file.Files
+
+/**
+ * 비밀번호를 건 ZIP의 생성([ZipArchiveCompressor])과 해제([ZipArchiveExtractor] + [ArchivePasswordSession])를 검증하는 단위 테스트.
+ * AES-256으로 만들어지는지, 필요할 때만 묻는지, 틀리면 이유를 담아 다시 묻는지, 확인 전에는 출력을 만들지 않는지, 항목마다 다른 비밀번호를 다시 묻는지 확인한다.
+ */
+class ZipPasswordTest {
+
+    /** 아카이브와 압축 해제 결과를 둘 임시 디렉터리. */
+    private val dir: File = Files.createTempDirectory("zip-password-test").toFile()
+    /** 압축 해제 목적지. */
+    private val out = File(dir, "out")
+
+    @After
+    fun tearDown() {
+        dir.deleteRecursively()
+    }
+
+    @Test
+    fun `비밀번호를 주면 파일 항목을 AES-256으로 암호화해 만든다`() {
+        val zip = compressedZip(password = "secret")
+
+        val headers = ZipFile(zip).fileHeaders
+        val file = headers.single { !it.isDirectory }
+        assertTrue(file.isEncrypted)
+        assertEquals(EncryptionMethod.AES, file.encryptionMethod)
+        assertEquals(AesKeyStrength.KEY_STRENGTH_256, file.aesExtraDataRecord.aesKeyStrength)
+        assertFalse(headers.single { it.isDirectory }.isEncrypted)
+    }
+
+    @Test
+    fun `비밀번호 없이 만든 ZIP은 암호화하지 않고 풀 때 묻지 않는다`() {
+        val zip = compressedZip(password = null)
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        extract(zip, session(asked))
+
+        assertFalse(ZipFile(zip).isEncrypted)
+        assertEquals(emptyList<ArchivePasswordPrompt>(), asked)
+        assertEquals(CONTENT, File(out, "dir/a.txt").readText())
+    }
+
+    @Test
+    fun `맞는 비밀번호를 받으면 한 번만 묻고 그대로 푼다`() {
+        val zip = compressedZip(password = "secret")
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        extract(zip, session(asked, "secret"))
+
+        assertEquals(listOf(ArchivePasswordPrompt.FIRST), asked)
+        assertEquals(CONTENT, File(out, "dir/a.txt").readText())
+    }
+
+    @Test
+    fun `틀린 비밀번호를 받으면 틀렸다고 다시 묻고 맞는 비밀번호로 푼다`() {
+        val zip = compressedZip(password = "secret")
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        extract(zip, session(asked, "wrong", "secret"))
+
+        assertEquals(listOf(ArchivePasswordPrompt.FIRST, ArchivePasswordPrompt.WRONG), asked)
+        assertEquals(CONTENT, File(out, "dir/a.txt").readText())
+    }
+
+    @Test
+    fun `ZipCrypto 항목도 틀린 비밀번호는 다시 묻고 맞는 비밀번호로 푼다`() {
+        val zip = zipOf(listOf("a.txt" to "secret"), EncryptionMethod.ZIP_STANDARD)
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        extract(zip, session(asked, "wrong", "secret"))
+
+        assertEquals(ArchivePasswordPrompt.FIRST, asked.first())
+        // ZipCrypto의 검증값은 1바이트라 틀린 비밀번호가 통과하면 내용 검증에서 드러난다 — 어느 쪽이든 처음 묻기로 되돌아가지 않는다
+        assertNotEquals(ArchivePasswordPrompt.FIRST, asked[1])
+        assertEquals(CONTENT, File(out, "a.txt").readText())
+    }
+
+    @Test
+    fun `내용이 손상된 AES 항목은 틀렸거나 손상이라고 다시 묻는다`() {
+        val zip = zipOf(listOf("a.txt" to "secret"), EncryptionMethod.AES).also(::corruptLastDataByte)
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        // 같은 비밀번호로 다시 답해도 손상은 그대로이므로, 세 번째 질문에서 취소해 끝낸다
+        assertThrows(CancellationException::class.java) { extract(zip, session(asked, "secret", "secret")) }
+
+        assertEquals(listOf(ArchivePasswordPrompt.FIRST, ArchivePasswordPrompt.WRONG_OR_DAMAGED, ArchivePasswordPrompt.WRONG_OR_DAMAGED), asked)
+        assertFalse(File(out, "a.txt").exists())
+    }
+
+    @Test
+    fun `비밀번호 질문에서 취소하면 그 항목의 파일을 만들지 않는다`() {
+        val zip = compressedZip(password = "secret")
+
+        assertThrows(CancellationException::class.java) { extract(zip, session(mutableListOf())) }
+
+        assertFalse(File(out, "dir/a.txt").exists())
+    }
+
+    @Test
+    fun `항목마다 비밀번호가 다르면 확인한 비밀번호가 맞지 않는 항목에서 처음부터 다시 묻는다`() {
+        val zip = zipOf(listOf("a.txt" to "first", "b.txt" to "second"), EncryptionMethod.AES)
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        extract(zip, session(asked, "first", "second"))
+
+        assertEquals(listOf(ArchivePasswordPrompt.FIRST, ArchivePasswordPrompt.FIRST), asked)
+        assertEquals(CONTENT, File(out, "a.txt").readText())
+        assertEquals(CONTENT, File(out, "b.txt").readText())
+    }
+
+    /**
+     * 폴더 `dir` 아래 `a.txt`를 담은 ZIP을 [ZipArchiveCompressor]로 만든다.
+     * @param password 걸 비밀번호. null이면 암호화하지 않는다
+     */
+    private fun compressedZip(password: String?): File {
+        val source = File(dir, "src/dir").apply { mkdirs() }
+        val file = File(source, "a.txt").apply { writeText(CONTENT) }
+        val entries = listOf(ArchiveSource.Folder("dir"), ArchiveSource.Regular("dir/a.txt", file, file.length()))
+        return File(dir, "test.zip").also { zip ->
+            ZipArchiveCompressor().write(entries, zip, password, ByteProgressTracker(file.length(), 1, onProgress = {}))
+        }
+    }
+
+    /**
+     * 항목마다 정한 비밀번호로 [method] 암호화한 ZIP을 zip4j로 만든다(항목마다 다른 비밀번호를 쓰려고 항목마다 따로 더한다).
+     * @param entries (항목 이름, 비밀번호) 목록. 내용은 모두 [CONTENT]
+     * @param method 암호화 방식
+     */
+    private fun zipOf(entries: List<Pair<String, String>>, method: EncryptionMethod): File =
+        File(dir, "test.zip").also { zip ->
+            entries.forEach { (name, password) ->
+                val source = File(dir, "src/$name").apply { parentFile!!.mkdirs(); writeText(CONTENT) }
+                ZipFile(zip, password.toCharArray()).use { zf ->
+                    zf.addFile(source, ZipParameters().apply {
+                        // 압축하지 않아 손상시킨 바이트가 압축 해제 오류가 아니라 내용 검증 실패로만 드러나게 한다
+                        compressionMethod = CompressionMethod.STORE
+                        isEncryptFiles = true
+                        encryptionMethod = method
+                        if (method == EncryptionMethod.AES) aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
+                    })
+                }
+            }
+        }
+
+    /** [zip]의 첫 항목 암호문 마지막 바이트(HMAC 바로 앞)를 바꿔, 비밀번호 검증값은 맞고 내용 검증만 실패하게 만든다. */
+    private fun corruptLastDataByte(zip: File) {
+        val header = ZipFile(zip).fileHeaders.first()
+        val bytes = zip.readBytes()
+        // 지역 헤더(30바이트 + 이름 + 추가 필드) 뒤의 데이터 = 솔트·검증값 + 암호문 + HMAC(10바이트)
+        val localHeaderStart = header.offsetLocalHeader.toInt()
+        val nameLength = (bytes[localHeaderStart + 26].toInt() and 0xFF) or ((bytes[localHeaderStart + 27].toInt() and 0xFF) shl 8)
+        val extraLength = (bytes[localHeaderStart + 28].toInt() and 0xFF) or ((bytes[localHeaderStart + 29].toInt() and 0xFF) shl 8)
+        val dataEnd = localHeaderStart + 30 + nameLength + extraLength + header.compressedSize.toInt()
+        val at = dataEnd - AES_MAC_LENGTH - 1
+        bytes[at] = (bytes[at].toInt() xor 0xFF).toByte()
+        zip.writeBytes(bytes)
+    }
+
+    /**
+     * 정해 둔 답을 차례로 주고 받은 이유를 기록하는 비밀번호 세션. 답이 떨어지면 취소한다(사용자가 질문에서 취소한 것과 같은 길).
+     * @param asked 받은 이유를 기록할 목록
+     * @param answers 차례로 줄 비밀번호
+     */
+    private fun session(asked: MutableList<ArchivePasswordPrompt>, vararg answers: String): ArchivePasswordSession {
+        val remaining = ArrayDeque(answers.toList())
+        return ArchivePasswordSession(
+            ask = { prompt -> asked += prompt; remaining.removeFirstOrNull() ?: throw CancellationException("질문에서 취소") },
+            ensureActive = {},
+        )
+    }
+
+    /** [zip]을 [out]에 [passwords] 세션으로 푼다. */
+    private fun extract(zip: File, passwords: ArchivePasswordSession) = ByteProgressTracker(1, 2, onProgress = {}).let { tracker ->
+        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker), passwords, tracker)
+    }
+
+    private companion object {
+        /** 항목 내용. */
+        const val CONTENT = "password-protected-content"
+        /** AES 항목 끝의 HMAC 길이(bytes). */
+        const val AES_MAC_LENGTH = 10
+    }
+}

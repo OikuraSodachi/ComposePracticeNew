@@ -14,7 +14,8 @@ interface FileActionRepository {
     // Compresses [targetFiles] into a new [format] archive named [baseName] + [ArchiveFormat.extension] under [parentPath], reporting progress via [onProgress].
     // Never overwrites: if that name already exists, a numbered name such as "name (1).zip" is used instead.
     // Fails without creating anything if [format] is not in [supportedArchiveFormats].
-    suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    // A non-null [password] (never empty) encrypts every file entry with AES-256; null creates an unencrypted archive.
+    suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Returns the archive formats [compressAction] can create.
     fun supportedArchiveFormats(): Set<ArchiveFormat>
@@ -45,7 +46,9 @@ interface FileActionRepository {
     // Extracts [zipFiles] into [destPath], placing the entries as [layout] says, reporting progress via [onProgress].
     // Folders are merged into existing folders without asking. A file entry whose name is taken is resolved through
     // [resolveConflict] (PROCEED replaces the file); an entry whose type differs from the existing one can only be skipped.
-    suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    // Encrypted entries get their password from [askPassword], asked once per archive when first needed and asked again
+    // (WRONG / WRONG_OR_DAMAGED) until a password is verified before any output is written for it.
+    suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
     // Returns true if [unzipAction] supports the archive format of [path].
     fun canExtract(path: String): Boolean

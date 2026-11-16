@@ -40,8 +40,8 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 정렬은 조회 결과 위에 적용한다(정렬 변경으로 다시 조회하지 않는다).
 - 로컬에 쓰는 작업(복사·이동·압축 해제·다운로드)의 이름 충돌은 목록이 아니라 쓰는 시점의 파일 시스템 결과로 판정한다(#316). 덮어쓰지 않는 쓰기(`CREATE_NEW`·`createDirectory`, 같은 파티션 이동은 빈 파일로 자리를 확보한 뒤 rename으로 대신)를 먼저 시도하고, 이미 있다고 알릴 때만(`FileAlreadyExistsException`) 저장소 계약이 받은 `WriteConflictResolver`로 묻는다(`LocalConflictWrites.kt`). 같은 항목인지도 파일 시스템이 정하므로, 함께 보내는 항목끼리의 겹침도 같은 길로 묻는다.
   - 처리: 파일은 덮어쓰기(지우지 않고 한 번에 비우며 연다), 폴더끼리는 합치기(안쪽 항목을 다시 하나씩 판정), 파일·폴더가 엇갈리면 건너뛰기만. 압축 해제는 폴더를 묻지 않고 합친다. 이동에서 건너뛴 항목은 원래 자리에 남는다.
-  - 묻기: `FileOperationOrchestrator.launchResolvingConflicts`가 질문함(`ConflictQuestionAsker`/`ConflictQuestionRepository`, 구현 `ConflictQuestions`)에 맡기고, 화면 호스트의 `ConflictQuestionSection`이 어느 화면에서든 하나씩 묻는다. 보이는 화면이 없으면 질문은 남아 다시 보일 때 묻고, 그동안 진행 알림은 '확인 필요'가 된다. 묻는 동안 작업은 멈춘다.
-  - 끝내는 길: 질문에서 취소하면 작업 취소, 질문 하나에 6시간 동안 답이 없으면 실패(`UnansweredConflict`)로 끝난다. 이미 처리한 항목은 그대로 둔다.
+  - 묻기: `FileOperationOrchestrator.launchAsking`이 작업 질문함(`OperationQuestionAsker`/`OperationQuestionRepository`, 구현 `OperationQuestions`)에 맡기고, 화면 호스트의 `OperationQuestionSection`이 어느 화면에서든 하나씩 묻는다. 질문함은 충돌과 압축 파일 비밀번호(아래 압축 해제 항목) 질문을 종류와 무관하게 맡긴 순서대로 내보낸다 — 두 다이얼로그가 동시에 뜨지 않도록. 보이는 화면이 없으면 질문은 남아 다시 보일 때 묻고, 그동안 진행 알림은 질문 종류에 맞는 '확인 필요'가 된다. 묻는 동안 작업은 멈춘다.
+  - 끝내는 길: 질문에서 취소하면 작업 취소, 질문 하나에 6시간 동안 답이 없으면 실패(`NoticeMessage.UnansweredQuestion`)로 끝난다. 이미 처리한 항목은 그대로 둔다.
   - "나머지에도 적용"은 겹침 종류별로, 그 작업 안에서만 쓴다. 한 번의 확인으로 고른 항목들은 작업 하나로 실행한다(다운로드 포함) — 질문의 취소·진행 다이얼로그의 취소·"나머지에도 적용"이 모두 같은 범위에 걸리도록.
   - 다운로드는 로컬 자리를 FTP 세션 잠금 밖에서 확보한다(답을 기다리는 동안 세션을 붙잡지 않도록). 받기 시작하지 못하면 이 다운로드가 만든 빈 파일만 지운다.
 - 업로드와 이름 변경(입력 중 미리 보기·제안 이름 포함)의 충돌은 목록으로 판정하며 `ConflictCheckUseCase`만 한다. 확인된 목록(`FileNavigatorUseCase.verifiedListing()`, domain internal)이 없으면 판정하지 않고 거부를 알린 뒤 null을 반환한다. 읽지 못한 항목이 있는 목록(`DirectoryListing.Loaded.isComplete`가 false — FTP 목록에서 해석하지 못한 줄, #255)도 빠진 항목이 있을 수 있어 확인된 목록이 아니다. ViewModel은 UI 상태로 충돌을 판정하지 않는다. 업로드는 FTP에 "지정한 이름으로, 없을 때만 만들기"가 없어 확인할 때의 목록으로 판정하며, 그 뒤 서버에 생긴 같은 이름의 파일을 덮어쓰는 틈과, 열지 못한 폴더를 2xx 빈 목록으로 답하는 서버(응답 코드로 구분할 수 없음)에서 목록에 드러나지 않은 항목을 덮어쓰는 것(#266)은 지원 범위 밖이다.
@@ -91,6 +91,7 @@ UI는 `localMode()` / `remoteMode()`로 모드만 꺼내 분기하고(`derivedSt
 ### File Operations
 
 - 로컬: `LocalFileOperationUseCase` → `FileActionRepository`(`FileActionRepositoryImpl`). 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalArchiveCompression` + 형식별 `ArchiveCompressor`(@IntoMap, 키는 domain `ArchiveFormat`), `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet, 항목 생성·건너뜀 집계는 공통 `ArchiveEntryWriter`로만), `LocalEntryMutator`)로 나뉘고, `FileActionRepositoryImpl`이 이들에 직접 맡긴다(사이에 data source 인터페이스를 두지 않는다 — 교체 지점은 `FileActionRepository` 바인딩).
+- 압축 비밀번호: 압축은 비밀번호를 받으면 파일 항목을 AES-256으로 암호화한다(ZIP은 이름을 암호화하지 않는다). ZIP 읽기·쓰기는 zip4j 하나로 한다. 압축 해제는 암호화된 항목을 만나면 압축 파일마다 따로 묻고(`ArchivePasswordProvider` → 작업 질문함, 아카이브마다 `ArchivePasswordSession`), 비밀번호는 출력을 만들기 전에 그 항목을 끝까지 풀어 보아 확인한다 — 검증값(AES 2바이트, ZipCrypto 1바이트)만으로는 틀린 비밀번호가 통과할 수 있어서다. 틀리면 '틀렸습니다'(검증값 불일치)나 '틀렸거나 손상'(내용 검증 실패 — RAR4·ZipCrypto는 틀린 비밀번호와 손상을 구분할 수 없다)으로 다시 묻고, 끝내는 길은 취소·무응답뿐이다. 확인한 비밀번호는 그 압축 파일 안에서만 다시 쓴다. ZIP은 항목마다 다른 비밀번호를 다시 물어 지원하고, RAR에서 항목마다 다른 비밀번호는 지원 범위 밖이다(풀 수 없는 항목으로 실패). RAR의 목록 암호화는 열 때 묻는다. ZIP 항목 이름은 UTF-8로만 읽으며, 해석하지 못한 이름(U+FFFD)이 있으면 아무것도 풀지 않고 실패한다.
 - 원격: `RemoteFileOperationUseCase` → `RemoteFileTransferRepository` / `RemoteFileMutationRepository` (FTP 구현: `FtpRepositoryImpl`).
 - 실행·진행 보고·완료/실패 처리는 `FileOperationOrchestrator`가 담당하며, 작업 인스턴스 ID도 여기서만 발급한다.
 - 진행 표시가 있는 작업의 저장소 계약은 그 작업의 대상 전체를 한 번에 받는다. `ProgressState`는 구현이 계산한 퍼센트·전체 수라 부르는 쪽이 대상별 보고를 합칠 수 없고, 폴더 안쪽 수는 구현만 알기 때문이다. 대상 하나를 받는 계약을 UseCase가 반복해 부르면 진행이 대상마다 0%로 돌아간다(로컬 삭제 #355). 기존 계약에 진행 표시를 붙일 때도 받는 범위를 함께 바꾼다.

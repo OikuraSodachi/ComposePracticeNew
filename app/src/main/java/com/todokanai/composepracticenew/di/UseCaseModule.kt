@@ -3,8 +3,8 @@ package com.todokanai.composepracticenew.di
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
-import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
-import com.todokanai.composepracticenew.repository.ConflictQuestionRepository
+import com.todokanai.composepracticenew.repository.OperationQuestionAsker
+import com.todokanai.composepracticenew.repository.OperationQuestionRepository
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
@@ -30,7 +30,7 @@ import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.StorageVolumeRepository
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
-import com.todokanai.composepracticenew.usecase.ConflictQuestionUseCase
+import com.todokanai.composepracticenew.usecase.OperationQuestionUseCase
 import com.todokanai.composepracticenew.usecase.ConnectFailureAlertUseCase
 import com.todokanai.composepracticenew.usecase.ConnectFailureReportUseCase
 import com.todokanai.composepracticenew.usecase.ConnectionLossNoticeUseCase
@@ -157,13 +157,13 @@ object UseCaseModule {
         progressRepo: ProgressRepository,
         notices: OperationNoticeReporter,
         protection: OperationProtection,
-        questions: ConflictQuestionAsker,
+        questions: OperationQuestionAsker,
         @ApplicationScope appScope: CoroutineScope
     ) = FileOperationOrchestrator(notifier, progressRepo, notices, protection, questions, appScope)
 
     @Provides @Singleton
-    fun provideConflictQuestionUseCase(questions: ConflictQuestionRepository) =
-        ConflictQuestionUseCase(questions)
+    fun provideOperationQuestionUseCase(questions: OperationQuestionRepository) =
+        OperationQuestionUseCase(questions)
 
     @Provides @Singleton
     fun provideCancelOperationUseCase(orchestrator: FileOperationOrchestrator) =

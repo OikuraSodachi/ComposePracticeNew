@@ -26,12 +26,13 @@ sealed interface NoticeMessage {
     data class OperationFailed(val operationType: FileOperationType?, val failure: IoResult.Failure) : NoticeMessage
 
     /**
-     * 쓰기 충돌 질문 하나에 정해진 시간 동안 답이 없어 작업을 멈췄다. 이미 처리한 항목은 그대로 둔다.
+     * 작업의 질문 하나에 정해진 시간 동안 답이 없어 작업을 멈췄다. 이미 처리한 항목은 그대로 둔다.
      * @param operationType 멈춘 작업의 종류
-     * @param name 답을 받지 못한 항목의 이름
+     * @param kind 답을 받지 못한 질문의 종류
+     * @param name 질문이 가리킨 이름(충돌이면 겹친 항목, 비밀번호면 압축 파일)
      * @param waitHours 답을 기다린 시간(시간 단위)
      */
-    data class UnansweredConflict(val operationType: FileOperationType, val name: String, val waitHours: Long) : NoticeMessage
+    data class UnansweredQuestion(val operationType: FileOperationType, val kind: QuestionKind, val name: String, val waitHours: Long) : NoticeMessage
 
     /**
      * 사용자가 정한 이름이 규칙에 맞지 않아 작업을 실행하지 않았다.

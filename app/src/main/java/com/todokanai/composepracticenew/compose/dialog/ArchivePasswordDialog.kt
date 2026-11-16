@@ -20,19 +20,20 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
+import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 
 /**
  * 압축 해제 중 암호화된 압축 파일을 만났을 때 비밀번호를 묻는 다이얼로그.
  * 바깥을 눌러 닫지 않는다 — 답하지 않고 닫으면 작업이 계속 기다리므로. 질문마다 새 입력으로 시작하도록 호스트가 질문으로 key를 건다.
  * @param archiveName 비밀번호를 묻는 압축 파일의 표시 이름
- * @param wrongPassword 앞서 입력한 비밀번호가 틀려 다시 묻는 것이면 true
+ * @param prompt 묻는 이유. 다시 묻는 것이면 앞서 입력한 비밀번호가 틀렸는지(또는 틀렸거나 손상인지)를 입력란 아래에 알린다
  * @param onConfirm 입력한 비밀번호를 전달하는 콜백
  * @param onCancel 압축 해제 작업을 취소하는 콜백
  */
 @Composable
 fun ArchivePasswordDialog(
     archiveName: String,
-    wrongPassword: Boolean,
+    prompt: ArchivePasswordPrompt,
     onConfirm: (password: String) -> Unit,
     onCancel: () -> Unit,
 ) {
@@ -53,7 +54,7 @@ fun ArchivePasswordDialog(
                     value = password,
                     onValueChange = { password = it },
                     label = stringResource(R.string.dialog_password_label),
-                    error = if (wrongPassword) stringResource(R.string.dialog_archive_password_wrong) else null
+                    error = retryReasonRes(prompt)?.let { stringResource(it) }
                 )
                 // 열릴 때 한 번 포커스를 준다 — AlertDialog는 내용을 별도 창에서 구성하므로, 입력란과 같은 구성 안에 두어야 요청 시점에 요청자가 연결돼 있다
                 LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -70,13 +71,24 @@ fun ArchivePasswordDialog(
     )
 }
 
+/**
+ * 다시 묻는 이유를 입력란 아래 문구로 고른다.
+ * @param prompt 묻는 이유
+ * @return 문자열 리소스 id. 처음 묻는 것이면 null
+ */
+private fun retryReasonRes(prompt: ArchivePasswordPrompt): Int? = when (prompt) {
+    ArchivePasswordPrompt.FIRST -> null
+    ArchivePasswordPrompt.WRONG -> R.string.dialog_archive_password_wrong
+    ArchivePasswordPrompt.WRONG_OR_DAMAGED -> R.string.dialog_archive_password_wrong_or_damaged
+}
+
 /** ArchivePasswordDialog의 틀린 비밀번호로 다시 묻는 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun ArchivePasswordDialogPreview() {
     ArchivePasswordDialog(
         archiveName = "photos.zip",
-        wrongPassword = true,
+        prompt = ArchivePasswordPrompt.WRONG,
         onConfirm = {},
         onCancel = {}
     )

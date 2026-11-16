@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.LeftoverCause
 import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OpenFailure
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.RelocateOperation
 
 /**
@@ -18,8 +19,8 @@ fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
     is NoticeMessage.Completed -> UiText.Resource(completionTextRes(message.operationType))
     is NoticeMessage.Cancelled -> cancelledTextOf(message.operationType)
     is NoticeMessage.OperationFailed -> failureTextOf(message.failure, message.operationType) ?: UiText.Resource(R.string.notice_unknown_failure)
-    is NoticeMessage.UnansweredConflict -> UiText.Resource(
-        R.string.notice_unanswered_conflict,
+    is NoticeMessage.UnansweredQuestion -> UiText.Resource(
+        unansweredQuestionRes(message.kind),
         listOf(UiText.Resource(operationNameRes(message.operationType)), message.name, message.waitHours)
     )
     is NoticeMessage.InvalidName -> UiText.Resource(R.string.notice_invalid_name, listOf(UiText.Resource(namingPrefixRes(message.operation)), message.name))
@@ -132,4 +133,14 @@ private fun openFailureRes(reason: OpenFailure): Int = when (reason) {
 private fun leftoverCauseTextOf(cause: LeftoverCause): UiText = when (cause) {
     is LeftoverCause.Refused -> UiText.Resource(R.string.notice_leftover_refused, listOf(cause.reply))
     LeftoverCause.SessionEnded -> UiText.Resource(R.string.notice_leftover_session_ended)
+}
+
+/**
+ * 답이 없어 멈춘 작업의 알림 문구를 질문 종류로 고른다.
+ * @param kind 답을 받지 못한 질문의 종류
+ * @return 문자열 리소스 id(인자: 작업 이름, 질문이 가리킨 이름, 기다린 시간)
+ */
+private fun unansweredQuestionRes(kind: QuestionKind): Int = when (kind) {
+    QuestionKind.CONFLICT -> R.string.notice_unanswered_conflict
+    QuestionKind.ARCHIVE_PASSWORD -> R.string.notice_unanswered_archive_password
 }

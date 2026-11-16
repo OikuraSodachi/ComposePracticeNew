@@ -74,7 +74,7 @@ class RarExtractCallbackTest {
         File(root, "p").writeText("file")
         // 폴더 자리의 파일로 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던지게 해 writer가 IOException을 내는 상황을 만든다
         val failingWriter = ArchiveEntryWriter(ExtractionRoot(root), { throw IOException("만들 수 없음") }, tracker())
-        val callback = RarExtractCallback({ RarEntryKind.File("p/a.txt") }, { null }, failingWriter, tracker())
+        val callback = RarExtractCallback({ RarEntryKind.File("p/a.txt") }, { null }, { null }, failingWriter, tracker())
 
         val thrown = assertThrows(IOException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
@@ -85,7 +85,7 @@ class RarExtractCallbackTest {
     @Test
     fun `구현 오류는 바꾸지 않고 그대로 보관한다`() {
         val bug = IllegalStateException("bug")
-        val callback = RarExtractCallback({ throw bug }, { null }, writer, tracker())
+        val callback = RarExtractCallback({ throw bug }, { null }, { null }, writer, tracker())
 
         assertThrows(IllegalStateException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
@@ -104,7 +104,7 @@ class RarExtractCallbackTest {
     }
 
     /** [entries]를 순서대로 항목 번호에 둔 콜백을 만든다. 크기는 모두 모름(null)으로 둔다. */
-    private fun callbackOf(vararg entries: RarEntryKind) = RarExtractCallback({ entries[it] }, { null }, writer, tracker())
+    private fun callbackOf(vararg entries: RarEntryKind) = RarExtractCallback({ entries[it] }, { null }, { null }, writer, tracker())
 
     /** 진행 보고를 버리는 트래커. */
     private fun tracker() = ByteProgressTracker(1, 1, onProgress = {})

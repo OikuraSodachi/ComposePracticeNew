@@ -97,8 +97,8 @@ class LocalFileOperationUseCase(
      */
     fun copy(files: Set<String>, destPath: String, onRefresh: suspend () -> Unit) {
         if (rejectsDestination(files, destPath, RelocateOperation.COPY)) return
-        orchestrator.launchResolvingConflicts(FileOperationType.COPY, onRefresh) { onProgress, resolveConflict ->
-            fileActionRepo.copyAction(files, destPath, resolveConflict, onProgress)
+        orchestrator.launchAsking(FileOperationType.COPY, onRefresh) { onProgress, prompts ->
+            fileActionRepo.copyAction(files, destPath, prompts, onProgress)
         }
     }
 
@@ -124,8 +124,8 @@ class LocalFileOperationUseCase(
      */
     fun move(files: Set<String>, destPath: String, onRefresh: suspend () -> Unit) {
         if (rejectsDestination(files, destPath, RelocateOperation.MOVE)) return
-        orchestrator.launchResolvingConflicts(FileOperationType.MOVE, onRefresh) { onProgress, resolveConflict ->
-            fileActionRepo.moveFile(files, destPath, resolveConflict, onProgress)
+        orchestrator.launchAsking(FileOperationType.MOVE, onRefresh) { onProgress, prompts ->
+            fileActionRepo.moveFile(files, destPath, prompts, onProgress)
         }
     }
 
@@ -136,19 +136,23 @@ class LocalFileOperationUseCase(
      * @param parentPath 아카이브를 생성할 디렉터리의 절대 경로
      * @param name 생성할 아카이브 이름(확장자 제외)
      * @param format 만들 아카이브 형식
+     * @param password 아카이브를 암호화할 비밀번호(AES-256). null이면 암호화하지 않는다. 빈 문자열은 받지 않는다
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, onRefresh: suspend () -> Unit) {
+    fun compress(files: Set<String>, parentPath: String, name: String, format: ArchiveFormat, password: String?, onRefresh: suspend () -> Unit) {
+        // 빈 비밀번호는 입력 창이 막는다 — 여기 닿았다면 구현 오류다(암호화를 원한 압축을 암호 없이 만들지 않도록 실패시킨다)
+        require(password == null || password.isNotEmpty()) { "빈 비밀번호로 압축할 수 없습니다" }
         if (rejectsUnsupportedFormat(format)) return
         if (notices.rejectsInvalidName(validateArchiveName(name, parentPath, format), "$name${format.extension}", NamingOperation.COMPRESS)) return
         orchestrator.launch(FileOperationType.COMPRESS, onRefresh) { onProgress ->
-            fileActionRepo.compressAction(files, parentPath, name, format, onProgress)
+            fileActionRepo.compressAction(files, parentPath, name, format, password, onProgress)
         }
     }
 
     /**
      * [zipFiles]를 [destPath]에 압축 해제한다. 같은 이름의 파일은 그 항목을 풀려 할 때 사용자에게 묻고, 폴더는 묻지 않고 합친다.
+     * 암호화된 항목을 만나면 압축 파일마다 비밀번호를 묻고, 틀리면 다시 묻는다.
      * @param zipFiles 압축 해제할 zip/rar 파일의 절대 경로 집합
      * @param destPath 압축 해제 대상 디렉터리의 절대 경로
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
@@ -156,8 +160,8 @@ class LocalFileOperationUseCase(
      * @return Unit
      */
     fun unzip(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, onRefresh: suspend () -> Unit) {
-        orchestrator.launchResolvingConflicts(FileOperationType.UNZIP, onRefresh) { onProgress, resolveConflict ->
-            fileActionRepo.unzipAction(zipFiles, destPath, layout, resolveConflict, onProgress)
+        orchestrator.launchAsking(FileOperationType.UNZIP, onRefresh) { onProgress, prompts ->
+            fileActionRepo.unzipAction(zipFiles, destPath, layout, resolveConflict = prompts, askPassword = prompts, onProgress = onProgress)
         }
     }
 

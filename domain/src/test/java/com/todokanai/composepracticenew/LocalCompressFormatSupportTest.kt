@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
@@ -40,7 +42,7 @@ class LocalCompressFormatSupportTest {
     fun `저장소가 지원하지 않는 형식은 저장소를 호출하지 않고 진행 표시 없이 거부한다`() {
         val repo = SupportingRepository(supported = emptySet())
 
-        useCaseWith(repo).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP) {}
+        useCaseWith(repo).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP, password = null) {}
 
         assertEquals(1, notices.failures.size)
         assertEquals(NoticeMessage.UnsupportedArchiveFormat(ArchiveFormat.ZIP.extension), notices.failures[0])
@@ -50,14 +52,14 @@ class LocalCompressFormatSupportTest {
 
     @Test
     fun `저장소가 지원하는 형식은 거부하지 않는다`() {
-        useCaseWith(SupportingRepository(supported = setOf(ArchiveFormat.ZIP))).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP) {}
+        useCaseWith(SupportingRepository(supported = setOf(ArchiveFormat.ZIP))).compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP, password = null) {}
 
         assertTrue(notices.failures.toString(), notices.failures.isEmpty())
     }
 
     /** [repo]로 압축하는 검증 대상 UseCase를 만든다. */
     private fun useCaseWith(repo: FileActionRepository) =
-        LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope), notices, repo, FileNameUseCase(NoStorageNameRules), LocalPathRules())
+        LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope), notices, repo, FileNameUseCase(NoStorageNameRules), LocalPathRules())
 
     /**
      * [supported] 형식만 만들 수 있다고 답하고 호출된 작업 이름을 기록하는 테스트용 저장소.
@@ -66,13 +68,13 @@ class LocalCompressFormatSupportTest {
     private class SupportingRepository(private val supported: Set<ArchiveFormat>) : FileActionRepository {
         /** 호출된 작업 이름. */
         val calls = mutableListOf<String>()
-        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
+        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
         override fun supportedArchiveFormats() = supported
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override fun canExtract(path: String) = false
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
@@ -91,6 +93,6 @@ class LocalCompressFormatSupportTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

@@ -25,8 +25,8 @@ class FileActionRepositoryImpl @Inject constructor(
     private val archiveExtraction: LocalArchiveExtraction,
     private val entryMutator: LocalEntryMutator
 ) : FileActionRepository {
-    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) =
-        archiveCompression.compress(targetFiles, parentPath, baseName, format, onProgress)
+    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) =
+        archiveCompression.compress(targetFiles, parentPath, baseName, format, password, onProgress)
     override fun supportedArchiveFormats() = archiveCompression.supportedFormats()
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
         treeTransfer.copy(targetFiles, targetPath, resolveConflict, onProgress)
@@ -34,8 +34,8 @@ class FileActionRepositoryImpl @Inject constructor(
     override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFiles, onProgress)
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
         treeTransfer.move(targetFiles, targetPath, resolveConflict, onProgress)
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
-        archiveExtraction.unzip(zipFiles, destPath, layout, resolveConflict, onProgress)
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) =
+        archiveExtraction.unzip(zipFiles, destPath, layout, resolveConflict, askPassword, onProgress)
     override fun canExtract(path: String) = archiveExtraction.canExtract(path)
     override suspend fun makeDirectory(parentPath: String, name: String) = entryMutator.makeDirectory(parentPath, name)
 }

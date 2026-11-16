@@ -200,16 +200,16 @@ class FileListViewModel @Inject constructor(
      * @param selection 로컬 화면의 선택에서 꺼낸 압축할 항목
      * @param folder 다이얼로그를 연 때 [archiveFolderOf]로 정한 폴더 — [validateArchiveName]이 판정한 것과 같은 폴더
      * @param name 압축 파일 이름(확장자 제외)
-     * @param password 압축 파일에 걸 비밀번호. null이면 비밀번호 없이 만든다
+     * @param password 압축 파일에 걸 비밀번호(AES-256). null이면 비밀번호 없이 만든다
      */
     fun compress(selection: SubmittedSelection, folder: String, name: String, password: String?) {
-        // stub — not yet implemented: password는 기능 단계에서 UseCase로 넘긴다. 그전까지는 비밀번호를 설정해도 비밀번호 없이 압축된다
         val targets = selection.items.map { it.path }.toSet()
         localFileOperationUseCase.compress(
             files = targets,
             parentPath = folder,
             name = name,
             format = archiveFormat,
+            password = password,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }

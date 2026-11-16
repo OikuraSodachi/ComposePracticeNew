@@ -53,7 +53,7 @@ sealed interface ConflictAnswer {
  * @param conflict 겹친 항목
  */
 data class ConflictQuestion(
-    val id: Long,
-    val operationType: FileOperationType,
+    override val id: Long,
+    override val operationType: FileOperationType,
     val conflict: WriteConflict,
-)
+) : OperationQuestion

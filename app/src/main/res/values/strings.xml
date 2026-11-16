@@ -96,6 +96,7 @@
     <string name="dialog_write_conflict_type_mismatch">%2$s에 “%1$s”이(가) 이미 있지만 파일과 폴더로 종류가 달라 바꿀 수 없습니다. 이 항목은 건너뛰기만 할 수 있습니다.</string>
     <string name="dialog_write_conflict_apply_to_rest">남은 같은 종류의 충돌에도 적용</string>
     <string name="noti_write_conflict_awaiting">확인 필요 — 같은 이름의 항목을 어떻게 할지 골라 주세요</string>
+    <string name="noti_archive_password_awaiting">확인 필요 — 압축 파일의 비밀번호를 입력해 주세요</string>
     <string name="noti_operation_interrupted">앱이 종료되어 작업이 완료되지 않고 중단되었습니다</string>
 
     <!-- File list -->
@@ -143,6 +144,7 @@
     <string name="dialog_archive_password_title">비밀번호 입력</string>
     <string name="dialog_archive_password_message">%1$s 은(는) 비밀번호가 걸린 압축 파일입니다.</string>
     <string name="dialog_archive_password_wrong">비밀번호가 틀렸습니다</string>
+    <string name="dialog_archive_password_wrong_or_damaged">비밀번호가 틀렸거나 압축 파일이 손상되었습니다</string>
     <string name="dialog_info_selected">Selected</string>
     <string name="dialog_info_size">Size</string>
     <string name="dialog_info_selected_count">%d 개</string>
@@ -196,6 +198,7 @@
     <string name="notice_cancel_remainder_upload">이미 올린 파일은 그대로 둡니다</string>
     <string name="notice_unknown_failure">알 수 없는 오류</string>
     <string name="notice_unanswered_conflict">%1$s 중단: \'%2$s\' 충돌 질문에 %3$d시간 동안 답이 없었습니다 — 이미 처리한 항목은 그대로 둡니다</string>
+    <string name="notice_unanswered_archive_password">%1$s 중단: \'%2$s\' 비밀번호 질문에 %3$d시간 동안 답이 없었습니다 — 이미 처리한 항목은 그대로 둡니다</string>
     <string name="notice_failure_prefix_rename">이름 변경 실패</string>
     <string name="notice_failure_prefix_make_folder">폴더 생성 실패</string>
     <string name="notice_failure_prefix_compress">압축 실패</string>

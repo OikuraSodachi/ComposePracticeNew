@@ -1,6 +1,10 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
+import com.todokanai.composepracticenew.model.QuestionKind
+import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.ConflictAnswer
+import com.todokanai.composepracticenew.model.PasswordAnswer
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ArchiveFormat
@@ -20,7 +24,7 @@ import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
-import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
+import com.todokanai.composepracticenew.repository.OperationQuestionAsker
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
@@ -97,13 +101,13 @@ internal class RecordingFileActionRepository : FileActionRepository {
     /** 압축 해제 호출마다 넘어온 배치 방식. */
     val unzipLayouts = mutableListOf<ExtractLayout>()
 
-    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
+    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
     override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
     override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
     override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
     override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) =
         IoResult.Done.also { calls += "unzip"; unzipLayouts += layout }
     override fun canExtract(path: String) = false
     override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
@@ -120,7 +124,7 @@ internal object NoOpNotifier : FileOperationNotifier {
     override fun progressNoti(state: ProgressState, instanceId: Int) {}
     override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
     override fun cancelNotification(instanceId: Int) {}
-    override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
+    override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
 }
 
 /** 언제나 바로 보호를 주는 테스트용 작업 보호. */
@@ -153,7 +157,7 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
 
 /** 실행한 작업이 없어 취소할 것이 없는 테스트용 취소 UseCase. 취소를 다루지 않는 화면 테스트가 ViewModel을 만들 때 쓴다. */
 internal fun idleCancelOperationUseCase() =
-    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), RecordingOperationNotices(), GrantedProtection, UnexpectedConflictQuestions, CoroutineScope(Job())))
+    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, CoroutineScope(Job())))
 
 /** 열려고 한 경로를 기록하고 언제나 다른 앱으로 넘긴 것으로 답하는 테스트용 파일 열기. */
 internal class RecordingFileLauncher : FileLauncher {
@@ -183,6 +187,7 @@ internal class RecordingOperationNotices : OperationNoticeReporter {
 }
 
 /** 충돌 질문이 오면 테스트를 실패시키는 질문 통로. */
-internal object UnexpectedConflictQuestions : ConflictQuestionAsker {
-    override suspend fun ask(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer = throw AssertionError("예상하지 못한 충돌 질문: $conflict")
+internal object UnexpectedQuestions : OperationQuestionAsker {
+    override suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer = throw AssertionError("예상하지 못한 충돌 질문: $conflict")
+    override suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer = throw AssertionError("예상하지 못한 비밀번호 질문: $archiveName")
 }

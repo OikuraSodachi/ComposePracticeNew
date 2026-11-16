@@ -7,10 +7,10 @@ import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
-import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
+import com.todokanai.composepracticenew.repository.OperationQuestionAsker
 import com.todokanai.composepracticenew.repository.ProgressRepository
-import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @param progressRepo 작업 진행 상태를 저장하는 ProgressRepository
  * @param notices 작업의 완료·실패 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param protection 진행 표시가 있는 작업이 시작 전에 받는 프로세스 보호
- * @param questions 쓰기 충돌을 사용자에게 묻고 답을 기다리는 통로
+ * @param questions 실행 중인 작업의 질문(쓰기 충돌·압축 파일 비밀번호)을 사용자에게 묻고 답을 기다리는 통로
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
@@ -39,7 +39,7 @@ class FileOperationOrchestrator(
     private val progressRepo: ProgressRepository,
     private val notices: OperationNoticeReporter,
     private val protection: OperationProtection,
-    private val questions: ConflictQuestionAsker,
+    private val questions: OperationQuestionAsker,
     private val appScope: CoroutineScope
 ) {
     /** ID 발급과 진행 상태 등록을 한 단위로 묶는 잠금. 동시에 시작한 작업들이 progressMap에 ID 순서대로 나타나게 한다. */
@@ -100,34 +100,34 @@ class FileOperationOrchestrator(
     }
 
     /**
-     * [launch]와 같이 파일 작업을 실행하되, [block]이 쓰기 중에 만난 같은 이름의 항목을 사용자에게 묻는 통로를 함께 넘긴다.
+     * [launch]와 같이 파일 작업을 실행하되, [block]이 실행 중에 사용자에게 묻는 통로(쓰기 충돌·압축 파일 비밀번호)를 함께 넘긴다.
      * 묻는 동안 작업은 멈추고 진행 알림은 답을 기다리는 상태가 된다. 답을 받으면 마지막 진행 상태로 알림을 되돌린다.
-     * 사용자가 질문에서 취소하면 취소로, 질문 하나에 [MAX_CONFLICT_ANSWER_WAIT] 동안 답이 없으면 실패로 끝낸다. 어느 쪽이든 이미 처리한 항목은 그대로 둔다.
+     * 사용자가 질문에서 취소하면 취소로, 질문 하나에 [MAX_QUESTION_ANSWER_WAIT] 동안 답이 없으면 실패로 끝낸다. 어느 쪽이든 이미 처리한 항목은 그대로 둔다.
      * "나머지에도 적용"한 답은 이 작업 안에서만 쓴다.
      * @param operationType 작업 종류. 묻는 작업은 진행 표시가 있는 작업이다
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
-     * @param block 실제 IO 작업 코드. 진행 보고 콜백과 충돌을 묻는 통로를 받고, 실패는 결과로 돌려준다
+     * @param block 실제 IO 작업 코드. 진행 보고 콜백과 사용자에게 묻는 통로를 받고, 실패는 결과로 돌려준다
      * @return Unit
      */
-    fun launchResolvingConflicts(
+    fun launchAsking(
         operationType: FileOperationType,
         onRefresh: suspend () -> Unit,
-        block: suspend (onProgress: (ProgressState) -> Unit, resolveConflict: WriteConflictResolver) -> IoResult<Unit>
+        block: suspend (onProgress: (ProgressState) -> Unit, prompts: OperationPrompts) -> IoResult<Unit>
     ) {
         val handle = startHandle(operationType)
         val callback = OperationCallback(operationType, onRefresh)
         launchOperation(handle, callback) {
             protection.acquire().valueOr { return@launchOperation OperationOutcome.Finished(it) }
-            val resolver = OperationConflictResolver(
+            val prompter = OperationPrompter(
                 operationType = operationType,
                 questions = questions,
-                onAwaiting = { notifier.awaitingAnswerNoti(operationType, handle.instanceId) },
+                onAwaiting = { kind -> notifier.awaitingAnswerNoti(operationType, kind, handle.instanceId) },
                 onAnswered = { handle.latest?.let { notifier.progressNoti(it, handle.instanceId) } },
             )
             try {
-                OperationOutcome.Finished(block(progressReporterOf(handle, operationType), resolver))
-            } catch (e: UnansweredConflict) {
-                OperationOutcome.Unanswered(operationType, e.conflict.name)
+                OperationOutcome.Finished(block(progressReporterOf(handle, operationType), prompter))
+            } catch (e: UnansweredQuestion) {
+                OperationOutcome.Unanswered(operationType, e.kind, e.name)
             }
         }
     }
@@ -177,7 +177,7 @@ class FileOperationOrchestrator(
                             is IoResult.Failure -> callback.onOperationFailed(result, instanceId)
                         }
                         is OperationOutcome.Unanswered -> callback.onFailure(
-                            NoticeMessage.UnansweredConflict(outcome.operationType, outcome.name, MAX_CONFLICT_ANSWER_WAIT.inWholeHours),
+                            NoticeMessage.UnansweredQuestion(outcome.operationType, outcome.kind, outcome.name, MAX_QUESTION_ANSWER_WAIT.inWholeHours),
                             instanceId
                         )
                     }
@@ -210,7 +210,7 @@ class FileOperationOrchestrator(
             OperationOutcome.Finished(IoResult.ItemFailed(e.message?.let(FailureReason::Unexpected)))
         }
 
-    /** 작업 실행의 결과. 작업이 돌려준 결과와, 충돌 질문에 답이 없어 멈춘 경우를 나눈다. */
+    /** 작업 실행의 결과. 작업이 돌려준 결과와, 작업 질문에 답이 없어 멈춘 경우를 나눈다. */
     private sealed interface OperationOutcome {
         /**
          * 작업이 끝까지 실행돼 결과를 돌려줬다(보호를 받지 못한 실패 포함).
@@ -219,11 +219,12 @@ class FileOperationOrchestrator(
         data class Finished(val result: IoResult<Unit>) : OperationOutcome
 
         /**
-         * 충돌 질문 하나에 [MAX_CONFLICT_ANSWER_WAIT] 동안 답이 없어 멈췄다.
+         * 작업 질문 하나에 [MAX_QUESTION_ANSWER_WAIT] 동안 답이 없어 멈췄다.
          * @param operationType 멈춘 작업의 종류
-         * @param name 답을 받지 못한 항목의 이름
+         * @param kind 답을 받지 못한 질문의 종류
+         * @param name 질문이 가리킨 이름
          */
-        data class Unanswered(val operationType: FileOperationType, val name: String) : OperationOutcome
+        data class Unanswered(val operationType: FileOperationType, val kind: QuestionKind, val name: String) : OperationOutcome
     }
 
     /**
@@ -235,7 +236,7 @@ class FileOperationOrchestrator(
         val instanceId: Int,
         private val progressRepo: ProgressRepository
     ) {
-        /** 마지막으로 [set]한 진행 상태. 충돌 질문에 답한 뒤 진행 알림을 되돌릴 때 쓴다. 작업 스레드에서 쓰고 다른 스레드에서도 읽으므로 @Volatile이다. */
+        /** 마지막으로 [set]한 진행 상태. 작업 질문에 답한 뒤 진행 알림을 되돌릴 때 쓴다. 작업 스레드에서 쓰고 다른 스레드에서도 읽으므로 @Volatile이다. */
         @Volatile
         var latest: ProgressState? = null
             private set
