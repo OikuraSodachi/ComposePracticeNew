@@ -14,7 +14,7 @@ import javax.inject.Inject
 /**
  * zip4j로 ZIP 아카이브를 산정·추출하는 ArchiveExtractor. 이름이 `.zip`인 파일만 다루며, 속이 ZIP인 다른 형식(.apk, .jar, .docx 등)은 지원 범위 밖이다.
  * 항목 내용은 zip4j가 끝에서 검증한다(CRC, AES는 HMAC) — 손상된 항목을 성공으로 풀지 않는다.
- * 암호화된 항목(AES, ZipCrypto)은 출력을 만들기 전에 비밀번호를 확인한다. 확인은 그 항목을 끝까지 풀어 보는 것이다 —
+ * 암호화된 항목(AES, ZipCrypto)은 출력을 만들기 전에 비밀번호를 확인한다. 확인은 내용이 있는 가장 작은 암호화 항목([passwordCheckEntryOf])을 끝까지 풀어 보는 것이다 —
  * 비밀번호 검증값(AES 2바이트, ZipCrypto 1바이트)만으로는 틀린 비밀번호가 통과할 수 있고, 그때는 내용 검증에서야 드러나기 때문이다.
  * 항목 이름은 UTF-8로만 읽는다. UTF-8이 아닌 이름은 풀지 않고 실패로 알린다(지원 범위 밖). 이름에 원래 U+FFFD가 든 항목도 같은 실패가 된다.
  */
@@ -31,13 +31,15 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
         openZip(path).use { zf ->
-            headersOf(zf).forEach { header ->
+            val headers = headersOf(zf)
+            val checkEntry = passwordCheckEntryOf(headers.filter { !it.isDirectory && it.isEncrypted }, ::knownSizeOf)
+            headers.forEach { header ->
                 if (header.isDirectory) {
                     writer.createFolder(header.fileName)
                     return@forEach
                 }
                 // 비밀번호는 출력을 열기 전에 받는다 — 묻는 동안이나 취소한 뒤에 빈 파일이 남지 않도록
-                openEntry(zf, header, passwords).use { input ->
+                openEntry(zf, header, checkEntry, passwords).use { input ->
                     val output = writer.openFile(header.fileName, knownSizeOf(header)) ?: return@forEach
                     tracker.startFile()
                     try {
@@ -87,22 +89,20 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     private fun knownSizeOf(header: FileHeader): Long? = header.uncompressedSize.takeIf { it >= 0 }
 
     /**
-     * 항목의 내용 스트림을 연다. 암호화된 항목은 확인된 비밀번호로 연다 — 한 아카이브 안에서 항목마다 다른 비밀번호를 쓴 경우는 지원 범위 밖이므로,
-     * 앞 항목에서 확인한 비밀번호가 이 항목의 검증값과 맞지 않으면 다시 묻지 않고 풀 수 없는 항목으로 실패한다(RAR과 같은 범위).
+     * 항목의 내용 스트림을 연다. 암호화된 항목은 확인된 비밀번호로 열고, 아직 없으면 [checkEntry]를 끝까지 풀어 보아 확인받는다.
+     * 한 아카이브 안에서 항목마다 다른 비밀번호를 쓴 경우는 지원 범위 밖이므로, 확인한 비밀번호가 이 항목의 검증값과 맞지 않으면
+     * 다시 묻지 않고 풀 수 없는 항목으로 실패한다(RAR과 같은 범위).
      * @param zf 연 ZIP 파일
      * @param header 열 항목
+     * @param checkEntry 비밀번호 확인에 쓸 항목([passwordCheckEntryOf]). 암호화된 파일 항목이 있으면 null이 아니다
      * @param passwords 이 아카이브의 비밀번호 세션
      * @return 항목 내용 스트림. 끝까지 읽으면 zip4j가 내용을 검증한다
      * @throws IOException 확인한 비밀번호가 이 항목에 맞지 않을 때
      */
-    private fun openEntry(zf: ZipFile, header: FileHeader, passwords: ArchivePasswordSession): InputStream {
+    private fun openEntry(zf: ZipFile, header: FileHeader, checkEntry: FileHeader?, passwords: ArchivePasswordSession): InputStream {
         if (!header.isEncrypted) return zf.getInputStream(header)
-        passwords.verified?.let { known ->
-            return openWith(zf, header, known) ?: throw IOException("확인한 비밀번호가 맞지 않아 풀 수 없는 항목입니다: ${header.fileName}")
-        }
-        val password = passwords.verifiedPassword { candidate -> check(zf, header, candidate, passwords.ensureActive) }
-        // 방금 같은 비밀번호로 끝까지 풀어 본 항목이라 검증값이 맞지 않을 수 없다
-        return openWith(zf, header, password) ?: throw IOException("확인한 비밀번호로 항목을 열지 못했습니다: ${header.fileName}")
+        val password = passwords.verifiedPassword { candidate -> check(zf, checkNotNull(checkEntry), candidate, passwords.ensureActive) }
+        return openWith(zf, header, password) ?: throw IOException("확인한 비밀번호가 맞지 않아 풀 수 없는 항목입니다: ${header.fileName}")
     }
 
     /**

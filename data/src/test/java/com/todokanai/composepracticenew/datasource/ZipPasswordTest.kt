@@ -127,6 +127,19 @@ class ZipPasswordTest {
         assertFalse(File(out, "b.txt").exists())
     }
 
+    @Test
+    fun `비밀번호는 앞에 있는 0바이트 항목이 아니라 내용이 있는 항목을 풀어 보아 확인한다`() {
+        // 0바이트 항목은 풀 내용이 없어 내용 검증이 비밀번호를 가리지 못한다 — 손상된 b.txt로 확인해야 출력 전에 다시 묻는다
+        val zip = zipOf(listOf("empty.txt" to "secret", "b.txt" to "secret"), EncryptionMethod.AES, contents = mapOf("empty.txt" to ""))
+            .also { corruptLastDataByte(it, "b.txt") }
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        assertThrows(CancellationException::class.java) { extract(zip, session(asked, "secret")) }
+
+        assertEquals(listOf(ArchivePasswordPrompt.FIRST, ArchivePasswordPrompt.WRONG_OR_DAMAGED), asked)
+        assertFalse(File(out, "empty.txt").exists())
+    }
+
     /**
      * 폴더 `dir` 아래 `a.txt`를 담은 ZIP을 [ZipArchiveCompressor]로 만든다.
      * @param password 걸 비밀번호. null이면 암호화하지 않는다
@@ -142,13 +155,14 @@ class ZipPasswordTest {
 
     /**
      * 항목마다 정한 비밀번호로 [method] 암호화한 ZIP을 zip4j로 만든다(항목마다 다른 비밀번호를 쓰려고 항목마다 따로 더한다).
-     * @param entries (항목 이름, 비밀번호) 목록. 내용은 모두 [CONTENT]
+     * @param entries (항목 이름, 비밀번호) 목록
+     * @param contents 항목 이름별 내용. 없는 항목은 [CONTENT]
      * @param method 암호화 방식
      */
-    private fun zipOf(entries: List<Pair<String, String>>, method: EncryptionMethod): File =
+    private fun zipOf(entries: List<Pair<String, String>>, method: EncryptionMethod, contents: Map<String, String> = emptyMap()): File =
         File(dir, "test.zip").also { zip ->
             entries.forEach { (name, password) ->
-                val source = File(dir, "src/$name").apply { parentFile!!.mkdirs(); writeText(CONTENT) }
+                val source = File(dir, "src/$name").apply { parentFile!!.mkdirs(); writeText(contents[name] ?: CONTENT) }
                 ZipFile(zip, password.toCharArray()).use { zf ->
                     zf.addFile(source, ZipParameters().apply {
                         // 압축하지 않아 손상시킨 바이트가 압축 해제 오류가 아니라 내용 검증 실패로만 드러나게 한다
@@ -161,9 +175,9 @@ class ZipPasswordTest {
             }
         }
 
-    /** [zip]의 첫 항목 암호문 마지막 바이트(HMAC 바로 앞)를 바꿔, 비밀번호 검증값은 맞고 내용 검증만 실패하게 만든다. */
-    private fun corruptLastDataByte(zip: File) {
-        val header = ZipFile(zip).fileHeaders.first()
+    /** [zip]의 [name] 항목(없으면 첫 항목) 암호문 마지막 바이트(HMAC 바로 앞)를 바꿔, 비밀번호 검증값은 맞고 내용 검증만 실패하게 만든다. */
+    private fun corruptLastDataByte(zip: File, name: String? = null) {
+        val header = ZipFile(zip).fileHeaders.let { headers -> name?.let { n -> headers.single { it.fileName == n } } ?: headers.first() }
         val bytes = zip.readBytes()
         // 지역 헤더(30바이트 + 이름 + 추가 필드) 뒤의 데이터 = 솔트·검증값 + 암호문 + HMAC(10바이트)
         val localHeaderStart = header.offsetLocalHeader.toInt()

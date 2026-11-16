@@ -47,7 +47,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
     override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
         withArchive(path, passwords) { archive ->
             // 암호화된 항목이 있으면 출력을 만들기 전에 비밀번호를 확인해 둔다 — 추출 중 라이브러리가 묻는 비밀번호는 확인된 것만 준다
-            smallestEncryptedFileOf(archive)?.let { index -> passwords.verifiedPassword { candidate -> checkPassword(archive, index, candidate, passwords.ensureActive) } }
+            passwordCheckIndexOf(archive)?.let { index -> passwords.verifiedPassword { candidate -> checkPassword(archive, index, candidate, passwords.ensureActive) } }
             RarExtractCallback({ entryKindOf(archive, it) }, { knownSizeOf(archive, it) }, { passwords.verified }, writer, tracker).use { callback ->
                 runCollectingFailure(callback) { archive.extract(null, false, callback) }
             }
@@ -97,14 +97,14 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
     }
 
     /**
-     * 암호화된 파일 항목 중 가장 작은 것을 고른다 — 비밀번호 확인으로 끝까지 풀어 볼 항목이므로.
+     * 암호화된 파일 항목 중 비밀번호 확인으로 끝까지 풀어 볼 항목을 고른다(기준은 [passwordCheckEntryOf]).
      * @param archive 열린 아카이브
      * @return 항목 번호. 암호화된 파일 항목이 없으면 null
      */
-    private fun smallestEncryptedFileOf(archive: IInArchive): Int? =
-        (0 until archive.numberOfItems)
-            .filter { entryKindOf(archive, it) is RarEntryKind.File && archive.getProperty(it, PropID.ENCRYPTED) == true }
-            .minByOrNull { knownSizeOf(archive, it) ?: Long.MAX_VALUE }
+    private fun passwordCheckIndexOf(archive: IInArchive): Int? =
+        passwordCheckEntryOf(
+            (0 until archive.numberOfItems).filter { entryKindOf(archive, it) is RarEntryKind.File && archive.getProperty(it, PropID.ENCRYPTED) == true },
+        ) { knownSizeOf(archive, it) }
 
     /**
      * [candidate]로 [index] 항목을 출력 없이 끝까지 풀어 비밀번호를 확인한다.

@@ -39,6 +39,18 @@ class ArchivePasswordSession(
     }
 }
 
+/**
+ * 비밀번호 확인으로 끝까지 풀어 볼 항목을 고른다. 형식별 추출기가 같은 기준으로 고르도록 한 곳에 둔다.
+ * 내용이 있는 항목 중 가장 작은 것을 고른다 — 0바이트 항목은 풀 내용이 없어 검증값이 없는 형식(RAR4)이나 짧은 형식(ZipCrypto 1바이트)에서
+ * 틀린 비밀번호도 통과시키고, 큰 항목은 확인과 추출에서 두 번 읽게 되므로. 크기를 모르는 항목은 아는 항목 뒤에,
+ * 0바이트 항목은 맨 뒤에 둔다(모두 0바이트면 어떤 비밀번호로 풀어도 결과가 빈 파일로 같다).
+ * @param encryptedFiles 암호화된 파일 항목들
+ * @param sizeOf 항목의 풀린 크기. 모르면 null
+ * @return 확인에 쓸 항목. [encryptedFiles]가 비었으면 null
+ */
+fun <T> passwordCheckEntryOf(encryptedFiles: List<T>, sizeOf: (T) -> Long?): T? =
+    encryptedFiles.minWithOrNull(compareBy({ sizeOf(it) == 0L }, { sizeOf(it) ?: Long.MAX_VALUE }))
+
 /** 후보 비밀번호로 내용을 풀어 본 결과. */
 enum class PasswordCheck {
     /** 내용 검증까지 통과했다. */
