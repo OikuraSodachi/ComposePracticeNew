@@ -53,13 +53,17 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     }
 
     /**
-     * [path]를 zip4j로 연다. zip4j는 없는 파일을 빈 아카이브로 열므로, 그런 경로가 항목 없는 성공으로 끝나지 않도록 먼저 확인한다.
+     * [path]를 zip4j로 연다. zip4j는 읽기·쓰기 겸용이라 없는 파일과 0바이트 파일을 새로 만들 빈 아카이브로 열므로(그 밖의 손상은 예외로 알린다),
+     * 이 두 경우가 항목 없는 성공으로 끝나지 않도록 먼저 확인한다.
      * @param path 아카이브 파일 경로
      * @return 이름을 UTF-8로 읽도록 연 ZipFile
      * @throws FileNotFoundException [path]가 파일이 아닐 때
+     * @throws ZipException [path]가 0바이트 파일일 때
      */
     private fun openZip(path: String): ZipFile {
-        if (!File(path).isFile) throw FileNotFoundException("압축 파일이 없습니다: ${File(path).name}")
+        val file = File(path)
+        if (!file.isFile) throw FileNotFoundException("압축 파일이 없습니다: ${file.name}")
+        if (file.length() == 0L) throw ZipException("ZIP 파일이 아니거나 손상된 파일입니다(0바이트): ${file.name}")
         return ZipFile(path).apply { charset = Charsets.UTF_8 }
     }
 
