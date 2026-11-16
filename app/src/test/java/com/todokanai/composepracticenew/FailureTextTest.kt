@@ -42,6 +42,43 @@ class FailureTextTest {
     }
 
     @Test
+    fun `이름 변경을 서버가 거부하면 머리말과 겹치는 단계 이름 없이 응답만 보인다`() {
+        val expected = UiText.Resource(
+            R.string.failure_with_cause,
+            listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), "b.txt")), UiText.Raw("550 denied"))
+        )
+        val reason = FailureReason.RenameFailed("b.txt", FailureReason.ServerRefused(RemoteStep.RENAME, "550 denied"))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), null))
+    }
+
+    @Test
+    fun `머리말과 다른 단계의 서버 거부는 단계 이름을 남긴다`() {
+        val refused = UiText.Resource(R.string.failure_remote_step, listOf(UiText.Resource(R.string.remote_step_open_folder), UiText.Raw("550 no")))
+        val expected = UiText.Resource(
+            R.string.failure_with_cause,
+            listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_make_folder), "new")), refused)
+        )
+        val reason = FailureReason.MakeFolderFailed("new", FailureReason.ServerRefused(RemoteStep.OPEN_FOLDER, "550 no"))
+
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), null))
+    }
+
+    @Test
+    fun `다운로드 부분 실패는 다운로드 단계 거부를 응답만으로 보인다`() {
+        val refused = FailureReason.ServerRefused(RemoteStep.DOWNLOAD, "550 gone")
+        val heading = UiText.Resource(R.string.failure_partial_heading_download)
+        val single = UiText.Resource(R.string.failure_with_cause, listOf(UiText.Resource(R.string.failure_at, listOf(heading, "a.txt")), UiText.Raw("550 gone")))
+        val multiple = UiText.Resource(R.string.failure_partial_multiple, listOf(heading, 2, UiText.Raw("550 gone"), UiText.Raw("a.txt, b.txt")))
+
+        assertEquals(single, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused))), FileOperationType.DOWNLOAD))
+        assertEquals(
+            multiple,
+            failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused), FailedItem("b.txt", refused))), FileOperationType.DOWNLOAD)
+        )
+    }
+
+    @Test
     fun `원인을 모르는 폴더 생성 실패는 이름만 보인다`() {
         val expected = UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_make_folder), "new"))
 

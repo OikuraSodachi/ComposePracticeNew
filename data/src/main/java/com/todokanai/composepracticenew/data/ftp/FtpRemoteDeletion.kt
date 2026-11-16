@@ -78,7 +78,7 @@ class FtpRemoteDeletion @Inject internal constructor(
      * 실패한 항목을 품은 상위 디렉터리는 비울 수 없으므로 RMD를 보내지도, 실패로 세지도 않는다(GNU rm과 같은 방식).
      * 트리 수집이 세션을 하위 폴더 안에 남기므로, RMD는 세션이 지울 폴더 안에 있으면 먼저 [path]의 상위 폴더로 나간 뒤 보낸다.
      * 알려진 문제(방치하기로 결정): 트리에 서버가 숨긴 항목이 빠질 수 있어([FtpTreeCollector.collectRemoteTree]), 그런 항목이 있으면 보이는 항목을 모두 지운 뒤에야
-     * RMD 거부로 실패를 알게 된다. 이 경우 거부 메시지에 숨긴 항목이 남았을 가능성을 덧붙인다([FtpReplyRules.HIDDEN_ENTRIES_NOTE]).
+     * RMD 거부로 실패를 알게 된다. 이 경우 거부 원인에 숨긴 항목이 남았을 가능성을 표시한다([FailureReason.ServerRefused.mayHaveHiddenEntries]).
      * 해석하지 못한 목록 줄은 무엇인지 몰라 지우지 못한 항목으로 알리고, 그 줄이 나온 디렉터리는 지우지 않는다(#255).
      * 항목마다 명령을 보내기 전에 진행을 보고한다 — 보고가 취소를 확인하므로 지우는 동안에도 취소가 듣는다.
      * @param path 삭제할 디렉터리의 절대 경로 (ftp://server/path 형식)

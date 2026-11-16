@@ -120,9 +120,9 @@ internal object FtpReplyRules {
      * @return 거부된 단계
      */
     private fun dataCommandStepOf(command: String): RemoteStep = when (command.uppercase()) {
-        "LIST", "MLSD", "NLST" -> RemoteStep.LIST_FOLDER
+        "LIST", "MLSD" -> RemoteStep.LIST_FOLDER
         "RETR" -> RemoteStep.DOWNLOAD
-        "STOR", "APPE" -> RemoteStep.UPLOAD
+        "STOR" -> RemoteStep.UPLOAD
         else -> RemoteStep.PREPARE_TRANSFER
     }
 }

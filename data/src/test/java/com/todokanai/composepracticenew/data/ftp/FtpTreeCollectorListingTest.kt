@@ -425,8 +425,6 @@ class FtpTreeCollectorListingTest {
     private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
 
     private companion object {
-        /** 식별값 없이 경로 한도나 메모리 상한에서 멈췄을 때 실패 메시지에 붙는 설명. */
-        const val UNIDENTIFIABLE = " — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다"
         /** 메모리 상한 테스트가 쓰는 작은 상한(바이트). 기본 상한(32MiB)까지 조회하면 테스트가 오래 걸린다. */
         const val SMALL_LIMIT_BYTES = 16L * 1024
         /**

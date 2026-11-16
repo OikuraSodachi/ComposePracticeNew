@@ -25,7 +25,8 @@ private const val BYTES_PER_KB = 1024
 fun failureTextOf(failure: IoResult.Failure, operationType: FileOperationType?): UiText? = when (failure) {
     is IoResult.ItemFailed -> failure.reason?.let(::reasonTextOf)
     is IoResult.ConnectionLost -> reasonTextOf(failure.reason)
-    is IoResult.PartiallyFailed -> partialFailureTextOf(UiText.Resource(partialFailureHeadingRes(operationType)), failure.failures)
+    is IoResult.PartiallyFailed ->
+        partialFailureTextOf(UiText.Resource(partialFailureHeadingRes(operationType)), headingStepOf(operationType), failure.failures)
 }
 
 /**
@@ -34,14 +35,14 @@ fun failureTextOf(failure: IoResult.Failure, operationType: FileOperationType?):
  * @return 표시 문구
  */
 private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
-    is FailureReason.RenameFailed -> namedFailureTextOf(R.string.notice_failure_prefix_rename, reason.name, reason.cause)
+    is FailureReason.RenameFailed -> namedFailureTextOf(R.string.notice_failure_prefix_rename, RemoteStep.RENAME, reason.name, reason.cause)
     is FailureReason.RenameNotApplied ->
-        withCause(UiText.Resource(R.string.failure_rename_not_applied, listOf(reason.fromName, reason.toName)), reason.cause)
+        withCause(UiText.Resource(R.string.failure_rename_not_applied, listOf(reason.fromName, reason.toName)), null, reason.cause)
     is FailureReason.RenameStopped ->
         UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), reasonTextOf(reason.cause)))
-    is FailureReason.MakeFolderFailed -> namedFailureTextOf(R.string.notice_failure_prefix_make_folder, reason.name, reason.cause)
+    is FailureReason.MakeFolderFailed -> namedFailureTextOf(R.string.notice_failure_prefix_make_folder, RemoteStep.MAKE_FOLDER, reason.name, reason.cause)
     is FailureReason.MoveInterrupted ->
-        UiText.Resource(R.string.failure_move_interrupted, listOf(reason.name, reasonOrUnknownTextOf(reason.cause), reason.movedCount))
+        UiText.Resource(R.string.failure_move_interrupted, listOf(reason.name, reasonOrUnknownTextOf(reason.cause, null), reason.movedCount))
     FailureReason.ProtectionRefused -> UiText.Resource(R.string.error_protection_refused)
     is FailureReason.IoFailed -> UiText.Raw(reason.detail)
     is FailureReason.FileSystemRefused -> fileSystemRefusedTextOf(reason)
@@ -109,9 +110,27 @@ private fun listingRefusalRes(kind: ListingRefusal): Int = when (kind) {
  * @param reason 원격 서버 거부
  * @return 표시 문구
  */
-private fun serverRefusedTextOf(reason: FailureReason.ServerRefused): UiText {
-    val reply: UiText = if (reason.mayHaveHiddenEntries) UiText.Resource(R.string.failure_hidden_entries_note, listOf(reason.reply)) else UiText.Raw(reason.reply)
-    return remoteStepTextOf(reason.step, reply)
+private fun serverRefusedTextOf(reason: FailureReason.ServerRefused): UiText = remoteStepTextOf(reason.step, serverReplyTextOf(reason))
+
+/**
+ * 원격 서버 거부의 응답 문구를 만든다. 숨은 항목이 남아 거부됐을 수 있으면 그 설명을 덧붙인다.
+ * @param reason 원격 서버 거부
+ * @return 응답 문구(단계 이름 없음)
+ */
+private fun serverReplyTextOf(reason: FailureReason.ServerRefused): UiText =
+    if (reason.mayHaveHiddenEntries) UiText.Resource(R.string.failure_hidden_entries_note, listOf(reason.reply)) else UiText.Raw(reason.reply)
+
+/**
+ * 머리말 아래에 붙는 원인의 문구를 만든다. 원인이 머리말과 같은 원격 단계의 실패면 단계 이름을 빼고 원인만 보인다
+ * — "이름 변경 실패: b (이름 변경 실패: 550)"처럼 같은 말이 겹치지 않도록.
+ * @param cause 실패 원인
+ * @param headingStep 머리말이 이미 말하는 원격 단계. 없으면 null
+ * @return 원인 문구
+ */
+private fun causeTextOf(cause: FailureReason, headingStep: RemoteStep?): UiText = when {
+    cause is FailureReason.ServerRefused && cause.step == headingStep -> serverReplyTextOf(cause)
+    cause is FailureReason.RemoteStepFailed && cause.step == headingStep -> reasonTextOf(cause.cause)
+    else -> reasonTextOf(cause)
 }
 
 /**
@@ -162,60 +181,68 @@ private fun withCycleNote(text: UiText, cycleUndecidable: Boolean): UiText =
 /**
  * 이름 붙은 항목의 실패 문구("머리말: 이름 (원인)")를 만든다.
  * @param prefixRes 머리말의 문자열 리소스 id
+ * @param headingStep 머리말이 말하는 원격 단계
  * @param name 실패한 항목 이름
  * @param cause 저장소가 알린 원인. 모르면 null
  * @return 표시 문구
  */
-private fun namedFailureTextOf(@StringRes prefixRes: Int, name: String, cause: FailureReason?): UiText =
-    withCause(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(prefixRes), name)), cause)
+private fun namedFailureTextOf(@StringRes prefixRes: Int, headingStep: RemoteStep, name: String, cause: FailureReason?): UiText =
+    withCause(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(prefixRes), name)), headingStep, cause)
 
 /**
  * 문구 뒤에 원인을 괄호로 붙인다.
  * @param text 원인을 붙일 문구
+ * @param headingStep [text]가 이미 말하는 원격 단계. 없으면 null
  * @param cause 붙일 원인. null이면 [text] 그대로다
  * @return 원인을 붙인 문구
  */
-private fun withCause(text: UiText, cause: FailureReason?): UiText =
-    cause?.let { UiText.Resource(R.string.failure_with_cause, listOf(text, reasonTextOf(it))) } ?: text
+private fun withCause(text: UiText, headingStep: RemoteStep?, cause: FailureReason?): UiText =
+    cause?.let { UiText.Resource(R.string.failure_with_cause, listOf(text, causeTextOf(it, headingStep))) } ?: text
 
 /**
  * 부분 실패의 문구를 만든다. 실패가 하나면 경로와 원인을, 여럿이면 개수·원인 요약·경로 일부를 담는다.
  * @param heading 머리말
+ * @param headingStep 머리말이 말하는 원격 단계. 없으면 null
  * @param failures 실패한 항목 목록. 비어 있지 않아야 한다
  * @return 표시 문구
  */
-private fun partialFailureTextOf(heading: UiText, failures: List<FailedItem>): UiText {
+private fun partialFailureTextOf(heading: UiText, headingStep: RemoteStep?, failures: List<FailedItem>): UiText {
     if (failures.size == 1) {
         val failure = failures.single()
         val located = if (failure.path.isEmpty()) heading else UiText.Resource(R.string.failure_at, listOf(heading, failure.path))
-        return withCause(located, failure.reason)
+        return withCause(located, headingStep, failure.reason)
     }
-    return UiText.Resource(R.string.failure_partial_multiple, listOf(heading, failures.size, reasonSummaryOf(failures), listedPathsOf(failures)))
+    return UiText.Resource(
+        R.string.failure_partial_multiple,
+        listOf(heading, failures.size, reasonSummaryOf(failures, headingStep), listedPathsOf(failures))
+    )
 }
 
 /**
  * 실패 원인을 요약한다(#217). 원인이 한 종류면 그 원인을, 여러 종류면 가장 많은 원인과 그 수, 나머지 원인의 종류 수와 항목 수를 담는다.
  * 원인은 값이 같을 때만 같은 종류로 센다. 가장 많은 원인이 여럿이면 먼저 나온 것을 쓴다.
  * @param failures 실패한 항목 목록. 비어 있지 않아야 한다
+ * @param headingStep 머리말이 말하는 원격 단계. 없으면 null
  * @return 원인 요약 문구
  */
-private fun reasonSummaryOf(failures: List<FailedItem>): UiText {
+private fun reasonSummaryOf(failures: List<FailedItem>, headingStep: RemoteStep?): UiText {
     val countsByReason = failures.groupingBy { it.reason }.eachCount()
-    if (countsByReason.size == 1) return reasonOrUnknownTextOf(countsByReason.keys.single())
+    if (countsByReason.size == 1) return reasonOrUnknownTextOf(countsByReason.keys.single(), headingStep)
     val (topReason, topCount) = countsByReason.entries.maxBy { it.value }
     return UiText.Resource(
         R.string.failure_reason_summary_mixed,
-        listOf(reasonOrUnknownTextOf(topReason), topCount, countsByReason.size - 1, failures.size - topCount)
+        listOf(reasonOrUnknownTextOf(topReason, headingStep), topCount, countsByReason.size - 1, failures.size - topCount)
     )
 }
 
 /**
  * 원인의 문구를 만든다. 원인을 모르면 "원인 모름"이다.
  * @param reason 실패 원인. 모르면 null
+ * @param headingStep 머리말이 말하는 원격 단계. 없으면 null
  * @return 원인 문구
  */
-private fun reasonOrUnknownTextOf(reason: FailureReason?): UiText =
-    reason?.let(::reasonTextOf) ?: UiText.Resource(R.string.failure_reason_unknown)
+private fun reasonOrUnknownTextOf(reason: FailureReason?, headingStep: RemoteStep?): UiText =
+    reason?.let { causeTextOf(it, headingStep) } ?: UiText.Resource(R.string.failure_reason_unknown)
 
 /**
  * 실패한 항목의 경로를 최대 [MAX_LISTED_FAILURES]개 나열하고, 나머지는 "외 n개"로 줄인다.
@@ -243,4 +270,15 @@ private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = w
     FileOperationType.DOWNLOAD -> R.string.failure_partial_heading_download
     FileOperationType.UPLOAD -> R.string.failure_partial_heading_upload
     null -> R.string.failure_partial_heading_instant
+}
+
+/**
+ * 부분 실패의 머리말이 말하는 원격 단계를 작업 종류로 정한다. 머리말과 단계 이름이 같은 말일 때만 단계를 돌려준다.
+ * @param operationType 실패한 작업의 종류. null이면 순간 작업이거나 작업이 아닌 조회다
+ * @return 머리말이 말하는 원격 단계. 없으면 null
+ */
+private fun headingStepOf(operationType: FileOperationType?): RemoteStep? = when (operationType) {
+    FileOperationType.DOWNLOAD -> RemoteStep.DOWNLOAD
+    FileOperationType.UPLOAD -> RemoteStep.UPLOAD
+    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> null
 }
