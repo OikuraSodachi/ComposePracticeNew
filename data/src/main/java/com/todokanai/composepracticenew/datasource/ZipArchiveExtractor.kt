@@ -123,12 +123,15 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     /**
      * [candidate]로 항목을 출력 없이 끝까지 풀어 비밀번호를 확인한다.
+     * 검증값을 통과해 연 뒤 읽다가 난 실패는 모양과 무관하게 틀렸거나 손상으로 본다 — 틀린 비밀번호로 복호화한 쓰레기 내용은
+     * CRC·HMAC 불일치뿐 아니라 inflate 형식 오류·입력 부족(EOFException)으로도 드러나고, zip4j는 그중 일부를 유형 없는 IOException으로 알려
+     * 모양을 나열해서는 빠짐없이 가릴 수 없다. 압축 파일을 읽다 난 기기 오류도 같은 IOException이라 구분하지 못하고 다시 묻는다(질문에서 취소로 끝낸다).
      * @param zf 연 ZIP 파일
      * @param header 확인에 쓸 암호화된 항목
      * @param candidate 후보 비밀번호
      * @param ensureActive 읽는 동안 작업 취소를 확인하는 함수
      * @return 확인 결과
-     * @throws IOException 내용 검증이 아닌 이유로 읽지 못했을 때(그대로 작업 실패)
+     * @throws IOException 검증값을 확인하기 전(항목을 열 때)에 실패했을 때(그대로 작업 실패)
      */
     private fun check(zf: ZipFile, header: FileHeader, candidate: String, ensureActive: () -> Unit): PasswordCheck {
         val input = openWith(zf, header, candidate) ?: return PasswordCheck.WRONG
@@ -136,7 +139,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
             input.use { drain(it, ensureActive) }
             PasswordCheck.ACCEPTED
         } catch (e: IOException) {
-            if (isContentVerificationFailure(e)) PasswordCheck.WRONG_OR_DAMAGED else throw e
+            PasswordCheck.WRONG_OR_DAMAGED
         }
     }
 
@@ -149,18 +152,6 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         while (input.read(buffer) != -1) ensureActive()
     }
-
-    /**
-     * [e]가 풀어 낸 내용의 검증 실패인지 판별한다 — 틀린 비밀번호와 손상을 구분할 수 없는 실패다.
-     * ZipCrypto 항목의 CRC 불일치는 WRONG_PASSWORD, 그 밖의 CRC 불일치는 CHECKSUM_MISMATCH 유형이다.
-     * AES 항목의 HMAC 불일치는 zip4j가 유형 없는 IOException으로 알리므로 메시지로 가린다(zip4j를 올릴 때 테스트가 메시지 변경을 잡는다).
-     * @param e 항목을 읽다 난 예외
-     * @return 내용 검증 실패면 true
-     */
-    private fun isContentVerificationFailure(e: IOException): Boolean = when (e) {
-        is ZipException -> e.type == ZipException.Type.WRONG_PASSWORD || e.type == ZipException.Type.CHECKSUM_MISMATCH
-        else -> e.message?.contains(AES_VERIFICATION_FAILED) == true
-    }
 }
 
 /** zip4j가 UTF-8로 해석하지 못한 바이트를 바꿔 넣는 문자. */
@@ -168,6 +159,3 @@ private const val UNDECODABLE_MARK = '�'
 
 /** 항목 정보를 해석하지 못한 아카이브의 실패 메시지. */
 private const val UNDECODABLE_ENTRY_MESSAGE = "항목 이름을 해석할 수 없는 압축 파일입니다(UTF-8이 아닌 이름 등)"
-
-/** zip4j(AesCipherInputStream)가 AES 항목의 HMAC 불일치를 알리는 메시지의 일부. */
-private const val AES_VERIFICATION_FAILED = "aes verification failed"

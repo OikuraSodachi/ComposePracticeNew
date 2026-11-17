@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import kotlinx.coroutines.CancellationException
 import net.lingala.zip4j.ZipFile
+import net.lingala.zip4j.model.FileHeader
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.AesKeyStrength
 import net.lingala.zip4j.model.enums.CompressionMethod
@@ -95,6 +96,19 @@ class ZipPasswordTest {
     }
 
     @Test
+    fun `AES 항목의 내용 손상이 압축 해제 오류로 드러나도 틀렸거나 손상이라고 다시 묻는다`() {
+        // 검증값을 통과한 틀린 비밀번호(약 1/65536)도 같은 길이다 — 복호화한 내용이 잘못된 것은 같고, 손상은 결과가 정해져 있어 재현할 수 있다
+        val zip = deflatedAesZip().also(::corruptFirstBlockType)
+        val asked = mutableListOf<ArchivePasswordPrompt>()
+
+        // 같은 비밀번호로 다시 답해도 손상은 그대로이므로, 세 번째 질문에서 취소해 끝낸다
+        assertThrows(CancellationException::class.java) { extract(zip, session(asked, "secret", "secret")) }
+
+        assertEquals(listOf(ArchivePasswordPrompt.FIRST, ArchivePasswordPrompt.WRONG_OR_DAMAGED, ArchivePasswordPrompt.WRONG_OR_DAMAGED), asked)
+        assertFalse(File(out, "a.txt").exists())
+    }
+
+    @Test
     fun `내용이 손상된 AES 항목은 틀렸거나 손상이라고 다시 묻는다`() {
         val zip = zipOf(listOf("a.txt" to "secret"), EncryptionMethod.AES).also(::corruptLastDataByte)
         val asked = mutableListOf<ArchivePasswordPrompt>()
@@ -175,18 +189,54 @@ class ZipPasswordTest {
             }
         }
 
+    /** 비밀번호 `secret`으로 AES-256 암호화하고 Deflate로 압축한 [LONG_CONTENT] 항목 `a.txt` 하나를 담은 ZIP을 만든다. */
+    private fun deflatedAesZip(): File = File(dir, "test.zip").also { zip ->
+        val source = File(dir, "src/a.txt").apply { parentFile!!.mkdirs(); writeText(LONG_CONTENT) }
+        ZipFile(zip, "secret".toCharArray()).use { zf ->
+            zf.addFile(source, ZipParameters().apply {
+                compressionMethod = CompressionMethod.DEFLATE
+                isEncryptFiles = true
+                encryptionMethod = EncryptionMethod.AES
+                aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
+            })
+        }
+    }
+
+    /**
+     * [zip] 첫 항목 암호문의 첫 바이트에서 비트 하나를 바꿔, 비밀번호 검증값은 맞고 inflate가 첫 블록에서 실패하게 만든다.
+     * AES는 CTR 방식이라 암호문의 비트를 바꾸면 평문의 같은 비트가 바뀐다 — Deflate 첫 블록의 종류(BTYPE)가 쓰지 않는 값(11)이 되어,
+     * zip4j가 유형 없는 IOException으로 감싸는 "invalid block type"이 난다(HMAC 확인보다 먼저).
+     */
+    private fun corruptFirstBlockType(zip: File) {
+        val header = ZipFile(zip).fileHeaders.first()
+        val bytes = zip.readBytes()
+        val at = dataStartOf(bytes, header) + AES_256_SALT_LENGTH + AES_VERIFIER_LENGTH
+        bytes[at] = (bytes[at].toInt() xor FIRST_BLOCK_TYPE_FLIP).toByte()
+        zip.writeBytes(bytes)
+    }
+
     /** [zip]의 [name] 항목(없으면 첫 항목) 암호문 마지막 바이트(HMAC 바로 앞)를 바꿔, 비밀번호 검증값은 맞고 내용 검증만 실패하게 만든다. */
     private fun corruptLastDataByte(zip: File, name: String? = null) {
         val header = ZipFile(zip).fileHeaders.let { headers -> name?.let { n -> headers.single { it.fileName == n } } ?: headers.first() }
         val bytes = zip.readBytes()
-        // 지역 헤더(30바이트 + 이름 + 추가 필드) 뒤의 데이터 = 솔트·검증값 + 암호문 + HMAC(10바이트)
-        val localHeaderStart = header.offsetLocalHeader.toInt()
-        val nameLength = (bytes[localHeaderStart + 26].toInt() and 0xFF) or ((bytes[localHeaderStart + 27].toInt() and 0xFF) shl 8)
-        val extraLength = (bytes[localHeaderStart + 28].toInt() and 0xFF) or ((bytes[localHeaderStart + 29].toInt() and 0xFF) shl 8)
-        val dataEnd = localHeaderStart + 30 + nameLength + extraLength + header.compressedSize.toInt()
+        // 데이터 = 솔트·검증값 + 암호문 + HMAC(10바이트)
+        val dataEnd = dataStartOf(bytes, header) + header.compressedSize.toInt()
         val at = dataEnd - AES_MAC_LENGTH - 1
         bytes[at] = (bytes[at].toInt() xor 0xFF).toByte()
         zip.writeBytes(bytes)
+    }
+
+    /**
+     * 항목 데이터가 시작하는 위치를 지역 헤더(30바이트 + 이름 + 추가 필드)를 건너뛰어 구한다.
+     * @param bytes ZIP 파일 전체
+     * @param header 항목 헤더
+     * @return 항목 데이터의 시작 위치
+     */
+    private fun dataStartOf(bytes: ByteArray, header: FileHeader): Int {
+        val localHeaderStart = header.offsetLocalHeader.toInt()
+        val nameLength = (bytes[localHeaderStart + 26].toInt() and 0xFF) or ((bytes[localHeaderStart + 27].toInt() and 0xFF) shl 8)
+        val extraLength = (bytes[localHeaderStart + 28].toInt() and 0xFF) or ((bytes[localHeaderStart + 29].toInt() and 0xFF) shl 8)
+        return localHeaderStart + 30 + nameLength + extraLength
     }
 
     /**
@@ -212,5 +262,13 @@ class ZipPasswordTest {
         const val CONTENT = "password-protected-content"
         /** AES 항목 끝의 HMAC 길이(bytes). */
         const val AES_MAC_LENGTH = 10
+        /** AES-256 항목 데이터 앞의 솔트 길이(bytes). */
+        const val AES_256_SALT_LENGTH = 16
+        /** AES 항목 솔트 뒤의 비밀번호 검증값 길이(bytes). */
+        const val AES_VERIFIER_LENGTH = 2
+        /** Deflate 항목 내용. 고정 허프만이 아닌 블록으로 압축될 만큼 길게 반복한다. */
+        val LONG_CONTENT = "password-protected-content ".repeat(2000)
+        /** [LONG_CONTENT]를 압축한 첫 블록의 종류(BTYPE 10, 동적 허프만)를 11로 바꾸는 비트(첫 바이트의 둘째 비트). */
+        const val FIRST_BLOCK_TYPE_FLIP = 0x02
     }
 }
