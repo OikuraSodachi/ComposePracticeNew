@@ -14,7 +14,7 @@ import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
  * @param currentFileSize 현재 작업중인 파일의 전체 용량
  * @param operationType 작업 종류
  * @param knownSize 크기를 모르는 파일이 섞여 [progress]가 null일 때 크기를 아는 부분의 진행. 그 밖에는 null
- * @param preparing 처리 전에 대상을 훑는 준비 단계의 진행. 준비 단계가 아니면 null
+ * @param indeterminate 퍼센트 없이 보이는 단계(준비 단계, 비밀번호 확인)의 진행. 그런 단계가 아니면 null
  */
 @Immutable
 data class ProgressStateModel(
@@ -27,18 +27,30 @@ data class ProgressStateModel(
     val currentFileSize: String? = null,
     val operationType: FileOperationType? = null,
     val knownSize: KnownSizeProgressModel? = null,
-    val preparing: PreparationProgressModel? = null
+    val indeterminate: IndeterminatePhaseModel? = null
 )
 
-/**
- * 처리 전에 대상을 훑는 준비 단계 진행의 UI 상태.
- * @param foundEntries 지금까지 찾은 항목 수
- * @param currentName 마지막으로 찾은 항목의 이름
- */
-data class PreparationProgressModel(
-    val foundEntries: Int,
-    val currentName: String
-)
+/** 퍼센트 없이 움직이는 막대로 보이는 진행 단계의 UI 상태. 단계마다 보일 문구가 다르므로 exhaustive `when`으로 가른다. */
+sealed interface IndeterminatePhaseModel {
+
+    /**
+     * 처리 전에 대상을 훑는 준비 단계의 UI 상태.
+     * @param foundEntries 지금까지 찾은 항목 수
+     * @param currentName 마지막으로 찾은 항목의 이름
+     */
+    data class Preparing(
+        val foundEntries: Int,
+        val currentName: String
+    ) : IndeterminatePhaseModel
+
+    /**
+     * 압축 해제 전에 비밀번호를 내용으로 확인하는 단계의 UI 상태.
+     * @param archiveName 비밀번호를 확인하는 압축 파일의 표시 이름
+     */
+    data class CheckingPassword(
+        val archiveName: String
+    ) : IndeterminatePhaseModel
+}
 
 /**
  * 크기를 아는 파일과 모르는 파일을 나눈 진행의 UI 상태.
@@ -68,8 +80,14 @@ fun ProgressState.toModel(): ProgressStateModel = ProgressStateModel(
     currentFileSize = this.currentFileBytes?.let { readableFileSize_td(it) },
     operationType = this.operationType,
     knownSize = this.knownSize?.toModel(),
-    preparing = this.preparing?.let { PreparationProgressModel(it.foundEntries, it.currentName) }
+    indeterminate = this.indeterminate?.toModel()
 )
+
+/** IndeterminatePhase → IndeterminatePhaseModel 변환. */
+private fun IndeterminatePhase.toModel(): IndeterminatePhaseModel = when (this) {
+    is IndeterminatePhase.Preparing -> IndeterminatePhaseModel.Preparing(foundEntries, currentName)
+    is IndeterminatePhase.CheckingPassword -> IndeterminatePhaseModel.CheckingPassword(archiveName)
+}
 
 /** KnownSizeProgress → KnownSizeProgressModel 변환. */
 private fun KnownSizeProgress.toModel(): KnownSizeProgressModel = KnownSizeProgressModel(

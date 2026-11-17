@@ -130,6 +130,16 @@ class ZipPasswordTest {
     }
 
     @Test
+    fun `비밀번호를 확인하며 읽는 동안 진행을 보고하고 그 보고에서 취소되면 출력을 만들지 않는다`() {
+        val zip = compressedZip(password = "secret")
+        val passwords = ArchivePasswordSession(ask = { "secret" }, reportChecking = { throw CancellationException("확인 중 취소") })
+
+        assertThrows(CancellationException::class.java) { extract(zip, passwords) }
+
+        assertFalse(File(out, "dir/a.txt").exists())
+    }
+
+    @Test
     fun `항목마다 비밀번호가 다르면 다시 묻지 않고 확인한 비밀번호가 맞지 않는 항목에서 실패한다`() {
         val zip = zipOf(listOf("a.txt" to "first", "b.txt" to "second"), EncryptionMethod.AES)
         val asked = mutableListOf<ArchivePasswordPrompt>()
@@ -248,7 +258,7 @@ class ZipPasswordTest {
         val remaining = ArrayDeque(answers.toList())
         return ArchivePasswordSession(
             ask = { prompt -> asked += prompt; remaining.removeFirstOrNull() ?: throw CancellationException("질문에서 취소") },
-            ensureActive = {},
+            reportChecking = {},
         )
     }
 

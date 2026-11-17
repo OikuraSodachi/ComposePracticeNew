@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.data.progress
 
-import com.todokanai.composepracticenew.model.PreparationProgress
+import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.ProgressState
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -11,7 +11,7 @@ class PreparationProgressReporterTest {
     /** 테스트가 정하는 현재 시각(나노초). */
     private var now = 0L
     private val reported = mutableListOf<ProgressState>()
-    private val reporter = PreparationProgressReporter({ reported += it }, ProgressThrottle(intervalNanos = 100, now = { now }))
+    private val reporter = PreparationProgressReporter(IndeterminateProgressReporter({ reported += it }, ProgressThrottle(intervalNanos = 100, now = { now })))
 
     @Test
     fun `보고 간격 안에 찾은 항목은 보고하지 않고 세기만 해 다음 보고에 담는다`() {
@@ -21,6 +21,6 @@ class PreparationProgressReporterTest {
         now = 100
         reporter.onEntryFound("c")
 
-        assertEquals(listOf(PreparationProgress(1, "a"), PreparationProgress(3, "c")), reported.map { it.preparing })
+        assertEquals(listOf(IndeterminatePhase.Preparing(1, "a"), IndeterminatePhase.Preparing(3, "c")), reported.map { it.indeterminate })
     }
 }

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.data.progress.IndeterminateProgressReporter
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
 import com.todokanai.composepracticenew.model.ConflictChoice
@@ -8,6 +9,7 @@ import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileNameParts
+import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.WriteConflict
@@ -15,7 +17,6 @@ import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -55,8 +56,10 @@ class LocalArchiveExtraction @Inject constructor(
             val archives = zipFiles.map { path ->
                 path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(File(path).name)))
             }
+            // 비밀번호 확인 단계의 보고 간격은 작업 전체에서 하나로 센다 — 아카이브가 바뀌어도 보고가 몰리지 않도록
+            val checking = IndeterminateProgressReporter(onProgress)
             // 아카이브마다 비밀번호 세션을 따로 둔다 — 한 아카이브에서 확인한 비밀번호를 다른 아카이브에 쓰지 않도록. 산정과 추출은 같은 세션을 쓴다
-            val sessions = archives.map { (path, _) -> passwordSessionOf(File(path).name, askPassword, job) }
+            val sessions = archives.map { (path, _) -> passwordSessionOf(File(path).name, askPassword, job, checking) }
             val sizes = archives.mapIndexed { i, (path, extractor) -> extractor.measure(path, sessions[i]) }
             val knownBytes = sizes.sumOf { it.knownBytes }
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
@@ -91,11 +94,12 @@ class LocalArchiveExtraction @Inject constructor(
      * @param archiveName 비밀번호를 물을 때 보일 아카이브 이름
      * @param askPassword 비밀번호를 묻는 통로
      * @param job 이 작업의 Job
+     * @param checking 비밀번호 확인 단계를 보고하는 보고기. 그 보고가 확인하는 동안의 작업 취소를 확인한다
      * @return 새 비밀번호 세션
      */
-    private fun passwordSessionOf(archiveName: String, askPassword: ArchivePasswordProvider, job: Job) = ArchivePasswordSession(
+    private fun passwordSessionOf(archiveName: String, askPassword: ArchivePasswordProvider, job: Job, checking: IndeterminateProgressReporter) = ArchivePasswordSession(
         ask = { prompt -> runBlocking(job) { askPassword.passwordFor(archiveName, prompt) } },
-        ensureActive = { job.ensureActive() },
+        reportChecking = { checking.report { IndeterminatePhase.CheckingPassword(archiveName) } },
     )
 
     /**

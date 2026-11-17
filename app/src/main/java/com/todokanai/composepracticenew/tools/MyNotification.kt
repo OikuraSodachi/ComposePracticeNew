@@ -13,7 +13,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.os.bundleOf
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.PreparationProgress
+import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
@@ -44,7 +44,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
 
     override fun progressNoti(state: ProgressState, instanceId: Int) {
         val type = state.operationType
-        state.preparing?.let { return showPreparingProgress(type, it, instanceId) }
+        state.indeterminate?.let { return showIndeterminateProgress(type, it, instanceId) }
         when (type) {
             FileOperationType.DELETE -> showCountProgress(type, state, instanceId)
             FileOperationType.COPY,
@@ -72,15 +72,25 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
     }
 
-    /** 처리 전에 대상을 훑는 준비 단계를 불확정 막대와 찾은 항목 수로 표시한다 — 전체를 모르는 동안에도 작업이 진행 중임을 보이도록. */
-    private fun showPreparingProgress(type: FileOperationType?, preparing: PreparationProgress, instanceId: Int) {
+    /** 퍼센트 없이 보이는 단계(준비 단계, 비밀번호 확인)를 불확정 막대와 단계의 문구로 표시한다 — 전체를 모르거나 셀 수 없는 동안에도 작업이 진행 중임을 보이도록. */
+    private fun showIndeterminateProgress(type: FileOperationType?, phase: IndeterminatePhase, instanceId: Int) {
         val notificationId = ids.idFor(instanceId)
         val builder = progressBuilder(type)
-            .setContentText(context.getString(R.string.progress_preparing, preparing.foundEntries))
+            .setContentText(phaseText(phase))
             .setOngoing(true)
             .setProgress(0, 0, true)
             .setContentIntent(buildClickIntent(type?.id ?: 0, instanceId, notificationId))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
+    }
+
+    /**
+     * 퍼센트 없이 보이는 단계의 알림 문구를 고른다.
+     * @param phase 단계
+     * @return 표시 문구
+     */
+    private fun phaseText(phase: IndeterminatePhase): String = when (phase) {
+        is IndeterminatePhase.Preparing -> context.getString(R.string.progress_preparing, phase.foundEntries)
+        is IndeterminatePhase.CheckingPassword -> context.getString(R.string.progress_checking_password)
     }
 
     /** 처리한 항목 수 / 전체 항목 수로 진행 알림을 표시한다. 항목 수 정보가 없으면 표시하지 않는다. */

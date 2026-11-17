@@ -30,8 +30,8 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.IndeterminatePhaseModel
 import com.todokanai.composepracticenew.model.KnownSizeProgressModel
-import com.todokanai.composepracticenew.model.PreparationProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
 
@@ -73,8 +73,8 @@ private fun ProgressItem(state: ProgressStateModel) {
             text = stringResource(operationLabelRes(state.operationType)),
             style = MaterialTheme.typography.labelMedium
         )
-        state.preparing?.let {
-            PreparingPart(it)
+        state.indeterminate?.let {
+            IndeterminatePart(it)
             return@Column
         }
         if (progress != null) {
@@ -125,23 +125,44 @@ private fun ProgressItem(state: ProgressStateModel) {
 }
 
 /**
- * 처리 전에 대상을 훑는 준비 단계의 진행을 보여준다. 끝나야 전체를 알 수 있으므로 퍼센트 대신 움직이는 막대와 찾은 항목 수를 보여준다.
- * @param preparing 준비 단계의 진행
+ * 퍼센트 없이 보이는 단계의 진행을 보여준다. 전체를 모르거나 셀 수 없으므로 퍼센트 대신 움직이는 막대와 단계의 문구, 대상 이름을 보여준다.
+ * @param phase 퍼센트 없이 보이는 단계의 진행
  */
 @Composable
-private fun PreparingPart(preparing: PreparationProgressModel) {
+private fun IndeterminatePart(phase: IndeterminatePhaseModel) {
     IndeterminateIndicator()
     Text(
-        text = stringResource(R.string.progress_preparing, preparing.foundEntries),
+        text = phaseText(phase),
         style = MaterialTheme.typography.bodySmall
     )
     Text(
-        text = preparing.currentName,
+        text = phaseTargetName(phase),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
     )
+}
+
+/**
+ * 퍼센트 없이 보이는 단계의 문구를 고른다.
+ * @param phase 단계
+ * @return 표시 문구
+ */
+@Composable
+private fun phaseText(phase: IndeterminatePhaseModel): String = when (phase) {
+    is IndeterminatePhaseModel.Preparing -> stringResource(R.string.progress_preparing, phase.foundEntries)
+    is IndeterminatePhaseModel.CheckingPassword -> stringResource(R.string.progress_checking_password)
+}
+
+/**
+ * 퍼센트 없이 보이는 단계에서 지금 다루는 대상의 이름을 고른다.
+ * @param phase 단계
+ * @return 준비 단계면 마지막으로 찾은 항목, 비밀번호 확인이면 압축 파일의 이름
+ */
+private fun phaseTargetName(phase: IndeterminatePhaseModel): String = when (phase) {
+    is IndeterminatePhaseModel.Preparing -> phase.currentName
+    is IndeterminatePhaseModel.CheckingPassword -> phase.archiveName
 }
 
 /** 진행률을 모를 때 작업이 진행 중임을 보여주는 계속 움직이는 막대. */
@@ -252,7 +273,21 @@ private fun CustomProgressDialogPreparingPreview() {
         CustomProgressDialog(
             progress = ProgressStateModel(
                 operationType = FileOperationType.DOWNLOAD,
-                preparing = PreparationProgressModel(foundEntries = 1234, currentName = "photos")
+                indeterminate = IndeterminatePhaseModel.Preparing(foundEntries = 1234, currentName = "photos")
+            )
+        )
+    }
+}
+
+/** CustomProgressDialog의 비밀번호 확인 단계 모양을 확인하는 프리뷰. */
+@Preview
+@Composable
+private fun CustomProgressDialogCheckingPasswordPreview() {
+    Surface {
+        CustomProgressDialog(
+            progress = ProgressStateModel(
+                operationType = FileOperationType.UNZIP,
+                indeterminate = IndeterminatePhaseModel.CheckingPassword(archiveName = "photos.rar")
             )
         )
     }

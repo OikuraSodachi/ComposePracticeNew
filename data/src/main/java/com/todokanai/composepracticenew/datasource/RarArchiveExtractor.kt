@@ -47,7 +47,7 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
     override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
         withArchive(path, passwords) { archive ->
             // 암호화된 항목이 있으면 출력을 만들기 전에 비밀번호를 확인해 둔다 — 추출 중 라이브러리가 묻는 비밀번호는 확인된 것만 준다
-            passwordCheckIndexOf(archive)?.let { index -> passwords.verifiedPassword { candidate -> checkPassword(archive, index, candidate, passwords.ensureActive) } }
+            passwordCheckIndexOf(archive)?.let { index -> passwords.verifiedPassword { candidate -> checkPassword(archive, index, candidate, passwords.reportChecking) } }
             RarExtractCallback({ entryKindOf(archive, it) }, { knownSizeOf(archive, it) }, { passwords.verified }, writer, tracker).use { callback ->
                 runCollectingFailure(callback) { archive.extract(null, false, callback) }
             }
@@ -111,12 +111,12 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
      * @param archive 열린 아카이브
      * @param index 확인에 쓸 암호화된 파일 항목
      * @param candidate 후보 비밀번호
-     * @param ensureActive 푸는 동안 작업 취소를 확인하는 함수
+     * @param reportChecking 푸는 동안 부르는 비밀번호 확인 단계의 진행 보고. 보고가 작업 취소를 확인한다
      * @return 확인 결과
      * @throws IOException 비밀번호와 무관하게 풀지 못했을 때(지원하지 않는 압축 방식 등)
      */
-    private fun checkPassword(archive: IInArchive, index: Int, candidate: String, ensureActive: () -> Unit): PasswordCheck {
-        val callback = RarPasswordCheckCallback(candidate, ensureActive)
+    private fun checkPassword(archive: IInArchive, index: Int, candidate: String, reportChecking: () -> Unit): PasswordCheck {
+        val callback = RarPasswordCheckCallback(candidate, reportChecking)
         runCollectingFailure(callback) { archive.extract(intArrayOf(index), false, callback) }
         return callback.result ?: throw IOException("비밀번호 확인 결과를 받지 못했습니다")
     }
@@ -145,6 +145,8 @@ class RarArchiveExtractor @Inject constructor() : ArchiveExtractor {
  * 라이브러리는 콜백이 던진 예외를 받아 추출을 멈추고 자기 예외로 감싸 다시 던지므로, 처음 던진 예외를 [failure]에 보관해 호출부가 원래 예외로 알리게 한다
  * (입출력 실패는 그 메시지로 작업 실패가 되고, 구현 오류는 결과로 바뀌지 않고 전파된다). 실패한 뒤에 오는 콜백은 같은 예외로 다시 멈춘다.
  * 라이브러리 없이 검증할 수 있도록 아카이브 대신 항목 판별·크기 함수를 받는다.
+ * 라이브러리가 진행을 알릴 때([setCompleted])마다 지금 진행을 다시 보고한다 — solid RAR은 건너뛴 항목도 출력 없이 끝까지 푸는데 그동안 기록이 없어,
+ * 기록할 때의 보고만으로는 작업 취소가 듣지 않는다(진행 보고가 취소를 확인하는 자리이므로).
  * 라이브러리가 암호화된 항목의 비밀번호를 물으면 확인된 비밀번호만 준다 — 확인하지 않은 비밀번호로 출력을 만들지 않도록. 확인된 것이 없으면 실패로 멈춘다.
  * @param entryOf 항목 번호로 항목 종류를 구하는 함수
  * @param sizeOf 항목 번호로 압축 해제 후 크기를 구하는 함수(모르면 null)
@@ -181,7 +183,7 @@ internal class RarExtractCallback(
         val entry = entryOf(index)
         currentPath = entry.path
         when (entry) {
-            is RarEntryKind.Folder -> { writer.createFolder(entry.path); null }
+            is RarEntryKind.Folder -> { currentItemSize = null; writer.createFolder(entry.path); null }
             is RarEntryKind.File -> openFile(entry.path, sizeOf(index))
         }
     }
@@ -198,7 +200,7 @@ internal class RarExtractCallback(
     }
 
     override fun setTotal(total: Long) {}
-    override fun setCompleted(complete: Long) {}
+    override fun setCompleted(complete: Long) = recorder.record { tracker.reportCurrent(currentPath, currentItemSize) }
 
     /** 추출이 중간에 멈춰 닫지 못한 출력 스트림을 닫는다. 취소로 멈췄으면 그 쓰다 만 파일을 지운다. */
     override fun close() {

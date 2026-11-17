@@ -29,6 +29,21 @@ class ByteProgressTrackerTest {
     }
 
     @Test
+    fun `처리한 바이트 없이도 보고 간격이 지나면 지금 진행을 다시 보고한다`() {
+        val tracker = knownTotalTracker(totalBytes = 200, totalFileCount = 1)
+        tracker.startFile()
+        tracker.addBytes(50, "a", 200)
+
+        tracker.reportCurrent("b", 30)
+        now += INTERVAL
+        tracker.reportCurrent("b", 30)
+
+        assertEquals(listOf(25, 25), reports.map { it.progress })
+        assertEquals(listOf(50L, 50L), reports.map { it.writtenBytes })
+        assertEquals(listOf("a", "b"), reports.map { it.currentFileName })
+    }
+
+    @Test
     fun `전체 크기를 모르면 진행률과 전체 크기 없이 누적 바이트와 파일 순번을 보고한다`() {
         val tracker = unknownTotalTracker(totalFileCount = 2)
 
