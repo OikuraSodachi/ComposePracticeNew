@@ -33,6 +33,7 @@ class LocalArchiveCompression @Inject constructor(
      * @param parentPath 아카이브를 만들 디렉터리 경로
      * @param baseName 만들 아카이브 이름(확장자 제외)
      * @param format 만들 아카이브 형식
+     * @param password 파일 항목을 AES-256으로 암호화할 비밀번호(비어 있지 않다). null이면 암호화하지 않는다
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 압축 결과. [format]을 쓰는 구현이 없으면 아무것도 만들지 않고 실패한다
      */
@@ -41,11 +42,12 @@ class LocalArchiveCompression @Inject constructor(
         parentPath: String,
         baseName: String,
         format: ArchiveFormat,
+        password: String?,
         onProgress: (ProgressState) -> Unit
     ): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo {
             val compressor = compressors[format] ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(format.extension))
-            compressEntries(compressor, targetFiles, File(parentPath, "$baseName${format.extension}"), onProgress)
+            compressEntries(compressor, targetFiles, File(parentPath, "$baseName${format.extension}"), password, onProgress)
         }
     }
 
@@ -55,10 +57,11 @@ class LocalArchiveCompression @Inject constructor(
      * @param compressor 아카이브를 쓸 형식별 구현
      * @param targetFiles 압축 대상 파일 경로 집합
      * @param desired 만들 아카이브의 희망 경로
+     * @param password 암호화할 비밀번호. null이면 암호화하지 않는다
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 압축 결과. 넣지 못한 링크가 있으면 [IoResult.PartiallyFailed]
      */
-    private fun compressEntries(compressor: ArchiveCompressor, targetFiles: Set<String>, desired: File, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    private fun compressEntries(compressor: ArchiveCompressor, targetFiles: Set<String>, desired: File, password: String?, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         val roots = targetFiles.map(::File)
         val entries = mutableListOf<ArchiveSource>()
         val skippedLinks = mutableListOf<FailedItem>()
@@ -84,7 +87,7 @@ class LocalArchiveCompression @Inject constructor(
         // 취소로 멈춘 아카이브는 일부 항목만 담긴 깨진 파일이므로 통째로 지운다 — 이 호출이 새로 만든 파일이라 기존 파일을 건드리지 않는다.
         // 완료 보고도 취소를 확인하므로 함께 감싼다 — 다 쓴 직후의 취소도 아카이브를 남기지 않아, 취소된 압축은 언제나 파일이 없다
         deletingOnCancel(output) {
-            compressor.write(entries, output, tracker)
+            compressor.write(entries, output, password, tracker)
             tracker.reportComplete()
         }
         return if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skippedLinks)

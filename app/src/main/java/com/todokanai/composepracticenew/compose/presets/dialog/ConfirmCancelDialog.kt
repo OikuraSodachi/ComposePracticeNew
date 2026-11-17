@@ -3,10 +3,6 @@ package com.todokanai.composepracticenew.compose.presets.dialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -18,8 +14,8 @@ import com.todokanai.composepracticenew.R
  * 확인 버튼은 [onConfirm] 실행 후 [onDismiss]로 다이얼로그를 닫고, 취소 버튼·바깥 터치·뒤로가기는 [onDismiss]만 호출한다.
  * 버튼 라벨은 항상 값을 가지므로 라벨 없는 버튼은 만들어지지 않는다.
  * [onConfirm]이 null이면 확인 버튼을 표시하지 않고, [title]이 null이면 제목 영역 자체를 두지 않는다.
- * 확인은 다이얼로그 인스턴스당 한 번만 처리되어, 닫히기 전 연타로 [onConfirm]이 중복 실행되지 않는다.
- * [confirmEnabled]는 직전 컴포지션의 값이라 입력 직후의 클릭을 막지 못하므로, 입력을 검증하는 다이얼로그는 [canConfirm]으로 클릭 순간의 값을 판정한다. false면 확인을 처리하지 않고 열어 둔다.
+ * 확인 버튼은 [GuardedConfirmButton]이다 — 확인은 다이얼로그 인스턴스당 한 번만 처리되고, 활성 여부와 클릭 순간의 판정을 모두 [canConfirm]으로 한다.
+ * 입력을 검증하는 다이얼로그는 그 조건을 [canConfirm]에 담는다. false면 확인을 처리하지 않고 열어 둔다.
  * [content]는 남는 높이를 넘으면 세로로 스크롤된다. 스스로 세로 스크롤하는 본문(LazyColumn 등)이면 [contentScrollsItself]를 true로 준다.
  */
 @Composable
@@ -28,15 +24,12 @@ fun ConfirmCancelDialog(
     title: String?,
     onConfirm: (() -> Unit)?,
     onDismiss: () -> Unit,
-    confirmEnabled: Boolean = true,
     canConfirm: () -> Boolean = { true },
     confirmText: String = stringResource(R.string.btn_confirm),
     dismissText: String = stringResource(R.string.btn_cancel),
     contentScrollsItself: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    // 키 없음 — 다이얼로그 인스턴스가 살아 있는 동안 확인을 한 번만 처리; 상태 쓰기는 리컴포지션 전에도 즉시 보여 연타의 두 번째 클릭을 걸러낸다
-    var confirmConsumed by remember { mutableStateOf(false) }
     AppAlertDialog(
         modifier = modifier,
         onDismissRequest = onDismiss,
@@ -45,18 +38,14 @@ fun ConfirmCancelDialog(
         textScrollsItself = contentScrollsItself,
         confirmButton = {
             onConfirm?.let {
-                Button(
-                    onClick = {
-                        if (!confirmConsumed && canConfirm()) {
-                            confirmConsumed = true
-                            it()
-                            onDismiss()
-                        }
-                    },
-                    enabled = confirmEnabled && !confirmConsumed
-                ) {
-                    Text(text = confirmText)
-                }
+                GuardedConfirmButton(
+                    text = confirmText,
+                    canConfirm = canConfirm,
+                    onConfirm = {
+                        it()
+                        onDismiss()
+                    }
+                )
             }
         },
         dismissButton = {

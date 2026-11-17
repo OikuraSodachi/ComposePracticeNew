@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
@@ -41,14 +42,14 @@ class OperationLauncherTest {
     /** 받은 알림 요청을 기록하는 알림기. */
     private val notifier = RecordingNotifier()
     /** 검증 대상. */
-    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
 
     /** 작업 코루틴에서 전파된 예외. 받은 순서대로 쌓는다. */
     private val propagated = mutableListOf<Throwable>()
     /** 작업에서 전파된 예외를 [propagated]에 모으는 스코프 — 앱 수명 스코프처럼 한 작업의 실패가 다른 작업을 취소하지 않는다. */
     private val propagatingScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> propagated += e })
     /** [propagatingScope]에서 작업을 실행하는 검증 대상. 보고 중 예외의 전파를 볼 때 쓴다. */
-    private val propagatingOrchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, propagatingScope)
+    private val propagatingOrchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, propagatingScope)
 
     @After
     fun tearDown() {
@@ -231,6 +232,6 @@ class OperationLauncherTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) { calls += "progress $instanceId" }
         override fun completedNotification(operationType: FileOperationType?, instanceId: Int) { calls += "completed $instanceId" }
         override fun cancelNotification(instanceId: Int) { calls += "cancel $instanceId" }
-        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

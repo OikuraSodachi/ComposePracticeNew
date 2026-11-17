@@ -45,8 +45,8 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun download(items: List<FileHolderItem>, localDestPath: String, onRefresh: suspend () -> Unit) {
-        orchestrator.launchResolvingConflicts(FileOperationType.DOWNLOAD, onRefresh) { onProgress, resolveConflict ->
-            transferRepo.download(items, localDestPath, resolveConflict, onProgress)
+        orchestrator.launchAsking(FileOperationType.DOWNLOAD, onRefresh) { onProgress, prompts ->
+            transferRepo.download(items, localDestPath, prompts, onProgress)
         }
     }
 

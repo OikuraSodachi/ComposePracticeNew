@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -39,7 +40,7 @@ class RemoteFileOperationFailureTest {
     private val notices = RecordingOperationNotices()
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase(NoStorageNameRules))
 
     @After
@@ -193,6 +194,6 @@ class RemoteFileOperationFailureTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

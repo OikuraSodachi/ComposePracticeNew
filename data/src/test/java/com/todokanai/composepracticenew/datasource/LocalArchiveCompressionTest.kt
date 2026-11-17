@@ -75,7 +75,7 @@ class LocalArchiveCompressionTest {
         assertEquals(listOf("empty/", "src/", "src/a.txt", "src/blank/", "src/blank/deeper/"), entriesOf(out))
         val restored = File(dir, "restored").apply { mkdirs() }
         val tracker = ByteProgressTracker(1, 1, onProgress = {})
-        ZipArchiveExtractor().extract(out.path, ArchiveEntryWriter(ExtractionRoot(restored), UnexpectedConflictAsk, tracker), tracker)
+        ZipArchiveExtractor().extract(out.path, ArchiveEntryWriter(ExtractionRoot(restored), UnexpectedConflictAsk, tracker), unexpectedPasswordSession(), tracker)
         assertTrue(File(restored, "empty").isDirectory)
         assertTrue(File(restored, "src/blank/deeper").isDirectory)
         assertEquals("hello", File(restored, "src/a.txt").readText())
@@ -121,7 +121,7 @@ class LocalArchiveCompressionTest {
     fun `형식을 쓰는 구현이 없으면 아무것도 만들지 않고 실패한다`() = runBlocking {
         val src = folderWith("a.txt", "hello")
 
-        val result = LocalArchiveCompression(emptyMap()).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {}
+        val result = LocalArchiveCompression(emptyMap()).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertTrue(result.toString(), result is IoResult.ItemFailed)
         assertTrue(!File(dir, "out.zip").exists())
@@ -138,7 +138,7 @@ class LocalArchiveCompressionTest {
         val src = folderWith("a.txt", "hello")
         val recorder = RecordingCompressor()
 
-        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {})
+        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {})
 
         assertEquals(listOf(ArchiveSource.Folder("src"), ArchiveSource.Regular("src/a.txt", File(src, "a.txt"), 5L)), recorder.entries)
         assertEquals(File(dir, "out.zip"), recorder.output)
@@ -152,7 +152,7 @@ class LocalArchiveCompressionTest {
         File(src, "sub/deeper/d.txt").writeText("d")
         val recorder = RecordingCompressor()
 
-        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {})
+        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {})
 
         val names = recorder.entries.map { it.name }
         assertEquals(setOf("src", "src/a.txt", "src/sub", "src/sub/c.txt", "src/sub/deeper", "src/sub/deeper/d.txt"), names.toSet())
@@ -169,7 +169,7 @@ class LocalArchiveCompressionTest {
         var reportedBeforeWrite = -1
         val recorder = RecordingCompressor { reportedBeforeWrite = progress.size }
 
-        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) { progress += it })
+        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) { progress += it })
 
         assertEquals(1, reportedBeforeWrite)
         assertEquals(2, progress.size)
@@ -185,7 +185,7 @@ class LocalArchiveCompressionTest {
         val src = folderWith("a.txt", "hello")
         val failing = RecordingCompressor { throw IOException("쓰기 실패") }
 
-        val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP) {}
+        val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertEquals(IoResult.ItemFailed(FailureReason.IoFailed("쓰기 실패")), result)
     }
@@ -200,7 +200,7 @@ class LocalArchiveCompressionTest {
         /** 마지막 [write] 호출이 받은 출력 파일. */
         var output: File? = null
 
-        override fun write(entries: List<ArchiveSource>, output: File, tracker: ByteProgressTracker) {
+        override fun write(entries: List<ArchiveSource>, output: File, password: String?, tracker: ByteProgressTracker) {
             this.entries = entries
             this.output = output
             onWrite()
@@ -209,7 +209,7 @@ class LocalArchiveCompressionTest {
 
     /** [targetFiles]를 [dir] 아래 [baseName].zip으로 압축한다. */
     private suspend fun compress(targetFiles: Set<String>, baseName: String): IoResult<Unit> =
-        compression.compress(targetFiles, dir.path, baseName, ArchiveFormat.ZIP) {}
+        compression.compress(targetFiles, dir.path, baseName, ArchiveFormat.ZIP, password = null) {}
 
     /** [dir] 아래 src 폴더에 [name] 파일을 [content] 내용으로 만들고 그 폴더를 반환한다. */
     private fun folderWith(name: String, content: String): File =

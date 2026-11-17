@@ -40,7 +40,7 @@ fun BottomButtonDialogHost(
             val suggestedName = remember { compress.suggestName(selectedList) }
             CompressDialog(
                 initialText = suggestedName,
-                onConfirm = { name -> onSubmitSelection()?.let { compress.onCompress(it, folder, name) } },
+                onConfirm = { name, password -> onSubmitSelection()?.let { compress.onCompress(it, folder, name, password) } },
                 onDismiss = { dialogState.dismissCompress() },
                 validate = { name -> compress.validateName(folder, name) }
             )

@@ -28,9 +28,9 @@ import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.LocalPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
-import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
-import com.todokanai.composepracticenew.repository.ConflictQuestionRepository
-import com.todokanai.composepracticenew.repository.ConflictQuestions
+import com.todokanai.composepracticenew.repository.OperationQuestionAsker
+import com.todokanai.composepracticenew.repository.OperationQuestionRepository
+import com.todokanai.composepracticenew.repository.OperationQuestions
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
 import com.todokanai.composepracticenew.repository.ConnectFailureAlerts
@@ -120,10 +120,10 @@ abstract class RepositoryModule {
     abstract fun bindConnectFailureAlertReporter(impl: ConnectFailureAlerts): ConnectFailureAlertReporter
 
     @Binds
-    abstract fun bindConflictQuestionAsker(impl: ConflictQuestions): ConflictQuestionAsker
+    abstract fun bindOperationQuestionAsker(impl: OperationQuestions): OperationQuestionAsker
 
     @Binds
-    abstract fun bindConflictQuestionRepository(impl: ConflictQuestions): ConflictQuestionRepository
+    abstract fun bindOperationQuestionRepository(impl: OperationQuestions): OperationQuestionRepository
 
     /** 원격 스토리지 구현을 바꾸려면 아래 세 바인딩의 구현체만 교체한다. 여러 프로토콜의 동시 지원은 범위 밖이며, 두 번째 프로토콜을 구현할 때 저장 항목의 프로토콜로 구현을 고르는 라우터를 함께 추가한다. */
     @Binds

@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -13,11 +12,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.compose.presets.checkbox.LabeledCheckbox
 import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.WriteConflictKind
@@ -47,10 +46,11 @@ fun WriteConflictDialog(
             Column {
                 Text(stringResource(messageRes(question.kind), question.name, question.folderPath))
                 Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = applyToRest, onCheckedChange = { applyToRest = it })
-                    Text(stringResource(R.string.dialog_write_conflict_apply_to_rest))
-                }
+                LabeledCheckbox(
+                    checked = applyToRest,
+                    onCheckedChange = { applyToRest = it },
+                    label = stringResource(R.string.dialog_write_conflict_apply_to_rest)
+                )
             }
         },
         confirmButton = {

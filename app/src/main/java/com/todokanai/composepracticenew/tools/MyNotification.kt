@@ -15,6 +15,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.PreparationProgress
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_INSTANCE_ID
@@ -61,11 +62,11 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
      * 덮어쓰지 않고 지운 뒤 새로 띄우는 것은 [completedNotification]과 같은 이유다(직전 진행 갱신이 몰렸으면 갱신이 버려질 수 있음).
      * 답한 뒤의 진행 보고가 같은 알림을 진행 알림으로 되돌린다.
      */
-    override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {
+    override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {
         cancelProgress(instanceId)
         val notificationId = ids.idFor(instanceId)
         val builder = progressBuilder(operationType)
-            .setContentText(context.getString(R.string.noti_write_conflict_awaiting))
+            .setContentText(context.getString(awaitingAnswerTextRes(kind)))
             .setOngoing(true)
             .setContentIntent(buildAppOnlyClickIntent(notificationId))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
@@ -232,4 +233,14 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         /** 끝난 파일 작업(완료·중단) 알림의 태그. 진행 알림과 다른 알림이 되도록 [PROGRESS_TAG]와 구별한다. */
         const val COMPLETED_TAG = "file_operation_completed"
     }
+}
+
+/**
+ * 답을 기다리는 알림의 문구를 질문 종류로 고른다.
+ * @param kind 작업이 묻는 질문의 종류
+ * @return 문자열 리소스 id
+ */
+private fun awaitingAnswerTextRes(kind: QuestionKind): Int = when (kind) {
+    QuestionKind.CONFLICT -> R.string.noti_write_conflict_awaiting
+    QuestionKind.ARCHIVE_PASSWORD -> R.string.noti_archive_password_awaiting
 }

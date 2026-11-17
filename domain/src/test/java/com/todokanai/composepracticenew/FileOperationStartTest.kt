@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -29,7 +30,7 @@ class FileOperationStartTest {
     /** 진행 상태와 작업이 처음 등록된 순서를 기록하는 진행 저장소. */
     private val progressRepo = RecordingProgressRepository()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, RecordingOperationNotices(), GrantedProtection, UnexpectedConflictQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, scope)
     /** 열릴 때까지 작업을 멈춰 두는 신호. */
     private val gate = CompletableDeferred<Unit>()
 
@@ -92,6 +93,6 @@ class FileOperationStartTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

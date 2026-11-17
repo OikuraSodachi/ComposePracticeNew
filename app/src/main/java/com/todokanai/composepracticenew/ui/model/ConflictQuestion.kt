@@ -17,12 +17,12 @@ import com.todokanai.composepracticenew.model.ConflictQuestion as DomainConflict
  */
 @Immutable
 data class ConflictQuestion(
-    val id: Long,
+    override val id: Long,
     val operationType: FileOperationType,
     val name: String,
     val folderPath: String,
     val kind: WriteConflictKind,
-) {
+) : OperationQuestion {
     companion object {
         /** domain [DomainConflictQuestion]을 표시용 질문으로 바꾼다. */
         fun from(question: DomainConflictQuestion) = ConflictQuestion(

@@ -187,7 +187,7 @@ class LocalTreeSymlinkTest {
         assumeSymlink(File(source, "loop"), source)
         val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()))
 
-        val result = compression.compress(setOf(source.path), dir.path, "out", ArchiveFormat.ZIP) {}
+        val result = compression.compress(setOf(source.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src/loop", FailureReason.UnsupportedLink()))), result)
         ZipFile(File(dir, "out.zip")).use { zip -> assertEquals(listOf("src/", "src/a.txt"), zip.entries().toList().map { it.name }) }
@@ -249,7 +249,7 @@ class LocalTreeSymlinkTest {
         }
         assumeSymlink(File(target, "d"), outside.absoluteFile)
 
-        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver, UnexpectedPasswordProvider) {}
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("d", FailureReason.UnsupportedLink()))), result)
         assertFalse(File(outside, "new.txt").exists())
@@ -267,7 +267,7 @@ class LocalTreeSymlinkTest {
         }
         assumeSymlink(File(target, "d"), outside.absoluteFile)
 
-        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver, UnexpectedPasswordProvider) {}
 
         val expected = listOf(FailedItem("d", FailureReason.UnsupportedLink()), FailedItem("../evil.txt", FailureReason.UnsafeArchiveEntryPath))
         assertEquals(IoResult.PartiallyFailed(expected), result)
@@ -285,7 +285,7 @@ class LocalTreeSymlinkTest {
         val linkedDest = File(dir, "linkedDest")
         assumeSymlink(linkedDest, target.absoluteFile)
 
-        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), linkedDest.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) {}
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), linkedDest.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver, UnexpectedPasswordProvider) {}
 
         assertEquals(IoResult.Done, result)
         assertEquals("N", File(target, "new.txt").readText())
@@ -298,7 +298,7 @@ class LocalTreeSymlinkTest {
         assumeSymlink(link, outside.absoluteFile)
         val states = mutableListOf<ProgressState>()
 
-        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver) { states += it }
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver, UnexpectedPasswordProvider) { states += it }
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("in", FailureReason.UnsupportedLink()))), result)
         assertFalse(File(outside, "new.txt").exists())
@@ -314,7 +314,7 @@ class LocalTreeSymlinkTest {
         assumeSymlink(link, outside.absoluteFile)
         val states = mutableListOf<ProgressState>()
 
-        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver) { states += it }
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver, UnexpectedPasswordProvider) { states += it }
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("in/d", FailureReason.UnsupportedLink()))), result)
         assertFalse(File(outside, "new.txt").exists())
@@ -329,7 +329,7 @@ class LocalTreeSymlinkTest {
         assumeSymlink(link, File(outside, "keep.txt").absoluteFile)
         val states = mutableListOf<ProgressState>()
 
-        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver) { states += it }
+        val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor())).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver, UnexpectedPasswordProvider) { states += it }
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", FailureReason.UnsupportedLink()))), result)
         assertEquals("K", File(outside, "keep.txt").readText())

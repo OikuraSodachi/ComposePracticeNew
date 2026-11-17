@@ -18,13 +18,13 @@ class LocalTransferActions(
 /**
  * 압축 다이얼로그가 쓰는 콜백 묶음. 압축 파일을 만들 폴더는 다이얼로그를 열 때 [folderOf]로 한 번 정해 검증과 실행에 함께 넘긴다.
  * @param folderOf 압축 대상으로 압축 파일을 만들 폴더를 정하는 함수. 정할 수 없으면 null이며, 그때는 압축 메뉴를 두지 않는다
- * @param onCompress 선택에서 꺼낸 압축 대상, 만들 폴더, 이름(확장자 제외)으로 압축을 실행하는 콜백
+ * @param onCompress 선택에서 꺼낸 압축 대상, 만들 폴더, 이름(확장자 제외), 비밀번호(설정하지 않았으면 null)로 압축을 실행하는 콜백
  * @param suggestName 압축 대상으로 다이얼로그에 미리 채울 이름(확장자 제외)을 만드는 함수
  * @param validateName 만들 폴더와 압축 파일 이름(확장자 제외)을 검증해 위반한 규칙 집합을 반환하는 함수
  */
 class CompressActions(
     val folderOf: (List<FileHolderItem>) -> String?,
-    val onCompress: (SubmittedSelection, String, String) -> Unit,
+    val onCompress: (SubmittedSelection, String, String, String?) -> Unit,
     val suggestName: (List<FileHolderItem>) -> String,
     val validateName: (String, String) -> Set<FileNameError>,
 )

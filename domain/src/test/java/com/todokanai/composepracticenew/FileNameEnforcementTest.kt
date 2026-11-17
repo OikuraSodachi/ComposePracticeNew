@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -42,7 +44,7 @@ class FileNameEnforcementTest {
     private val notices = RecordingOperationNotices()
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedConflictQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
     /** 저장소의 제약을 물은 이름과 위치를 기록하는 이름 규칙. */
     private val storageNames = RecordingStorageNameRules()
     private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(storageNames), LocalPathRules())
@@ -55,7 +57,7 @@ class FileNameEnforcementTest {
     fun `로컬 이름 변경·새 폴더·압축은 규칙 위반 이름을 거부하고 오류를 방출한다`() {
         local.rename("/dir/a.txt", "x/y", false) {}
         local.makeDirectory("/dir", "..") {}
-        local.compress(setOf("/dir/a.txt"), "/dir", " archive", ArchiveFormat.ZIP) {}
+        local.compress(setOf("/dir/a.txt"), "/dir", " archive", ArchiveFormat.ZIP, password = null) {}
 
         assertEquals(3, notices.failures.size)
         assertEquals(NoticeMessage.InvalidName(NamingOperation.RENAME, "x/y"), notices.failures[0])
@@ -88,7 +90,7 @@ class FileNameEnforcementTest {
     fun `저장소의 제약은 이름이 놓일 위치로 묻는다 — 새 항목은 만들 폴더, 이름 변경은 그 항목 자신`() {
         local.rename("/dir/a.txt", "a.md", false) {}
         local.makeDirectory("/dir", "new folder") {}
-        local.compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP) {}
+        local.compress(setOf("/dir/a.txt"), "/dir", "archive", ArchiveFormat.ZIP, password = null) {}
         remote.renameRemote("/r/a.txt", "b.txt") {}
         remote.makeDirectoryRemote("/r", "sub") {}
 
@@ -120,13 +122,13 @@ class FileNameEnforcementTest {
     /** 호출된 작업 이름을 기록하는 테스트용 로컬 파일 작업 저장소. */
     private class RecordingFileActionRepository : FileActionRepository {
         val calls = mutableListOf<String>()
-        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
+        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
         override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
         override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
         override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
-        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip" }
+        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "unzip" }
         override fun canExtract(path: String) = false
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
     }
@@ -150,6 +152,6 @@ class FileNameEnforcementTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

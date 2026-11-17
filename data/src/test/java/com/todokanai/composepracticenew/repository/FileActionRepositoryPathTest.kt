@@ -32,7 +32,7 @@ class FileActionRepositoryPathTest {
     fun `압축 파일은 부모 디렉터리 아래 받은 이름에 형식의 확장자를 붙여 만든다`() {
         val source = File(dir, "a.txt").apply { writeText("data") }
 
-        assertEquals(IoResult.Done, runBlocking { repo.compressAction(setOf(source.path), dir.path, "out", ArchiveFormat.ZIP) {} })
+        assertEquals(IoResult.Done, runBlocking { repo.compressAction(setOf(source.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {} })
 
         assertTrue(File(dir, "out.zip").isFile)
     }

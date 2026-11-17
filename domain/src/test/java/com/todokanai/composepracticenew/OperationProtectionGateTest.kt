@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -36,7 +37,7 @@ class OperationProtectionGateTest {
     /** 테스트가 결과를 정하는 작업 보호. */
     private val protection = GatedProtection()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, protection, UnexpectedConflictQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, protection, UnexpectedQuestions, scope)
 
     @After
     fun tearDown() = scope.cancel()
@@ -113,6 +114,6 @@ class OperationProtectionGateTest {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) {}
+        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

@@ -1,17 +1,20 @@
 package com.todokanai.composepracticenew
 
-import com.todokanai.composepracticenew.model.NoticeMessage
+import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.NoticeMessage
+import com.todokanai.composepracticenew.model.PasswordAnswer
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.repository.ConflictQuestionAsker
+import com.todokanai.composepracticenew.repository.OperationQuestionAsker
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,8 +29,8 @@ import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * 쓰기 충돌을 작업 도중 묻는 흐름([FileOperationOrchestrator.launchResolvingConflicts])을 검증하는 단위 테스트(#316).
- * 답대로 처리하는지, "나머지에도 적용"을 겹침 종류별·기억 범위별로 쓰는지, 취소·무응답을 각각 취소·실패로 끝내는지, 묻는 동안 알림을 바꾸는지 확인한다.
+ * 쓰기 충돌과 압축 파일 비밀번호를 작업 도중 묻는 흐름([FileOperationOrchestrator.launchAsking])을 검증하는 단위 테스트(#316).
+ * 답대로 처리하는지, "나머지에도 적용"을 겹침 종류별·기억 범위별로 쓰는지, 취소·무응답을 각각 취소·실패로 끝내는지, 묻는 동안 알림을 질문 종류에 맞게 바꾸는지 확인한다.
  */
 class WriteConflictResolutionTest {
 
@@ -44,7 +47,7 @@ class WriteConflictResolutionTest {
         val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = false))
         val choices = mutableListOf<ConflictChoice>()
 
-        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchAsking(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             choices += resolve.resolve(fileConflict)
             IoResult.Done
         }
@@ -62,7 +65,7 @@ class WriteConflictResolutionTest {
         )
         val choices = mutableListOf<ConflictChoice>()
 
-        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchAsking(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             choices += resolve.resolve(fileConflict)
             choices += resolve.resolve(otherFileConflict)
             choices += resolve.resolve(folderConflict)
@@ -83,7 +86,7 @@ class WriteConflictResolutionTest {
         val orchestrator = orchestrator(asker)
 
         repeat(2) {
-            orchestrator.launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+            orchestrator.launchAsking(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
                 resolve.resolve(fileConflict)
                 IoResult.Done
             }
@@ -97,7 +100,7 @@ class WriteConflictResolutionTest {
     fun `질문에서 취소하면 작업을 취소로 끝낸다`() = runTest {
         val asker = ScriptedAsker(ConflictAnswer.Cancel)
 
-        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchAsking(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             resolve.resolve(fileConflict)
             IoResult.Done
         }
@@ -109,7 +112,7 @@ class WriteConflictResolutionTest {
 
     @Test
     fun `질문에 6시간 동안 답이 없으면 작업을 실패로 끝낸다`() = runTest {
-        orchestrator(NeverAnsweringAsker).launchResolvingConflicts(FileOperationType.MOVE, onRefresh = {}) { _, resolve ->
+        orchestrator(NeverAnsweringAsker).launchAsking(FileOperationType.MOVE, onRefresh = {}) { _, resolve ->
             resolve.resolve(fileConflict)
             IoResult.Done
         }
@@ -121,7 +124,7 @@ class WriteConflictResolutionTest {
         advanceTimeBy(2.seconds.inWholeMilliseconds)
         runCurrent()
         assertEquals(
-            listOf(NoticeMessage.UnansweredConflict(FileOperationType.MOVE, "a.txt", 6)),
+            listOf(NoticeMessage.UnansweredQuestion(FileOperationType.MOVE, QuestionKind.CONFLICT, "a.txt", 6)),
             notices.failures
         )
         assertEquals(emptyList<NoticeMessage>(), notices.completions)
@@ -131,7 +134,7 @@ class WriteConflictResolutionTest {
     fun `종류가 엇갈린 겹침에 진행으로 답하면 구현 오류로 실패한다`() = runTest {
         val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.PROCEED, applyToRest = false))
 
-        orchestrator(asker).launchResolvingConflicts(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
+        orchestrator(asker).launchAsking(FileOperationType.COPY, onRefresh = {}) { _, resolve ->
             resolve.resolve(mismatch)
             IoResult.Done
         }
@@ -145,7 +148,7 @@ class WriteConflictResolutionTest {
         val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = false))
         val progress = ProgressState(progress = 40)
 
-        orchestrator(asker).launchResolvingConflicts(FileOperationType.UNZIP, onRefresh = {}) { onProgress, resolve ->
+        orchestrator(asker).launchAsking(FileOperationType.UNZIP, onRefresh = {}) { onProgress, resolve ->
             onProgress(progress)
             resolve.resolve(fileConflict)
             IoResult.Done
@@ -153,34 +156,105 @@ class WriteConflictResolutionTest {
         runCurrent()
 
         assertEquals(
-            listOf("progress 40", "awaiting UNZIP", "progress 40"),
+            listOf("progress 40", "awaiting UNZIP CONFLICT", "progress 40"),
             notifier.events.take(3)
         )
     }
 
+    @Test
+    fun `비밀번호 질문에 입력한 비밀번호를 압축 해제 구현에 돌려준다`() = runTest {
+        val asker = ScriptedAsker(passwordAnswers = listOf(PasswordAnswer.Enter("secret")))
+        val passwords = mutableListOf<String>()
+
+        orchestrator(asker).launchAsking(FileOperationType.UNZIP, onRefresh = {}) { _, prompts ->
+            passwords += prompts.passwordFor("a.zip", ArchivePasswordPrompt.WRONG)
+            IoResult.Done
+        }
+        runCurrent()
+
+        assertEquals(listOf("secret"), passwords)
+        assertEquals(listOf("a.zip" to ArchivePasswordPrompt.WRONG), asker.askedPasswords)
+        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.UNZIP)), notices.completions)
+    }
+
+    @Test
+    fun `비밀번호 질문에서 취소하면 작업을 취소로 끝낸다`() = runTest {
+        val asker = ScriptedAsker(passwordAnswers = listOf(PasswordAnswer.Cancel))
+
+        orchestrator(asker).launchAsking(FileOperationType.UNZIP, onRefresh = {}) { _, prompts ->
+            prompts.passwordFor("a.zip", ArchivePasswordPrompt.FIRST)
+            IoResult.Done
+        }
+        runCurrent()
+
+        assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.UNZIP)), notices.completions)
+        assertEquals(emptyList<NoticeMessage>(), notices.failures)
+    }
+
+    @Test
+    fun `비밀번호 질문에 6시간 동안 답이 없으면 압축 파일 이름으로 실패를 알린다`() = runTest {
+        orchestrator(NeverAnsweringAsker).launchAsking(FileOperationType.UNZIP, onRefresh = {}) { _, prompts ->
+            prompts.passwordFor("a.zip", ArchivePasswordPrompt.FIRST)
+            IoResult.Done
+        }
+
+        advanceTimeBy((6.hours + 1.seconds).inWholeMilliseconds)
+        runCurrent()
+
+        assertEquals(
+            listOf(NoticeMessage.UnansweredQuestion(FileOperationType.UNZIP, QuestionKind.ARCHIVE_PASSWORD, "a.zip", 6)),
+            notices.failures
+        )
+    }
+
+    @Test
+    fun `비밀번호를 묻는 동안 알림을 비밀번호 대기 상태로 바꾼다`() = runTest {
+        val asker = ScriptedAsker(passwordAnswers = listOf(PasswordAnswer.Enter("secret")))
+
+        orchestrator(asker).launchAsking(FileOperationType.UNZIP, onRefresh = {}) { onProgress, prompts ->
+            onProgress(ProgressState(progress = 10))
+            prompts.passwordFor("a.zip", ArchivePasswordPrompt.FIRST)
+            IoResult.Done
+        }
+        runCurrent()
+
+        assertEquals(listOf("progress 10", "awaiting UNZIP ARCHIVE_PASSWORD", "progress 10"), notifier.events.take(3))
+    }
+
     /** [TestScope]의 가상 시간으로 작업을 실행하는 오케스트레이터를 만든다. */
-    private fun TestScope.orchestrator(asker: ConflictQuestionAsker) =
+    private fun TestScope.orchestrator(asker: OperationQuestionAsker) =
         FileOperationOrchestrator(notifier, NoOpProgressRepository, notices, GrantedProtection, asker, backgroundScope)
 
     /**
      * 정해 둔 답을 차례로 돌려주고 받은 질문을 기록하는 질문 통로.
-     * @param answers 차례로 돌려줄 답
+     * @param answers 차례로 돌려줄 충돌 답
+     * @param passwordAnswers 차례로 돌려줄 비밀번호 답
      */
-    private class ScriptedAsker(vararg answers: ConflictAnswer) : ConflictQuestionAsker {
-        /** 아직 돌려주지 않은 답. */
+    private class ScriptedAsker(vararg answers: ConflictAnswer, passwordAnswers: List<PasswordAnswer> = emptyList()) : OperationQuestionAsker {
+        /** 아직 돌려주지 않은 충돌 답. */
         private val remaining = ArrayDeque(answers.toList())
+        /** 아직 돌려주지 않은 비밀번호 답. */
+        private val remainingPasswords = ArrayDeque(passwordAnswers)
         /** 받은 질문의 겹침(받은 순서). */
         val asked = mutableListOf<WriteConflict>()
+        /** 받은 비밀번호 질문의 (압축 파일 이름, 이유)(받은 순서). */
+        val askedPasswords = mutableListOf<Pair<String, ArchivePasswordPrompt>>()
 
-        override suspend fun ask(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer {
+        override suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer {
             asked += conflict
             return remaining.removeFirst()
+        }
+
+        override suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer {
+            askedPasswords += archiveName to prompt
+            return remainingPasswords.removeFirst()
         }
     }
 
     /** 답하지 않는 질문 통로. 기다림이 끝날 때(시간 초과·취소)까지 돌아오지 않는다. */
-    private object NeverAnsweringAsker : ConflictQuestionAsker {
-        override suspend fun ask(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer = awaitCancellation()
+    private object NeverAnsweringAsker : OperationQuestionAsker {
+        override suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer = awaitCancellation()
+        override suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer = awaitCancellation()
     }
 
     /** 진행·대기 알림을 차례로 기록하는 알림기. */
@@ -188,7 +262,7 @@ class WriteConflictResolutionTest {
         /** 받은 알림을 "progress 진행률" / "awaiting 작업 종류" 형태로 기록한 것. */
         val events = mutableListOf<String>()
         override fun progressNoti(state: ProgressState, instanceId: Int) { events += "progress ${state.progress}" }
-        override fun awaitingAnswerNoti(operationType: FileOperationType, instanceId: Int) { events += "awaiting $operationType" }
+        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) { events += "awaiting $operationType $kind" }
         override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
     }

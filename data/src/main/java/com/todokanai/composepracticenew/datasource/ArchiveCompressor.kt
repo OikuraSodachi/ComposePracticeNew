@@ -16,9 +16,10 @@ interface ArchiveCompressor {
      * [entries]를 [output]에 이 구현의 형식으로 쓰며 [tracker]로 파일마다 진행을 보고한다.
      * @param entries 담을 항목. 폴더 항목은 언제나 그 하위 항목보다 앞에 온다
      * @param output 이 작업을 위해 새로 만든 빈 파일
+     * @param password 파일 항목을 AES-256으로 암호화할 비밀번호(비어 있지 않다). null이면 암호화하지 않는다
      * @param tracker 누적 진행률 보고기. 전체 크기·파일 수는 [entries]의 [ArchiveSource.Regular]로 셌다
      */
-    fun write(entries: List<ArchiveSource>, output: File, tracker: ByteProgressTracker)
+    fun write(entries: List<ArchiveSource>, output: File, password: String?, tracker: ByteProgressTracker)
 }
 
 /**

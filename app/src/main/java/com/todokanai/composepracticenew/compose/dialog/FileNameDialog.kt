@@ -22,6 +22,8 @@ import com.todokanai.composepracticenew.model.FileNameParts
  * @param validate 입력 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onConfirm 확인 시 입력 이름을 전달받는 콜백
  * @param onDismiss 다이얼로그를 닫는 콜백
+ * @param extraValid 이름 입력란 아래 입력이 확인할 수 있는 상태인지. false면 이름이 규칙을 지켜도 확인할 수 없다
+ * @param extraContent 이름 입력란 아래에 둘 추가 입력
  */
 @Composable
 fun FileNameDialog(
@@ -31,7 +33,9 @@ fun FileNameDialog(
     selectBaseNameOnly: Boolean = false,
     validate: (String) -> Set<FileNameError>,
     onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    extraValid: () -> Boolean = { true },
+    extraContent: @Composable () -> Unit = {}
 ) {
     EditTextDialog(
         modifier = Modifier,
@@ -42,7 +46,9 @@ fun FileNameDialog(
         validate = validate,
         errorMessage = { fileNameErrorMessage(it) },
         onConfirm = onConfirm,
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        extraValid = extraValid,
+        extraContent = extraContent
     )
 }
 

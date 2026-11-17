@@ -22,7 +22,7 @@ room = "2.6.1"
 robolectric = "4.14.1"
 datastore = "1.1.1"
 coroutines = "1.6.4"
-zip4j = "2.7.0"
+zip4j = "2.11.6"
 sevenzipjbinding = "Release-16.02-2.03"
 
 junit = "4.13.2"
