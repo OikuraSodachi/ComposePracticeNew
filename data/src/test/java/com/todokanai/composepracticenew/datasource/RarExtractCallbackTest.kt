@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
+import kotlinx.coroutines.CancellationException
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
 import org.junit.After
@@ -101,6 +102,19 @@ class RarExtractCallbackTest {
 
         assertEquals(listOf(FailedItem("../evil.txt", FailureReason.UnsafeArchiveEntryPath)), writer.failures)
         assertNull(callback.failure)
+    }
+
+    @Test
+    fun `건너뛴 항목을 푸는 동안 라이브러리가 진행을 알리면 기록 없이도 진행을 보고해 원래 취소 예외를 남긴다`() {
+        // solid RAR은 건너뛴 항목도 출력 없이 끝까지 풀며, 그동안 기록 없이 setCompleted만 온다 — 진행 보고가 취소를 확인한다
+        val cancelled = CancellationException("취소")
+        val cancelling = ByteProgressTracker(1, 1, onProgress = { throw cancelled })
+        val callback = RarExtractCallback({ RarEntryKind.File("../evil.txt") }, { null }, { null }, writer, cancelling)
+
+        assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
+        assertThrows(CancellationException::class.java) { callback.setCompleted(0) }
+
+        assertSame(cancelled, callback.failure)
     }
 
     /** [entries]를 순서대로 항목 번호에 둔 콜백을 만든다. 크기는 모두 모름(null)으로 둔다. */

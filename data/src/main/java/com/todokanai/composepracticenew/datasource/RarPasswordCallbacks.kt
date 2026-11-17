@@ -63,14 +63,15 @@ internal class RarOpenCallback(private val password: String?) : IArchiveOpenCall
 
 /**
  * 암호화된 항목 하나를 출력 없이 풀어 후보 비밀번호를 확인하는 추출 콜백. 실제 추출과 같은 길로 풀어(시험 모드가 아님) 내용 검증까지 거친다.
- * 받은 내용은 버리며, 받을 때마다 작업 취소를 확인한다 — 진행을 보고하지 않아 진행 보고가 취소를 확인하지 못하므로.
+ * 받은 내용은 버린다. 내용을 받을 때와 라이브러리가 진행을 알릴 때마다 비밀번호 확인 단계의 진행을 보고한다 — 진행 보고가 작업 취소를 확인하므로.
+ * solid RAR은 확인할 항목에 닿기까지 앞 항목을 출력 없이 모두 푸는데, 그동안 라이브러리는 내용을 넘기지 않고 진행([setCompleted])만 알린다(#418).
  * 결과의 해석: OK면 통과, WRONG_PASSWORD(검증값이 있는 형식)면 틀림, 데이터·CRC 오류면 틀렸거나 손상(RAR4는 검증값이 없다). 그 밖의 결과는 비밀번호와 무관한 실패라 IOException으로 멈춘다.
  * @param candidate 확인할 비밀번호
- * @param ensureActive 작업 취소를 확인하는 함수
+ * @param reportChecking 비밀번호 확인 단계의 진행 보고. 취소됐으면 CancellationException을 던진다
  */
 internal class RarPasswordCheckCallback(
     private val candidate: String,
-    private val ensureActive: () -> Unit,
+    private val reportChecking: () -> Unit,
 ) : IArchiveExtractCallback, ICryptoGetTextPassword, FailureRecordingCallback {
 
     /** 콜백에서 던진 예외를 보관하는 기록기. */
@@ -86,7 +87,7 @@ internal class RarPasswordCheckCallback(
 
     override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? = recorder.record {
         if (extractAskMode != ExtractAskMode.EXTRACT) return@record null
-        ISequentialOutStream { data -> recorder.record { ensureActive(); data.size } }
+        ISequentialOutStream { data -> recorder.record { reportChecking(); data.size } }
     }
 
     override fun prepareOperation(extractAskMode: ExtractAskMode) {}
@@ -96,7 +97,7 @@ internal class RarPasswordCheckCallback(
     }
 
     override fun setTotal(total: Long) {}
-    override fun setCompleted(complete: Long) {}
+    override fun setCompleted(complete: Long) = recorder.record { reportChecking() }
 }
 
 /**

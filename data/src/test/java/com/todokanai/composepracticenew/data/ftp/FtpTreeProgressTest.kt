@@ -1,12 +1,13 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.data.progress.IndeterminateProgressReporter
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.data.progress.ProgressThrottle
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.PreparationProgress
+import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.CancellationException
@@ -40,8 +41,8 @@ class FtpTreeProgressTest {
         runBlocking { commands.trees.collectRemoteTree("ftp://host/r", everyEntry { reported += it }) }
 
         assertEquals(
-            listOf(PreparationProgress(1, "sub"), PreparationProgress(2, "b.txt"), PreparationProgress(3, "a.txt")),
-            reported.map { it.preparing }
+            listOf(IndeterminatePhase.Preparing(1, "sub"), IndeterminatePhase.Preparing(2, "b.txt"), IndeterminatePhase.Preparing(3, "a.txt")),
+            reported.map { it.indeterminate }
         )
     }
 
@@ -69,7 +70,7 @@ class FtpTreeProgressTest {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt", "type=file;size=1; b.txt"))
         val deleting = mutableListOf<ProgressState>()
 
-        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) { if (it.preparing == null) deleting += it } }
+        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) { if (it.indeterminate == null) deleting += it } }
 
         assertEquals(listOf(0 to "b.txt", 1 to "a.txt", 2 to "r"), deleting.map { it.currentIndex to it.currentFileName })
         assertTrue(deleting.all { it.listSize == 3 && it.progress!! < 100 })
@@ -85,9 +86,9 @@ class FtpTreeProgressTest {
 
         runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/x.txt"), directoryTarget("ftp://host/r"))) { reported += it } }
 
-        val firstDeletion = reported.indexOfFirst { it.preparing == null }
-        assertEquals(PreparationProgress(1, "x.txt"), reported.first().preparing)
-        assertTrue(reported.take(firstDeletion).all { it.preparing != null })
+        val firstDeletion = reported.indexOfFirst { it.indeterminate == null }
+        assertEquals(IndeterminatePhase.Preparing(1, "x.txt"), reported.first().indeterminate)
+        assertTrue(reported.take(firstDeletion).all { it.indeterminate != null })
         assertEquals(
             listOf(Triple(0, 3, "x.txt"), Triple(1, 3, "a.txt"), Triple(2, 3, "r")),
             reported.drop(firstDeletion).map { Triple(it.currentIndex, it.listSize, it.currentFileName) }
@@ -136,7 +137,7 @@ class FtpTreeProgressTest {
     @Test
     fun `파일 삭제는 명령을 보내기 전에 진행을 알려 그 보고에서 취소를 받는다`() {
         loggedIn()
-        val reporter: (ProgressState) -> Unit = { if (it.preparing == null) throw CancellationException("cancelled") }
+        val reporter: (ProgressState) -> Unit = { if (it.indeterminate == null) throw CancellationException("cancelled") }
 
         assertThrows(CancellationException::class.java) {
             runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/r/a.txt")), reporter) }
@@ -145,7 +146,7 @@ class FtpTreeProgressTest {
     }
 
     /** 찾은 항목마다 [onProgress]로 알리는 준비 단계 보고기 — 기본 보고 간격이면 테스트가 시간에 기대게 된다. */
-    private fun everyEntry(onProgress: (ProgressState) -> Unit) = PreparationProgressReporter(onProgress, ProgressThrottle(intervalNanos = 0))
+    private fun everyEntry(onProgress: (ProgressState) -> Unit) = PreparationProgressReporter(IndeterminateProgressReporter(onProgress, ProgressThrottle(intervalNanos = 0)))
 
     private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
 }

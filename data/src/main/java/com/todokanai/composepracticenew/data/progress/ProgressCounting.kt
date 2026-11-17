@@ -27,6 +27,13 @@ internal interface ProgressCounting {
     fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ProgressReading?
 
     /**
+     * 처리한 바이트 없이 지금의 진행 값을 만든다. 바이트를 내지 않고 일하는 동안에도 보고가 이어지도록(보고가 취소를 확인하는 자리이므로) 쓴다.
+     * @param writtenBytes 작업 전체의 누적 바이트 수
+     * @return 보고할 진행 값. 보고할 때가 아니면 null
+     */
+    fun currentReading(writtenBytes: Long): ProgressReading?
+
+    /**
      * 현재 파일의 처리 완료(서버 ACK·출력 닫기 등)를 센다.
      * @param fileBytes 완료된 파일의 알려진 크기. 모르면 null
      * @return 완료로 진행이 바뀌어 바로 보고할 진행 값. 없으면 null

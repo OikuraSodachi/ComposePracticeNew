@@ -114,6 +114,6 @@ class FtpTransferrerFileProgressTest {
     /** 원격 파일 하나를 받는다. */
     private fun download(): IoResult<Unit> = runBlocking {
         // 받기 전 준비 단계(#284)는 빼고 전송 단계의 진행만 본다
-        transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it.preparing == null) reports += it })
+        transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it.indeterminate == null) reports += it })
     }
 }

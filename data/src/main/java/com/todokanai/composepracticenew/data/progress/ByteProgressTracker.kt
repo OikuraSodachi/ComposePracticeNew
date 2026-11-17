@@ -80,6 +80,16 @@ class ByteProgressTracker internal constructor(
     }
 
     /**
+     * 처리한 바이트 없이, 계산 방식이 보고할 때라고 하면 지금의 진행을 다시 보고한다.
+     * 바이트를 내지 않고 일하는 동안(라이브러리가 건너뛴 항목을 출력 없이 푸는 동안 등)에도 보고가 이어져 작업 취소가 듣도록 쓴다.
+     * @param fileName 지금 처리 중인 항목 이름
+     * @param fileBytes 그 항목의 전체 크기 — null이면 크기를 모르는 항목이며 보고에서 생략
+     */
+    fun reportCurrent(fileName: String, fileBytes: Long?) {
+        counting.currentReading(writtenBytes)?.let { onProgress(stateOf(it, fileName, fileBytes)) }
+    }
+
+    /**
      * [input]을 버퍼 단위로 [output]에 쓰면서 청크마다 [addBytes]로 진행률을 갱신한다.
      * @param input 읽을 스트림
      * @param output 쓸 스트림

@@ -101,7 +101,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
      */
     private fun openEntry(zf: ZipFile, header: FileHeader, checkEntry: FileHeader?, passwords: ArchivePasswordSession): InputStream {
         if (!header.isEncrypted) return zf.getInputStream(header)
-        val password = passwords.verifiedPassword { candidate -> check(zf, checkNotNull(checkEntry), candidate, passwords.ensureActive) }
+        val password = passwords.verifiedPassword { candidate -> check(zf, checkNotNull(checkEntry), candidate, passwords.reportChecking) }
         return openWith(zf, header, password) ?: throw IOException("확인한 비밀번호가 맞지 않아 풀 수 없는 항목입니다: ${header.fileName}")
     }
 
@@ -129,14 +129,14 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
      * @param zf 연 ZIP 파일
      * @param header 확인에 쓸 암호화된 항목
      * @param candidate 후보 비밀번호
-     * @param ensureActive 읽는 동안 작업 취소를 확인하는 함수
+     * @param reportChecking 읽는 동안 부르는 비밀번호 확인 단계의 진행 보고. 보고가 작업 취소를 확인한다
      * @return 확인 결과
      * @throws IOException 검증값을 확인하기 전(항목을 열 때)에 실패했을 때(그대로 작업 실패)
      */
-    private fun check(zf: ZipFile, header: FileHeader, candidate: String, ensureActive: () -> Unit): PasswordCheck {
+    private fun check(zf: ZipFile, header: FileHeader, candidate: String, reportChecking: () -> Unit): PasswordCheck {
         val input = openWith(zf, header, candidate) ?: return PasswordCheck.WRONG
         return try {
-            input.use { drain(it, ensureActive) }
+            input.use { drain(it, reportChecking) }
             PasswordCheck.ACCEPTED
         } catch (e: IOException) {
             PasswordCheck.WRONG_OR_DAMAGED
@@ -144,13 +144,13 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     }
 
     /**
-     * [input]을 끝까지 읽어 버린다. 버퍼마다 [ensureActive]로 취소를 확인한다.
+     * [input]을 끝까지 읽어 버린다. 버퍼마다 [reportChecking]으로 진행을 보고한다 — 그 보고가 작업 취소를 확인한다.
      * @param input 읽을 스트림
-     * @param ensureActive 작업 취소를 확인하는 함수
+     * @param reportChecking 비밀번호 확인 단계의 진행 보고
      */
-    private fun drain(input: InputStream, ensureActive: () -> Unit) {
+    private fun drain(input: InputStream, reportChecking: () -> Unit) {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        while (input.read(buffer) != -1) ensureActive()
+        while (input.read(buffer) != -1) reportChecking()
     }
 }
 

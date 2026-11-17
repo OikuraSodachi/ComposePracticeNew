@@ -8,11 +8,11 @@ import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
  * 비밀번호는 출력을 만들기 전에 확인한다([verifiedPassword]의 check) — 틀린 비밀번호로 쓴 파일을 되돌릴 일이 없도록.
  * 형식별 추출기([ArchiveExtractor])가 같은 규칙으로 묻고 다시 묻도록 한 곳에 둔다.
  * @param ask 비밀번호를 묻는 함수. 추출 라이브러리의 콜백 안에서도 부르므로 일시 중단하지 않고 답을 기다린다. 사용자가 취소했거나 답이 없으면 CancellationException을 던진다
- * @param ensureActive 비밀번호를 확인하려고 내용을 읽는 동안 작업 취소를 확인하는 함수. 취소됐으면 CancellationException을 던진다 — 확인 읽기는 진행을 보고하지 않아 진행 보고가 취소를 확인하지 못하므로
+ * @param reportChecking 비밀번호를 확인하려고 내용을 푸는 동안 계속 부르는 진행 보고(비밀번호 확인 단계). 진행 보고가 작업 취소를 확인하므로, 취소됐으면 CancellationException을 던진다
  */
 class ArchivePasswordSession(
     private val ask: (ArchivePasswordPrompt) -> String,
-    val ensureActive: () -> Unit,
+    val reportChecking: () -> Unit,
 ) {
 
     /** 이 압축 파일에서 내용으로 확인한 비밀번호. 아직 없으면 null. */

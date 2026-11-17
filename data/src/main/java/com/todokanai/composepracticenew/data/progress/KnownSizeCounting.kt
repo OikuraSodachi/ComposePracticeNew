@@ -36,6 +36,10 @@ internal class KnownSizeCounting(
         } else {
             currentFileKnownBytes = (currentFileKnownBytes + bytes).coerceAtMost(fileBytes)
         }
+        return currentReading(writtenBytes)
+    }
+
+    override fun currentReading(writtenBytes: Long): ProgressReading? {
         if (!throttle.shouldReport(null)) return null
         return reading()
     }
