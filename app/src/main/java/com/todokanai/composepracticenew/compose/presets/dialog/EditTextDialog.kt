@@ -65,8 +65,7 @@ fun <E> EditTextDialog(
         title = title,
         onConfirm = { onConfirm(field.text) },
         onDismiss = onDismiss,
-        confirmEnabled = errors.isEmpty() && extraValid(),
-        canConfirm = extraValid,
+        canConfirm = { errors.isEmpty() && extraValid() },
         confirmText = confirmText,
         dismissText = dismissText
     ) {

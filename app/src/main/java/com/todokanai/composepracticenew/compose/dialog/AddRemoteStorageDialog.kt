@@ -89,8 +89,7 @@ fun AddRemoteStorageDialog(
         title = stringResource(titleResOf(initialValue)),
         onConfirm = { onConfirm(currentInput()) },
         onDismiss = onDismiss,
-        confirmEnabled = errors.isEmpty(),
-        canConfirm = { currentViolations(currentInput()).isEmpty() }
+        canConfirm = { errors.isEmpty() }
     ) {
         Column {
             TextField(

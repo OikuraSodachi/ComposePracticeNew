@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.compose.dialog
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -20,6 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
+import com.todokanai.composepracticenew.compose.presets.dialog.GuardedConfirmButton
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 
 /**
@@ -61,9 +61,11 @@ fun ArchivePasswordDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(password) }, enabled = password.isNotEmpty()) {
-                Text(stringResource(R.string.btn_confirm))
-            }
+            GuardedConfirmButton(
+                text = stringResource(R.string.btn_confirm),
+                canConfirm = { password.isNotEmpty() },
+                onConfirm = { onConfirm(password) }
+            )
         },
         dismissButton = {
             TextButton(onClick = onCancel) { Text(stringResource(R.string.btn_cancel)) }
