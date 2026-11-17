@@ -7,13 +7,15 @@ import org.junit.Test
 class LocalArchiveExtractionCanExtractTest {
 
     /** 앱에 등록되는 것과 같은 추출기 집합을 쓰는 압축 해제 조율기. */
-    private val extraction = LocalArchiveExtraction(setOf(ZipArchiveExtractor(), RarArchiveExtractor()))
+    private val extraction = LocalArchiveExtraction(setOf(ZipArchiveExtractor(), SevenZipArchiveExtractor.rar(), SevenZipArchiveExtractor.iso()))
 
     @Test
     fun `등록된 추출기가 지원하는 형식은 대소문자와 무관하게 풀 수 있다`() {
         assertEquals(true, extraction.canExtract("/sdcard/backup.zip"))
         assertEquals(true, extraction.canExtract("/sdcard/Backup.ZIP"))
         assertEquals(true, extraction.canExtract("/sdcard/photos.rar"))
+        assertEquals(true, extraction.canExtract("/sdcard/ubuntu.iso"))
+        assertEquals(true, extraction.canExtract("/sdcard/Win11.ISO"))
     }
 
     @Test

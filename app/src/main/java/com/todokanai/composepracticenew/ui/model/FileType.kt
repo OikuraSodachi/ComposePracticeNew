@@ -23,7 +23,7 @@ enum class FileType {
         )
 
         /** [Archive]로 분류하는 확장자(소문자, 점 제외). */
-        private val ARCHIVE_EXTENSIONS = setOf("zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz")
+        private val ARCHIVE_EXTENSIONS = setOf("zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz", "iso")
 
         /**
          * 이름과 폴더 여부로 항목 종류를 정한다. 확장자는 [FileNameParts.extensionOf] 규칙으로 꺼내 대소문자를 구분하지 않는다.
