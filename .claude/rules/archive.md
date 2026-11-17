@@ -1,5 +1,5 @@
 ---
-paths: "**/*Archive*.kt, **/*Zip*.kt, **/*Rar*.kt, **/*Password*.kt"
+paths: "**/*Archive*.kt, **/*Zip*.kt, **/*Password*.kt"
 ---
 
 # 압축 비밀번호

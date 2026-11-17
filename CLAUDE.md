@@ -71,7 +71,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 
 ### File Operations
 
-- 로컬: `LocalFileOperationUseCase` → `FileActionRepository`(`FileActionRepositoryImpl`). 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalArchiveCompression` + 형식별 `ArchiveCompressor`(@IntoMap, 키는 domain `ArchiveFormat`), `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet, 항목 생성·건너뜀 집계는 공통 `ArchiveEntryWriter`로만. ZIP은 zip4j, RAR·ISO는 7-Zip-JBinding `SevenZipArchiveExtractor`의 형식별 인스턴스 — 확장자와 받는 형식만 다르다. ISO는 UDF로 열린 이미지도 받는다), `LocalEntryMutator`)로 나뉘고, `FileActionRepositoryImpl`이 이들에 직접 맡긴다(사이에 data source 인터페이스를 두지 않는다 — 교체 지점은 `FileActionRepository` 바인딩).
+- 로컬: `LocalFileOperationUseCase` → `FileActionRepository`(`FileActionRepositoryImpl`). 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalArchiveCompression` + 형식별 `ArchiveCompressor`(@IntoMap, 키는 domain `ArchiveFormat`), `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet, 항목 생성·건너뜀 집계는 공통 `ArchiveEntryWriter`로만. ZIP은 zip4j, RAR·ISO는 7-Zip-JBinding `SevenZipArchiveExtractor`의 형식별 인스턴스 — 확장자와 받는 형식만 다르다. 형식은 자동 판별하지 않고 받는 형식을 순서대로 지정해 연다 — ISO는 UDF를 먼저 연다), `LocalEntryMutator`)로 나뉘고, `FileActionRepositoryImpl`이 이들에 직접 맡긴다(사이에 data source 인터페이스를 두지 않는다 — 교체 지점은 `FileActionRepository` 바인딩).
 - 압축 비밀번호(AES-256 압축, 압축 해제의 비밀번호 질문·확인)는 `.claude/rules/archive.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.
 - 원격: `RemoteFileOperationUseCase` → `RemoteFileTransferRepository` / `RemoteFileMutationRepository` (FTP 구현: `FtpRepositoryImpl`).
 - 실행·진행 보고·완료/실패 처리는 `FileOperationOrchestrator`가 담당하며, 작업 인스턴스 ID도 여기서만 발급한다.
