@@ -17,7 +17,7 @@ internal interface FailureRecordingCallback {
 
 /**
  * 콜백 본문이 던진 예외를 처음 것 하나만 보관하고, 실패한 뒤에 오는 콜백은 같은 예외로 다시 멈추게 하는 기록기.
- * 여러 RAR 콜백이 같은 규칙으로 실패를 다루도록 한 곳에 둔다.
+ * 여러 7-Zip 콜백이 같은 규칙으로 실패를 다루도록 한 곳에 둔다.
  */
 internal class FailureRecorder {
 
@@ -46,7 +46,7 @@ internal class FailureRecorder {
  * 줄 비밀번호가 없으면 열기를 멈추게 하고, 비밀번호를 물었다는 사실을 남겨 호출부가 비밀번호 때문에 열지 못했는지 가리게 한다.
  * @param password 줄 비밀번호. 없으면 null
  */
-internal class RarOpenCallback(private val password: String?) : IArchiveOpenCallback, ICryptoGetTextPassword {
+internal class SevenZipOpenCallback(private val password: String?) : IArchiveOpenCallback, ICryptoGetTextPassword {
 
     /** 여는 중에 라이브러리가 비밀번호를 물었는지. */
     var passwordRequested = false
@@ -69,7 +69,7 @@ internal class RarOpenCallback(private val password: String?) : IArchiveOpenCall
  * @param candidate 확인할 비밀번호
  * @param reportChecking 비밀번호 확인 단계의 진행 보고. 취소됐으면 CancellationException을 던진다
  */
-internal class RarPasswordCheckCallback(
+internal class SevenZipPasswordCheckCallback(
     private val candidate: String,
     private val reportChecking: () -> Unit,
 ) : IArchiveExtractCallback, ICryptoGetTextPassword, FailureRecordingCallback {

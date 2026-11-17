@@ -18,10 +18,10 @@ import java.io.IOException
 import java.nio.file.Files
 
 /**
- * [RarExtractCallback]이 폴더 항목을 만들고(#317), 쓰기 실패·풀 수 없는 항목에서 건너뛰지 않고 멈추며, 처음 던진 예외를 보관하는지 검증하는 단위 테스트(#235).
+ * [SevenZipExtractCallback]이 폴더 항목을 만들고(#317), 쓰기 실패·풀 수 없는 항목에서 건너뛰지 않고 멈추며, 처음 던진 예외를 보관하는지 검증하는 단위 테스트(#235).
  * RAR 라이브러리는 JVM에서 열 수 없으므로, 라이브러리가 부르는 순서(getStream → 기록 → setOperationResult)대로 콜백을 직접 부른다.
  */
-class RarExtractCallbackTest {
+class SevenZipExtractCallbackTest {
 
     /** 추출 루트를 둘 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("rar-extract-callback-test").toFile()
@@ -37,7 +37,7 @@ class RarExtractCallbackTest {
 
     @Test
     fun `폴더 항목은 빈 디렉터리로 만든다`() {
-        val callback = callbackOf(RarEntryKind.Folder("empty"))
+        val callback = callbackOf(SevenZipEntryKind.Folder("empty"))
 
         assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
         callback.setOperationResult(ExtractOperationResult.OK)
@@ -48,7 +48,7 @@ class RarExtractCallbackTest {
 
     @Test
     fun `파일 항목은 기록한 내용으로 만든다`() {
-        val callback = callbackOf(RarEntryKind.File("d/a.txt"))
+        val callback = callbackOf(SevenZipEntryKind.File("d/a.txt"))
 
         callback.getStream(0, ExtractAskMode.EXTRACT)!!.write("hi".toByteArray())
         callback.setOperationResult(ExtractOperationResult.OK)
@@ -59,7 +59,7 @@ class RarExtractCallbackTest {
 
     @Test
     fun `OK가 아닌 결과는 항목 경로를 담은 IOException으로 멈추고 이후 콜백도 같은 예외로 멈춘다`() {
-        val callback = callbackOf(RarEntryKind.File("a.txt"), RarEntryKind.File("b.txt"))
+        val callback = callbackOf(SevenZipEntryKind.File("a.txt"), SevenZipEntryKind.File("b.txt"))
 
         callback.getStream(0, ExtractAskMode.EXTRACT)!!.write("x".toByteArray())
         val thrown = assertThrows(IOException::class.java) { callback.setOperationResult(ExtractOperationResult.CRCERROR) }
@@ -75,7 +75,7 @@ class RarExtractCallbackTest {
         File(root, "p").writeText("file")
         // 폴더 자리의 파일로 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던지게 해 writer가 IOException을 내는 상황을 만든다
         val failingWriter = ArchiveEntryWriter(ExtractionRoot(root), { throw IOException("만들 수 없음") }, tracker())
-        val callback = RarExtractCallback({ RarEntryKind.File("p/a.txt") }, { null }, { null }, failingWriter, tracker())
+        val callback = SevenZipExtractCallback({ SevenZipEntryKind.File("p/a.txt") }, { null }, { null }, failingWriter, tracker())
 
         val thrown = assertThrows(IOException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
@@ -86,7 +86,7 @@ class RarExtractCallbackTest {
     @Test
     fun `구현 오류는 바꾸지 않고 그대로 보관한다`() {
         val bug = IllegalStateException("bug")
-        val callback = RarExtractCallback({ throw bug }, { null }, { null }, writer, tracker())
+        val callback = SevenZipExtractCallback({ throw bug }, { null }, { null }, writer, tracker())
 
         assertThrows(IllegalStateException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
@@ -95,7 +95,7 @@ class RarExtractCallbackTest {
 
     @Test
     fun `루트 밖을 가리키는 항목은 쓰지 않고 실패 항목으로만 남긴다`() {
-        val callback = callbackOf(RarEntryKind.File("../evil.txt"))
+        val callback = callbackOf(SevenZipEntryKind.File("../evil.txt"))
 
         assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
         callback.setOperationResult(ExtractOperationResult.OK)
@@ -109,7 +109,7 @@ class RarExtractCallbackTest {
         // solid RAR은 건너뛴 항목도 출력 없이 끝까지 풀며, 그동안 기록 없이 setCompleted만 온다 — 진행 보고가 취소를 확인한다
         val cancelled = CancellationException("취소")
         val cancelling = ByteProgressTracker(1, 1, onProgress = { throw cancelled })
-        val callback = RarExtractCallback({ RarEntryKind.File("../evil.txt") }, { null }, { null }, writer, cancelling)
+        val callback = SevenZipExtractCallback({ SevenZipEntryKind.File("../evil.txt") }, { null }, { null }, writer, cancelling)
 
         assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
         assertThrows(CancellationException::class.java) { callback.setCompleted(0) }
@@ -118,7 +118,7 @@ class RarExtractCallbackTest {
     }
 
     /** [entries]를 순서대로 항목 번호에 둔 콜백을 만든다. 크기는 모두 모름(null)으로 둔다. */
-    private fun callbackOf(vararg entries: RarEntryKind) = RarExtractCallback({ entries[it] }, { null }, { null }, writer, tracker())
+    private fun callbackOf(vararg entries: SevenZipEntryKind) = SevenZipExtractCallback({ entries[it] }, { null }, { null }, writer, tracker())
 
     /** 진행 보고를 버리는 트래커. */
     private fun tracker() = ByteProgressTracker(1, 1, onProgress = {})

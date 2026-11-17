@@ -98,7 +98,7 @@ class CancelledLocalWriteTest {
     @Test
     fun `RAR 해제를 취소하면 닫을 때 쓰던 항목을 지운다`() {
         val tracker = ByteProgressTracker(4, 1, cancelOnB)
-        val callback = RarExtractCallback({ RarEntryKind.File("b.txt") }, { 4L }, { null }, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker), tracker)
+        val callback = SevenZipExtractCallback({ SevenZipEntryKind.File("b.txt") }, { 4L }, { null }, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker), tracker)
 
         // 라이브러리처럼 기록 중 던진 예외를 받아 추출을 멈추고 콜백을 닫는다
         val stream = callback.getStream(0, ExtractAskMode.EXTRACT)!!

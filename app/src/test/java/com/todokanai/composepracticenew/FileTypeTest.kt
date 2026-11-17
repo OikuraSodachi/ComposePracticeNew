@@ -20,6 +20,7 @@ class FileTypeTest {
         assertEquals(FileType.Document, FileType.of("notes.txt", isDirectory = false))
         assertEquals(FileType.Pdf, FileType.of("paper.pdf", isDirectory = false))
         assertEquals(FileType.Archive, FileType.of("data.tar.gz", isDirectory = false))
+        assertEquals(FileType.Archive, FileType.of("ubuntu.iso", isDirectory = false))
         assertEquals(FileType.Apk, FileType.of("app.apk", isDirectory = false))
     }
 
