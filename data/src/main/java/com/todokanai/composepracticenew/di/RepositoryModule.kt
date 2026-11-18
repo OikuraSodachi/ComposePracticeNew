@@ -22,11 +22,11 @@ import com.todokanai.composepracticenew.repository.LocalFileInfoRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.LocalFileSearchRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
-import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
+import com.todokanai.composepracticenew.repository.FtpFileSystem
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
 import com.todokanai.composepracticenew.repository.FtpRootNavigator
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
-import com.todokanai.composepracticenew.repository.LocalPathAwareFileSystem
+import com.todokanai.composepracticenew.repository.LocalFileSystem
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
 import com.todokanai.composepracticenew.repository.OperationQuestionAsker
@@ -149,28 +149,28 @@ abstract class RepositoryModule {
     abstract fun bindRemoteFileMutationRepository(impl: FtpRepositoryImpl): RemoteFileMutationRepository
 
     @Binds @IntoSet
-    abstract fun bindFtpNavigableFileSystem(impl: FtpPathAwareFileSystem): NavigableFileSystem
+    abstract fun bindFtpNavigableFileSystem(impl: FtpFileSystem): NavigableFileSystem
 
     @Binds @IntoSet
-    abstract fun bindLocalNavigableFileSystem(impl: LocalPathAwareFileSystem): NavigableFileSystem
+    abstract fun bindLocalNavigableFileSystem(impl: LocalFileSystem): NavigableFileSystem
 
     @Binds @IntoSet
-    abstract fun bindFtpPathRuleFileSystem(impl: FtpPathAwareFileSystem): PathRuleFileSystem
+    abstract fun bindFtpPathRuleFileSystem(impl: FtpFileSystem): PathRuleFileSystem
 
     @Binds @IntoSet
-    abstract fun bindLocalPathRuleFileSystem(impl: LocalPathAwareFileSystem): PathRuleFileSystem
+    abstract fun bindLocalPathRuleFileSystem(impl: LocalFileSystem): PathRuleFileSystem
 
     @Binds @IntoSet
-    abstract fun bindFtpNameRuleFileSystem(impl: FtpPathAwareFileSystem): NameRuleFileSystem
+    abstract fun bindFtpNameRuleFileSystem(impl: FtpFileSystem): NameRuleFileSystem
 
     @Binds @IntoSet
-    abstract fun bindLocalNameRuleFileSystem(impl: LocalPathAwareFileSystem): NameRuleFileSystem
+    abstract fun bindLocalNameRuleFileSystem(impl: LocalFileSystem): NameRuleFileSystem
 
     @Binds @IntoSet
-    abstract fun bindFtpNameMatchFileSystem(impl: FtpPathAwareFileSystem): NameMatchFileSystem
+    abstract fun bindFtpNameMatchFileSystem(impl: FtpFileSystem): NameMatchFileSystem
 
     @Binds @IntoSet
-    abstract fun bindLocalNameMatchFileSystem(impl: LocalPathAwareFileSystem): NameMatchFileSystem
+    abstract fun bindLocalNameMatchFileSystem(impl: LocalFileSystem): NameMatchFileSystem
 
     @Binds @IntoSet
     abstract fun bindZipArchiveExtractor(impl: ZipArchiveExtractor): ArchiveExtractor
@@ -193,17 +193,17 @@ abstract class RepositoryModule {
 
         /** 로컬 화면이 탐색하는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
         @Provides @LocalScreenFileSystems
-        fun provideLocalScreenNavigableFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<NavigableFileSystem> =
+        fun provideLocalScreenNavigableFileSystems(localFileSystem: LocalFileSystem): Set<NavigableFileSystem> =
             setOf(localFileSystem)
 
         /** 로컬 화면의 경로 규칙을 정하는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
         @Provides @LocalScreenFileSystems
-        fun provideLocalScreenPathRuleFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<PathRuleFileSystem> =
+        fun provideLocalScreenPathRuleFileSystems(localFileSystem: LocalFileSystem): Set<PathRuleFileSystem> =
             setOf(localFileSystem)
 
         /** 로컬 화면의 이름 제약을 정하는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
         @Provides @LocalScreenFileSystems
-        fun provideLocalScreenNameRuleFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<NameRuleFileSystem> =
+        fun provideLocalScreenNameRuleFileSystems(localFileSystem: LocalFileSystem): Set<NameRuleFileSystem> =
             setOf(localFileSystem)
 
         /** 원격 화면이 탐색하는 파일 시스템 집합. 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */

@@ -13,14 +13,14 @@ class ParentPathTest {
 
     @Test
     fun `FTP 경로는 서버 루트까지 올라가고 그 위는 없다`() {
-        val ftp = FtpPathAwareFileSystem(unconnectedManager())
+        val ftp = FtpFileSystem(unconnectedManager())
 
         assertEquals(listOf("ftp://host/a/b", "ftp://host/a", "ftp://host"), ancestorChain(ftp, "ftp://host/a/b"))
     }
 
     @Test
     fun `저장소 볼륨 밖의 로컬 경로는 최상위 디렉터리까지 올라가고 그 위는 없다`() {
-        val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
+        val local = LocalFileSystem(LocalFileDataSource(), FakeStorageVolumes())
 
         assertEquals(
             listOf("/storage/emulated/0", "/storage/emulated", "/storage"),
@@ -30,7 +30,7 @@ class ParentPathTest {
 
     @Test
     fun `로컬 경로는 저장소 볼륨 루트에서 끝난다`() {
-        val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes("/storage/emulated/0", "/storage/ABCD-1234"))
+        val local = LocalFileSystem(LocalFileDataSource(), FakeStorageVolumes("/storage/emulated/0", "/storage/ABCD-1234"))
 
         assertEquals(listOf("/storage/emulated/0/a/b", "/storage/emulated/0/a", "/storage/emulated/0"), ancestorChain(local, "/storage/emulated/0/a/b"))
         assertEquals(listOf("/storage/ABCD-1234/x", "/storage/ABCD-1234"), ancestorChain(local, "/storage/ABCD-1234/x"))

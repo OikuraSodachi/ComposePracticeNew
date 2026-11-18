@@ -16,7 +16,7 @@ import javax.inject.Inject
  * 목록은 탐색 세션에서 조회한다(#436).
  * @param sessions 목록을 조회할 탐색 세션을 가진 관리자
  */
-class FtpPathAwareFileSystem @Inject internal constructor(
+class FtpFileSystem @Inject internal constructor(
     private val sessions: FtpSessionManager
 ) : NavigableFileSystem, PathRuleFileSystem, NameRuleFileSystem, NameMatchFileSystem {
     override fun handles(path: String): Boolean = isFtpUri(path)

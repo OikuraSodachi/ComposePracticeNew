@@ -15,7 +15,7 @@ import javax.inject.Inject
  * @param localFiles 로컬 디렉터리 읽기를 담당하는 LocalFileDataSource
  * @param volumes 부모 경로가 끝나는 저장소 볼륨 루트 목록을 제공하는 StorageVolumeRepository
  */
-class LocalPathAwareFileSystem @Inject constructor(
+class LocalFileSystem @Inject constructor(
     private val localFiles: LocalFileDataSource,
     private val volumes: StorageVolumeRepository
 ) : NavigableFileSystem, PathRuleFileSystem, NameRuleFileSystem, NameMatchFileSystem {

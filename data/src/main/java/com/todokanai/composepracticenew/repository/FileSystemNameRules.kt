@@ -4,7 +4,7 @@ import com.todokanai.composepracticenew.model.FileNameError
 
 /**
  * 주입된 NameRuleFileSystem 집합에서 이름이 놓일 위치를 처리하는 파일 시스템의 제약으로 이름을 판정하는 StorageNameRules 구현체.
- * 화면마다 다루는 스토리지는 넘기는 집합으로 정하며, 같은 화면의 FileSystemPathRules와 같은 집합을 넘긴다.
+ * 화면마다 다루는 스토리지는 넘기는 집합으로 정하며, 같은 화면의 다른 역할 집합과 같은 구현을 담은 집합을 넘긴다(RepositoryModule이 함께 정한다).
  * @param fileSystems 이 규칙이 다루는 경로 종류별 NameRuleFileSystem 집합 — 각 handles()는 서로 배타적이다
  */
 class FileSystemNameRules(fileSystems: Set<NameRuleFileSystem>) : StorageNameRules {

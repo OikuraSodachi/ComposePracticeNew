@@ -13,9 +13,9 @@ import org.junit.Test
 class FileSystemNameMatchingTest {
 
     /** 로컬 경로를 처리하는 파일 시스템. */
-    private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
+    private val local = LocalFileSystem(LocalFileDataSource(), FakeStorageVolumes())
     /** ftp:// 경로를 처리하는 파일 시스템. */
-    private val ftp = FtpPathAwareFileSystem(unconnectedManager())
+    private val ftp = FtpFileSystem(unconnectedManager())
 
     /** 로컬·FTP 파일 시스템과 각자 처리하는 위치. */
     private val fileSystems = listOf<Pair<NameMatchFileSystem, String>>(local to "/dir", ftp to "ftp://host/dir")
