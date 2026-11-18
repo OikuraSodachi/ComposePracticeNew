@@ -10,12 +10,12 @@ import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
+import com.todokanai.composepracticenew.repository.RemoteRootNavigator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 연결 요청에 언제나 [result]로 답하고, 요청받은 접속 정보를 기록하는 가짜 연결 저장소. 연결 상태는 쓰지 않는다.
- * 루트 경로는 [rootPathFor]로 만든다.
  * @param result 연결 요청에 돌려줄 결과
  */
 internal class FakeRemoteConnection(private val result: ConnectResult = ConnectResult.Connected) : RemoteConnectionRepository {
@@ -33,24 +33,24 @@ internal class FakeRemoteConnection(private val result: ConnectResult = ConnectR
     override suspend fun disconnect() = Unit
 
     override suspend fun drop() = false
-
-    override fun rootPathOf(item: RemoteStorageItem): String = rootPathFor(item)
-
-    companion object {
-        /**
-         * 이 가짜 저장소가 [item] 서버의 루트로 돌려주는 경로.
-         * @param item 원격 스토리지 접속 정보
-         * @return 루트 경로
-         */
-        fun rootPathFor(item: RemoteStorageItem): String = "remote://${item.address}:${item.port}"
-    }
 }
 
 /**
- * 이동 요청에 언제나 [result]로 답하고, 요청받은 경로를 기록하는 가짜 탐색 저장소. 목록 기능은 쓰지 않는다.
- * @param result 이동 요청에 돌려줄 결과
+ * 루트 이동을 요청받은 접속 정보를 기록하는 가짜 루트 이동. [failure]가 있으면 기록한 뒤 그 예외를 던진다.
+ * @param failure 이동 요청에 던질 예외. null이면 이동한다
  */
-internal class FakeNavigator(private val result: NavigateResult = NavigateResult.Navigated) : FileNavigatorRepository {
+internal class FakeRootNavigator(private val failure: Exception? = null) : RemoteRootNavigator {
+    /** 루트 이동을 요청받은 접속 정보. 받은 순서대로 쌓는다. */
+    val navigated = mutableListOf<RemoteStorageItem>()
+
+    override suspend fun navigateToRoot(item: RemoteStorageItem) {
+        navigated += item
+        failure?.let { throw it }
+    }
+}
+
+/** 이동 요청을 언제나 받아들이고, 요청받은 경로를 기록하는 가짜 탐색 저장소. 목록 기능은 쓰지 않는다. */
+internal class FakeNavigator : FileNavigatorRepository {
     /** 이동을 요청받은 경로. 받은 순서대로 쌓는다. */
     val navigated = mutableListOf<String>()
 
@@ -60,7 +60,7 @@ internal class FakeNavigator(private val result: NavigateResult = NavigateResult
 
     override suspend fun navigate(path: String): NavigateResult {
         navigated += path
-        return result
+        return NavigateResult.Navigated
     }
 
     override fun refresh() = Unit

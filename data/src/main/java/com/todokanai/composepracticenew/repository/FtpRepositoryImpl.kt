@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.data.ftp.FtpSessionManager
 import com.todokanai.composepracticenew.data.ftp.RemoteDeletionTarget
 import com.todokanai.composepracticenew.data.ftp.UploadSource
 import com.todokanai.composepracticenew.data.ftp.childFtpUri
-import com.todokanai.composepracticenew.data.ftp.ftpUriOf
 import com.todokanai.composepracticenew.data.ftp.siblingFtpUri
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.FileHolderItem
@@ -39,9 +38,6 @@ class FtpRepositoryImpl @Inject internal constructor(
     override suspend fun disconnect() { sessions.disconnect() }
 
     override suspend fun drop(): Boolean = sessions.drop()
-
-    override fun rootPathOf(item: RemoteStorageItem): String =
-        ftpUriOf(item.address)
 
     override fun current(): RemoteSession? = sessions.current()
 

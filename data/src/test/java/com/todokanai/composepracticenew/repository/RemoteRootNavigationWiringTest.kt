@@ -5,26 +5,28 @@ import com.todokanai.composepracticenew.data.ftp.FakeFtpClient
 import com.todokanai.composepracticenew.data.ftp.FtpSessionManager
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.di.RepositoryModule
+import com.todokanai.composepracticenew.model.DirectoryListing
+import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SortMode
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.TestScope
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 /**
- * 실제 FTP 연결 저장소가 돌려주는 루트 경로([FtpRepositoryImpl.rootPathOf])를 DI가 만드는 원격 탐색 저장소가 거부하지 않는지 검증하는 단위 테스트(#229).
- * RemoteConnectionUseCase는 이 이동이 거부되면 배선 오류로 실패하므로, 루트 경로 형식이나 FTP 경로 판정이 바뀌어 둘이 어긋나면 여기서 드러난다.
+ * [FtpRootNavigator]가 만든 루트 URI를 DI가 만드는 원격 탐색 저장소가 거부하지 않는지, 거부되면 배선 오류로 실패하는지 검증하는 단위 테스트(#229, #445).
+ * 루트 URI 형식이나 FTP 경로 판정이 바뀌어 둘이 어긋나면 여기서 드러난다.
  */
 class RemoteRootNavigationWiringTest {
 
-    /** 테스트 세션 관리자. 루트 경로 계산과 원격 이동은 서버에 접속하지 않는다. */
+    /** 테스트 세션 관리자. 루트 이동은 서버에 접속하지 않는다. */
     private val sessions = FtpSessionManager(ConnectionLossNotices(), TestScope(), { FakeFtpClient() })
-    /** 루트 경로를 정하는 실제 FTP 연결 저장소. */
-    private val connection = FtpRepositoryImpl(sessions, OperationNotices())
     /** DI 공급 함수로 만든 원격 탐색 저장소. 파일 시스템 집합은 DI에 등록된 것과 같다. */
     private val nav = RepositoryModule.provideRemoteFileNavigatorRepository(
         DataConverter(),
@@ -36,22 +38,31 @@ class RemoteRootNavigationWiringTest {
         fileSystems = setOf(FtpPathAwareFileSystem(sessions), LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
         notices = OperationNotices()
     )
+    /** DI 공급 함수로 만든 루트 이동. */
+    private val rootNavigator = RepositoryModule.provideRemoteRootNavigator(nav)
 
     @Test
-    fun `스킴 없는 주소의 루트 경로로 이동한다`() = assertNavigatesToRoot(serverAt("192.168.0.1"))
+    fun `스킴 없는 주소의 루트로 이동한다`() = assertNavigatesToRoot(serverAt("192.168.0.1"), "ftp://192.168.0.1")
 
     @Test
-    fun `스킴을 붙여 저장한 주소의 루트 경로로 이동한다`() = assertNavigatesToRoot(serverAt("ftp://nas.local"))
+    fun `스킴을 붙여 저장한 주소의 루트로 이동한다`() = assertNavigatesToRoot(serverAt("ftp://nas.local"), "ftp://nas.local")
+
+    @Test
+    fun `탐색 저장소가 루트 이동을 거부하면 배선 오류로 실패한다`() {
+        val rejecting = FtpRootNavigator(RejectingNavigator)
+
+        assertThrows(IllegalStateException::class.java) { runBlocking { rejecting.navigateToRoot(serverAt("192.168.0.1")) } }
+    }
 
     /**
-     * [item]의 루트 경로로 이동이 받아들여지고 현재 경로가 그 경로가 되는지 단언한다.
+     * [item]의 루트로 이동하면 원격 탐색 저장소의 현재 경로가 [expectedRoot]가 되는지 단언한다.
      * @param item 원격 스토리지 접속 정보
+     * @param expectedRoot 기대하는 루트 URI
      */
-    private fun assertNavigatesToRoot(item: RemoteStorageItem) {
-        val root = connection.rootPathOf(item)
+    private fun assertNavigatesToRoot(item: RemoteStorageItem, expectedRoot: String) {
+        runBlocking { rootNavigator.navigateToRoot(item) }
 
-        assertEquals(NavigateResult.Navigated, runBlocking { nav.navigate(root) })
-        assertEquals(root, nav.currentPath.value)
+        assertEquals(expectedRoot, nav.currentPath.value)
     }
 
     /**
@@ -60,4 +71,13 @@ class RemoteRootNavigationWiringTest {
      * @return 접속 정보
      */
     private fun serverAt(address: String) = RemoteStorageItem(name = "nas", address = address, port = 21, userId = "", password = "", settings = RemoteProtocolSettings.Ftp("UTF-8"))
+
+    /** 모든 이동을 거부하는 탐색 저장소. 목록 기능은 쓰지 않는다. */
+    private object RejectingNavigator : FileNavigatorRepository {
+        override val currentPath: StateFlow<String?> = MutableStateFlow(null)
+        override val listingRequest: StateFlow<ListingRequest?> = MutableStateFlow(null)
+        override val directoryListing: StateFlow<DirectoryListing> = MutableStateFlow(DirectoryListing.NoPath)
+        override suspend fun navigate(path: String) = NavigateResult.Rejected
+        override fun refresh() = Unit
+    }
 }

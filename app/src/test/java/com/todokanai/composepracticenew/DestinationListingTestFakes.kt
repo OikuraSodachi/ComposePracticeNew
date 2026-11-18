@@ -153,7 +153,6 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
         connectionState.value = RemoteConnectionState.Lost
         return true
     }
-    override fun rootPathOf(item: RemoteStorageItem) = "ftp://${item.address}"
 }
 
 /** 실행한 작업이 없어 취소할 것이 없는 테스트용 취소 UseCase. 취소를 다루지 않는 화면 테스트가 ViewModel을 만들 때 쓴다. */
