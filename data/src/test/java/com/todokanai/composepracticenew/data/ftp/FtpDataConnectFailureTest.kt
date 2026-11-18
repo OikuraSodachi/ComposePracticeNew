@@ -12,7 +12,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
 import java.net.InetAddress
@@ -100,7 +99,7 @@ class FtpDataConnectFailureTest {
         val cause = IOException("Socket closed")
         val runner = DataCommandRunner(EndedSession(cause))
 
-        val thrown = runCatching { runBlocking { runner.run(FakeFtpClient(), FtpDataCommand.LIST, open = { ByteArrayInputStream(ByteArray(0)) }) {} } }.exceptionOrNull()
+        val thrown = runCatching { runBlocking { runner.run(FakeFtpClient(), DataStreamRequest.List) {} } }.exceptionOrNull()
 
         assertEquals(cause, thrown)
     }

@@ -176,7 +176,7 @@ class FtpListingReader internal constructor(
      */
     private suspend fun listWithList(client: FtpCommandClient, ftpPath: String, path: String, limit: ListingLimit?): IoResult<IdentifiedListing> {
         if (!client.changeDirectory(ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client.getReplyString())
-        return receiveListing(FtpDataCommand.LIST, client, FtpListingFormat.listParser(client), path, limit, open = { client.openListStream() }) { file ->
+        return receiveListing(DataStreamRequest.List, client, FtpListingFormat.listParser(client), path, limit) { file ->
             ReceivedEntry(file, identity = null).takeIf { file.name != "." && file.name != ".." }
         }
     }
@@ -197,7 +197,7 @@ class FtpListingReader internal constructor(
         withIdentities: Boolean,
         limit: ListingLimit?
     ): IoResult<IdentifiedListing> =
-        receiveListing(FtpDataCommand.MLSD, client, MLSxEntryParser.getInstance(), path, limit, open = { client.openMlsdStream(ftpPath) }) { file ->
+        receiveListing(DataStreamRequest.Mlsd(ftpPath), client, MLSxEntryParser.getInstance(), path, limit) { file ->
             receivedMlsdEntry(file, withIdentities)
         }
 
@@ -206,26 +206,24 @@ class FtpListingReader internal constructor(
      * 서버가 데이터 연결을 열기 전에 거부했거나 마지막 응답이 거부([FtpReplyRules.isListingCompleted])면 이 조회의 실패다.
      * 목록 데이터를 받다 실패하면(읽기 상한 초과 포함) 받은 일부를 목록으로 보지 않고 이 조회의 실패로 돌려준다 — 완료 응답까지 읽었으므로 세션은 유지된다.
      * 받는 동안의 메모리 상한([limit])을 넘은 것도 데이터를 받다 난 실패라 같은 경로로 연결을 중단으로 닫고, 결과는 [ListingLimit.exceeded]다.
-     * @param command 보낼 목록 조회 명령
+     * @param request 보낼 목록 조회 명령과 그 명령으로 목록 데이터 스트림을 여는 동작
      * @param client 잠금을 확보한 FTP 클라이언트
      * @param parser 목록 줄 해석기
      * @param path 항목 경로를 만들 ftp://server/path 형식의 디렉터리 경로
      * @param limit 목록을 받는 동안의 메모리 상한. null이면 두지 않는다
-     * @param open 명령을 보내 목록 데이터 스트림을 여는 동작. 서버가 거부하면 null을 돌려준다
      * @param received 해석한 항목이 디렉터리 안의 항목이면 그 항목과 식별값을, 아니면(자신·상위 항목) null을 돌려주는 동작
      * @return 조회 결과
      */
     private suspend fun receiveListing(
-        command: FtpDataCommand,
+        request: DataStreamRequest<InputStream>,
         client: FtpCommandClient,
         parser: FTPFileEntryParser,
         path: String,
         limit: ListingLimit?,
-        open: () -> InputStream?,
         received: (FTPFile) -> ReceivedEntry?
     ): IoResult<IdentifiedListing> {
         var lines = emptyList<String>()
-        val outcome = dataCommands.run(client, command, open) { stream ->
+        val outcome = dataCommands.run(client, request) { stream ->
             val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes, childFtpUriPrefix(path).length) } ?: stream
             lines = FtpListingFormat.readLines(bounded, client.getControlEncoding(), parser)
         }
@@ -233,11 +231,11 @@ class FtpListingReader internal constructor(
             is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.step, client.getReplyString())
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
-                else IoResult.ItemFailed(FailureReason.RemoteStepFailed(command.step, FailureReason.IoFailed(outcome.cause.message ?: outcome.cause.javaClass.simpleName)))
-            is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(FailureReason.RemoteStepFailed(command.step, dataConnectionFailure(outcome.cause)))
+                else IoResult.ItemFailed(FailureReason.RemoteStepFailed(request.command.step, FailureReason.IoFailed(outcome.cause.message ?: outcome.cause.javaClass.simpleName)))
+            is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(FailureReason.RemoteStepFailed(request.command.step, dataConnectionFailure(outcome.cause)))
             is DataCommandOutcome.Finished ->
                 if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(lines, parser, received, path))
-                else FtpReplyRules.dataCommandRefusal(command.step, client.getReplyString())
+                else FtpReplyRules.dataCommandRefusal(request.command.step, client.getReplyString())
         }
     }
 

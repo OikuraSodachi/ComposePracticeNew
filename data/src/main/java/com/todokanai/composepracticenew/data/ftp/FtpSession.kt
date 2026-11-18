@@ -110,7 +110,7 @@ internal class FtpSession(
      * ioMutex를 쥔 [withConnectedClient]의 블록 안에서 호출한다. 명령의 실행 규칙은 [DataCommandRunner]가 정한다.
      * 데이터 소켓을 연결하지 못한 실패만 결과([DataConnectionOpening.NotConnected])로 돌려준다 — 그 실패는 명령을 보내기 전이라 응답 순서가 유지된다(#267).
      * 데이터 소켓을 연결한 뒤의 실패(REST·명령의 응답, 원격 주소 확인)는 명령의 응답이 남았을 수 있으므로 예외로 전파한다.
-     * @param open 데이터 스트림을 여는 명령(`retrieveFileStream`·`storeFileStream`, [SessionFtpClient]의 목록 조회). 서버가 거부하면 null을 돌려준다
+     * @param open 데이터 스트림을 여는 명령([DataStreamRequest.open]). 서버가 거부하면 null을 돌려준다
      * @return 열린 데이터 연결, 서버의 거부, 또는 데이터 소켓을 연결하지 못함
      * @throws IOException 명령의 응답을 읽지 못했거나 데이터 소켓을 연결한 뒤에 실패한 경우
      */

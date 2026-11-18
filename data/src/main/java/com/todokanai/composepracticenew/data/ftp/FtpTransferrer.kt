@@ -411,8 +411,7 @@ class FtpTransferrer internal constructor(
     ): IoResult<Unit> {
         val outcome = dataCommands.run(
             client,
-            command = FtpDataCommand.RETR,
-            open = { client.retrieveFileStream(ftpPath) },
+            DataStreamRequest.Retrieve(ftpPath),
             onCancel = { runCatching { localFile.delete() } }
         ) { stream ->
             onOpened()
@@ -441,7 +440,7 @@ class FtpTransferrer internal constructor(
         // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
         // ([FtpListingReader.identifiedListing] 참고)
         val outcome = try {
-            dataCommands.run(client, FtpDataCommand.STOR, open = { client.storeFileStream(ftpPath) }) { stream -> pump(input, stream, onChunk) }
+            dataCommands.run(client, DataStreamRequest.Store(ftpPath)) { stream -> pump(input, stream, onChunk) }
         } catch (e: CancellationException) {
             discardCancelledUpload(client, ftpPath)
             throw e
