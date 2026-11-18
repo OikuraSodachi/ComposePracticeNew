@@ -25,25 +25,29 @@ import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 
 /**
  * 원격 스토리지 연결 성공과 로컬 스토리지 열기 결과 Flow를 수집하고 부수 효과를 실행한다.
  * 연결 실패는 화면 호스트가 앱 전역에서 알린다.
  *
- * @param viewModel 연결·열기 결과 Flow를 제공하는 ViewModel
+ * @param connectionSucceeded 원격 스토리지 연결 성공 이벤트 Flow
+ * @param localStorageOpened 로컬 스토리지 루트로 이동한 이벤트 Flow
  * @param onConnectionSucceeded 연결 성공 시 실행할 콜백
  * @param onLocalStorageOpened 로컬 스토리지 루트로 이동했을 때 실행할 콜백
  */
 @Composable
 private fun StorageConnectionEffects(
-    viewModel: StorageViewModel,
+    connectionSucceeded: Flow<Unit>,
+    localStorageOpened: Flow<Unit>,
     onConnectionSucceeded: () -> Unit,
     onLocalStorageOpened: () -> Unit,
 ) {
-    LaunchedEffect(Unit) {
-        launch { viewModel.connectionSucceeded.collect { onConnectionSucceeded() } }
-        launch { viewModel.localStorageOpened.collect  { onLocalStorageOpened()  } }
+    // 두 Flow를 키로 — 다른 Flow가 들어오면 이전 수집을 끝내고 새 Flow를 수집한다
+    LaunchedEffect(connectionSucceeded, localStorageOpened) {
+        launch { connectionSucceeded.collect { onConnectionSucceeded() } }
+        launch { localStorageOpened.collect  { onLocalStorageOpened()  } }
     }
 }
 
@@ -116,7 +120,8 @@ fun StorageFrag(
     val dialogState = rememberStorageDialogState()
 
     StorageConnectionEffects(
-        viewModel = viewModel,
+        connectionSucceeded = viewModel.connectionSucceeded,
+        localStorageOpened = viewModel.localStorageOpened,
         onConnectionSucceeded = exitToRemoteFileFrag,
         onLocalStorageOpened  = exitStorageFrag,
     )
