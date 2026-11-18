@@ -33,13 +33,13 @@ import org.junit.Test
 class RemoteFileOperationFailureTest {
 
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
-    private val progressRepo = RecordingProgressReporter()
+    private val progressReporter = RecordingProgressReporter()
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules))
 
     @After
@@ -140,7 +140,7 @@ class RemoteFileOperationFailureTest {
         // 폴더 삭제는 하위 항목 수에 비례해 오래 걸리므로 진행 표시·취소가 있어야 한다(#334)
         remote.deleteRemote(targets = listOf(item("ftp://h/r/dir", true))) {}
 
-        assertEquals(FileOperationType.DELETE, progressRepo.states.first().operationType)
+        assertEquals(FileOperationType.DELETE, progressReporter.states.first().operationType)
     }
 
     /** [path]의 마지막 경로 조각을 이름으로 갖는 테스트 항목을 만든다. */

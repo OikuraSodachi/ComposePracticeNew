@@ -37,13 +37,13 @@ import org.junit.Test
 class FileNameEnforcementTest {
 
     private val scope = CoroutineScope(Job())
-    private val progressRepo = RecordingProgressReporter()
+    private val progressReporter = RecordingProgressReporter()
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
     /** 저장소의 제약을 물은 이름과 위치를 기록하는 이름 규칙. */
     private val storageNames = RecordingStorageNameRules()
     private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(storageNames), LocalPathRules())

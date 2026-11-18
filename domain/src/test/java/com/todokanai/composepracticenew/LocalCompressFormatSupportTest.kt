@@ -31,7 +31,7 @@ class LocalCompressFormatSupportTest {
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     /** 시작된 진행 상태를 기록하는 진행 저장소. */
-    private val progressRepo = RecordingProgressReporter()
+    private val progressReporter = RecordingProgressReporter()
 
     @After
     fun tearDown() = scope.cancel()
@@ -45,7 +45,7 @@ class LocalCompressFormatSupportTest {
         assertEquals(1, notices.failures.size)
         assertEquals(NoticeMessage.UnsupportedArchiveFormat(ArchiveFormat.ZIP.extension), notices.failures[0])
         assertTrue("저장소가 호출되면 안 됨: ${repo.calls}", repo.calls.isEmpty())
-        assertTrue("진행이 시작되면 안 됨: ${progressRepo.started}", progressRepo.started.isEmpty())
+        assertTrue("진행이 시작되면 안 됨: ${progressReporter.started}", progressReporter.started.isEmpty())
     }
 
     @Test
@@ -57,7 +57,7 @@ class LocalCompressFormatSupportTest {
 
     /** [repo]로 압축하는 검증 대상 UseCase를 만든다. */
     private fun useCaseWith(repo: FileActionRepository) =
-        LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope), notices, repo, FileNameUseCase(NoStorageNameRules), LocalPathRules())
+        LocalFileOperationUseCase(FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope), notices, repo, FileNameUseCase(NoStorageNameRules), LocalPathRules())
 
     /**
      * [supported] 형식만 만들 수 있다고 답하고 호출된 작업 이름을 기록하는 테스트용 저장소.

@@ -51,7 +51,7 @@ class TransferDestinationGuardTest {
     private val operationScope = CoroutineScope(Job() + Dispatchers.Unconfined)
     private val localNav = FakeNavigator()
     private val remoteNav = FakeNavigator()
-    private val progressRepo = RecordingProgressReporter()
+    private val progressReporter = RecordingProgressReporter()
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
@@ -75,7 +75,7 @@ class TransferDestinationGuardTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, operationScope)
         val remoteOps = RemoteFileOperationUseCase(
             orchestrator,
             notices,

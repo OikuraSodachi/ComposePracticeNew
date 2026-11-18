@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.ProgressReporter
-import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -29,9 +28,9 @@ class FileOperationStartTest {
     /** 작업을 실행할 스코프. Unconfined라 작업은 처음 멈추는 지점까지 launch 호출 안에서 바로 돈다. */
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 진행 상태와 작업이 처음 등록된 순서를 기록하는 진행 저장소. */
-    private val progressRepo = RecordingProgressTracker()
+    private val progressReporter = RecordingProgressReporter()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, scope)
     /** 열릴 때까지 작업을 멈춰 두는 신호. */
     private val gate = CompletableDeferred<Unit>()
 
@@ -45,7 +44,7 @@ class FileOperationStartTest {
             IoResult.Done
         }
 
-        assertEquals(mapOf(1 to ProgressState(operationType = FileOperationType.COPY)), progressRepo.progressMap.value)
+        assertEquals(mapOf(1 to ProgressState(operationType = FileOperationType.COPY)), progressReporter.progressMap.value)
     }
 
     @Test
@@ -63,7 +62,7 @@ class FileOperationStartTest {
 
         gate.complete(Unit)
 
-        assertEquals(listOf(1, 2), progressRepo.registrationOrder)
+        assertEquals(listOf(1, 2), progressReporter.registrationOrder)
     }
 
     @Test
@@ -73,13 +72,13 @@ class FileOperationStartTest {
             IoResult.Done
         }
 
-        assertTrue(progressRepo.progressMap.value.isEmpty())
+        assertTrue(progressReporter.progressMap.value.isEmpty())
     }
 
-    /** 진행 상태를 보관하고, 각 작업이 처음 등록된 순서를 기록하는 테스트용 진행 저장소. */
-    private class RecordingProgressTracker : ProgressRepository, ProgressReporter {
+    /** 진행 상태를 보관하고, 각 작업이 처음 등록된 순서를 기록하는 테스트용 진행 상태 기록기. */
+    private class RecordingProgressReporter : ProgressReporter {
         val registrationOrder = mutableListOf<Int>()
-        override val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
+        val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
         override fun setProgressState(instanceId: Int, state: ProgressState) {
             if (instanceId !in progressMap.value) registrationOrder += instanceId
             progressMap.value = progressMap.value + (instanceId to state)
