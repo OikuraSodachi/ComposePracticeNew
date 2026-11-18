@@ -51,7 +51,6 @@ fun AppNavHost(
 ) {
     val navController = rememberNavController()
     // activity-scoped: 시작 때 스토리지 목록을 한 번만 불러오고, 어느 화면에서든 같은 종료 이벤트를 받도록
-    // coordinator는 FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     val mainViewModel: MainViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
     // activity-scoped: MainActivity가 알림 클릭으로 띄우라고 요청한 다이얼로그를 같은 인스턴스에서 보이도록 Activity를 owner로 지정
     val progressDialogViewModel: ProgressDialogViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
@@ -122,6 +121,7 @@ fun AppNavHost(
 private fun rememberGraphCoordinator(navController: NavHostController): FileTransferCoordinatorViewModel {
     // 그래프 backStackEntry는 destination 재구성 간 동일하므로 키 없이 1회 조회 — 매 리컴포지션 back stack 탐색 방지
     val graphEntry = remember { navController.getBackStackEntry(NavDestinations.FILE_BROWSER_GRAPH) }
+    // FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     return hiltViewModel(graphEntry)
 }
 
