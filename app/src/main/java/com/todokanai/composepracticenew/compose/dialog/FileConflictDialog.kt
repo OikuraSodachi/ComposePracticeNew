@@ -15,16 +15,17 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
+import com.todokanai.composepracticenew.ui.model.PendingConflict
 
 /**
  * 목적지에 같은 이름의 항목이 이미 있거나, 함께 보내는 항목끼리 목적지에서 같은 이름이 될 수 있을 때 처리 방법을 사용자에게 묻는 다이얼로그.
- * 건너뛰기는 목적지에 이미 있는 이름의 항목만 뺀다. 함께 보내는 항목끼리의 겹침은 알리기만 하므로, 그것뿐이면 계속·취소만 고른다.
+ * 함께 보내는 항목끼리의 겹침은 알리기만 하므로, 그것뿐이면 계속·취소만 고른다. 건너뛰기는 [canSkip]일 때만 보인다([PendingConflict.canSkip]이 정한다).
  */
 @Composable
 fun FileConflictDialog(
     conflictingFiles: List<FileHolderItem>,
     collisions: List<NameCollisionGroup>,
-    totalCount: Int,
+    canSkip: Boolean,
     onOverwrite: () -> Unit,
     onSkip: () -> Unit,
     onCancel: () -> Unit
@@ -57,7 +58,7 @@ fun FileConflictDialog(
                 TextButton(onClick = onCancel) {
                     Text(stringResource(R.string.btn_cancel))
                 }
-                if (conflictingFiles.isNotEmpty() && conflictingFiles.size < totalCount) {
+                if (canSkip) {
                     TextButton(onClick = onSkip) {
                         Text(stringResource(R.string.btn_skip_conflicts))
                     }
