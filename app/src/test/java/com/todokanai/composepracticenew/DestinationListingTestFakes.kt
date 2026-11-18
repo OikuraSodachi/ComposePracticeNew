@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.model.QuestionKind
+import com.todokanai.composepracticenew.model.QuestionRequest
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.PasswordAnswer
@@ -188,6 +189,8 @@ internal class RecordingOperationNotices : OperationNoticeReporter {
 
 /** 충돌 질문이 오면 테스트를 실패시키는 질문 통로. */
 internal object UnexpectedQuestions : OperationQuestionAsker {
-    override suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer = throw AssertionError("예상하지 못한 충돌 질문: $conflict")
-    override suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer = throw AssertionError("예상하지 못한 비밀번호 질문: $archiveName")
+    override suspend fun <A : Any> ask(operationType: FileOperationType, request: QuestionRequest<A>): A = when (request) {
+        is QuestionRequest.Conflict -> throw AssertionError("예상하지 못한 충돌 질문: ${request.conflict}")
+        is QuestionRequest.ArchivePassword -> throw AssertionError("예상하지 못한 비밀번호 질문: ${request.archiveName}")
+    }
 }

@@ -1,11 +1,10 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.OperationQuestion
 import com.todokanai.composepracticenew.model.PasswordAnswer
-import com.todokanai.composepracticenew.model.WriteConflict
+import com.todokanai.composepracticenew.model.QuestionRequest
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -14,21 +13,12 @@ import kotlinx.coroutines.flow.StateFlow
  */
 interface OperationQuestionAsker {
     /**
-     * [conflict]를 묻고 답을 기다린다.
+     * [request]를 묻고 답을 기다린다.
      * @param operationType 질문하는 작업의 종류
-     * @param conflict 겹친 항목
+     * @param request 묻는 내용. 받을 답의 타입을 정한다
      * @return 사용자의 답
      */
-    suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer
-
-    /**
-     * [archiveName]의 비밀번호를 묻고 답을 기다린다.
-     * @param operationType 질문하는 작업의 종류
-     * @param archiveName 비밀번호를 묻는 압축 파일의 이름
-     * @param prompt 묻는 이유
-     * @return 사용자의 답
-     */
-    suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer
+    suspend fun <A : Any> ask(operationType: FileOperationType, request: QuestionRequest<A>): A
 }
 
 /** 화면이 답을 기다리는 작업 질문을 보고 답하는 쪽의 통로. */

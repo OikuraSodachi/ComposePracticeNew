@@ -14,7 +14,10 @@ data class PendingConflict(
     val targets: List<FileHolderItem>,
     val conflicts: List<FileHolderItem>,
     val collisions: List<NameCollisionGroup>,
-)
+) {
+    /** 건너뛰기를 고를 수 있는지. 건너뛰기는 목적지에 이미 있는 이름의 항목만 빼므로, 그런 항목이 있고 빼도 남는 항목이 있을 때만 고를 수 있다. */
+    val canSkip: Boolean get() = conflicts.isNotEmpty() && conflicts.size < targets.size
+}
 
 /**
  * 같은 폴더에 함께 보내는 이름 중 목적지에서 같은 항목이 될 수 있는 이름 묶음(표시용).

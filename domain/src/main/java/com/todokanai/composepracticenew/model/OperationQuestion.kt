@@ -12,12 +12,39 @@ sealed interface OperationQuestion {
     val operationType: FileOperationType
 }
 
-/** 작업이 묻는 질문의 종류. 답을 기다리는 알림과 답이 없어 멈춘 작업의 알림 문구를 고르는 데 쓴다. */
+/** 작업이 묻는 질문의 종류. 답을 기다리는 알림과 답이 없어 멈춘 작업의 알림 문구를 고르는 데 쓴다. 요청마다 [QuestionRequest]가 정한다. */
 enum class QuestionKind {
     /** 쓰려는 자리에 같은 이름의 항목이 있다([ConflictQuestion]). */
     CONFLICT,
     /** 암호화된 압축 파일의 비밀번호가 필요하다([PasswordQuestion]). */
     ARCHIVE_PASSWORD,
+}
+
+/**
+ * 작업이 질문함에 맡기는 묻기 요청. 질문의 종류([kind])·가리키는 이름([name])과 받을 답의 타입([A])을 한 값에 묶는다 —
+ * 따로 넘기면 어긋나도 컴파일러가 잡지 못하고, 답을 기다리는 알림과 답이 없어 멈춘 알림이 다른 질문의 문구로 나간다(#462).
+ * @param kind 이 요청이 묻는 질문의 종류
+ */
+sealed class QuestionRequest<A : Any>(val kind: QuestionKind) {
+    /** 질문이 가리키는 이름(충돌이면 겹친 항목, 비밀번호면 압축 파일). 답이 없어 멈출 때 알린다. */
+    abstract val name: String
+
+    /**
+     * 쓰기 충돌을 처리할 방법을 묻는 요청.
+     * @param conflict 겹친 항목
+     */
+    data class Conflict(val conflict: WriteConflict) : QuestionRequest<ConflictAnswer>(QuestionKind.CONFLICT) {
+        override val name: String get() = conflict.name
+    }
+
+    /**
+     * 암호화된 압축 파일의 비밀번호를 묻는 요청.
+     * @param archiveName 비밀번호를 묻는 압축 파일의 이름
+     * @param prompt 묻는 이유(처음·틀림·틀렸거나 손상)
+     */
+    data class ArchivePassword(val archiveName: String, val prompt: ArchivePasswordPrompt) : QuestionRequest<PasswordAnswer>(QuestionKind.ARCHIVE_PASSWORD) {
+        override val name: String get() = archiveName
+    }
 }
 
 /** 압축 파일의 비밀번호를 왜 묻는지. 다시 묻는 경우 앞서 입력한 비밀번호가 어떻게 됐는지 알린다. */
