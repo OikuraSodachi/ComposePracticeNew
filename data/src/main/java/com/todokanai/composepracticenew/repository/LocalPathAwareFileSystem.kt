@@ -9,7 +9,7 @@ import com.todokanai.fileexplorer.defaultParentPath
 import javax.inject.Inject
 
 /**
- * URI 스킴이 없는 로컬 파일 시스템 경로를 처리하는 PathAwareFileSystem 구현체.
+ * URI 스킴이 없는 로컬 파일 시스템 경로를 처리하는 파일 시스템 — 탐색·경로 규칙·이름 제약·이름 비교 역할을 모두 구현한다.
  * 다른 스토리지의 존재를 알지 않고 자기 경로 형식만으로 판정하므로 등록 순서와 무관하다.
  * 부모 경로는 저장소 볼륨 루트에서 끝난다 — 볼륨 위 폴더(/storage/emulated 등)는 앱이 읽을 수 없어, 뒤로가기·경로 표시줄이 들어갈 수 없는 곳을 가리키지 않도록.
  * @param localFiles 로컬 디렉터리 읽기를 담당하는 LocalFileDataSource
@@ -18,7 +18,7 @@ import javax.inject.Inject
 class LocalPathAwareFileSystem @Inject constructor(
     private val localFiles: LocalFileDataSource,
     private val volumes: StorageVolumeRepository
-) : PathAwareFileSystem {
+) : NavigableFileSystem, PathRuleFileSystem, NameRuleFileSystem, NameMatchFileSystem {
     override fun handles(path: String): Boolean = !path.contains(SCHEME_SEPARATOR)
     override suspend fun listFiles(path: String): IoResult<ListedDirectory> = localFiles.listFiles(path).map { ListedDirectory(it, unreadableCount = 0) }
     override fun getParent(path: String): String? = if (isVolumeRoot(path)) null else defaultParentPath(path)

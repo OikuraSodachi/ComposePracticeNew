@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.data.ftp.unconnectedManager
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.FileNameError
-import com.todokanai.composepracticenew.model.IoResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -49,13 +48,8 @@ class FileSystemNameRulesTest {
      * [prefix]로 시작하는 경로만 처리하고 모든 이름을 거부하는 테스트용 파일 시스템. 라우팅을 확인하는 데만 쓴다.
      * @param prefix 처리할 경로의 앞부분
      */
-    private class RejectingFileSystem(private val prefix: String) : PathAwareFileSystem {
+    private class RejectingFileSystem(private val prefix: String) : NameRuleFileSystem {
         override fun handles(path: String) = path.startsWith(prefix)
-        override suspend fun listFiles(path: String): IoResult<ListedDirectory> = IoResult.ItemFailed(null)
-        override fun getParent(path: String): String? = null
-        override fun displayName(path: String) = path
         override fun nameViolationsOf(fullName: String, location: String) = setOf(FileNameError.RESERVED_NAME)
-        override fun nameMatchKeyOf(name: String, location: String) = name
-        override suspend fun resolveNavigationPath(path: String): String? = null
     }
 }

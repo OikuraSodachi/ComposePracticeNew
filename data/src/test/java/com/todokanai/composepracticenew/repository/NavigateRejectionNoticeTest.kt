@@ -29,6 +29,9 @@ class NavigateRejectionNoticeTest {
     /** 탐색 저장소가 거부를 맡기는 알림함. */
     private val notices = OperationNotices()
 
+    /** 탐색과 경로 규칙이 함께 쓰는 로컬 파일 시스템. */
+    private val localFileSystem = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
+
     /** 로컬 경로만 다루는 탐색 저장소. */
     private val nav = FileExplorerRepositoryImpl(
         DataConverter(),
@@ -38,7 +41,8 @@ class NavigateRejectionNoticeTest {
         },
         appScope = TestScope(),
         started = SharingStarted.Lazily,
-        fileSystems = setOf(LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
+        fileSystems = setOf(localFileSystem),
+        pathRules = FileSystemPathRules(setOf(localFileSystem)),
         notices = notices
     )
 

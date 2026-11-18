@@ -12,13 +12,13 @@ import com.todokanai.fileexplorer.defaultDisplayName
 import javax.inject.Inject
 
 /**
- * ftp:// 스킴으로 시작하는 원격 경로를 처리하는 PathAwareFileSystem 구현체.
+ * ftp:// 스킴으로 시작하는 원격 경로를 처리하는 파일 시스템 — 탐색·경로 규칙·이름 제약·이름 비교 역할을 모두 구현한다.
  * 목록은 탐색 세션에서 조회한다(#436).
  * @param sessions 목록을 조회할 탐색 세션을 가진 관리자
  */
 class FtpPathAwareFileSystem @Inject internal constructor(
     private val sessions: FtpSessionManager
-) : PathAwareFileSystem {
+) : NavigableFileSystem, PathRuleFileSystem, NameRuleFileSystem, NameMatchFileSystem {
     override fun handles(path: String): Boolean = isFtpUri(path)
 
     // 해석하지 못한 줄은 목록에서 빼고 읽은 항목만 돌려주되, 뺀 수를 목록 결과에 담아 화면이 목록 상태로 표시하게 한다(#255, #348)

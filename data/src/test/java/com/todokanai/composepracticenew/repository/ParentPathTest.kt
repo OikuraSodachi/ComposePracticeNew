@@ -6,7 +6,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 /**
- * 경로 종류별 부모 경로 규칙([PathAwareFileSystem.getParent])이 한 단계씩 위로 올라가 루트에서 null로 끝나는지 검증하는 단위 테스트(#227).
+ * 경로 종류별 부모 경로 규칙([PathRuleFileSystem.getParent])이 한 단계씩 위로 올라가 루트에서 null로 끝나는지 검증하는 단위 테스트(#227).
  * 경로 표시줄은 이 규칙을 따라 루트까지 올라가므로, 이 규칙이 표시줄의 단계와 종료를 정한다.
  */
 class ParentPathTest {
@@ -42,6 +42,6 @@ class ParentPathTest {
      * @param path 시작 경로
      * @return [path]부터 루트까지의 경로
      */
-    private fun ancestorChain(fileSystem: PathAwareFileSystem, path: String): List<String> =
+    private fun ancestorChain(fileSystem: PathRuleFileSystem, path: String): List<String> =
         generateSequence(path) { fileSystem.getParent(it) }.toList()
 }

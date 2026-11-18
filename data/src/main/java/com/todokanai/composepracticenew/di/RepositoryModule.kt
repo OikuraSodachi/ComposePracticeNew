@@ -39,7 +39,10 @@ import com.todokanai.composepracticenew.repository.ConnectionLossNoticeReporter
 import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
 import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
-import com.todokanai.composepracticenew.repository.PathAwareFileSystem
+import com.todokanai.composepracticenew.repository.NameMatchFileSystem
+import com.todokanai.composepracticenew.repository.NameRuleFileSystem
+import com.todokanai.composepracticenew.repository.NavigableFileSystem
+import com.todokanai.composepracticenew.repository.PathRuleFileSystem
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -146,10 +149,28 @@ abstract class RepositoryModule {
     abstract fun bindRemoteFileMutationRepository(impl: FtpRepositoryImpl): RemoteFileMutationRepository
 
     @Binds @IntoSet
-    abstract fun bindFtpPathAwareFileSystem(impl: FtpPathAwareFileSystem): PathAwareFileSystem
+    abstract fun bindFtpNavigableFileSystem(impl: FtpPathAwareFileSystem): NavigableFileSystem
 
     @Binds @IntoSet
-    abstract fun bindLocalPathAwareFileSystem(impl: LocalPathAwareFileSystem): PathAwareFileSystem
+    abstract fun bindLocalNavigableFileSystem(impl: LocalPathAwareFileSystem): NavigableFileSystem
+
+    @Binds @IntoSet
+    abstract fun bindFtpPathRuleFileSystem(impl: FtpPathAwareFileSystem): PathRuleFileSystem
+
+    @Binds @IntoSet
+    abstract fun bindLocalPathRuleFileSystem(impl: LocalPathAwareFileSystem): PathRuleFileSystem
+
+    @Binds @IntoSet
+    abstract fun bindFtpNameRuleFileSystem(impl: FtpPathAwareFileSystem): NameRuleFileSystem
+
+    @Binds @IntoSet
+    abstract fun bindLocalNameRuleFileSystem(impl: LocalPathAwareFileSystem): NameRuleFileSystem
+
+    @Binds @IntoSet
+    abstract fun bindFtpNameMatchFileSystem(impl: FtpPathAwareFileSystem): NameMatchFileSystem
+
+    @Binds @IntoSet
+    abstract fun bindLocalNameMatchFileSystem(impl: LocalPathAwareFileSystem): NameMatchFileSystem
 
     @Binds @IntoSet
     abstract fun bindZipArchiveExtractor(impl: ZipArchiveExtractor): ArchiveExtractor
@@ -170,14 +191,34 @@ abstract class RepositoryModule {
         @Provides @IntoSet
         fun provideIsoArchiveExtractor(): ArchiveExtractor = SevenZipArchiveExtractor.iso()
 
-        /** 로컬 화면이 다루는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
+        /** 로컬 화면이 탐색하는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
         @Provides @LocalScreenFileSystems
-        fun provideLocalScreenFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<PathAwareFileSystem> =
+        fun provideLocalScreenNavigableFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<NavigableFileSystem> =
             setOf(localFileSystem)
 
-        /** 원격 화면이 다루는 파일 시스템 집합. 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */
+        /** 로컬 화면의 경로 규칙을 정하는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
+        @Provides @LocalScreenFileSystems
+        fun provideLocalScreenPathRuleFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<PathRuleFileSystem> =
+            setOf(localFileSystem)
+
+        /** 로컬 화면의 이름 제약을 정하는 파일 시스템 집합. 로컬 화면은 로컬 경로만 다룬다. */
+        @Provides @LocalScreenFileSystems
+        fun provideLocalScreenNameRuleFileSystems(localFileSystem: LocalPathAwareFileSystem): Set<NameRuleFileSystem> =
+            setOf(localFileSystem)
+
+        /** 원격 화면이 탐색하는 파일 시스템 집합. 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */
         @Provides @RemoteScreenFileSystems
-        fun provideRemoteScreenFileSystems(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): Set<PathAwareFileSystem> =
+        fun provideRemoteScreenNavigableFileSystems(fileSystems: Set<@JvmSuppressWildcards NavigableFileSystem>): Set<NavigableFileSystem> =
+            fileSystems
+
+        /** 원격 화면의 경로 규칙을 정하는 파일 시스템 집합. 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */
+        @Provides @RemoteScreenFileSystems
+        fun provideRemoteScreenPathRuleFileSystems(fileSystems: Set<@JvmSuppressWildcards PathRuleFileSystem>): Set<PathRuleFileSystem> =
+            fileSystems
+
+        /** 원격 화면의 이름 제약을 정하는 파일 시스템 집합. 원격 화면은 등록된 모든 경로 종류를 다룬다(원격 경로와 로컬 경로). */
+        @Provides @RemoteScreenFileSystems
+        fun provideRemoteScreenNameRuleFileSystems(fileSystems: Set<@JvmSuppressWildcards NameRuleFileSystem>): Set<NameRuleFileSystem> =
             fileSystems
 
         /** 로컬 화면의 탐색. */
@@ -186,11 +227,13 @@ abstract class RepositoryModule {
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            @LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>,
+            @LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards NavigableFileSystem>,
+            pathRules: StoragePathRules,
             notices: OperationNoticeReporter
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(
             converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000),
             fileSystems = fileSystems,
+            pathRules = pathRules,
             notices = notices,
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
@@ -201,9 +244,10 @@ abstract class RepositoryModule {
             converter: DataConverter,
             sortPreference: SortPreferenceRepository,
             @ApplicationScope appScope: CoroutineScope,
-            @RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>,
+            @RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards NavigableFileSystem>,
+            @RemoteNavigator pathRules: StoragePathRules,
             notices: OperationNoticeReporter
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems, notices)
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems, pathRules, notices)
 
         /** 연결한 원격 서버의 루트로 원격 화면의 탐색 위치를 옮기는 이동. */
         @Provides @Singleton
@@ -211,27 +255,27 @@ abstract class RepositoryModule {
 
         /** 로컬 화면의 경로 규칙. */
         @Provides @Singleton
-        fun provideLocalStoragePathRules(@LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StoragePathRules =
+        fun provideLocalStoragePathRules(@LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathRuleFileSystem>): StoragePathRules =
             FileSystemPathRules(fileSystems)
 
         /** 원격 화면의 경로 규칙. */
         @Provides @Singleton @RemoteNavigator
-        fun provideRemoteStoragePathRules(@RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StoragePathRules =
+        fun provideRemoteStoragePathRules(@RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathRuleFileSystem>): StoragePathRules =
             FileSystemPathRules(fileSystems)
 
         /** 로컬 화면의 이름 제약. */
         @Provides @Singleton
-        fun provideLocalStorageNameRules(@LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameRules =
+        fun provideLocalStorageNameRules(@LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards NameRuleFileSystem>): StorageNameRules =
             FileSystemNameRules(fileSystems)
 
         /** 원격 화면의 이름 제약. */
         @Provides @Singleton @RemoteNavigator
-        fun provideRemoteStorageNameRules(@RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameRules =
+        fun provideRemoteStorageNameRules(@RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards NameRuleFileSystem>): StorageNameRules =
             FileSystemNameRules(fileSystems)
 
         /** 이름 충돌 판정의 이름 비교 규칙. 충돌 판정은 두 화면의 목적지(다운로드는 로컬, 업로드는 원격)를 모두 다루므로 등록된 모든 파일 시스템에서 고른다. */
         @Provides @Singleton
-        fun provideStorageNameMatching(fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>): StorageNameMatching =
+        fun provideStorageNameMatching(fileSystems: Set<@JvmSuppressWildcards NameMatchFileSystem>): StorageNameMatching =
             FileSystemNameMatching(fileSystems)
     }
 }

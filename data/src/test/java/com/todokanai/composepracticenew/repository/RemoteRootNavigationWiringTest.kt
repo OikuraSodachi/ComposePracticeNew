@@ -27,7 +27,11 @@ class RemoteRootNavigationWiringTest {
 
     /** 테스트 세션 관리자. 루트 이동은 서버에 접속하지 않는다. */
     private val sessions = FtpSessionManager(ConnectionLossNotices(), TestScope(), { FakeFtpClient() })
-    /** DI 공급 함수로 만든 원격 탐색 저장소. 파일 시스템 집합은 DI에 등록된 것과 같다. */
+    /** DI에 등록된 원격 파일 시스템. 탐색과 경로 규칙이 함께 쓴다. */
+    private val ftpFileSystem = FtpPathAwareFileSystem(sessions)
+    /** DI에 등록된 로컬 파일 시스템. 탐색과 경로 규칙이 함께 쓴다. */
+    private val localFileSystem = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
+    /** DI 공급 함수로 만든 원격 탐색 저장소. */
     private val nav = RepositoryModule.provideRemoteFileNavigatorRepository(
         DataConverter(),
         sortPreference = object : SortPreferenceRepository {
@@ -35,7 +39,8 @@ class RemoteRootNavigationWiringTest {
             override fun saveSortBy(value: SortMode) { sortBy.value = value }
         },
         appScope = TestScope(),
-        fileSystems = setOf(FtpPathAwareFileSystem(sessions), LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())),
+        fileSystems = setOf(ftpFileSystem, localFileSystem),
+        pathRules = FileSystemPathRules(setOf(ftpFileSystem, localFileSystem)),
         notices = OperationNotices()
     )
     /** DI 공급 함수로 만든 루트 이동. */
