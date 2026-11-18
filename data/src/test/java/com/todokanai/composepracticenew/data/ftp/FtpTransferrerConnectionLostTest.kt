@@ -23,7 +23,7 @@ class FtpTransferrerConnectionLostTest {
     private val dir: File = Files.createTempDirectory("ftp-connection-lost-test").toFile()
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     private val session = FtpSession(client)
-    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
+    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
 
     @After
     fun tearDown() {
@@ -80,7 +80,7 @@ class FtpTransferrerConnectionLostTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpCommandParts(session).let { parts -> FtpTransferrer(counting, parts.executor, parts.trees, DataCommandRunner(session), OperationNotices()) }
+        val observed = FtpOperationParts(session).let { parts -> FtpTransferrer(counting, parts.executor, parts.trees, DataCommandRunner(session), OperationNotices()) }
 
         val result = runBlocking { observed.upload(listOf(UploadSource(first.path, "ftp://host/r/a.txt"), UploadSource(second.path, "ftp://host/r/b.txt"))) }
 

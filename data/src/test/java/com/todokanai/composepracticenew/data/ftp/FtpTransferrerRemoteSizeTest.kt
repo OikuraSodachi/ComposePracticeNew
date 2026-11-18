@@ -27,7 +27,7 @@ class FtpTransferrerRemoteSizeTest {
     /** 검증 대상 세션. */
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
     /** 검증 대상 전송기. */
-    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
+    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
 
     @After
     fun tearDown() {

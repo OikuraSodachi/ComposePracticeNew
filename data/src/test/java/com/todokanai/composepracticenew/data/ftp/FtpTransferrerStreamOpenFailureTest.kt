@@ -21,7 +21,7 @@ class FtpTransferrerStreamOpenFailureTest {
     private val dir: File = Files.createTempDirectory("ftp-transfer-test").toFile()
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
+    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
 
     @After
     fun tearDown() {

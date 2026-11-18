@@ -50,7 +50,7 @@ class FtpListingStalledDataTest {
             }
             exchange.send(if (stall) "426 Transfer aborted" else "226 Transfer complete")
         }
-        val commands = FtpCommandParts(session)
+        val commands = FtpBrowsingParts(session)
 
         val stalled = runBlocking { commands.listing.listFiles("ftp://host/r") }
         val next = runBlocking { commands.listing.listFiles("ftp://host/r") }

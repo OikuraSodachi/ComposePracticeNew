@@ -25,7 +25,7 @@ class FtpTreeProgressTest {
 
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val commands = FtpCommandParts(session)
+    private val commands = FtpOperationParts(session)
 
     @Test
     fun `수집하는 동안 받은 항목마다 찾은 항목 수를 알린다`() {

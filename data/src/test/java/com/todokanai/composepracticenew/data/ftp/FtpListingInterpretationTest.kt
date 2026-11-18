@@ -31,7 +31,7 @@ class FtpListingInterpretationTest {
     /** [client]를 쓰는 세션. */
     private val session = FtpSession(client)
     /** 검증 대상 명령 실행기. */
-    private val commands = FtpCommandParts(session)
+    private val commands = FtpOperationParts(session)
 
     @Before
     fun setUp() {
@@ -77,7 +77,7 @@ class FtpListingInterpretationTest {
         val listSession = FtpSession(listClient)
         runBlocking { listSession.markLoggedIn(home = null) }
 
-        val items = (runBlocking { FtpCommandParts(listSession).listing.listFiles("ftp://host/r") } as IoResult.Success).value
+        val items = (runBlocking { FtpBrowsingParts(listSession).listing.listFiles("ftp://host/r") } as IoResult.Success).value
 
         assertEquals(listOf("a.txt"), items.map { (it as ListedItem.Entry).entry.name })
     }

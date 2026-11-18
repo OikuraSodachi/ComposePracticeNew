@@ -60,7 +60,7 @@ internal class FtpSessionManager(
      */
     private class Browsing(val token: RemoteSession, val session: FtpSession) {
         /** 이 세션에만 명령을 보내는 명령 부품. */
-        val parts = FtpCommandParts(session)
+        val parts = FtpBrowsingParts(session)
         /** 연결에 성공한 뒤 도는 Keep-Alive. 연결 전이면 null. stateMutex로 보호한다. */
         var keepAlive: Job? = null
 
@@ -202,7 +202,7 @@ internal class FtpSessionManager(
      * @param block 탐색 세션의 부품으로 실행할 명령
      * @return block의 결과. 탐색 세션이 없으면 [FailureReason.NotConnected]
      */
-    suspend fun <T> withBrowsingSession(block: suspend (FtpCommandParts<FtpSession>) -> IoResult<T>): IoResult<T> {
+    suspend fun <T> withBrowsingSession(block: suspend (FtpBrowsingParts<FtpSession>) -> IoResult<T>): IoResult<T> {
         val current = browsing ?: return IoResult.ConnectionLost(FailureReason.NotConnected)
         return block(current.parts)
     }
@@ -214,7 +214,7 @@ internal class FtpSessionManager(
      * @param block 탐색 세션의 부품으로 실행할 명령
      * @return block의 결과. 탐색 세션이 [token]의 세션이 아니면 [FailureReason.NotConnected]
      */
-    suspend fun <T> withBrowsingSession(token: RemoteSession, block: suspend (FtpCommandParts<FtpSession>) -> IoResult<T>): IoResult<T> {
+    suspend fun <T> withBrowsingSession(token: RemoteSession, block: suspend (FtpBrowsingParts<FtpSession>) -> IoResult<T>): IoResult<T> {
         val current = browsing?.takeIf { it.token.id == token.id } ?: return IoResult.ConnectionLost(FailureReason.NotConnected)
         return block(current.parts)
     }
@@ -229,7 +229,7 @@ internal class FtpSessionManager(
      * @param block 작업 세션의 부품으로 실행할 작업
      * @return block의 결과, 또는 작업 세션을 열지 못한 실패
      */
-    suspend fun <T> withOperationSession(token: RemoteSession, block: suspend (FtpCommandParts<FtpSession>) -> IoResult<T>): IoResult<T> {
+    suspend fun <T> withOperationSession(token: RemoteSession, block: suspend (FtpOperationParts<FtpSession>) -> IoResult<T>): IoResult<T> {
         val session = newSession()
         try {
             return when (val opening = session.open(endpointOf(token.server))) {
@@ -250,10 +250,10 @@ internal class FtpSessionManager(
      * @param block 작업 세션의 부품으로 실행할 작업
      * @return block의 결과
      */
-    private suspend fun <T> runKeepingAlive(session: FtpSession, block: suspend (FtpCommandParts<FtpSession>) -> IoResult<T>): IoResult<T> = coroutineScope {
+    private suspend fun <T> runKeepingAlive(session: FtpSession, block: suspend (FtpOperationParts<FtpSession>) -> IoResult<T>): IoResult<T> = coroutineScope {
         val keepAlive = launch { session.keepAlive(keepAliveIntervalMillis) }
         try {
-            block(FtpCommandParts(session))
+            block(FtpOperationParts(session))
         } finally {
             keepAlive.cancel()
         }
