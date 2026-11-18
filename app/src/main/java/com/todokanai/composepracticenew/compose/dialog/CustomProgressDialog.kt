@@ -33,6 +33,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IndeterminatePhaseModel
 import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.sizeText
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
 
 /**
@@ -91,7 +92,7 @@ private fun ProgressItem(state: ProgressStateModel) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = progressText(progress), style = MaterialTheme.typography.bodySmall)
-            sizeText(state)?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+            state.sizeText()?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
         }
         state.knownSize?.let { KnownSizePart(it, state.operationType) }
         if (state.currentFileName != null) {
@@ -222,12 +223,6 @@ private fun unknownFilesTextRes(operationType: FileOperationType?): Int = when (
 @Composable
 private fun progressText(progress: Int?): String =
     progress?.let { "$it%" } ?: stringResource(R.string.progress_unknown)
-
-/** 처리한 크기의 표시 문구. 전체 크기를 알면 "처리 / 전체", 모르면 처리한 크기만, 처리한 크기도 없으면 null이다. */
-private fun sizeText(state: ProgressStateModel): String? {
-    val current = state.currentSize ?: return null
-    return state.totalSize?.let { "$current / $it" } ?: current
-}
 
 /** 둥근 모서리의 커스텀 LinearProgressIndicator. */
 @Composable

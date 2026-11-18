@@ -110,3 +110,9 @@ private fun knownPercentOf(written: Long, completed: Long, total: Long): Int? = 
     completed >= total -> 100
     else -> (written * 100 / total).toInt().coerceIn(0, 99)
 }
+
+/** 처리한 크기의 표시 문구. 전체 크기를 알면 "처리 / 전체", 모르면 처리한 크기만, 처리한 크기도 없으면 null이다. */
+fun ProgressStateModel.sizeText(): String? {
+    val current = currentSize ?: return null
+    return totalSize?.let { "$current / $it" } ?: current
+}

@@ -131,6 +131,7 @@
     <string name="progress_unknown_files_processed">크기를 모르는 파일 %1$d개: %2$s 처리</string>
     <string name="progress_preparing">대상 확인 중 — 항목 %1$d개 찾음</string>
     <string name="progress_checking_password">비밀번호 확인 중</string>
+    <string name="progress_file_count">%1$d / %2$d 파일</string>
 
     <!-- Dialogs -->
     <string name="dialog_delete_message">Delete?</string>
