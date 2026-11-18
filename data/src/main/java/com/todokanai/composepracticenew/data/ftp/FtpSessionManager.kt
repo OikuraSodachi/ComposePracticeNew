@@ -151,9 +151,18 @@ internal class FtpSessionManager(
         }
         if (isConnected) return ConnectResult.Connected
         if (opening == SessionOpening.Opened) mine.session.close()
-        return ConnectResult.Failed(
-            if (opening is SessionOpening.ListingFormatUnknown) ConnectFailureReason.LISTING_FORMAT_UNKNOWN else ConnectFailureReason.CONNECTION_FAILED
-        )
+        return ConnectResult.Failed(connectFailureReasonOf(opening))
+    }
+
+    /**
+     * 연결로 삼지 못한 연 결과를 사용자에게 알릴 연결 실패 이유로 바꾼다.
+     * 열렸지만 연결로 보지 않은 세션(연 사이 종료나 다른 접속으로 바뀜)은 다시 시도하면 될 수 있는 실패다.
+     * @param opening 연결로 삼지 못한 연 결과
+     * @return 연결 실패 이유
+     */
+    private fun connectFailureReasonOf(opening: SessionOpening): ConnectFailureReason = when (opening) {
+        SessionOpening.ListingFormatUnknown -> ConnectFailureReason.LISTING_FORMAT_UNKNOWN
+        SessionOpening.Opened, is SessionOpening.Refused, is SessionOpening.Unreachable, SessionOpening.Closed -> ConnectFailureReason.CONNECTION_FAILED
     }
 
     /**
