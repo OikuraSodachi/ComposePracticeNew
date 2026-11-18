@@ -8,7 +8,7 @@ import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -16,8 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,21 +33,21 @@ class OperationLauncherTest {
     /** 작업을 실행할 스코프. */
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 완료·오류 메시지와 진행 상태 제거를 기록하는 진행 저장소. */
-    private val progressRepo = RecordingProgressRepository()
+    private val progressReporter = RecordingProgressReporter()
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     /** 받은 알림 요청을 기록하는 알림기. */
     private val notifier = RecordingNotifier()
     /** 검증 대상. */
-    private val orchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(notifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
 
     /** 작업 코루틴에서 전파된 예외. 받은 순서대로 쌓는다. */
     private val propagated = mutableListOf<Throwable>()
     /** 작업에서 전파된 예외를 [propagated]에 모으는 스코프 — 앱 수명 스코프처럼 한 작업의 실패가 다른 작업을 취소하지 않는다. */
     private val propagatingScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> propagated += e })
     /** [propagatingScope]에서 작업을 실행하는 검증 대상. 보고 중 예외의 전파를 볼 때 쓴다. */
-    private val propagatingOrchestrator = FileOperationOrchestrator(notifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, propagatingScope)
+    private val propagatingOrchestrator = FileOperationOrchestrator(notifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, propagatingScope)
 
     @After
     fun tearDown() {
@@ -63,7 +61,7 @@ class OperationLauncherTest {
 
         assertEquals(listOf(NoticeMessage.Completed(null)), notices.completions)
         assertTrue(notices.failures.isEmpty())
-        assertEquals(listOf(1), progressRepo.removed)
+        assertEquals(listOf(1), progressReporter.removed)
     }
 
     @Test
@@ -72,7 +70,7 @@ class OperationLauncherTest {
 
         assertEquals(listOf(NoticeMessage.OperationFailed(null, IoResult.ConnectionLost(FailureReason.IoFailed("끊김")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
-        assertEquals(listOf(1), progressRepo.removed)
+        assertEquals(listOf(1), progressReporter.removed)
     }
 
     @Test
@@ -99,7 +97,7 @@ class OperationLauncherTest {
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf("completed 1"), notifier.calls)
         assertEquals(listOf("갱신 오류"), propagated.map { it.message })
-        assertEquals(listOf(1), progressRepo.removed)
+        assertEquals(listOf(1), progressReporter.removed)
     }
 
     @Test
@@ -110,7 +108,7 @@ class OperationLauncherTest {
         assertTrue(notices.completions.isEmpty())
         assertEquals(listOf("cancel 1"), notifier.calls)
         assertEquals(listOf("갱신 오류"), propagated.map { it.message })
-        assertEquals(listOf(1), progressRepo.removed)
+        assertEquals(listOf(1), progressReporter.removed)
     }
 
     @Test
@@ -124,7 +122,7 @@ class OperationLauncherTest {
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf("cancel 1"), notifier.calls)
         assertEquals(listOf("갱신 오류"), propagated.map { it.message })
-        assertEquals(listOf(1), progressRepo.removed)
+        assertEquals(listOf(1), progressReporter.removed)
     }
 
     @Test
@@ -154,7 +152,7 @@ class OperationLauncherTest {
         assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.COPY)), notices.completions)
         assertTrue(notices.failures.isEmpty())
         assertEquals(listOf("cancel 1"), notifier.calls)
-        assertEquals(listOf(1), progressRepo.removed)
+        assertEquals(listOf(1), progressReporter.removed)
     }
 
     @Test
@@ -219,9 +217,8 @@ class OperationLauncherTest {
         ) { block() }
 
     /** 지운 진행 상태를 기록하는 테스트용 진행 저장소. */
-    private class RecordingProgressRepository : ProgressRepository {
+    private class RecordingProgressReporter : ProgressReporter {
         val removed = mutableListOf<Int>()
-        override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) { removed += instanceId }
     }

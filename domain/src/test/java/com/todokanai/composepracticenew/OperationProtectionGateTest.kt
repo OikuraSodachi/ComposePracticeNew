@@ -9,7 +9,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -31,13 +31,13 @@ class OperationProtectionGateTest {
     /** 작업을 실행할 스코프. Unconfined라 작업은 처음 멈추는 지점까지 launch 호출 안에서 바로 돈다. */
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 진행 상태를 보관하는 진행 저장소. */
-    private val progressRepo = MapProgressRepository()
+    private val progressReporter = MapProgressReporter()
     /** 작업의 완료·실패 메시지를 기록하는 알림 저장소. */
     private val notices = RecordingOperationNotices()
     /** 테스트가 결과를 정하는 작업 보호. */
     private val protection = GatedProtection()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, protection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, protection, UnexpectedQuestions, scope)
 
     @After
     fun tearDown() = scope.cancel()
@@ -50,7 +50,7 @@ class OperationProtectionGateTest {
             IoResult.Done
         }
         assertFalse(ran)
-        assertEquals(1, progressRepo.progressMap.value.size)
+        assertEquals(1, progressReporter.progressMap.value.size)
 
         protection.result.complete(IoResult.Done)
 
@@ -71,7 +71,7 @@ class OperationProtectionGateTest {
         assertFalse(ran)
         assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.IoFailed("보호 거부")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
-        assertTrue(progressRepo.progressMap.value.isEmpty())
+        assertTrue(progressReporter.progressMap.value.isEmpty())
     }
 
     @Test
@@ -98,9 +98,9 @@ class OperationProtectionGateTest {
         }
     }
 
-    /** 진행 상태를 맵으로 보관하는 테스트용 진행 저장소. */
-    private class MapProgressRepository : ProgressRepository {
-        override val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
+    /** 진행 상태를 맵으로 보관하는 테스트용 진행 상태 기록기. */
+    private class MapProgressReporter : ProgressReporter {
+        val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
         override fun setProgressState(instanceId: Int, state: ProgressState) {
             progressMap.value = progressMap.value + (instanceId to state)
         }

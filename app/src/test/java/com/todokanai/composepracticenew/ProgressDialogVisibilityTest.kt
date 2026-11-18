@@ -184,10 +184,10 @@ class ProgressDialogVisibilityTest {
 /** 진행 상태를 테스트가 직접 넣고 빼는 테스트용 진행 저장소. */
 internal class MutableProgressRepository : ProgressRepository {
     override val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
-    override fun setProgressState(instanceId: Int, state: ProgressState) {
+    fun setProgressState(instanceId: Int, state: ProgressState) {
         progressMap.value = progressMap.value + (instanceId to state)
     }
-    override fun removeProgress(instanceId: Int) {
+    fun removeProgress(instanceId: Int) {
         progressMap.value = progressMap.value - instanceId
     }
 }

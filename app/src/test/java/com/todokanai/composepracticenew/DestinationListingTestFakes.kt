@@ -32,7 +32,7 @@ import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.StoragePathRules
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
@@ -44,7 +44,6 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 
 /** 현재 경로·조회 요청과 목록 조회 상태를 테스트가 정하는 테스트용 탐색 저장소. */
 internal class FakeNavigator : FileNavigatorRepository, StoragePathRules {
@@ -70,8 +69,7 @@ internal class FakeNavigator : FileNavigatorRepository, StoragePathRules {
 }
 
 /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
-internal class RecordingProgressRepository : ProgressRepository {
-    override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
+internal class RecordingProgressReporter : ProgressReporter {
     override fun setProgressState(instanceId: Int, state: ProgressState) {}
     override fun removeProgress(instanceId: Int) {}
 }
@@ -158,7 +156,7 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
 
 /** 실행한 작업이 없어 취소할 것이 없는 테스트용 취소 UseCase. 취소를 다루지 않는 화면 테스트가 ViewModel을 만들 때 쓴다. */
 internal fun idleCancelOperationUseCase() =
-    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressRepository(), RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, CoroutineScope(Job())))
+    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, CoroutineScope(Job())))
 
 /** 열려고 한 경로를 기록하고 언제나 다른 앱으로 넘긴 것으로 답하는 테스트용 파일 열기. */
 internal class RecordingFileLauncher : FileLauncher {

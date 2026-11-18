@@ -15,7 +15,7 @@ import com.todokanai.composepracticenew.model.RemoteSession
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
@@ -25,8 +25,6 @@ import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -39,13 +37,13 @@ import org.junit.Test
 class FileNameEnforcementTest {
 
     private val scope = CoroutineScope(Job())
-    private val progressRepo = RecordingProgressRepository()
+    private val progressReporter = RecordingProgressReporter()
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
     /** 저장소의 제약을 물은 이름과 위치를 기록하는 이름 규칙. */
     private val storageNames = RecordingStorageNameRules()
     private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(storageNames), LocalPathRules())
@@ -114,8 +112,7 @@ class FileNameEnforcementTest {
     }
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
-    private class RecordingProgressRepository : ProgressRepository {
-        override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
+    private class RecordingProgressReporter : ProgressReporter {
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
     }

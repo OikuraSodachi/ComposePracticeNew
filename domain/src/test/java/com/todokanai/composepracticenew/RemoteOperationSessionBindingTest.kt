@@ -13,7 +13,7 @@ import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
 import com.todokanai.composepracticenew.repository.RemoteSessionProvider
@@ -25,8 +25,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -133,8 +131,7 @@ class RemoteOperationSessionBindingTest {
     }
 
     /** 진행 상태를 버리는 진행 저장소. */
-    private object NoOpProgress : ProgressRepository {
-        override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
+    private object NoOpProgress : ProgressReporter {
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
     }

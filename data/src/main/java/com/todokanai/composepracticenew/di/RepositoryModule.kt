@@ -41,6 +41,7 @@ import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.PathAwareFileSystem
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
@@ -103,6 +104,9 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindProgressRepository(impl: ProgressTracker): ProgressRepository
+
+    @Binds
+    abstract fun bindProgressReporter(impl: ProgressTracker): ProgressReporter
 
     @Binds
     abstract fun bindOperationNoticeRepository(impl: OperationNotices): OperationNoticeRepository
