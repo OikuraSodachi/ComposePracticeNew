@@ -4,7 +4,14 @@ import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-/** [RemoteStorageInfo.protocol]에 저장하는 FTP 값. DB에 저장되는 값이므로 바꾸지 않는다. */
+/**
+ * [RemoteStorageInfo.protocol]에 저장하는 프로토콜. Room이 상수 이름을 TEXT로 저장하므로 상수 이름을 바꾸지 않는다.
+ * 저장 값을 닫힌 타입으로 두어, 프로토콜을 추가하면 읽는 쪽 `when`도 컴파일 오류로 처리할 곳을 알려 준다(#457).
+ * 이 값은 앱만 쓰므로 상수에 없는 저장 값은 구현 오류이며, Room이 읽을 때 `IllegalArgumentException`을 던진다.
+ */
+enum class StoredProtocol { FTP }
+
+/** 컬럼 기본값·마이그레이션 SQL에 쓰는 [StoredProtocol.FTP]의 저장 값. 애너테이션 인자는 상수여야 해서 따로 둔다. */
 internal const val PROTOCOL_FTP = "FTP"
 
 /**
@@ -27,6 +34,6 @@ data class RemoteStorageInfo(
     @ColumnInfo val port: Int,
     @ColumnInfo val userId: String,
     @ColumnInfo val password: String,
-    @ColumnInfo(defaultValue = PROTOCOL_FTP) val protocol: String,
+    @ColumnInfo(defaultValue = PROTOCOL_FTP) val protocol: StoredProtocol,
     @ColumnInfo val encoding: String
 )
