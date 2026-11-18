@@ -84,6 +84,25 @@ sealed interface NoticeMessage {
     data class UploadLeftover(val path: String, val cause: LeftoverCause) : NoticeMessage
 }
 
+/**
+ * 이 메시지의 종류. 메시지 내용마다 종류는 하나로 정해지므로 맡기는 쪽이 고르지 않고 여기서만 정한다(#461) —
+ * 맡기는 곳마다 고르면 짝이 어긋나도 컴파일러가 잡지 못한다. 새 메시지를 더하면 이 when이 종류를 정하라고 알려 준다.
+ */
+val NoticeMessage.kind: OperationNoticeKind
+    get() = when (this) {
+        is NoticeMessage.Completed, is NoticeMessage.Cancelled -> OperationNoticeKind.COMPLETION
+        is NoticeMessage.OperationFailed,
+        is NoticeMessage.UnansweredQuestion,
+        is NoticeMessage.InvalidName,
+        is NoticeMessage.DestinationInsideSource,
+        is NoticeMessage.SameDestination,
+        is NoticeMessage.UnsupportedArchiveFormat,
+        is NoticeMessage.OpenFailed,
+        NoticeMessage.DestinationUnverified,
+        is NoticeMessage.FolderUnreadable,
+        is NoticeMessage.UploadLeftover -> OperationNoticeKind.FAILURE
+    }
+
 /** 사용자가 정한 이름을 쓰는 작업. 이름 거부 메시지의 머리말을 정한다. */
 enum class NamingOperation {
     /** 이름 변경. */

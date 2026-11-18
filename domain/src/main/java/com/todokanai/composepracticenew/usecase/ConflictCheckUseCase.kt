@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.DestinationConflicts
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.NoticeMessage
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.RenameConflict
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.StorageNameMatching
@@ -128,7 +127,7 @@ class ConflictCheckUseCase(
      * @return [listing] 그대로
      */
     private fun verifiedOrReject(listing: DirectoryListing.Loaded?): DirectoryListing.Loaded? =
-        listing ?: null.also { notices.report(OperationNoticeKind.FAILURE, NoticeMessage.DestinationUnverified) }
+        listing ?: null.also { notices.report(NoticeMessage.DestinationUnverified) }
 
     /**
      * [listing]의 항목 중 [newName]과 겹치는 항목으로 이름 변경의 처리 방식을 정한다.

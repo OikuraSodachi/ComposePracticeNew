@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.NoticeMessage
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -53,7 +52,7 @@ class FileExplorerRepositoryImpl(
         val fileSystem = router.resolve(path)
         val resolved = fileSystem?.resolveNavigationPath(path)
         if (resolved == null) {
-            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.FolderUnreadable(pathRules.displayNameOf(path)))
+            notices.report(NoticeMessage.FolderUnreadable(pathRules.displayNameOf(path)))
             return NavigateResult.Rejected
         }
         navigation.navigateTo(resolved)

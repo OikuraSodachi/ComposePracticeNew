@@ -17,6 +17,7 @@ import com.todokanai.composepracticenew.model.ListingRequest
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
+import com.todokanai.composepracticenew.model.kind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteSession
 import com.todokanai.composepracticenew.model.RemoteConnectionState
@@ -177,8 +178,8 @@ internal class RecordingOperationNotices : OperationNoticeReporter {
     /** 넣은 완료 메시지(넣은 순서). */
     val completions = mutableListOf<NoticeMessage>()
 
-    override fun report(kind: OperationNoticeKind, message: NoticeMessage) {
-        when (kind) {
+    override fun report(message: NoticeMessage) {
+        when (message.kind) {
             OperationNoticeKind.FAILURE -> failures += message
             OperationNoticeKind.COMPLETION -> completions += message
         }

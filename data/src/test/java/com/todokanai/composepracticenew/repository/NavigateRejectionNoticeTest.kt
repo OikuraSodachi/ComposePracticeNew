@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.OperationNotice
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.SortMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -55,7 +54,7 @@ class NavigateRejectionNoticeTest {
 
         assertEquals(NavigateResult.Rejected, result)
         assertEquals(null, nav.currentPath.value)
-        assertEquals(listOf(OperationNotice(OperationNoticeKind.FAILURE, NoticeMessage.FolderUnreadable("missing_279"))), noticesReported())
+        assertEquals(listOf(OperationNotice(NoticeMessage.FolderUnreadable("missing_279"))), noticesReported())
     }
 
     @Test

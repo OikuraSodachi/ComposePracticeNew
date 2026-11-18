@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.LeftoverCause
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
+import com.todokanai.composepracticenew.model.kind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import kotlinx.coroutines.CancellationException
@@ -102,8 +103,8 @@ class FtpUploaderCancelledUploadTest {
     /** 넣은 실패 메시지를 넣은 순서대로 기록하는 테스트용 메시지 저장소. */
     private class RecordingNotices : OperationNoticeReporter {
         val failures = mutableListOf<NoticeMessage>()
-        override fun report(kind: OperationNoticeKind, message: NoticeMessage) {
-            if (kind == OperationNoticeKind.FAILURE) failures += message
+        override fun report(message: NoticeMessage) {
+            if (message.kind == OperationNoticeKind.FAILURE) failures += message
         }
     }
 }

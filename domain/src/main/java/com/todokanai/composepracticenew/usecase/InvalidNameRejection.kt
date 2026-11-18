@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.usecase
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.NoticeMessage
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
 /**
@@ -16,6 +15,6 @@ import com.todokanai.composepracticenew.repository.OperationNoticeReporter
  */
 internal fun OperationNoticeReporter.rejectsInvalidName(errors: Set<FileNameError>, displayName: String, operation: NamingOperation): Boolean {
     if (errors.isEmpty()) return false
-    report(OperationNoticeKind.FAILURE, NoticeMessage.InvalidName(operation, displayName))
+    report(NoticeMessage.InvalidName(operation, displayName))
     return true
 }
