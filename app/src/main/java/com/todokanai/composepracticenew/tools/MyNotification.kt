@@ -52,16 +52,17 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
 
     override fun progressNoti(state: ProgressState, instanceId: Int) {
         val type = state.operationType
-        state.toModel().indeterminate?.let { return showIndeterminateProgress(type, it, instanceId) }
+        val model = state.toModel()
+        model.indeterminate?.let { return showIndeterminateProgress(type, it, instanceId) }
         when (type) {
-            FileOperationType.DELETE -> showCountProgress(type, state, instanceId)
+            FileOperationType.DELETE -> showCountProgress(type, model, instanceId)
             FileOperationType.COPY,
             FileOperationType.MOVE,
             FileOperationType.COMPRESS,
             FileOperationType.UNZIP,
             FileOperationType.DOWNLOAD,
             FileOperationType.UPLOAD,
-            null -> showPercentProgress(type, state, instanceId)
+            null -> showPercentProgress(type, model, instanceId)
         }
     }
 
@@ -92,11 +93,10 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     /** 처리한 항목 수 / 전체 항목 수로 진행 알림을 표시한다. 항목 수 정보가 없으면 표시하지 않는다. */
-    private fun showCountProgress(type: FileOperationType, state: ProgressState, instanceId: Int) {
-        val idx = state.currentIndex ?: return
-        val total = state.listSize ?: return
+    private fun showCountProgress(type: FileOperationType, model: ProgressStateModel, instanceId: Int) {
+        val idx = model.currentIndex ?: return
+        val total = model.listSize ?: return
         val notificationId = ids.idFor(instanceId)
-        val model = state.toModel()
         val builder = progressBuilder(type)
             .setOngoing(true)
             .setProgress(100, 100 * idx / total, false)
@@ -106,10 +106,9 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     /** 퍼센트 진행률로 진행 알림을 표시한다. 전체 크기를 몰라 진행률이 없으면 불확정 막대로 진행 중임만 표시한다. */
-    private fun showPercentProgress(type: FileOperationType?, state: ProgressState, instanceId: Int) {
-        val progress = state.progress
+    private fun showPercentProgress(type: FileOperationType?, model: ProgressStateModel, instanceId: Int) {
+        val progress = model.progress
         val notificationId = ids.idFor(instanceId)
-        val model = state.toModel()
         val progressText = progress?.let { "$it%" }
         val builder = progressBuilder(type)
             .setOngoing(progress == null || progress < 100)
