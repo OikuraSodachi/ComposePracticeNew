@@ -10,7 +10,7 @@ import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationQuestionAsker
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 작업 인스턴스 ID는 이 클래스만 발급한다. 진행 핸들·완료 콜백·실행 엔진을 이 클래스 안에 private으로 두어,
  * 작업을 띄우는 길은 [launch] 하나뿐이고 발급하지 않은 ID로 작업을 띄울 수 없다(같은 모듈 안에서도).
  * @param notifier 파일 작업 시스템 알림을 전송하는 인터페이스
- * @param progressRepo 작업 진행 상태를 저장하는 ProgressRepository
+ * @param progressReporter 작업 진행 상태를 쓰는 ProgressReporter
  * @param notices 작업의 완료·실패 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param protection 진행 표시가 있는 작업이 시작 전에 받는 프로세스 보호
  * @param questions 실행 중인 작업의 질문(쓰기 충돌·압축 파일 비밀번호)을 사용자에게 묻고 답을 기다리는 통로
@@ -36,7 +36,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class FileOperationOrchestrator(
     private val notifier: FileOperationNotifier,
-    private val progressRepo: ProgressRepository,
+    private val progressReporter: ProgressReporter,
     private val notices: OperationNoticeReporter,
     private val protection: OperationProtection,
     private val questions: OperationQuestionAsker,
@@ -68,7 +68,7 @@ class FileOperationOrchestrator(
      * @return 발급한 ID의 ProgressHandle
      */
     private fun startHandle(operationType: FileOperationType?): ProgressHandle = synchronized(startLock) {
-        val handle = ProgressHandle(++lastInstanceId, progressRepo)
+        val handle = ProgressHandle(++lastInstanceId, progressReporter)
         if (operationType != null) handle.set(ProgressState(operationType = operationType))
         handle
     }
@@ -230,11 +230,11 @@ class FileOperationOrchestrator(
     /**
      * 단일 작업 인스턴스의 진행 상태를 관리하는 핸들. [startHandle]만 만든다.
      * @param instanceId 작업 인스턴스 식별자
-     * @param progressRepo 진행 상태를 저장·제거하는 ProgressRepository
+     * @param progressReporter 진행 상태를 쓰고 지우는 ProgressReporter
      */
     private class ProgressHandle(
         val instanceId: Int,
-        private val progressRepo: ProgressRepository
+        private val progressReporter: ProgressReporter
     ) {
         /** 마지막으로 [set]한 진행 상태. 작업 질문에 답한 뒤 진행 알림을 되돌릴 때 쓴다. 작업 스레드에서 쓰고 다른 스레드에서도 읽으므로 @Volatile이다. */
         @Volatile
@@ -244,11 +244,11 @@ class FileOperationOrchestrator(
         /** [state]를 이 인스턴스의 진행 상태로 업데이트한다. */
         fun set(state: ProgressState) {
             latest = state
-            progressRepo.setProgressState(instanceId, state)
+            progressReporter.setProgressState(instanceId, state)
         }
 
         /** 이 인스턴스의 진행 상태를 제거한다. */
-        fun clear() = progressRepo.removeProgress(instanceId)
+        fun clear() = progressReporter.removeProgress(instanceId)
     }
 
     /**

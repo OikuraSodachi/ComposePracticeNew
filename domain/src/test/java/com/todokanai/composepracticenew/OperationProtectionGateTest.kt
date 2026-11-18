@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -99,7 +100,7 @@ class OperationProtectionGateTest {
     }
 
     /** 진행 상태를 맵으로 보관하는 테스트용 진행 저장소. */
-    private class MapProgressRepository : ProgressRepository {
+    private class MapProgressRepository : ProgressRepository, ProgressReporter {
         override val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
         override fun setProgressState(instanceId: Int, state: ProgressState) {
             progressMap.value = progressMap.value + (instanceId to state)

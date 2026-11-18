@@ -8,7 +8,7 @@ import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -16,8 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -35,7 +33,7 @@ class OperationLauncherTest {
     /** 작업을 실행할 스코프. */
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 완료·오류 메시지와 진행 상태 제거를 기록하는 진행 저장소. */
-    private val progressRepo = RecordingProgressRepository()
+    private val progressRepo = RecordingProgressReporter()
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
@@ -219,9 +217,8 @@ class OperationLauncherTest {
         ) { block() }
 
     /** 지운 진행 상태를 기록하는 테스트용 진행 저장소. */
-    private class RecordingProgressRepository : ProgressRepository {
+    private class RecordingProgressReporter : ProgressReporter {
         val removed = mutableListOf<Int>()
-        override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) { removed += instanceId }
     }

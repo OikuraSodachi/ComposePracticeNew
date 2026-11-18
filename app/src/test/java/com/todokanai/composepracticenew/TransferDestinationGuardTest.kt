@@ -51,7 +51,7 @@ class TransferDestinationGuardTest {
     private val operationScope = CoroutineScope(Job() + Dispatchers.Unconfined)
     private val localNav = FakeNavigator()
     private val remoteNav = FakeNavigator()
-    private val progressRepo = RecordingProgressRepository()
+    private val progressRepo = RecordingProgressReporter()
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()

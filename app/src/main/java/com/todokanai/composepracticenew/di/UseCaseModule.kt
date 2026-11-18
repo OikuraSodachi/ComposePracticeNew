@@ -18,6 +18,7 @@ import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -156,12 +157,12 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideFileOperationOrchestrator(
         notifier: FileOperationNotifier,
-        progressRepo: ProgressRepository,
+        progressReporter: ProgressReporter,
         notices: OperationNoticeReporter,
         protection: OperationProtection,
         questions: OperationQuestionAsker,
         @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressRepo, notices, protection, questions, appScope)
+    ) = FileOperationOrchestrator(notifier, progressReporter, notices, protection, questions, appScope)
 
     @Provides @Singleton
     fun provideOperationQuestionUseCase(questions: OperationQuestionRepository) =

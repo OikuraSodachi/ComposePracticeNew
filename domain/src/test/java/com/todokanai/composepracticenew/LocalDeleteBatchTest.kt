@@ -11,7 +11,7 @@ import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
@@ -19,8 +19,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -40,7 +38,7 @@ class LocalDeleteBatchTest {
 
     /** 검증 대상. */
     private val local = LocalFileOperationUseCase(
-        FileOperationOrchestrator(NoOpNotifier, NoOpProgressRepository, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, scope),
+        FileOperationOrchestrator(NoOpNotifier, NoOpProgressReporter, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, scope),
         RecordingOperationNotices(),
         fileActionRepo,
         FileNameUseCase(NoStorageNameRules),
@@ -62,8 +60,7 @@ class LocalDeleteBatchTest {
         FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), sizeBytes = null, lastModifiedMillis = 0L)
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
-    private object NoOpProgressRepository : ProgressRepository {
-        override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
+    private object NoOpProgressReporter : ProgressReporter {
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
     }

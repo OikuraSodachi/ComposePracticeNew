@@ -16,10 +16,8 @@ import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.OperationQuestionAsker
-import com.todokanai.composepracticenew.repository.ProgressRepository
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -224,7 +222,7 @@ class WriteConflictResolutionTest {
 
     /** [TestScope]의 가상 시간으로 작업을 실행하는 오케스트레이터를 만든다. */
     private fun TestScope.orchestrator(asker: OperationQuestionAsker) =
-        FileOperationOrchestrator(notifier, NoOpProgressRepository, notices, GrantedProtection, asker, backgroundScope)
+        FileOperationOrchestrator(notifier, NoOpProgressReporter, notices, GrantedProtection, asker, backgroundScope)
 
     /**
      * 정해 둔 답을 차례로 돌려주고 받은 질문을 기록하는 질문 통로.
@@ -271,8 +269,7 @@ class WriteConflictResolutionTest {
     }
 
     /** 진행 상태를 기록하지 않는 진행 저장소. */
-    private object NoOpProgressRepository : ProgressRepository {
-        override val progressMap: StateFlow<Map<Int, ProgressState>> = MutableStateFlow(emptyMap())
+    private object NoOpProgressReporter : ProgressReporter {
         override fun setProgressState(instanceId: Int, state: ProgressState) {}
         override fun removeProgress(instanceId: Int) {}
     }

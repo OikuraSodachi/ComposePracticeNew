@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
+import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -28,7 +29,7 @@ class FileOperationStartTest {
     /** 작업을 실행할 스코프. Unconfined라 작업은 처음 멈추는 지점까지 launch 호출 안에서 바로 돈다. */
     private val scope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 진행 상태와 작업이 처음 등록된 순서를 기록하는 진행 저장소. */
-    private val progressRepo = RecordingProgressRepository()
+    private val progressRepo = RecordingProgressTracker()
     /** 검증 대상 오케스트레이터. */
     private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, scope)
     /** 열릴 때까지 작업을 멈춰 두는 신호. */
@@ -76,7 +77,7 @@ class FileOperationStartTest {
     }
 
     /** 진행 상태를 보관하고, 각 작업이 처음 등록된 순서를 기록하는 테스트용 진행 저장소. */
-    private class RecordingProgressRepository : ProgressRepository {
+    private class RecordingProgressTracker : ProgressRepository, ProgressReporter {
         val registrationOrder = mutableListOf<Int>()
         override val progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
         override fun setProgressState(instanceId: Int, state: ProgressState) {
