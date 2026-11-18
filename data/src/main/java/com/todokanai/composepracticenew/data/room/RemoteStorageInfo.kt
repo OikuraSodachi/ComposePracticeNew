@@ -7,6 +7,7 @@ import androidx.room.PrimaryKey
 /**
  * [RemoteStorageInfo.protocol]에 저장하는 프로토콜. Room이 상수 이름을 TEXT로 저장하므로 상수 이름을 바꾸지 않는다.
  * 저장 값을 닫힌 타입으로 두어, 프로토콜을 추가하면 읽는 쪽 `when`도 컴파일 오류로 처리할 곳을 알려 준다(#457).
+ * 이 값은 앱만 쓰므로 상수에 없는 저장 값은 구현 오류이며, Room이 읽을 때 `IllegalArgumentException`을 던진다.
  */
 enum class StoredProtocol { FTP }
 
