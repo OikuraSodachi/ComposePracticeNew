@@ -1,5 +1,5 @@
 ---
-paths: "**/*Notice*.kt, **/*Inbox*.kt, **/*Alert*.kt, **/AppNavHost.kt"
+paths: "**/*Notice*.kt, **/*Inbox*.kt, **/*Alert*.kt, **/MainViewModel.kt"
 ---
 
 # 알림함

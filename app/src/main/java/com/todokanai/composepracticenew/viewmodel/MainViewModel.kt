@@ -2,13 +2,12 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.model.ConnectFailureAlert
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.tools.AppExitHandler
+import com.todokanai.composepracticenew.ui.model.AppNotice
 import com.todokanai.composepracticenew.ui.model.OperationNotice
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ConnectFailureAlertUseCase
@@ -20,6 +19,7 @@ import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -87,34 +87,20 @@ class MainViewModel @Inject constructor(
     val exitEvent: Flow<Unit> = exitHandler.exitEvent
 
     /**
-     * 원격 세션의 예기치 않은 끊김을 [show]로 하나씩, 앞 알림을 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 보이는 화면이 없을 때 끊긴 것과 보여 주는 도중 화면이 사라진 알림도 부르면 받고, 그 사이 새 연결을 시작했으면 받지 않는다. 보여 주는 도중 새 연결을 시작하면 [show]를 취소한다.
-     * 끊김에 따른 정리(서비스 중지·전송 상태 정리·원격 화면 이탈)는 각자 연결 상태를 보고 하므로, 이 알림은 알리는 데만 쓴다.
-     * @param show 끊김을 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수. 취소되면 보여 주던 것을 거둬야 한다
+     * 앱 알림함 모두(설정 저장소 실패, 파일 작업의 실패·거부·완료, 원격 세션 끊김, 원격 연결 실패)의 알림을 [show]로 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
+     * 알림함을 이 함수 한곳에서 모두 꺼내므로, 알림함을 더할 때 화면에서 꺼내는 곳을 따로 만들지 않는다(#449). 알림함마다 함께 꺼내며, 한 알림함 안에서는 앞 알림을 다 보여 준 뒤에 다음을 꺼낸다.
+     * - 보이는 화면이 없을 때 생긴 알림과 보여 주는 도중 화면이 사라진 알림도 부르면 받는다.
+     * - 설정 읽기 실패는 그 사이 회복했으면 받지 않는다.
+     * - 끊김·연결 실패는 그 사이 새 연결(시도)을 시작했으면 받지 않고, 보여 주는 도중 새 연결(시도)을 시작하면 [show]를 취소한다.
+     * - 끊김에 따른 정리(서비스 중지·전송 상태 정리·원격 화면 이탈)는 각자 연결 상태를 보고 하므로, 끊김 알림은 알리는 데만 쓴다.
+     * @param show 알림을 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수. 여러 알림함에서 함께 불리며, 취소되면 보여 주던 것을 거둬야 한다
      */
-    suspend fun showConnectionLosses(show: suspend () -> Unit): Nothing = connectionLossNoticeUseCase.deliver { show() }
-
-    /**
-     * 다시 시도하면 될 수 있는 원격 연결 실패를 [show]로 하나씩, 앞 알림을 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 보이는 화면이 없을 때 실패한 것과 보여 주는 도중 화면이 사라진 알림도 부르면 받고, 그 사이 새 연결 시도를 시작했으면 받지 않는다. 보여 주는 도중 새 연결 시도를 시작하면 [show]를 취소한다.
-     * @param show 연결 실패를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수. 취소되면 보여 주던 것을 거둬야 한다
-     */
-    suspend fun showConnectFailures(show: suspend (ConnectFailureAlert) -> Unit): Nothing = connectFailureAlertUseCase.deliver(show)
-
-    /**
-     * 설정 저장소의 실패를 [show]로 하나씩, 앞 실패를 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 화면이 보이기 전에 일어난 실패와 보여 주는 도중 화면이 사라진 실패도 부르면 받고, 그 사이 회복한 읽기 실패는 받지 않는다.
-     * @param show 실패를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
-     */
-    suspend fun showPreferenceFailures(show: suspend (PreferenceFailure) -> Unit): Nothing = preferenceFailureUseCase.deliver(show)
-
-    /**
-     * 파일 작업의 실패·거부·완료 메시지를 [show]로 하나씩, 앞 메시지를 다 보여 준 뒤에 알린다. 어느 화면에 있든 알리기 위해 화면 호스트가 화면이 보이는 동안 부른다. 취소될 때까지 돌아오지 않는다.
-     * 보이는 화면이 없을 때 생긴 메시지(저장소 화면에 있거나 Activity가 없을 때 끝난 작업)와 보여 주는 도중 화면이 사라진 메시지도 부르면 받는다.
-     * @param show 메시지를 사용자에게 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
-     */
-    suspend fun showOperationNotices(show: suspend (OperationNotice) -> Unit): Nothing =
-        operationNoticeUseCase.deliver { notice -> show(OperationNotice.from(notice)) }
+    suspend fun showNotices(show: suspend (AppNotice) -> Unit): Nothing = coroutineScope {
+        launch { preferenceFailureUseCase.deliver { show(AppNotice.PreferenceFailed(it)) } }
+        launch { operationNoticeUseCase.deliver { show(AppNotice.Operation(OperationNotice.from(it))) } }
+        launch { connectionLossNoticeUseCase.deliver { show(AppNotice.ConnectionLost) } }
+        connectFailureAlertUseCase.deliver { show(AppNotice.ConnectFailed(it)) }
+    }
 
     init {
         // 화면이 다이얼로그를 수집하지 않는 동안에도 새 작업의 시작을 놓치지 않도록 ViewModel이 살아 있는 동안 계속 본다
