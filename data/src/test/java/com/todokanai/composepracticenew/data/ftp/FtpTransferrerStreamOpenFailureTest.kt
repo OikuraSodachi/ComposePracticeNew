@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -21,7 +20,7 @@ class FtpTransferrerStreamOpenFailureTest {
 
     private val dir: File = Files.createTempDirectory("ftp-transfer-test").toFile()
     private val client = FakeFtpClient()
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
 
     @After
@@ -31,7 +30,7 @@ class FtpTransferrerStreamOpenFailureTest {
 
     @Test
     fun `폴더 다운로드에서 모든 파일의 스트림을 열지 못해도 완료 확인 없이 모든 파일을 시도한 뒤 실패를 모아 알린다`() {
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        runBlocking { session.markLoggedIn(home = null) }
         client.remoteFiles = listOf("a.txt", "b.txt")
 
         val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }

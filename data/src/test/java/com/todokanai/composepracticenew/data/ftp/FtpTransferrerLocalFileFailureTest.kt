@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -29,14 +28,14 @@ class FtpTransferrerLocalFileFailureTest {
     private val client = FakeFtpClient()
 
     /** [client]를 쓰는 세션. */
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
 
     /** 검증 대상. */
     private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
 
     @Before
     fun setUp() {
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        runBlocking { session.markLoggedIn(home = null) }
         client.streamContent = byteArrayOf(1)
     }
 
@@ -85,7 +84,7 @@ class FtpTransferrerLocalFileFailureTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpCommandParts(session).transferrer(OperationNotices(), transferSession = observing)
+        val observed = FtpCommandParts(session).let { parts -> FtpTransferrer(observing, parts.executor, parts.trees, DataCommandRunner(session), OperationNotices()) }
 
         val result = runBlocking { observed.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", target.path, false)), resolveConflict = UnexpectedConflictResolver) }
 

@@ -9,12 +9,16 @@ import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 
 /**
- * 제어 연결을 차례로 받아 정해진 대로 응답하는 테스트용 FTP 서버. 실제 commons-net FTPClient의 동작을 검증하는 데 쓴다.
+ * 제어 연결을 받는 대로 각자의 스레드에서 정해진 대로 응답하는 테스트용 FTP 서버. 실제 commons-net FTPClient의 동작을 검증하는 데 쓴다.
  * 로그인(USER·PASS)·TYPE·PASV·SYST(Unix)·CWD·PWD(홈 /)에는 기본 응답을 보내고, [script]에 있는 명령은 그 동작으로 응답하며, 나머지는 502로 거부한다.
- * QUIT에는 221로 답하고 연결을 닫는다. 연결이 닫히면 다음 제어 연결을 받는다(재연결 검증).
+ * QUIT에는 221로 답하고 연결을 닫는다. 앞 연결이 열려 있어도 다음 제어 연결을 받는다(재연결·여러 연결 검증).
  * @param script 명령 이름(대문자) → 그 명령을 받았을 때의 응답 동작. 기본 응답보다 우선한다
+ * @param greeting 몇 번째 연결(0부터)인지 받아 접속 인사로 보낼 응답. null이면 인사를 보내지 않고 기다린다(응답하지 않는 서버). 421이면 보낸 뒤 연결을 닫는다
  */
-internal class ScriptedFtpServer(script: Map<String, (Exchange) -> Unit> = emptyMap()) : Closeable {
+internal class ScriptedFtpServer(
+    script: Map<String, (Exchange) -> Unit> = emptyMap(),
+    private val greeting: (connectionIndex: Int) -> String? = { "220 ready" }
+) : Closeable {
 
     /**
      * 명령 하나에 응답하는 데 쓰는 서버 쪽 연결.
@@ -49,6 +53,9 @@ internal class ScriptedFtpServer(script: Map<String, (Exchange) -> Unit> = empty
     /** 기본 응답에 [script]를 덮어쓴 명령별 응답 동작. */
     private val handlers: Map<String, (Exchange) -> Unit> = defaultHandlers() + script
     private val _received = CopyOnWriteArrayList<String>()
+    /** 받은 제어 연결 수. */
+    @Volatile var connectionCount = 0
+        private set
     /** 받은 명령 이름(대문자). 받은 순서대로 쌓는다. */
     val received: List<String> get() = _received
     /** 접속할 호스트 주소. */
@@ -58,13 +65,15 @@ internal class ScriptedFtpServer(script: Map<String, (Exchange) -> Unit> = empty
     /** 제어 연결을 처리하는 스레드. */
     private val worker = thread(isDaemon = true) { runCatching { serve() } }
 
-    /** 서버를 닫을 때까지 제어 연결을 차례로 받아 응답한다. */
+    /** 서버를 닫을 때까지 제어 연결을 받아, 연결마다 스레드를 띄워 응답한다. */
     private fun serve() {
         var connectionIndex = 0
         while (!control.isClosed) {
             val socket = control.accept()
-            // 클라이언트가 먼저 끊어도 다음 연결을 받는다
-            runCatching { socket.use { serveConnection(it, connectionIndex++) } }
+            val index = connectionIndex++
+            connectionCount = connectionIndex
+            // 앞 연결이 응답 동작 안에서 멈춰 있어도 다음 연결에 응답하도록 따로 처리한다. 클라이언트가 먼저 끊어도 다음 연결을 받는다
+            thread(isDaemon = true) { runCatching { socket.use { serveConnection(it, index) } } }
         }
     }
 
@@ -76,7 +85,14 @@ internal class ScriptedFtpServer(script: Map<String, (Exchange) -> Unit> = empty
     private fun serveConnection(socket: Socket, connectionIndex: Int) {
         val reader = socket.getInputStream().bufferedReader(Charsets.US_ASCII)
         val exchange = Exchange(data, connectionIndex, socket.getOutputStream().bufferedWriter(Charsets.US_ASCII))
-        exchange.send("220 ready")
+        val hello = greeting(connectionIndex)
+        if (hello == null) {
+            // 인사 없이 클라이언트가 끊을 때까지 기다린다
+            reader.readLine()
+            return
+        }
+        exchange.send(hello)
+        if (hello.startsWith("421")) return
         while (!exchange.hungUp) {
             val line = reader.readLine() ?: return
             val command = line.substringBefore(' ').uppercase()

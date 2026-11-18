@@ -3,7 +3,8 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
 /**
- * 테스트가 한 세션 위에 FTP 명령 부품(목록 받기·명령 실행·화면 명령·트리 수집·삭제)을 앱의 DI와 같은 모양으로 조립한다.
+ * 한 세션 위에 FTP 명령 부품(목록 받기·명령 실행·화면 명령·트리 수집·삭제·전송)을 조립한다. 부품은 모두 이 세션에만 명령을 보낸다.
+ * 세션은 접속 한 번만 살므로([FtpSession]), 세션마다 새로 조립한다.
  * @param session 모든 부품이 쓰는 FTP 세션
  * @param treeMemoryLimitBytes 트리 수집의 메모리 상한(바이트). null이면 앱의 기본 상한
  */
@@ -27,9 +28,8 @@ internal class FtpCommandParts<S>(private val session: S, treeMemoryLimitBytes: 
     /**
      * 이 부품들로 전송기를 만든다.
      * @param notices 취소한 업로드의 정리 실패를 받을 알림함
-     * @param transferSession 전송기가 쓸 세션. 세션 사용을 관찰하는 테스트가 감싼 세션을 넘긴다
      * @return 이 부품들의 화면 명령·트리 수집을 쓰는 전송기
      */
-    fun transferrer(notices: OperationNoticeReporter, transferSession: FtpCommandSession = session): FtpTransferrer =
-        FtpTransferrer(transferSession, executor, trees, DataCommandRunner(session), notices)
+    fun transferrer(notices: OperationNoticeReporter): FtpTransferrer =
+        FtpTransferrer(session, executor, trees, DataCommandRunner(session), notices)
 }

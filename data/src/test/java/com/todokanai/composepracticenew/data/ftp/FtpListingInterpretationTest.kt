@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
@@ -30,13 +29,13 @@ class FtpListingInterpretationTest {
     /** 서버 응답을 정하고 보낸 명령을 기록하는 가짜 클라이언트. */
     private val client = FakeFtpClient().apply { features = setOf("MLST") }
     /** [client]를 쓰는 세션. */
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     /** 검증 대상 명령 실행기. */
     private val commands = FtpCommandParts(session)
 
     @Before
     fun setUp() {
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        runBlocking { session.markLoggedIn(home = null) }
     }
 
     @After
@@ -62,7 +61,7 @@ class FtpListingInterpretationTest {
         // 숫자가 아닌 size는 commons-net 해석기가 예외를 던지는 줄이고, 공백이 없는 줄은 해석기가 null을 돌려주는 줄이다
         client.mlsdListings = mapOf("/r" to listOf(UNPARSEABLE_SIZE, "garbage", "type=file;size=3; a.txt", PROFTPD_LINK))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands.listing).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(managerConnectedWith(client)).listFiles("ftp://host/r") }
 
         assertEquals(listOf("a.txt"), (result as IoResult.Success).value.entries.map { it.name })
         assertEquals("빠진 줄 수를 목록 상태로 표시하고 이름 충돌 판정에서 빼도록 돌려줘야 함", 3, result.value.unreadableCount)
@@ -75,8 +74,8 @@ class FtpListingInterpretationTest {
             listHeaderLines = listOf("total 3", "drwxr-xr-x 1 user group 0 Jan  1 00:00 .", "drwxr-xr-x 1 user group 0 Jan  1 00:00 ..")
             remoteFiles = listOf("a.txt")
         }
-        val listSession = FtpSession(listClient, ConnectionLossNotices())
-        runBlocking { listSession.markLoggedIn(listSession.closeRequestMark(), home = null, serverName = "server") }
+        val listSession = FtpSession(listClient)
+        runBlocking { listSession.markLoggedIn(home = null) }
 
         val items = (runBlocking { FtpCommandParts(listSession).listing.listFiles("ftp://host/r") } as IoResult.Success).value
 
@@ -87,7 +86,7 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄이 없으면 화면 목록의 뺀 줄 수는 0이다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 
-        val result = runBlocking { FtpPathAwareFileSystem(commands.listing).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpPathAwareFileSystem(managerConnectedWith(client)).listFiles("ftp://host/r") }
 
         assertEquals(0, (result as IoResult.Success).value.unreadableCount)
     }

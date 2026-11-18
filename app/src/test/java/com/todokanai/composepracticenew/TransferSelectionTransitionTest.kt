@@ -225,7 +225,7 @@ class TransferSelectionTransitionTest {
         return FileTransferCoordinatorViewModel(
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
-            RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, FileNameUseCase(NoStorageNameRules)),
+            RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules)),
             UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), folderEntries, ExactNameMatching),
             RemoteConnectionStateUseCase(connection)
         )

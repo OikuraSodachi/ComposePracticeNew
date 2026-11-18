@@ -5,8 +5,6 @@ import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.RemoteConnectionState
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -70,7 +68,6 @@ class FtpDataConnectFailureTest {
         assertTrue("데이터 연결 실패로 알려야 함: $failed", ((failed as IoResult.ItemFailed).reason).let { it is FailureReason.RemoteStepFailed && it.step == RemoteStep.LIST_FOLDER && it.cause is FailureReason.DataConnectionFailed })
         assertFalse("데이터 소켓을 연결하지 못했으면 LIST를 보내지 않아야 함", "LIST" in scripted.received)
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })
-        assertEquals(RemoteConnectionState.Connected("server"), session.connectionState.value)
 
         val listed = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
@@ -117,7 +114,7 @@ class FtpDataConnectFailureTest {
         client.connect(scripted.host, scripted.port)
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
-        return FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+        return FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
     }
 
     /**

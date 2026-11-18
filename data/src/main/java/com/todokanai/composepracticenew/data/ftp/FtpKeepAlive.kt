@@ -1,56 +1,25 @@
 package com.todokanai.composepracticenew.data.ftp
 
-import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.RemoteConnectionState
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
- * 연결 성공 후 주기적으로 NOOP을 전송해 서버 idle timeout을 방지한다.
- * 세션과 수명을 맞추기 위해 @Singleton — 어디서 주입하든 같은 NOOP 루프를 시작·중단한다.
- * @param session NOOP 전송과 연결 끊김 처리를 위임할 FTP 세션
- * @param status 루프를 계속할지 판단할 연결 상태
- * @param scope NOOP 루프를 실행할 앱 수명 코루틴 스코프. 루프는 화면이 아니라 세션에 묶이므로 앱 스코프에서 돈다
+ * 세션이 로그인돼 있는 동안 [intervalMillis]마다 NOOP을 보내 서버의 유휴 제한으로 끊기지 않게 한다. 세션마다 따로 돌며, 부른 쪽이 취소하거나 세션이 끊기면 끝난다.
+ * 작업 세션에서는 다운로드가 같은 이름 질문의 답을 기다리는 동안(ioMutex를 쥐지 않는다)에도 연결을 유지한다.
+ * 명령이 ioMutex를 쥐고 있으면 그 명령이 끝난 뒤에 보낸다.
+ * @param intervalMillis NOOP을 보내는 간격(ms)
  */
-@Singleton
-class FtpKeepAlive @Inject internal constructor(
-    private val session: FtpCommandSession,
-    private val status: FtpConnectionStatus,
-    @ApplicationScope private val scope: CoroutineScope
-) {
-    /** 실행 중인 NOOP 루프 Job. 중단 상태이면 null. */
-    private var job: Job? = null
-
-    /** NOOP 전송 루프를 (재)시작한다. */
-    fun start() {
-        job?.cancel()
-        job = scope.launch {
-            while (isActive && status.connectionState.value is RemoteConnectionState.Connected) {
-                delay(KEEPALIVE_INTERVAL_MS)
-                // NOOP 응답을 읽지 못하면(끊김·타임아웃) 세션이 응답 순서를 잃으므로 withConnectedClient가 세션을 종료하고,
-                // 끊김 상태가 되어 다음 루프 조건(connectionState)에서 종료된다. NOOP을 거부한 응답은 세션 유지에 영향이 없어 결과를 보지 않는다
-                session.withConnectedClient { client ->
-                    client.sendNoOp()
-                    IoResult.Done
-                }
-            }
+internal suspend fun FtpSession.keepAlive(intervalMillis: Long) {
+    while (isReady()) {
+        delay(intervalMillis)
+        // NOOP 응답을 읽지 못하면(끊김·타임아웃) 세션이 응답 순서를 잃으므로 withConnectedClient가 세션을 종료하고,
+        // 로그인 상태가 풀려 다음 루프 조건(isReady)에서 끝난다. NOOP을 거부한 응답은 세션 유지에 영향이 없어 결과를 보지 않는다
+        withConnectedClient { client ->
+            client.sendNoOp()
+            IoResult.Done
         }
     }
-
-    /** NOOP 전송 루프를 중단하고 종료를 기다린다. */
-    suspend fun stop() {
-        job?.cancel()
-        job?.join()
-        job = null
-    }
-
-    companion object {
-        private const val KEEPALIVE_INTERVAL_MS = 30_000L
-    }
 }
+
+/** NOOP을 보내는 기본 간격(ms). */
+internal const val KEEPALIVE_INTERVAL_MS = 30_000L

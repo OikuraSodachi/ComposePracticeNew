@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
@@ -12,7 +11,7 @@ import javax.inject.Singleton
  * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
  */
 @Singleton
-class FtpCommandRunner @Inject internal constructor(
+class FtpCommandRunner internal constructor(
     private val session: FtpCommandSession
 ) {
 

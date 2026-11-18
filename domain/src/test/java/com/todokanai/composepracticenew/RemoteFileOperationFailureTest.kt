@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.RemoteSession
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -41,7 +42,7 @@ class RemoteFileOperationFailureTest {
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
     private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressRepo, notices, GrantedProtection, UnexpectedQuestions, scope)
-    private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase(NoStorageNameRules))
+    private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules))
 
     @After
     fun tearDown() = scope.cancel()
@@ -164,11 +165,11 @@ class RemoteFileOperationFailureTest {
         val downloads = mutableListOf<List<FileHolderItem>>()
         /** 업로드 요청마다 받은 항목 목록(요청 순서). */
         val uploads = mutableListOf<List<FileHolderItem>>()
-        override suspend fun download(items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
             downloads += items
             return failure ?: IoResult.Done
         }
-        override suspend fun upload(items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
             uploads += items
             return failure ?: IoResult.Done
         }
@@ -184,9 +185,9 @@ class RemoteFileOperationFailureTest {
         var renameResult: IoResult<Unit> = IoResult.Done
         /** 폴더 생성 요청이 돌려줄 결과. */
         var makeDirectoryResult: IoResult<Unit> = IoResult.Done
-        override suspend fun rename(path: String, newName: String) = renameResult
-        override suspend fun delete(items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) = deleteResult.also { deletes += items }
-        override suspend fun makeDirectory(parentPath: String, name: String) = makeDirectoryResult
+        override suspend fun rename(session: RemoteSession, path: String, newName: String) = renameResult
+        override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) = deleteResult.also { deletes += items }
+        override suspend fun makeDirectory(session: RemoteSession, parentPath: String, name: String) = makeDirectoryResult
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */

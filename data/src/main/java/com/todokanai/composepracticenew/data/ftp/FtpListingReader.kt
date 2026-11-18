@@ -12,7 +12,6 @@ import org.apache.commons.net.ftp.parser.MLSxEntryParser
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
-import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
@@ -134,7 +133,7 @@ private class BoundedListingStream(
  * @param dataCommands 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행하는 실행기
  */
 @Singleton
-class FtpListingReader @Inject internal constructor(
+class FtpListingReader internal constructor(
     private val session: FtpCommandSession,
     private val dataCommands: DataCommandRunner
 ) {

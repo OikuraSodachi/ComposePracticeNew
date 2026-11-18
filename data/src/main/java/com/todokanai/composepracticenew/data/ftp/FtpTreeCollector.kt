@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.data.progress.PreparationProgressReporte
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.valueOr
-import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
@@ -77,7 +76,7 @@ class FtpTreeCollector internal constructor(
 ) {
 
     /** 트리 수집 메모리 상한을 [TREE_MEMORY_LIMIT_BYTES]로 둔 수집기를 만든다. Hilt가 사용하는 생성자다. */
-    @Inject internal constructor(listing: FtpListingReader) : this(listing, TREE_MEMORY_LIMIT_BYTES)
+    internal constructor(listing: FtpListingReader) : this(listing, TREE_MEMORY_LIMIT_BYTES)
 
     init {
         // 0 이하는 상한이 아니다 — 어떤 목록도 받을 수 없어 빈 시작 폴더 말고는 모두 실패한다

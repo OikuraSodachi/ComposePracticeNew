@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -16,7 +15,7 @@ class FtpLeaveTargetTest {
     /** 서버 응답을 테스트가 정하고 목록 조회·디렉터리 이동 요청을 기록하는 가짜 클라이언트. */
     private val client = FakeFtpClient()
     /** [client]를 소유하고 현재 디렉터리를 기록하는 세션. */
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     /** 검증 대상. */
     private val commands = FtpCommandParts(session)
 
@@ -120,5 +119,5 @@ class FtpLeaveTargetTest {
      * 세션을 로그인 완료 상태로 만든다. 로그인 직후 세션은 홈에 있다.
      * @param home 서버가 알려준 로그인 홈. null이면 서버가 알려주지 않은 경우다
      */
-    private fun loggedIn(home: String? = null) = runBlocking { session.markLoggedIn(session.closeRequestMark(), home, serverName = "server") }
+    private fun loggedIn(home: String? = null) = runBlocking { session.markLoggedIn(home) }
 }

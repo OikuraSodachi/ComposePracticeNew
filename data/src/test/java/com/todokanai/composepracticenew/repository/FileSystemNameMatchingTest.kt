@@ -1,8 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.data.ftp.FakeFtpClient
-import com.todokanai.composepracticenew.data.ftp.FtpCommandParts
-import com.todokanai.composepracticenew.data.ftp.FtpSession
+import com.todokanai.composepracticenew.data.ftp.unconnectedManager
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
@@ -19,7 +17,7 @@ class FileSystemNameMatchingTest {
     /** 로컬 경로를 처리하는 파일 시스템. */
     private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
     /** ftp:// 경로를 처리하는 파일 시스템. */
-    private val ftp = FtpPathAwareFileSystem(FtpSession(FakeFtpClient(), ConnectionLossNotices()).let { session -> FtpCommandParts(session).listing })
+    private val ftp = FtpPathAwareFileSystem(unconnectedManager())
 
     /** 로컬·FTP 파일 시스템과 각자 처리하는 위치. */
     private val fileSystems = listOf(local to "/dir", ftp to "ftp://host/dir")

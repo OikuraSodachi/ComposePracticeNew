@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -27,7 +26,7 @@ class FtpControlChannelFailureTest {
 
     private val dir: File = Files.createTempDirectory("ftp-control-channel-test").toFile()
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     private val commands = FtpCommandParts(session)
     private val transferrer = commands.transferrer(OperationNotices())
 
@@ -113,7 +112,7 @@ class FtpControlChannelFailureTest {
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(home = null) }
 
     /** 세션이 끊김 상태가 되고 소켓이 닫혔는지 확인한다. */
     private fun assertSessionEnded() {

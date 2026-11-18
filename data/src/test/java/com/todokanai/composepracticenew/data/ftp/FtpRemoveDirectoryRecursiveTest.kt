@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -16,12 +15,12 @@ import org.junit.Test
 class FtpRemoveDirectoryRecursiveTest {
 
     private val client = FakeFtpClient()
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     private val commands = FtpCommandParts(session)
 
     @Test
     fun `하위 파일 삭제가 실패하면 상위 디렉터리 RMD는 보내지 않고 원인 파일만 알리며 형제는 삭제한다`() {
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        runBlocking { session.markLoggedIn(home = null) }
         client.features = setOf("MLST")
         client.mlsdListings = mapOf(
             "/r" to listOf("type=dir; sub", "type=dir; other"),
@@ -39,7 +38,7 @@ class FtpRemoveDirectoryRecursiveTest {
 
     @Test
     fun `MLSD 목록에 보인 항목을 모두 지웠는데 RMD가 거부되면 보이지 않는 항목이 남았을 수 있음을 함께 알린다`() {
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        runBlocking { session.markLoggedIn(home = null) }
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt"))
         client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Directory not empty"))
@@ -52,7 +51,7 @@ class FtpRemoveDirectoryRecursiveTest {
 
     @Test
     fun `LIST로 조회한 세션에서 RMD가 거부되면 보이지 않는 항목이 남았을 수 있음을 함께 알린다`() {
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        runBlocking { session.markLoggedIn(home = null) }
         client.remoteFiles = emptyList()
         client.serverBehaviors = mapOf("RMD" to ServerBehavior.Refuse(550, "550 Directory not empty"))
 

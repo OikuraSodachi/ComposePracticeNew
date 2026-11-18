@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.data.progress.PreparationProgressReporte
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -35,7 +34,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /** 서버 동작을 재현하는 가짜 클라이언트. */
     private val client = FakeFtpClient()
     /** 검증 대상 세션. */
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     /** 검증 대상 파일 명령 실행기. */
     private val parts = FtpCommandParts(session)
     /** 검증 대상 전송기. */
@@ -50,7 +49,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     fun `서버 동작에 맞는 결과를 내고 세션 유지 여부를 지킨다`() {
         command.prepare(client)
         behavior.serverBehavior?.let { client.serverBehaviors = mapOf(command.ftpName to it) }
-        if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn(home = null) }
         val run = suspend { command.run(Fixture(parts, transferrer, dir)) }
 
         when (expectedOutcome(command, behavior)) {

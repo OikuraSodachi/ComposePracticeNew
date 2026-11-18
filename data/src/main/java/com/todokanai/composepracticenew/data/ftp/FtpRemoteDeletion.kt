@@ -8,7 +8,6 @@ import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.defaultDisplayName
-import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
@@ -18,7 +17,7 @@ import javax.inject.Singleton
  * @param commands 삭제 명령(DELE·RMD)과 대상 밖으로 나가는 이동을 실행하는 FtpCommandRunner
  */
 @Singleton
-class FtpRemoteDeletion @Inject internal constructor(
+class FtpRemoteDeletion internal constructor(
     private val treeCollector: FtpTreeCollector,
     private val commands: FtpCommandRunner
 ) {

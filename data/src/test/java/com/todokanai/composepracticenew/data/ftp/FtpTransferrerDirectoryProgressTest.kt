@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.KnownSizeProgress
@@ -26,7 +25,7 @@ class FtpTransferrerDirectoryProgressTest {
         features = setOf("MLST")
     }
     /** 검증 대상 세션. */
-    private val session = FtpSession(client, ConnectionLossNotices()).also { runBlocking { it.markLoggedIn(it.closeRequestMark(), home = null, serverName = "server") } }
+    private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
     /** 검증 대상 전송기. */
     private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
     /** 보고된 진행 상태. */

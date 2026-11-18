@@ -13,7 +13,7 @@ import java.util.Locale
 
 /**
  * 서버의 목록을 어떤 명령으로 조회하고 해석할 수 있는지 판별한다.
- * 연결할 때의 확인([FtpConnector])과 목록 조회([FtpListingReader])가 같은 판정을 쓰게 해, 연결 확인을 통과한 서버는 어느 폴더든 해석할 수 있게 한다.
+ * 세션을 열 때의 확인([FtpSession.open])과 목록 조회([FtpListingReader])가 같은 판정을 쓰게 해, 연결 확인을 통과한 서버는 어느 폴더든 해석할 수 있게 한다.
  */
 internal object FtpListingFormat {
 

@@ -3,44 +3,28 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * 연결할 때([FtpConnector.connect]) 목록을 해석할 수 없는 서버를 걸러 연결을 종료하고 실패 이유를 알리는지 검증하는 통합 테스트.
+ * 세션을 열 때([FtpSession.open]) 목록을 해석할 수 없는 서버를 걸러 연결을 종료하고 실패 이유를 알리는지 검증하는 통합 테스트.
  * SYST 응답과 해석기 선택은 commons-net 내부 동작이므로 실제 FTPClient로 로컬 테스트 서버에 접속한다.
  */
-class FtpConnectorListingFormatTest {
+class FtpSessionListingFormatTest {
 
-    /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
-    private val client = SessionFtpClient()
-    /** 연결 상태를 소유한 세션. 서버 스크립트가 응답하지 않을 때 오래 기다리지 않도록 I/O 상한을 짧게 둔다. */
-    private val session = FtpSession(client, ConnectionLossNotices(), ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
-    /** Keep-Alive 루프를 돌리는 스코프. 테스트가 끝나면 취소한다. */
-    private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
-    private val keepAlive = FtpKeepAlive(session, session, keepAliveScope)
-    /** 검증 대상. */
-    private val connector = FtpConnector(session, keepAlive)
-    /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
-    private var server: ScriptedFtpServer? = null
+    /** 세션 관리자로 테스트 서버에 접속시키는 도구. */
+    private val fixture = SessionManagerFixture()
+    /** 마지막으로 띄운 서버. */
+    private lateinit var server: ScriptedFtpServer
 
     @After
-    fun tearDown() {
-        runBlocking { keepAlive.stop() }
-        keepAliveScope.cancel()
-        runCatching { client.disconnect() }
-        server?.close()
-    }
+    fun tearDown() = fixture.close()
 
     @Test
     fun `MLSD를 지원하지 않는 서버가 SYST를 거부하면 목록 형식을 알 수 없어 연결을 종료한다`() {
@@ -73,8 +57,8 @@ class FtpConnectorListingFormatTest {
         val result = connectTo(scripted)
 
         assertEquals(ConnectResult.Connected, result)
-        assertFalse(server!!.received.toString(), "SYST" in server!!.received)
-        assertTrue(runBlocking { session.isReady() })
+        assertFalse(server.received.toString(), "SYST" in server.received)
+        assertNotNull(fixture.manager.current())
     }
 
     @Test
@@ -90,12 +74,12 @@ class FtpConnectorListingFormatTest {
         )
 
         val result = connectTo(scripted)
-        val systSentOnConnect = server!!.received.count { it == "SYST" }
-        val listing = runBlocking { FtpCommandParts(session).listing.listFiles("ftp://host/r") }
+        val systSentOnConnect = server.received.count { it == "SYST" }
+        val listing = runBlocking { fixture.manager.withBrowsingSession { it.listing.listFiles("ftp://host/r") } }
 
         assertEquals(ConnectResult.Connected, result)
         assertEquals(listOf("ftp://host/r/a.txt"), (listing as IoResult.Success).value.map { (it as ListedItem.Entry).entry.path })
-        assertEquals(systSentOnConnect, server!!.received.count { it == "SYST" })
+        assertEquals(systSentOnConnect, server.received.count { it == "SYST" })
     }
 
     @Test
@@ -103,24 +87,48 @@ class FtpConnectorListingFormatTest {
         val result = connectTo(mapOf("PASS" to { it.send("530 Login incorrect") }))
 
         assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
-        assertFalse(server!!.received.toString(), "SYST" in server!!.received)
+        assertFalse(server.received.toString(), "SYST" in server.received)
         assertConnectionClosed()
     }
 
+    @Test
+    fun `서버가 접속 인사로 421을 보내면 연결 실패로 알린다`() {
+        server = fixture.server(greeting = { "421 Too many connections" })
+
+        val result = fixture.connect(server)
+
+        assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
+        assertNull(fixture.manager.current())
+        assertFalse(fixture.clients.single().isConnected)
+    }
+
+    @Test
+    fun `소켓을 만들기 전에 닫은 세션은 그 뒤 서버에 접속하지 않는다`() {
+        // 호스트 이름을 찾는 중처럼 닫을 소켓이 아직 없을 때 닫혀도, 뒤이은 접속이 끝까지 진행되지 않아야 한다
+        server = fixture.server()
+        val session = FtpSession(SessionFtpClient(), ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
+        runBlocking { session.close() }
+
+        val opening = runBlocking { session.open(FtpEndpoint(server.host, server.port, "user", "password", "UTF-8")) }
+
+        assertEquals(SessionOpening.Closed, opening)
+        assertEquals(0, server.connectionCount)
+    }
+
     /**
-     * [script]대로 응답하는 서버를 띄워 [FtpConnector]로 접속한다.
+     * [script]대로 응답하는 서버를 띄워 접속한다.
      * @param script 기본 응답을 덮어쓸 명령별 응답 동작
      * @return 연결 결과
      */
     private fun connectTo(script: Map<String, (ScriptedFtpServer.Exchange) -> Unit>): ConnectResult {
-        val scripted = ScriptedFtpServer(script).also { server = it }
-        return runBlocking { connector.connect("server", scripted.host, scripted.port, "user", "password", "UTF-8") }
+        server = fixture.server(script)
+        return fixture.connect(server)
     }
 
-    /** 세션이 로그인 상태가 아니고, 클라이언트 소켓이 닫혔고, 서버에 QUIT을 보냈는지 확인한다. */
+    /** 연결된 세션이 없고, 클라이언트 소켓이 닫혔고, 서버에 QUIT을 보냈는지 확인한다. */
     private fun assertConnectionClosed() {
-        assertFalse(runBlocking { session.isReady() })
-        assertFalse(client.isConnected)
-        assertTrue(server!!.received.toString(), "QUIT" in server!!.received)
+        assertNull(fixture.manager.current())
+        assertFalse(fixture.clients.single().isConnected)
+        assertTrue(server.received.toString(), "QUIT" in server.received)
     }
 }
