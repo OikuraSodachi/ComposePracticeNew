@@ -116,14 +116,16 @@ internal class FtpSessionManager(
             lossNotices.connectionStarted()
             replaceBrowsing(mine, RemoteConnectionState.Disconnected)
         }
+        var result: ConnectResult? = null
         try {
             previous?.let { scope.launch { it.close() } }
-            settle(mine, mine.session.open(endpointOf(server)))
+            settle(mine, mine.session.open(endpointOf(server))).also { result = it }
         } finally {
             withContext(NonCancellable) {
+                // 지금 연결돼 있는지가 아니라 연결에 성공했는지로 판정한다 — 성공 직후 끊긴 세션(Lost)을 실패로 보고 치우면 종료 요청이 Lost를 지우지 못한다
                 val abandoned = stateMutex.withLock {
                     endBusy()
-                    (browsing === mine && connected !== token).also { if (it) browsing = null }
+                    (browsing === mine && result != ConnectResult.Connected).also { if (it) browsing = null }
                 }
                 // 실패했거나 취소된 접속의 세션은 탐색 세션으로 남기지 않고 닫는다 — 열린 뒤에 취소됐으면 로그인된 연결이 남지 않도록
                 if (abandoned) mine.session.close()
