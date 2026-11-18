@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.compose.dialog
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +32,9 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IndeterminatePhaseModel
 import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.sizeText
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
+import com.todokanai.composepracticenew.ui.model.unknownFilesTextRes
 
 /**
  * 파일 작업 하나의 진행률을 표시하는 다이얼로그.
@@ -91,7 +92,7 @@ private fun ProgressItem(state: ProgressStateModel) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(text = progressText(progress), style = MaterialTheme.typography.bodySmall)
-            sizeText(state)?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+            state.sizeText()?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
         }
         state.knownSize?.let { KnownSizePart(it, state.operationType) }
         if (state.currentFileName != null) {
@@ -117,7 +118,7 @@ private fun ProgressItem(state: ProgressStateModel) {
                 backgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
             )
             Text(
-                text = "${state.currentIndex} / ${state.listSize} 파일",
+                text = stringResource(R.string.progress_file_count, state.currentIndex, state.listSize),
                 style = MaterialTheme.typography.bodySmall
             )
         }
@@ -205,29 +206,10 @@ private fun KnownSizePart(knownSize: KnownSizeProgressModel, operationType: File
     )
 }
 
-/**
- * 크기를 모르는 파일의 처리 문구를 작업 종류로 고른다. 작업 종류를 모두 나열해 새 종류가 생기면 컴파일 단계에서 드러나게 한다.
- * @param operationType 작업 종류. 모르면 null
- * @return 문자열 리소스 ID
- */
-@StringRes
-private fun unknownFilesTextRes(operationType: FileOperationType?): Int = when (operationType) {
-    FileOperationType.DOWNLOAD -> R.string.progress_unknown_files_received
-    FileOperationType.UPLOAD -> R.string.progress_unknown_files_sent
-    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE,
-    FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> R.string.progress_unknown_files_processed
-}
-
 /** 진행률의 표시 문구. 모르면 퍼센트 대신 알 수 없음을 보여준다. */
 @Composable
 private fun progressText(progress: Int?): String =
     progress?.let { "$it%" } ?: stringResource(R.string.progress_unknown)
-
-/** 처리한 크기의 표시 문구. 전체 크기를 알면 "처리 / 전체", 모르면 처리한 크기만, 처리한 크기도 없으면 null이다. */
-private fun sizeText(state: ProgressStateModel): String? {
-    val current = state.currentSize ?: return null
-    return state.totalSize?.let { "$current / $it" } ?: current
-}
 
 /** 둥근 모서리의 커스텀 LinearProgressIndicator. */
 @Composable

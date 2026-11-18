@@ -14,7 +14,11 @@ import androidx.core.os.bundleOf
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IndeterminatePhase
+import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressStateModel
+import com.todokanai.composepracticenew.model.sizeText
+import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
@@ -23,6 +27,7 @@ import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_PROCE
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.ui.model.completionTextRes
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
+import com.todokanai.composepracticenew.ui.model.unknownFilesTextRes
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -98,11 +103,12 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         val idx = state.currentIndex ?: return
         val total = state.listSize ?: return
         val notificationId = ids.idFor(instanceId)
+        val model = state.toModel()
         val builder = progressBuilder(type)
-            .setContentText("$idx / $total")
             .setOngoing(true)
             .setProgress(100, 100 * idx / total, false)
             .setContentIntent(buildClickIntent(type.id, instanceId, notificationId))
+            .withDetail(summaryText(model.currentFileName, "$idx / $total"), detailLines(model, progressText = null))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
     }
 
@@ -110,12 +116,61 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     private fun showPercentProgress(type: FileOperationType?, state: ProgressState, instanceId: Int) {
         val progress = state.progress
         val notificationId = ids.idFor(instanceId)
+        val model = state.toModel()
+        val progressText = progress?.let { "$it%" }
         val builder = progressBuilder(type)
             .setOngoing(progress == null || progress < 100)
-            .setContentText(progress?.let { "$it %" })
             .setProgress(100, progress ?: 0, progress == null)
             .setContentIntent(buildClickIntent(type?.id ?: 0, instanceId, notificationId))
+            .withDetail(summaryText(model.currentFileName, progressText), detailLines(model, progressText))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
+    }
+
+    /**
+     * 접힌 알림의 한 줄 문구를 만든다 — 현재 파일명과 진행(퍼센트 또는 처리 수)을 잇는다.
+     * @param fileName 현재 처리 중인 파일명. 모르면 null
+     * @param progressText 진행 문구. 없으면 null
+     * @return 한 줄 문구. 둘 다 없으면 null
+     */
+    private fun summaryText(fileName: String?, progressText: String?): String? =
+        listOfNotNull(fileName, progressText).joinToString(" · ").ifEmpty { null }
+
+    /**
+     * 펼친 알림의 줄들을 만든다: 현재 파일명, 처리한 크기(와 퍼센트), 크기를 모르는 파일이 섞였으면 크기를 아는 부분과 모르는 부분의 진행, 처리한 파일 수.
+     * 크기를 아는 부분과 모르는 부분은 진행 다이얼로그처럼 나눠 보인다 — 아는 부분의 처리 / 전체만 보이면 작업 전체의 진행으로 읽혀, 모르는 파일을 처리하는 동안 끝난 것처럼 보인다.
+     * @param model 진행 상태
+     * @param progressText 크기 줄에 붙일 퍼센트 문구. 없으면 null
+     * @return 보일 줄 목록. 정보가 없는 줄은 빠진다
+     */
+    private fun detailLines(model: ProgressStateModel, progressText: String?): List<String> {
+        val fileCount = model.listSize?.let { total -> model.currentIndex?.let { context.getString(R.string.progress_file_count, it, total) } }
+        return listOfNotNull(
+            model.currentFileName,
+            listOfNotNull(model.sizeText(), progressText).joinToString(" · ").ifEmpty { null },
+        ) + model.knownSize?.let { knownSizeLines(it, model.operationType) }.orEmpty() + listOfNotNull(fileCount)
+    }
+
+    /**
+     * 크기를 모르는 파일이 섞인 작업에서 크기를 아는 부분의 진행 줄과 크기를 모르는 파일의 처리 줄을 만든다. 진행 다이얼로그와 같은 문구를 쓴다.
+     * @param knownSize 크기를 아는 부분과 모르는 부분의 진행
+     * @param operationType 작업 종류 — 크기를 모르는 파일의 처리 문구(받음·보냄·처리)를 고른다
+     * @return 아는 부분의 줄(퍼센트를 낼 수 없으면 빠진다)과 모르는 부분의 줄
+     */
+    private fun knownSizeLines(knownSize: KnownSizeProgressModel, operationType: FileOperationType?): List<String> = listOfNotNull(
+        knownSize.progress?.let { "${context.getString(R.string.progress_known_part, it)} · ${knownSize.writtenSize} / ${knownSize.totalSize}" },
+        context.getString(unknownFilesTextRes(operationType), knownSize.unknownFileCount, knownSize.unknownWrittenSize)
+    )
+
+    /**
+     * 접힌 알림에 [summary]를, 펼친 알림에 [lines]를 줄마다 보이게 한다.
+     * @param summary 접힌 알림의 한 줄 문구
+     * @param lines 펼친 알림의 줄들. 비었으면 펼친 모양을 따로 두지 않는다
+     * @return 이 Builder
+     */
+    private fun NotificationCompat.Builder.withDetail(summary: String?, lines: List<String>): NotificationCompat.Builder {
+        setContentText(summary)
+        if (lines.isNotEmpty()) setStyle(NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n")))
+        return this
     }
 
     /**
