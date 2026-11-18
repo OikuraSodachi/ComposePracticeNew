@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 
 /**
  * 앱이 연결을 더 유지할 수 없을 때(보호를 잃음) 연결된 원격 세션을 끊김([RemoteConnectionState.Lost])으로 종료하는 UseCase.
- * 끊김 알림이 나가므로 사용자가 요청한 종료에는 쓰지 않는다 — 그쪽은 [RemoteDisconnectUseCase]다(#453).
+ * 끊김 알림이 나가므로 앱이 요청한 종료에는 쓰지 않는다 — 그쪽은 [RemoteDisconnectUseCase]다(#453).
  * @param repo 원격 연결 수명주기를 관리하는 RemoteConnectionRepository 구현체
  */
 class RemoteConnectionDropUseCase(private val repo: RemoteConnectionRepository) {
