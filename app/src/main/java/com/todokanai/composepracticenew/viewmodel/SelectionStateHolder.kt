@@ -59,6 +59,21 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
         return submitted
     }
 
+    /**
+     * 이 화면의 선택이 정확히 한 항목일 때만 그 항목을 작업 대상으로 꺼내고, 같은 갱신에서 기본 모드로 되돌린다.
+     * 한 항목만 받는 작업(이름 변경)은 [SubmittedItem]만 받으므로, 여러 항목을 넘기는 호출은 컴파일되지 않는다(#446).
+     * @return 꺼낸 항목. 꺼낼 선택이 없거나 한 항목이 아니면 상태를 바꾸지 않고 null
+     */
+    fun submitSingle(): SubmittedItem? {
+        var submitted: SubmittedItem? = null
+        _state.update { current ->
+            val item = submittableItems(current)?.singleOrNull()
+            submitted = item?.let(::SubmittedSingle)
+            if (item == null) current else SelectionState.Default
+        }
+        return submitted
+    }
+
     /** state에서 작업 대상으로 꺼낼 선택 목록. 이 화면의 선택이 아니거나(기본·전송 목적지) 비었으면 null. */
     private fun submittableItems(state: SelectionState<Op, T>): List<FileHolderItem>? = when (state) {
         is SelectionState.MultiSelect, is SelectionState.Operation -> state.selected.takeIf { it.isNotEmpty() }
@@ -103,6 +118,21 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
      * @param items 꺼낸 선택 목록
      */
     private class Submitted(override val items: List<FileHolderItem>) : SubmittedSelection
+
+    /**
+     * [submitSingle]만 만드는 [SubmittedItem] 구현.
+     * @param item 꺼낸 항목
+     */
+    private class SubmittedSingle(override val item: FileHolderItem) : SubmittedItem
+}
+
+/**
+ * 화면의 선택에서 꺼낸 작업 대상 한 항목. [SelectionStateHolder.submitSingle]만 만들 수 있으며, 그 화면의 선택은 이 값을 꺼낼 때 이미 기본 모드로 되돌아가 있다.
+ * 한 항목만 받는 작업 함수가 이 값을 받아, 선택 초기화를 빠뜨리거나 여러 항목을 넘기는 호출을 컴파일 단계에서 막는다.
+ */
+sealed interface SubmittedItem {
+    /** 작업 대상 항목. */
+    val item: FileHolderItem
 }
 
 /**

@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -200,6 +201,56 @@ class TransferSelectionTransitionTest {
         val submitted = viewModel.submitRemoteSelection()
 
         assertEquals(listOf(remoteX), submitted?.items)
+        assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
+        assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `선택이 한 항목이면 그 항목을 꺼내고 기본 모드로 돌아간다`() {
+        viewModel.startLocalMultiSelect(localA)
+
+        val submitted = viewModel.submitLocalItem()
+
+        assertEquals(localA, submitted?.item)
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `선택이 한 항목이 아니면 꺼내지 않고 선택을 그대로 둔다`() {
+        viewModel.startLocalMultiSelect(localA)
+        viewModel.addToLocalList(localB)
+
+        val submitted = viewModel.submitLocalItem()
+
+        assertNull(submitted)
+        assertEquals(SelectionState.MultiSelect(listOf(localA, localB)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `작업 목적지 확인 중에도 선택이 한 항목이면 그 항목을 꺼낸다`() {
+        viewModel.startLocalMultiSelect(localA)
+        viewModel.enterLocalOperation(SelectMode.LocalOperation.Copy)
+
+        val submitted = viewModel.submitLocalItem()
+
+        assertEquals(localA, submitted?.item)
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `기본 모드에서는 꺼낼 항목이 없다`() {
+        assertNull(viewModel.submitLocalItem())
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `원격 선택이 한 항목이면 원격 화면만 기본 모드로 돌아가고 로컬 화면은 그대로다`() {
+        viewModel.startRemoteMultiSelect(remoteX)
+        viewModel.startLocalMultiSelect(localA)
+
+        val submitted = viewModel.submitRemoteItem()
+
+        assertEquals(remoteX, submitted?.item)
         assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
         assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
     }

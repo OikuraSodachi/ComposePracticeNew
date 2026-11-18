@@ -21,6 +21,7 @@ import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
+import com.todokanai.composepracticenew.viewmodel.SubmittedItem
 import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 
 /**
@@ -49,6 +50,7 @@ private fun RemoteFileListConnectionEffects(
  * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백 — 취소·뒤로가기용
  * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
+ * @param onSubmitItem 확인한 이름 변경의 대상으로 선택의 한 항목을 꺼내고 기본 모드로 되돌리는 콜백. 선택이 한 항목이 아니면 null
  * @param onEnterDownloadMode 원격 선택을 꺼내 다운로드 모드로 진입하는 콜백
  */
 @Composable
@@ -59,6 +61,7 @@ fun RemoteFileListFrag(
     onStartMultiSelect: (FileHolderItem) -> Unit,
     onResetSelection: () -> Unit,
     onSubmitSelection: () -> SubmittedSelection?,
+    onSubmitItem: () -> SubmittedItem?,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
@@ -82,9 +85,11 @@ fun RemoteFileListFrag(
     /** 목록 스크롤 상태. 목록(FileListView)을 화면에서 빼는 분기보다 위에서 만든다 — 위치가 남는 기간을 목록의 컴포지션 여부가 아니라 경로로 정한다 */
     val listState = rememberListingScrollState(uiState.value.listing)
     /** 이름 변경 다이얼로그의 콜백 묶음. */
-    // viewModel을 키로 — 리컴포지션마다 새 묶음을 만들어 하단 버튼 영역의 건너뛰기가 깨지지 않도록 같은 ViewModel 동안 유지한다
-    val renameActions = remember(viewModel) {
+    // viewModel·onSubmitItem을 키로 — 리컴포지션마다 새 묶음을 만들어 하단 버튼 영역의 건너뛰기가 깨지지 않도록 같은 ViewModel 동안 유지하고,
+    // 꺼내는 콜백이 바뀌면 이전 콜백을 붙잡지 않도록 다시 만든다
+    val renameActions = remember(viewModel, onSubmitItem) {
         RenameActions(
+            onSubmitItem = onSubmitItem,
             onRename = viewModel::onRename,
             validate = viewModel.entryNaming::validateRename,
             onConfirmOverwrite = viewModel.entryNaming::confirmRename,
