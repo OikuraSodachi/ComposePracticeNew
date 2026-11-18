@@ -13,13 +13,14 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.ViewModelStoreOwner
 import com.todokanai.composepracticenew.navigation.AppNavHost
 import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
-import com.todokanai.composepracticenew.viewmodel.MainViewModel
+import com.todokanai.composepracticenew.viewmodel.ProgressDialogViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val mViewModel: MainViewModel by viewModels()
+    /** 알림 클릭으로 띄울 진행률 다이얼로그를 받는 ViewModel. AppNavHost가 이 Activity를 owner로 같은 인스턴스를 쓴다. */
+    private val progressDialogViewModel: ProgressDialogViewModel by viewModels()
     /** 시작 때 없는 권한을 요청한다. 런처 등록이 STARTED 전이어야 하므로 속성으로 만든다. */
     private val permissions = StartupPermissionRequester(this)
 
@@ -45,7 +46,7 @@ class MainActivity : ComponentActivity() {
     /** [intent]가 진행 알림 클릭이면 그 작업의 진행률 다이얼로그를 띄운다. */
     private fun showProgressDialogOf(intent: Intent?) {
         val request = progressDialogRequestOf(intent) ?: return
-        mViewModel.requestShowProgressDialog(request.operationTypeId, request.instanceId)
+        progressDialogViewModel.requestShowProgressDialog(request.operationTypeId, request.instanceId)
     }
 }
 
