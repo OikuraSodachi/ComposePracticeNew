@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
-import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.model.SavedRemoteId
@@ -29,7 +28,7 @@ class LastConnectionRecordingTest {
 
     @Test
     fun `연결에 성공하면 그 서버를 마지막 연결 서버로 기록한다`() {
-        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(), lastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
+        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(), FakeRootNavigator(), lastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
 
         assertEquals(listOf("set 5"), calls)
     }
@@ -38,14 +37,14 @@ class LastConnectionRecordingTest {
     fun `연결에 실패하면 기록하지 않는다`() {
         val failed = ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
 
-        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(failed), FakeNavigator(), lastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
+        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(failed), FakeRootNavigator(), lastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
 
         assertEquals(emptyList<String>(), calls)
     }
 
     @Test
-    fun `루트 경로로 이동하지 못하면 기록하지 않고 구현 오류로 실패한다`() {
-        val useCase = RemoteConnectionUseCase(FakeRemoteConnection(), FakeNavigator(NavigateResult.Rejected), lastConnection, RecordingConnectFailureAlerts())
+    fun `루트 이동이 구현 오류로 실패하면 기록하지 않는다`() {
+        val useCase = RemoteConnectionUseCase(FakeRemoteConnection(), FakeRootNavigator(IllegalStateException()), lastConnection, RecordingConnectFailureAlerts())
 
         assertThrows(IllegalStateException::class.java) { runBlocking { useCase.connectAndNavigate(nas) } }
         assertEquals(emptyList<String>(), calls)

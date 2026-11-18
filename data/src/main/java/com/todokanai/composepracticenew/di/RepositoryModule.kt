@@ -24,6 +24,7 @@ import com.todokanai.composepracticenew.repository.LocalFileSearchRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
+import com.todokanai.composepracticenew.repository.FtpRootNavigator
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.LocalPathAwareFileSystem
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -45,6 +46,7 @@ import com.todokanai.composepracticenew.repository.ProgressTracker
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
+import com.todokanai.composepracticenew.repository.RemoteRootNavigator
 import com.todokanai.composepracticenew.repository.RemoteSessionProvider
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepositoryImpl
@@ -198,6 +200,10 @@ abstract class RepositoryModule {
             @RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards PathAwareFileSystem>,
             notices: OperationNoticeReporter
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems, notices)
+
+        /** 연결한 원격 서버의 루트로 원격 화면의 탐색 위치를 옮기는 이동. */
+        @Provides @Singleton
+        fun provideRemoteRootNavigator(@RemoteNavigator nav: FileNavigatorRepository): RemoteRootNavigator = FtpRootNavigator(nav)
 
         /** 로컬 화면의 경로 규칙. */
         @Provides @Singleton

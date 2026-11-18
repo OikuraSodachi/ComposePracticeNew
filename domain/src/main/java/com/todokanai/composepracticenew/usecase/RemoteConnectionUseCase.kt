@@ -2,25 +2,23 @@ package com.todokanai.composepracticenew.usecase
 
 import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
-import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageItem
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
-import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
+import com.todokanai.composepracticenew.repository.RemoteRootNavigator
 
 /**
  * 원격 스토리지 연결과 초기 경로 이동을 담당하는 UseCase. 연결에 성공한 서버를 재연결 대상(마지막 연결 서버)으로 기록한다.
- * 연결은 [connection]이, 이동은 [nav]가 맡으므로 탐색 계약은 연결 수명주기를 알지 않는다.
- * @param connection 서버 연결과 루트 경로 계산을 담당하는 RemoteConnectionRepository 구현체
- * @param nav 원격 화면의 탐색 위치를 다루는 FileNavigatorRepository 구현체. [RemoteConnectionRepository.rootPathOf]가 돌려준 경로로의 이동을
- * 접근 권한을 이유로 거부하지 않아야 한다 — 권한 문제는 이동이 아니라 목록 조회 실패로 드러내, 연결은 유지한 채 다시 시도할 수 있게 한다
+ * 연결은 [connection]이, 루트 이동은 [rootNavigator]가 맡으므로 탐색 계약은 연결 수명주기를 알지 않는다.
+ * @param connection 서버 연결을 담당하는 RemoteConnectionRepository 구현체
+ * @param rootNavigator 연결한 서버의 루트로 원격 화면의 탐색 위치를 옮기는 RemoteRootNavigator 구현체
  * @param lastConnectionRepo 연결에 성공한 서버 id를 기록하는 LastConnectionRepository 구현체
  * @param failureAlerts 연결 시도를 시작할 때 아직 알리지 않은 이전 시도의 실패를 빼는 연결 실패 알림함
  */
 class RemoteConnectionUseCase(
     private val connection: RemoteConnectionRepository,
-    private val nav: FileNavigatorRepository,
+    private val rootNavigator: RemoteRootNavigator,
     private val lastConnectionRepo: LastConnectionRepository,
     private val failureAlerts: ConnectFailureAlertReporter
 ) {
@@ -31,28 +29,15 @@ class RemoteConnectionUseCase(
      * 시작할 때 아직 알리지 않은 이전 시도의 실패를 알림함([failureAlerts])에서 뺀다 — 이 시도가 성공한 뒤 이전 실패가 보여 이 연결이 실패한 것처럼 보이지 않도록.
      * @param item 연결할 원격 스토리지 접속 정보
      * @return 연결 결과. 실패하면 기록하지 않고 이동하지 않는다
-     * @throws IllegalStateException 연결한 서버의 루트 경로로 이동이 거부됐을 때. [nav]는 이 이동을 권한으로 거부하지 않으므로,
-     * 루트 경로 형식과 탐색 저장소가 다루는 경로가 어긋난 배선 오류다
      */
     suspend fun connectAndNavigate(item: RemoteStorageItem): ConnectResult {
         failureAlerts.connectionStarted()
         if (item.port !in RemoteStorageItem.PORT_RANGE) return ConnectResult.Failed(ConnectFailureReason.INVALID_PORT)
         val result = connection.connect(item)
         if (result == ConnectResult.Connected) {
-            navigateToRoot(item)
+            rootNavigator.navigateToRoot(item)
             lastConnectionRepo.setLastRemoteId(item.id)
         }
         return result
-    }
-
-    /**
-     * [item] 서버의 루트 경로로 이동한다. 거부되면 연결은 됐는데 이전 위치에 머물러 결과가 거짓이 되므로 구현 오류로 실패한다.
-     * @param item 이동할 원격 스토리지 접속 정보
-     * @return Unit
-     * @throws IllegalStateException 탐색 저장소가 루트 경로 이동을 거부했을 때(배선 오류)
-     */
-    private suspend fun navigateToRoot(item: RemoteStorageItem) {
-        val root = connection.rootPathOf(item)
-        check(nav.navigate(root) == NavigateResult.Navigated) { "연결한 서버의 루트 경로를 원격 탐색 저장소가 다루지 않는다(배선 오류): $root" }
     }
 }

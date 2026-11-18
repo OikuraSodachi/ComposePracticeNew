@@ -22,6 +22,7 @@ import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
+import com.todokanai.composepracticenew.repository.RemoteRootNavigator
 import com.todokanai.composepracticenew.repository.RemoteSessionProvider
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
@@ -132,10 +133,10 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideRemoteConnectionUseCase(
         connection: RemoteConnectionRepository,
-        @RemoteNavigator nav: FileNavigatorRepository,
+        rootNavigator: RemoteRootNavigator,
         lastConnectionRepo: LastConnectionRepository,
         failureAlerts: ConnectFailureAlertReporter
-    ) = RemoteConnectionUseCase(connection, nav, lastConnectionRepo, failureAlerts)
+    ) = RemoteConnectionUseCase(connection, rootNavigator, lastConnectionRepo, failureAlerts)
 
     @Provides @Singleton
     fun provideRemoteConnectionResilienceUseCase(

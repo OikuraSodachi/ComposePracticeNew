@@ -45,7 +45,7 @@ class ConnectAttemptDiscardsFailuresTest {
      * @return 검증 대상
      */
     private fun useCaseAnswering(result: ConnectResult) =
-        RemoteConnectionUseCase(FakeRemoteConnection(result), FakeNavigator(), NoOpLastConnection, alerts)
+        RemoteConnectionUseCase(FakeRemoteConnection(result), FakeRootNavigator(), NoOpLastConnection, alerts)
 
     /**
      * [port]만 다른 접속 정보를 만든다.

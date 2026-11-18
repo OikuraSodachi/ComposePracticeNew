@@ -17,7 +17,7 @@ class RemoteConnectionPortCheckTest {
     /** 연결 요청을 기록하는 가짜 연결 저장소. */
     private val connection = FakeRemoteConnection()
     /** 검증 대상. */
-    private val useCase = RemoteConnectionUseCase(connection, FakeNavigator(), NoOpLastConnectionRepository, RecordingConnectFailureAlerts())
+    private val useCase = RemoteConnectionUseCase(connection, FakeRootNavigator(), NoOpLastConnectionRepository, RecordingConnectFailureAlerts())
 
     @Test
     fun `포트가 범위를 벗어나면 연결을 시도하지 않고 포트 오류로 알린다`() {
