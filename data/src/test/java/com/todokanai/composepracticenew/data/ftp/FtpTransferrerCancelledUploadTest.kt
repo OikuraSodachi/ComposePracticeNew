@@ -35,7 +35,7 @@ class FtpTransferrerCancelledUploadTest {
     /** 넣은 실패 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingNotices()
     /** 검증 대상 전송기. */
-    private val transferrer = FtpCommandParts(session).transferrer(notices)
+    private val transferrer = FtpOperationParts(session).transferrer(notices)
 
     @After
     fun tearDown() {

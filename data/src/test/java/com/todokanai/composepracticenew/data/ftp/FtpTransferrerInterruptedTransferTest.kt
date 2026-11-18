@@ -27,7 +27,7 @@ class FtpTransferrerInterruptedTransferTest {
     /** 검증 대상 세션. */
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
     /** 검증 대상 전송기. */
-    private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
+    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
     /** 다운로드 대상 로컬 파일. */
     private val localFile = File(dir, "a.txt")
 

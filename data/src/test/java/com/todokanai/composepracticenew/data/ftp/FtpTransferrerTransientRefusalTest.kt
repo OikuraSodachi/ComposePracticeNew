@@ -88,6 +88,6 @@ class FtpTransferrerTransientRefusalTest {
     private fun connectedTransferrer(refusal: ServerBehavior.Refuse): Triple<FakeFtpClient, FtpSession, FtpTransferrer> {
         val client = FakeFtpClient().apply { streamRefusal = refusal }
         val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
-        return Triple(client, session, FtpCommandParts(session).transferrer(OperationNotices()))
+        return Triple(client, session, FtpOperationParts(session).transferrer(OperationNotices()))
     }
 }

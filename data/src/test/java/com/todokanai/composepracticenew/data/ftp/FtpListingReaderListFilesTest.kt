@@ -21,7 +21,7 @@ class FtpListingReaderListFilesTest {
 
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val commands = FtpCommandParts(session)
+    private val commands = FtpOperationParts(session)
 
     @Test
     fun `MLST 서버는 화면 목록도 MLSD로 조회하며 숨김 파일을 포함한다`() {

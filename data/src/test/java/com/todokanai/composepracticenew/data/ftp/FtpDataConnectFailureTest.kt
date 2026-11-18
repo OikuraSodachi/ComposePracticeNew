@@ -60,7 +60,7 @@ class FtpDataConnectFailureTest {
             )
         ).also { server = it }
         val session = connectedSession(scripted)
-        val executor = FtpCommandParts(session)
+        val executor = FtpOperationParts(session)
 
         val failed = runBlocking { executor.listing.listFiles("ftp://host/r") }
 
@@ -80,7 +80,7 @@ class FtpDataConnectFailureTest {
             mapOf("PASV" to { exchange -> exchange.send("227 Entering Passive Mode (127,0,0,1,${refusedPort / 256},${refusedPort % 256})") })
         ).also { server = it }
         val session = connectedSession(scripted)
-        val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
+        val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
         val localFile = File(dir, "a.txt")
 
         val result = runBlocking {

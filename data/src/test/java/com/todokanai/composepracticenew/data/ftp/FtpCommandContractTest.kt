@@ -36,7 +36,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /** 검증 대상 세션. */
     private val session = FtpSession(client)
     /** 검증 대상 파일 명령 실행기. */
-    private val parts = FtpCommandParts(session)
+    private val parts = FtpOperationParts(session)
     /** 검증 대상 전송기. */
     private val transferrer = parts.transferrer(OperationNotices())
 
@@ -98,7 +98,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
      * @param transferrer FTP 전송기
      * @param dir 전송에 쓸 로컬 임시 디렉터리
      */
-    internal class Fixture(val parts: FtpCommandParts<*>, val transferrer: FtpTransferrer, val dir: File)
+    internal class Fixture(val parts: FtpOperationParts<*>, val transferrer: FtpTransferrer, val dir: File)
 
     /**
      * 행렬의 명령 행.
