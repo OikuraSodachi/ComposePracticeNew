@@ -100,7 +100,7 @@ class FtpDataConnectFailureTest {
         val cause = IOException("Socket closed")
         val runner = DataCommandRunner(EndedSession(cause))
 
-        val thrown = runCatching { runBlocking { runner.run(FakeFtpClient(), open = { ByteArrayInputStream(ByteArray(0)) }) {} } }.exceptionOrNull()
+        val thrown = runCatching { runBlocking { runner.run(FakeFtpClient(), FtpDataCommand.LIST, open = { ByteArrayInputStream(ByteArray(0)) }) {} } }.exceptionOrNull()
 
         assertEquals(cause, thrown)
     }

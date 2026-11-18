@@ -176,7 +176,7 @@ class FtpListingReader internal constructor(
      */
     private suspend fun listWithList(client: FtpCommandClient, ftpPath: String, path: String, limit: ListingLimit?): IoResult<IdentifiedListing> {
         if (!client.changeDirectory(ftpPath)) return FtpReplyRules.refusal(FtpCommand.CWD, client.getReplyString())
-        return receiveListing(FtpCommand.LIST, client, FtpListingFormat.listParser(client), path, limit, open = { client.openListStream() }) { file ->
+        return receiveListing(FtpDataCommand.LIST, client, FtpListingFormat.listParser(client), path, limit, open = { client.openListStream() }) { file ->
             ReceivedEntry(file, identity = null).takeIf { file.name != "." && file.name != ".." }
         }
     }
@@ -197,7 +197,7 @@ class FtpListingReader internal constructor(
         withIdentities: Boolean,
         limit: ListingLimit?
     ): IoResult<IdentifiedListing> =
-        receiveListing(FtpCommand.MLSD, client, MLSxEntryParser.getInstance(), path, limit, open = { client.openMlsdStream(ftpPath) }) { file ->
+        receiveListing(FtpDataCommand.MLSD, client, MLSxEntryParser.getInstance(), path, limit, open = { client.openMlsdStream(ftpPath) }) { file ->
             receivedMlsdEntry(file, withIdentities)
         }
 
@@ -216,7 +216,7 @@ class FtpListingReader internal constructor(
      * @return 조회 결과
      */
     private suspend fun receiveListing(
-        command: FtpCommand,
+        command: FtpDataCommand,
         client: FtpCommandClient,
         parser: FTPFileEntryParser,
         path: String,
@@ -225,19 +225,19 @@ class FtpListingReader internal constructor(
         received: (FTPFile) -> ReceivedEntry?
     ): IoResult<IdentifiedListing> {
         var lines = emptyList<String>()
-        val outcome = dataCommands.run(client, open) { stream ->
+        val outcome = dataCommands.run(client, command, open) { stream ->
             val bounded = limit?.let { BoundedListingStream(stream, it.peakBytes, childFtpUriPrefix(path).length) } ?: stream
             lines = FtpListingFormat.readLines(bounded, client.getControlEncoding(), parser)
         }
         return when (outcome) {
-            is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
+            is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.step, client.getReplyString())
             is DataCommandOutcome.DataFailed ->
                 if (limit != null && outcome.cause is ListingTooLargeException) limit.exceeded
                 else IoResult.ItemFailed(FailureReason.RemoteStepFailed(command.step, FailureReason.IoFailed(outcome.cause.message ?: outcome.cause.javaClass.simpleName)))
             is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(FailureReason.RemoteStepFailed(command.step, dataConnectionFailure(outcome.cause)))
             is DataCommandOutcome.Finished ->
                 if (FtpReplyRules.isListingCompleted(client.getReplyCode())) IoResult.Success(identifiedListing(lines, parser, received, path))
-                else FtpReplyRules.refusal(command, client.getReplyString())
+                else FtpReplyRules.dataCommandRefusal(command.step, client.getReplyString())
         }
     }
 

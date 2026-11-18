@@ -411,6 +411,7 @@ class FtpTransferrer internal constructor(
     ): IoResult<Unit> {
         val outcome = dataCommands.run(
             client,
+            command = FtpDataCommand.RETR,
             open = { client.retrieveFileStream(ftpPath) },
             onCancel = { runCatching { localFile.delete() } }
         ) { stream ->
@@ -440,7 +441,7 @@ class FtpTransferrer internal constructor(
         // 알려진 문제(방치하기로 결정): STOR는 기존 파일을 덮어쓴다. 서버가 목록에서 숨긴 같은 이름의 파일은 충돌 검사에 보이지 않아 묻지 않고 덮어쓴다
         // ([FtpListingReader.identifiedListing] 참고)
         val outcome = try {
-            dataCommands.run(client, open = { client.storeFileStream(ftpPath) }) { stream -> pump(input, stream, onChunk) }
+            dataCommands.run(client, FtpDataCommand.STOR, open = { client.storeFileStream(ftpPath) }) { stream -> pump(input, stream, onChunk) }
         } catch (e: CancellationException) {
             discardCancelledUpload(client, ftpPath)
             throw e
@@ -477,7 +478,7 @@ class FtpTransferrer internal constructor(
         outcome: DataCommandOutcome,
         onAcked: suspend () -> Unit
     ): IoResult<Unit> = when (outcome) {
-        is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.command, client.getReplyString())
+        is DataCommandOutcome.Refused -> FtpReplyRules.dataCommandRefusal(outcome.step, client.getReplyString())
         is DataCommandOutcome.DataFailed -> IoResult.ItemFailed(FailureReason.TransferFailed(outcome.cause.message))
         is DataCommandOutcome.NotConnected -> IoResult.ItemFailed(dataConnectionFailure(outcome.cause))
         is DataCommandOutcome.Finished ->

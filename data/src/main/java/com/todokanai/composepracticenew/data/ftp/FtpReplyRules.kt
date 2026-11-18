@@ -8,17 +8,29 @@ import org.apache.commons.net.ftp.FTPReply
 import org.apache.commons.net.ftp.parser.MLSxEntryParser
 
 /**
- * 이 앱이 보내는 FTP 명령. 응답 해석 규칙이 명령마다 다를 수 있어 [FtpReplyRules]의 행(行)이 된다.
+ * 이 앱이 보내는, 데이터 연결을 쓰지 않는 FTP 명령. 응답 해석 규칙이 명령마다 다를 수 있어 [FtpReplyRules]의 행(行)이 된다.
+ * 데이터 연결을 쓰는 명령은 [FtpDataCommand]다.
  * @param step 이 명령이 하는 원격 작업 단계(실패 원인에 담는다)
  */
 internal enum class FtpCommand(val step: RemoteStep) {
     CWD(RemoteStep.OPEN_FOLDER),
-    LIST(RemoteStep.LIST_FOLDER),
-    MLSD(RemoteStep.LIST_FOLDER),
     RENAME(RemoteStep.RENAME),
     DELE(RemoteStep.DELETE_FILE),
     MKD(RemoteStep.MAKE_FOLDER),
     RMD(RemoteStep.REMOVE_FOLDER),
+}
+
+/**
+ * 이 앱이 보내는, 데이터 연결을 쓰는 FTP 명령. [DataCommandRunner]는 이 명령만 실행한다.
+ * 데이터 연결을 열기 전의 거부가 이 명령의 거부인지 그 앞의 준비 명령의 거부인지 판정하려면([FtpReplyRules.refusedDataStepOf]) 보낸 명령을 알아야 하기 때문이다.
+ * 이름은 서버에 보내는 명령 이름과 같다.
+ * @param step 이 명령이 하는 원격 작업 단계(실패 원인에 담는다)
+ */
+internal enum class FtpDataCommand(val step: RemoteStep) {
+    LIST(RemoteStep.LIST_FOLDER),
+    MLSD(RemoteStep.LIST_FOLDER),
+    RETR(RemoteStep.DOWNLOAD),
+    STOR(RemoteStep.UPLOAD),
 }
 
 /**
@@ -60,14 +72,24 @@ internal object FtpReplyRules {
         IoResult.ItemFailed(FailureReason.ServerRefused(command.step, reply.trim(), mayHaveHiddenEntries(command)))
 
     /**
-     * 데이터 연결을 쓰는 명령이 데이터 연결을 열기 전에 거부된 것([DataCommandOutcome.Refused])을 이 항목만의 실패로 만든다.
-     * 거부된 명령은 보낸 데이터 명령(LIST·RETR 등)이 아니라 그 앞의 준비 명령(PASV·EPSV·REST)일 수 있으므로, 실제로 거부된 명령의 이름을 받는다.
-     * @param refusedCommand 서버가 거부한 명령 이름([FtpCommandClient.lastSentCommand])
+     * 데이터 연결을 쓰는 명령의 거부(데이터 연결을 열기 전의 거부 [DataCommandOutcome.Refused], 목록 조회의 거부 완료 응답)를 이 항목만의 실패로 만든다.
+     * @param step 거부된 단계. 데이터 연결을 열기 전의 거부면 [refusedDataStepOf]로 정한 단계다
      * @param reply 서버가 보낸 거부 응답 문자열
      * @return 거부된 단계와 서버 응답을 원인으로 담은 실패
      */
-    fun dataCommandRefusal(refusedCommand: String, reply: String): IoResult.ItemFailed =
-        IoResult.ItemFailed(FailureReason.ServerRefused(dataCommandStepOf(refusedCommand), reply.trim()))
+    fun dataCommandRefusal(step: RemoteStep, reply: String): IoResult.ItemFailed =
+        IoResult.ItemFailed(FailureReason.ServerRefused(step, reply.trim()))
+
+    /**
+     * 데이터 연결을 열기 전의 거부가 어느 단계의 거부인지 정한다.
+     * 데이터 연결을 여는 동안 보내는 명령은 준비 명령(PASV·EPSV·REST)과 데이터 명령 자신뿐이므로(commons-net `FTPClient._openDataConnection_`),
+     * 거부된 명령이 [command]가 아니면 준비 명령이 거부된 것이다.
+     * @param command 실행한 데이터 명령
+     * @param refusedCommand 서버가 거부한 명령 이름([FtpCommandClient.lastSentCommand])
+     * @return 데이터 명령이 거부됐으면 그 명령의 단계, 준비 명령이 거부됐으면 데이터 연결 준비
+     */
+    fun refusedDataStepOf(command: FtpDataCommand, refusedCommand: String): RemoteStep =
+        if (refusedCommand.equals(command.name, ignoreCase = true)) command.step else RemoteStep.PREPARE_TRANSFER
 
     /**
      * 데이터를 다 주고받았지만 서버가 완료를 확인하지 않은 전송을 이 항목만의 실패로 만든다.
@@ -111,18 +133,6 @@ internal object FtpReplyRules {
      */
     private fun mayHaveHiddenEntries(command: FtpCommand): Boolean = when (command) {
         FtpCommand.RMD -> true
-        FtpCommand.CWD, FtpCommand.LIST, FtpCommand.MLSD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD -> false
-    }
-
-    /**
-     * 데이터 연결을 쓰는 명령 중 서버가 거부한 명령을 원격 작업 단계로 바꾼다. 데이터 명령이 아니면 그 앞의 준비 명령(PASV·EPSV·REST 등)이다.
-     * @param command 서버가 거부한 명령 이름
-     * @return 거부된 단계
-     */
-    private fun dataCommandStepOf(command: String): RemoteStep = when (command.uppercase()) {
-        "LIST", "MLSD" -> RemoteStep.LIST_FOLDER
-        "RETR" -> RemoteStep.DOWNLOAD
-        "STOR" -> RemoteStep.UPLOAD
-        else -> RemoteStep.PREPARE_TRANSFER
+        FtpCommand.CWD, FtpCommand.RENAME, FtpCommand.DELE, FtpCommand.MKD -> false
     }
 }

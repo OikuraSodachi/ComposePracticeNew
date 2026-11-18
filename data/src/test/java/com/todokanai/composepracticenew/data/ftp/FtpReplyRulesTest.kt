@@ -23,6 +23,20 @@ class FtpReplyRulesTest {
     }
 
     @Test
+    fun `데이터 연결을 열기 전에 데이터 명령 자신이 거부됐으면 그 명령의 단계다`() {
+        FtpDataCommand.entries.forEach { command ->
+            assertEquals(command.name, command.step, FtpReplyRules.refusedDataStepOf(command, command.name))
+        }
+    }
+
+    @Test
+    fun `데이터 연결을 열기 전에 준비 명령이 거부됐으면 데이터 연결 준비 단계다`() {
+        listOf("PASV", "EPSV", "REST").forEach { refused ->
+            assertEquals(refused, RemoteStep.PREPARE_TRANSFER, FtpReplyRules.refusedDataStepOf(FtpDataCommand.RETR, refused))
+        }
+    }
+
+    @Test
     fun `완료를 확인받지 못한 전송은 다듬은 응답 문자열을 담은 실패다`() {
         assertEquals(IoResult.ItemFailed(FailureReason.TransferUnconfirmed("451 Aborted")), FtpReplyRules.unacknowledgedTransfer("451 Aborted\r\n"))
     }
