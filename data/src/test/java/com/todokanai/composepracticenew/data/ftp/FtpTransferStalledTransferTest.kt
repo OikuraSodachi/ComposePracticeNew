@@ -18,12 +18,12 @@ import java.nio.file.Files
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * 데이터 연결에서 서버가 멈추면 [FtpTransferrer]가 끝없이 기다리지 않고 [FtpSession]의 I/O 상한에 그 항목만 실패로 끝내며,
+ * 데이터 연결에서 서버가 멈추면 [FtpDownloader]·[FtpUploader]가 끝없이 기다리지 않고 [FtpSession]의 I/O 상한에 그 항목만 실패로 끝내며,
  * 서버가 완료 응답을 보내면 세션을 유지하는지 검증하는 통합 테스트(#224).
  * 업로드를 중단하면 서버가 잘린 파일을 다 받은 것으로 보지 않도록, 데이터 연결을 파일 끝(정상 닫기)이 아니라 리셋으로 끝내는지도 검증한다.
  * 실제 commons-net FTPClient로 로컬 소켓의 정해진 응답 서버에 수동(PASV) 모드로 접속한다.
  */
-class FtpTransferrerStalledTransferTest {
+class FtpTransferStalledTransferTest {
 
     /** 받거나 올릴 파일을 둘 로컬 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-stalled-transfer-test").toFile()
@@ -54,7 +54,7 @@ class FtpTransferrerStalledTransferTest {
             exchange.send("426 Transfer aborted")
         })
 
-        val result = runBlocking { FtpOperationParts(session).transferrer(OperationNotices()).download(sources = listOf(DownloadSource("ftp://host/a.bin", File(dir, "a.bin").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+        val result = runBlocking { FtpOperationParts(session).downloader.download(sources = listOf(DownloadSource("ftp://host/a.bin", File(dir, "a.bin").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed("Read timed out")), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
@@ -77,7 +77,7 @@ class FtpTransferrerStalledTransferTest {
             exchange.send("426 Transfer aborted")
         })
 
-        val result = runBlocking { FtpOperationParts(session).transferrer(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))).singleItemResult() }
+        val result = runBlocking { FtpOperationParts(session).uploader(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed("Write timed out")), result)
         assertEquals(DataEnd.RESET, serverEnd.get())
@@ -98,7 +98,7 @@ class FtpTransferrerStalledTransferTest {
 
         // 첫 진행률 보고에서 실패시켜, 쓰기 상한이 아닌 실패(로컬 파일 읽기 실패 등)로 전송이 멈춘 경우를 만든다
         val result = runBlocking {
-            FtpOperationParts(session).transferrer(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { throw IOException(LOCAL_FAILURE) }.singleItemResult()
+            FtpOperationParts(session).uploader(OperationNotices()).upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { throw IOException(LOCAL_FAILURE) }.singleItemResult()
         }
 
         assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed(LOCAL_FAILURE)), result)

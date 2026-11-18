@@ -63,7 +63,7 @@ private class TreeMemoryBudget(private val limitBytes: Long) {
 }
 
 /**
- * 원격 디렉터리 아래의 트리를 모두 모은다. 폴더 다운로드([FtpTransferrer])와 재귀 삭제([FtpRemoteDeletion])가 쓴다.
+ * 원격 디렉터리 아래의 트리를 모두 모은다. 폴더 다운로드([FtpDownloader])와 재귀 삭제([FtpRemoteDeletion])가 쓴다.
  * 수집이 끝나는지를 목록의 정확성에 맡기지 않고 받은 목록의 메모리 상한으로 보장하며, 서버가 식별값을 알려주면 순환을 더 일찍 알린다.
  * @param listing 각 디렉터리의 목록을 받는 FtpListingReader
  * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree]). 0보다 커야 한다

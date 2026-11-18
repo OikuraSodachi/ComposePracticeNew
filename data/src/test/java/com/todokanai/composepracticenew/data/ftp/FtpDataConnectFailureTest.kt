@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.OperationNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -80,11 +79,11 @@ class FtpDataConnectFailureTest {
             mapOf("PASV" to { exchange -> exchange.send("227 Entering Passive Mode (127,0,0,1,${refusedPort / 256},${refusedPort % 256})") })
         ).also { server = it }
         val session = connectedSession(scripted)
-        val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+        val downloader = FtpOperationParts(session).downloader
         val localFile = File(dir, "a.txt")
 
         val result = runBlocking {
-            transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", localFile.path, false)), resolveConflict = UnexpectedConflictResolver)
+            downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", localFile.path, false)), resolveConflict = UnexpectedConflictResolver)
         }
 
         val failure = (result as IoResult.PartiallyFailed).failures.single()

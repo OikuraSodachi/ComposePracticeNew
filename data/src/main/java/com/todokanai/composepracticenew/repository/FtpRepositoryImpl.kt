@@ -43,12 +43,12 @@ class FtpRepositoryImpl @Inject internal constructor(
 
     override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
         sessions.withOperationSession(session) { parts ->
-            parts.transferrer(notices).download(items.map { DownloadSource(it.path, File(localDirPath, it.name).path, it.isDirectory) }, resolveConflict, onProgress)
+            parts.downloader.download(items.map { DownloadSource(it.path, File(localDirPath, it.name).path, it.isDirectory) }, resolveConflict, onProgress)
         }
 
     override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit) =
         sessions.withOperationSession(session) { parts ->
-            parts.transferrer(notices).upload(items.map { UploadSource(it.path, childFtpUri(remoteDirPath, it.name)) }, onProgress)
+            parts.uploader(notices).upload(items.map { UploadSource(it.path, childFtpUri(remoteDirPath, it.name)) }, onProgress)
         }
 
     override suspend fun rename(session: RemoteSession, path: String, newName: String) =

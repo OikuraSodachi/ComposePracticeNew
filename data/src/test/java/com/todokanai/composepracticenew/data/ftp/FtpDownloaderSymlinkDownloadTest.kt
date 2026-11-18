@@ -7,7 +7,6 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -22,7 +21,7 @@ import java.nio.file.Files
  * 다운로드가 로컬 목적지의 같은 이름 심볼릭 링크를 따라가지 않고, 묻지 않고 건너뛰어 실패로 알리는지 검증하는 단위 테스트(#338).
  * 링크를 만들 수 없는 환경에서는 건너뛴다.
  */
-class FtpTransferrerSymlinkDownloadTest {
+class FtpDownloaderSymlinkDownloadTest {
 
     /** 테스트의 로컬 파일을 두는 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-symlink-download-test").toFile()
@@ -37,7 +36,7 @@ class FtpTransferrerSymlinkDownloadTest {
     private val session = FtpSession(client)
 
     /** 검증 대상. */
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    private val downloader = FtpOperationParts(session).downloader
 
     @Before
     fun setUp() {
@@ -56,7 +55,7 @@ class FtpTransferrerSymlinkDownloadTest {
         val link = File(dir, "a.txt")
         assumeSymlink(link, outsideFile.absoluteFile)
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", link.path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", link.path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.UnsupportedLink()), result)
         assertEquals(emptyList<String>(), client.retrieveRequests)
@@ -70,7 +69,7 @@ class FtpTransferrerSymlinkDownloadTest {
         val localRoot = File(dir, "r").apply { mkdirs() }
         assumeSymlink(File(localRoot, "a.txt"), outsideFile.absoluteFile)
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", localRoot.path, true)), resolveConflict = ProceedingConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r", localRoot.path, true)), resolveConflict = ProceedingConflictResolver) }
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("r/a.txt", FailureReason.UnsupportedLink()))), result)
         assertEquals(listOf("/r/b.txt"), client.retrieveRequests)

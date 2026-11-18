@@ -17,7 +17,7 @@ import java.nio.file.Files
  * 데이터 스트림 요청이 4xx(일시 거부)로 거부돼도 서버가 응답한 것이므로 연결 끊김으로 보지 않고,
  * 세션을 유지한 채 그 파일만 서버 응답을 담아 실패시키며 폴더 작업은 남은 파일을 계속 진행하는지 검증하는 단위 테스트.
  */
-class FtpTransferrerTransientRefusalTest {
+class FtpTransferTransientRefusalTest {
 
     private val dir: File = Files.createTempDirectory("ftp-transient-refusal-test").toFile()
 
@@ -33,9 +33,9 @@ class FtpTransferrerTransientRefusalTest {
             ServerBehavior.Refuse(450, "450 File busy"),
             ServerBehavior.Refuse(452, "452 Insufficient storage")
         ).forEach { refusal ->
-            val (client, session, transferrer) = connectedTransferrer(refusal)
+            val (client, session, parts) = connectedParts(refusal)
 
-            val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+            val result = runBlocking { parts.downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
             assertEquals("${refusal.code}", IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.DOWNLOAD, refusal.text)), result)
             assertTrue("${refusal.code}: 세션이 유지돼야 함", runBlocking { session.isReady() })
@@ -45,10 +45,10 @@ class FtpTransferrerTransientRefusalTest {
 
     @Test
     fun `업로드 스트림이 452로 거부되면 세션을 유지하고 그 파일만 실패한다`() {
-        val (client, session, transferrer) = connectedTransferrer(ServerBehavior.Refuse(452, "452 Insufficient storage"))
+        val (client, session, parts) = connectedParts(ServerBehavior.Refuse(452, "452 Insufficient storage"))
         val local = File(dir, "a.txt").apply { writeText("A") }
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
+        val result = runBlocking { parts.uploader(OperationNotices()).upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.UPLOAD, "452 Insufficient storage")), result)
         assertTrue(runBlocking { session.isReady() })
@@ -57,10 +57,10 @@ class FtpTransferrerTransientRefusalTest {
 
     @Test
     fun `폴더 다운로드 중 425로 거부돼도 연결 끊김으로 멈추지 않고 모든 파일을 시도한 뒤 실패를 모은다`() {
-        val (client, session, transferrer) = connectedTransferrer(ServerBehavior.Refuse(425, "425 Can't open data connection"))
+        val (client, session, parts) = connectedParts(ServerBehavior.Refuse(425, "425 Can't open data connection"))
         client.remoteFiles = listOf("a.txt", "b.txt")
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { parts.downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
         assertEquals(setOf("r/a.txt", "r/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path }.toSet())
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)
@@ -70,24 +70,24 @@ class FtpTransferrerTransientRefusalTest {
 
     @Test
     fun `폴더 다운로드에서 LIST가 450으로 거부되면 빈 폴더로 성공하지 않고 실패한다`() {
-        val (client, session, transferrer) = connectedTransferrer(ServerBehavior.Refuse(550, "550 Permission denied"))
+        val (client, session, parts) = connectedParts(ServerBehavior.Refuse(550, "550 Permission denied"))
         client.streamContent = "data".toByteArray()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 File busy"))
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+        val result = runBlocking { parts.downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.LIST_FOLDER, "450 File busy")), result)
         assertTrue(runBlocking { session.isReady() })
     }
 
     /**
-     * 데이터 스트림 요청을 [refusal] 응답으로 거부하는 가짜 클라이언트에 로그인된 세션과 전송기를 만든다.
+     * 데이터 스트림 요청을 [refusal] 응답으로 거부하는 가짜 클라이언트에 로그인된 세션과 FTP 명령 부품을 만든다.
      * @param refusal 스트림 거부 응답
-     * @return 가짜 클라이언트, 세션, 전송기
+     * @return 가짜 클라이언트, 세션, FTP 명령 부품
      */
-    private fun connectedTransferrer(refusal: ServerBehavior.Refuse): Triple<FakeFtpClient, FtpSession, FtpTransferrer> {
+    private fun connectedParts(refusal: ServerBehavior.Refuse): Triple<FakeFtpClient, FtpSession, FtpOperationParts<*>> {
         val client = FakeFtpClient().apply { streamRefusal = refusal }
         val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
-        return Triple(client, session, FtpOperationParts(session).transferrer(OperationNotices()))
+        return Triple(client, session, FtpOperationParts(session))
     }
 }

@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
-import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -12,16 +11,16 @@ import java.io.File
 import java.nio.file.Files
 
 /**
- * 데이터 스트림을 열지 못했을 때 [FtpTransferrer]가 기다릴 응답이 없는 completePendingCommand를 호출하지 않고 바로 실패를 알리는지 검증하는 단위 테스트.
+ * 데이터 스트림을 열지 못했을 때 [FtpDownloader]가 기다릴 응답이 없는 completePendingCommand를 호출하지 않고 바로 실패를 알리는지 검증하는 단위 테스트.
  * 실제 FTPClient라면 그 호출이 soTimeout까지 세션 잠금을 쥔 채 멈추므로, 가짜 클라이언트로 호출 여부를 기록한다.
  * 파일 하나의 스트림 거부는 [FtpCommandContractTest]가, 이 테스트는 폴더 전송을 검증한다.
  */
-class FtpTransferrerStreamOpenFailureTest {
+class FtpDownloaderStreamOpenFailureTest {
 
     private val dir: File = Files.createTempDirectory("ftp-transfer-test").toFile()
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    private val downloader = FtpOperationParts(session).downloader
 
     @After
     fun tearDown() {
@@ -33,7 +32,7 @@ class FtpTransferrerStreamOpenFailureTest {
         runBlocking { session.markLoggedIn(home = null) }
         client.remoteFiles = listOf("a.txt", "b.txt")
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
         assertEquals(listOf("r/a.txt", "r/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)

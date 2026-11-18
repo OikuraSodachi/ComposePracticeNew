@@ -5,7 +5,6 @@ import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.OperationNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -74,9 +73,9 @@ class FtpDataCommandRefusalTest {
      */
     private fun downloadFailureReason(scripted: ScriptedFtpServer): FailureReason? {
         val session = connectedSession(scripted)
-        val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+        val downloader = FtpOperationParts(session).downloader
         val result = runBlocking {
-            transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver)
+            downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver)
         }
         assertTrue("세션이 유지돼야 함", runBlocking { session.isReady() })
         return (result as IoResult.PartiallyFailed).failures.single().reason

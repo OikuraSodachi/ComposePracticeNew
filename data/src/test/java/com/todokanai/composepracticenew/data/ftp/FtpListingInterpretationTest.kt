@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.FtpFileSystem
-import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -119,7 +118,7 @@ class FtpListingInterpretationTest {
         client.streamContent = "abc".toByteArray()
 
         val result = runBlocking {
-            commands.transferrer(OperationNotices())
+            commands.downloader
                 .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), UnexpectedConflictResolver)
         }
 
@@ -172,7 +171,7 @@ class FtpListingInterpretationTest {
         client.mlsdListings = mapOf("/r" to listOf("type=dir; sub"), "/r/sub" to listOf(UNPARSEABLE_SIZE))
 
         val result = runBlocking {
-            commands.transferrer(OperationNotices())
+            commands.downloader
                 .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), WriteConflictResolver { conflict ->
                     // 받을 폴더 r은 합치고, 그 안의 sub만 건너뛴다
                     if (conflict.name == "sub") ConflictChoice.SKIP else ConflictChoice.PROCEED

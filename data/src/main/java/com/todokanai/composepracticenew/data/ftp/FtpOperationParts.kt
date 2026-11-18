@@ -17,7 +17,7 @@ internal class FtpOperationParts<S>(private val session: S, treeMemoryLimitBytes
     /** 성공 여부를 반환하는 명령과 대상 밖 이동을 실행하는 부품. */
     private val runner = FtpCommandRunner(session)
 
-    /** 이름 변경·폴더 생성·폴더 확인을 실행하는 부품. 전송이 쓴다. */
+    /** 이름 변경·폴더 생성·폴더 확인을 실행하는 부품. 업로드가 쓴다. */
     val executor = FtpCommandExecutor(session, runner)
 
     /** 원격 트리를 모으는 부품. */
@@ -26,11 +26,14 @@ internal class FtpOperationParts<S>(private val session: S, treeMemoryLimitBytes
     /** 고른 원격 항목을 지우는 부품. */
     val deletion = FtpRemoteDeletion(trees, runner)
 
+    /** 원격 항목을 로컬로 받는 부품. */
+    val downloader = FtpDownloader(session, trees, DataCommandRunner(session))
+
     /**
-     * 이 부품들로 전송기를 만든다.
+     * 이 부품들로 업로드 부품을 만든다.
      * @param notices 취소한 업로드의 정리 실패를 받을 알림함
-     * @return 이 부품들의 화면 명령·트리 수집을 쓰는 전송기
+     * @return 이 부품들의 폴더 생성을 쓰는 업로드 부품
      */
-    fun transferrer(notices: OperationNoticeReporter): FtpTransferrer =
-        FtpTransferrer(session, executor, trees, DataCommandRunner(session), notices)
+    fun uploader(notices: OperationNoticeReporter): FtpUploader =
+        FtpUploader(session, executor, DataCommandRunner(session), notices)
 }

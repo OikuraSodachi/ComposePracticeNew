@@ -37,8 +37,10 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     private val session = FtpSession(client)
     /** 검증 대상 파일 명령 실행기. */
     private val parts = FtpOperationParts(session)
-    /** 검증 대상 전송기. */
-    private val transferrer = parts.transferrer(OperationNotices())
+    /** 검증 대상 다운로더. */
+    private val downloader = parts.downloader
+    /** 검증 대상 업로더. */
+    private val uploader = parts.uploader(OperationNotices())
 
     @After
     fun tearDown() {
@@ -50,7 +52,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
         command.prepare(client)
         behavior.serverBehavior?.let { client.serverBehaviors = mapOf(command.ftpName to it) }
         if (behavior != BehaviorColumn.NOT_CONNECTED) runBlocking { session.markLoggedIn(home = null) }
-        val run = suspend { command.run(Fixture(parts, transferrer, dir)) }
+        val run = suspend { command.run(Fixture(parts, downloader, uploader, dir)) }
 
         when (expectedOutcome(command, behavior)) {
             Outcome.ITEM_FAILED -> {
@@ -95,10 +97,11 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /**
      * 명령 행이 실행에 쓰는 대상.
      * @param parts FTP 명령 부품(화면 명령·트리 수집·삭제)
-     * @param transferrer FTP 전송기
+     * @param downloader FTP 다운로더
+     * @param uploader FTP 업로더
      * @param dir 전송에 쓸 로컬 임시 디렉터리
      */
-    internal class Fixture(val parts: FtpOperationParts<*>, val transferrer: FtpTransferrer, val dir: File)
+    internal class Fixture(val parts: FtpOperationParts<*>, val downloader: FtpDownloader, val uploader: FtpUploader, val dir: File)
 
     /**
      * 행렬의 명령 행.
@@ -163,14 +166,14 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
             },
             // 크기 조회는 진행률에만 쓰므로, 거부되면 크기를 모르는 채로 전송을 이어 간다
             CommandRow("MLST", refused = Outcome.CONTINUES, prepare = { it.streamContent = "data".toByteArray() }) {
-                it.transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
+                it.downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
             },
             CommandRow("RETR", step = RemoteStep.DOWNLOAD, prepare = { it.streamContent = "data".toByteArray() }) {
-                it.transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
+                it.downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(it.dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult()
             },
             CommandRow("STOR", step = RemoteStep.UPLOAD, prepare = { it.streamContent = "data".toByteArray() }) {
                 val local = File(it.dir, "a.txt").apply { writeText("A") }
-                it.transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult()
+                it.uploader.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult()
             },
         )
 

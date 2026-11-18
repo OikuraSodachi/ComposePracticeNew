@@ -18,11 +18,11 @@ import java.net.SocketTimeoutException
 import java.nio.file.Files
 
 /**
- * 업로드가 취소되면 [FtpTransferrer]가 완료 응답을 읽은 뒤 서버에 남았을 수 있는 받다 만 파일을 DELE로 지우고,
+ * 업로드가 취소되면 [FtpUploader]가 완료 응답을 읽은 뒤 서버에 남았을 수 있는 받다 만 파일을 DELE로 지우고,
  * 지우지 못하면 이유(거부 응답, 세션 종료)와 함께 남았을 수 있다고 알리며, 세션이 이미 끝났으면 지우기를 보내지 않고, 취소는 결과로 바꾸지 않고 전파하는지 검증하는 단위 테스트(#236).
  * 취소는 오케스트레이터처럼 진행 보고 콜백이 CancellationException을 던지는 것으로 흉내 낸다.
  */
-class FtpTransferrerCancelledUploadTest {
+class FtpUploaderCancelledUploadTest {
 
     /** 올릴 파일을 둘 로컬 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-cancelled-upload-test").toFile()
@@ -34,8 +34,8 @@ class FtpTransferrerCancelledUploadTest {
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
     /** 넣은 실패 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingNotices()
-    /** 검증 대상 전송기. */
-    private val transferrer = FtpOperationParts(session).transferrer(notices)
+    /** 검증 대상 업로더. */
+    private val uploader = FtpOperationParts(session).uploader(notices)
 
     @After
     fun tearDown() {
@@ -95,7 +95,7 @@ class FtpTransferrerCancelledUploadTest {
 
     /** [localFile]을 올리다 첫 진행 보고에서 취소한다. */
     private suspend fun uploadCancelledMidway() =
-        transferrer.upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { state: ProgressState ->
+        uploader.upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { state: ProgressState ->
             if ((state.writtenBytes ?: 0) > 0) throw CancellationException("취소")
         }
 

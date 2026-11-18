@@ -18,7 +18,7 @@ import java.nio.file.Files
  * 업로드가 심볼릭 링크를 따라가지 않고 건너뛰어 실패로 알리는지 검증하는 단위 테스트(#320).
  * 링크를 만들 수 없는 환경에서는 건너뛴다.
  */
-class FtpTransferrerSymlinkUploadTest {
+class FtpUploaderSymlinkUploadTest {
 
     /** 테스트의 로컬 파일을 두는 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-symlink-upload-test").toFile()
@@ -33,7 +33,7 @@ class FtpTransferrerSymlinkUploadTest {
     private val session = FtpSession(client)
 
     /** 검증 대상. */
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    private val uploader = FtpOperationParts(session).uploader(OperationNotices())
 
     @Before
     fun setUp() {
@@ -52,7 +52,7 @@ class FtpTransferrerSymlinkUploadTest {
         val link = File(dir, "link")
         assumeSymlink(link, File(source, "a.txt").absoluteFile)
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(link.path, "ftp://host/r/link"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(link.path, "ftp://host/r/link"))).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.UnsupportedLink()), result)
         assertEquals(emptyList<String>(), client.storeRequests)
@@ -62,7 +62,7 @@ class FtpTransferrerSymlinkUploadTest {
     fun `폴더 안의 순환 링크는 따라가지 않고 나머지만 올린 뒤 실패로 알린다`() {
         assumeSymlink(File(source, "loop"), source)
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(source.path, "ftp://host/r"))) }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(source.path, "ftp://host/r"))) }
 
         // 폴더 안쪽 실패는 바깥 묶음이 올린 항목 이름 아래로 옮긴다
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("${source.name}/loop", FailureReason.UnsupportedLink()))), result)

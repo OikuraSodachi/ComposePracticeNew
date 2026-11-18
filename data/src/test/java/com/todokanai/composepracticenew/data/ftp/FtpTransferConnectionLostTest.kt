@@ -15,15 +15,18 @@ import java.io.File
 import java.nio.file.Files
 
 /**
- * 전송 완료 확인이나 크기 조회 중 연결이 끊기면(EOF·421) [FtpTransferrer]가 이를 일반 실패가 아닌 연결 끊김으로 알리고,
+ * 전송 완료 확인이나 크기 조회 중 연결이 끊기면(EOF·421) [FtpDownloader]·[FtpUploader]가 이를 일반 실패가 아닌 연결 끊김으로 알리고,
  * 세션을 끊김 상태로 바꾸며, 폴더 전송의 남은 파일을 시도하지 않는지 검증하는 단위 테스트.
  */
-class FtpTransferrerConnectionLostTest {
+class FtpTransferConnectionLostTest {
 
     private val dir: File = Files.createTempDirectory("ftp-connection-lost-test").toFile()
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     private val session = FtpSession(client)
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    /** 검증 대상 다운로더. */
+    private val downloader = FtpOperationParts(session).downloader
+    /** 검증 대상 업로더. */
+    private val uploader = FtpOperationParts(session).uploader(OperationNotices())
 
     @After
     fun tearDown() {
@@ -35,7 +38,7 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onCompletePending = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertFalse(runBlocking { session.isReady() })
@@ -47,7 +50,7 @@ class FtpTransferrerConnectionLostTest {
         client.onCompletePending = { throw FTPConnectionClosedException("FTP response 421 received.  Server closed connection.") }
         val local = File(dir, "a.txt").apply { writeText("A") }
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertFalse(runBlocking { session.isReady() })
@@ -59,7 +62,7 @@ class FtpTransferrerConnectionLostTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onCompletePending = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
@@ -80,7 +83,7 @@ class FtpTransferrerConnectionLostTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpOperationParts(session).let { parts -> FtpTransferrer(counting, parts.executor, parts.trees, DataCommandRunner(session), OperationNotices()) }
+        val observed = FtpOperationParts(session).let { parts -> FtpUploader(counting, parts.executor, DataCommandRunner(session), OperationNotices()) }
 
         val result = runBlocking { observed.upload(listOf(UploadSource(first.path, "ftp://host/r/a.txt"), UploadSource(second.path, "ftp://host/r/b.txt"))) }
 
@@ -93,7 +96,7 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onMlst = { throw FTPConnectionClosedException("Connection closed without indication.") }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
@@ -105,7 +108,7 @@ class FtpTransferrerConnectionLostTest {
         loggedIn()
         client.onCompletePending = { false }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertTrue("$result", (result as IoResult.ItemFailed).reason is FailureReason.TransferUnconfirmed)
         assertTrue(runBlocking { session.isReady() })

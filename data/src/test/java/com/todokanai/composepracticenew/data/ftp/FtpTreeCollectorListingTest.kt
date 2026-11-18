@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.data.progress.PreparationProgressReporte
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
-import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -213,7 +212,7 @@ class FtpTreeCollectorListingTest {
         try {
             val target = File(dir, "r")
 
-            val result = runBlocking { commands.transferrer(OperationNotices()).download(sources = listOf(DownloadSource("ftp://host/r", target.path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+            val result = runBlocking { commands.downloader.download(sources = listOf(DownloadSource("ftp://host/r", target.path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
             assertEquals(IoResult.ItemFailed(FailureReason.FolderCycle("/r/a/loop")), result)
             assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
