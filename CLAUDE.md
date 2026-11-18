@@ -32,7 +32,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 
 `navigate(path)` is the canonical way to navigate — it sets `currentPath` (and thus `dirTree`) and a new `ListingRequest`; `directoryListing` follows asynchronously as the result of that request.
 
-읽을 수 없는 경로로의 이동은 현재 경로를 바꾸지 않고 `NavigateResult.Rejected`를 돌려주며, 거부는 탐색 저장소(`FileExplorerRepositoryImpl`)가 `OperationNoticeReporter`로 직접 알린다(#279) — 부르는 곳마다 거부를 확인하지 않아도 알림이 빠지지 않도록. 부르는 곳은 알리지 않고, 이동 뒤에 할 일(저장소 화면에서 목록으로 넘어가기, 검색 닫기)이 있을 때만 `Navigated`인지 본다. 거부할 때마다 알린다 — 같은 거부를 여러 번 하면 알림도 그 수만큼 차례로 보인다(알림함은 같은 내용을 합치지 않는다). 로컬 경로의 부모는 저장소 볼륨 루트에서 끝난다(`LocalPathAwareFileSystem.getParent`) — 볼륨 위 폴더는 앱이 읽을 수 없으므로, 경로 표시줄은 볼륨 루트부터 보이고 볼륨 루트에서 뒤로가기는 아무것도 하지 않는다(의도된 동작, #90 — 뒤로가기로 로컬 목록을 나가지 않는다).
+읽을 수 없는 경로로의 이동은 현재 경로를 바꾸지 않고 `NavigateResult.Rejected`를 돌려주며, 거부는 탐색 저장소(`FileExplorerRepositoryImpl`)가 `OperationNoticeReporter`로 직접 알린다(#279) — 부르는 곳마다 거부를 확인하지 않아도 알림이 빠지지 않도록. 부르는 곳은 알리지 않고, 이동 뒤에 할 일(저장소 화면에서 목록으로 넘어가기, 검색 닫기)이 있을 때만 `Navigated`인지 본다. 거부할 때마다 알린다 — 같은 거부를 여러 번 하면 알림도 그 수만큼 차례로 보인다(알림함은 같은 내용을 합치지 않는다). 로컬 경로의 부모는 저장소 볼륨 루트에서 끝난다(`LocalFileSystem.getParent`) — 볼륨 위 폴더는 앱이 읽을 수 없으므로, 경로 표시줄은 볼륨 루트부터 보이고 볼륨 루트에서 뒤로가기는 아무것도 하지 않는다(의도된 동작, #90 — 뒤로가기로 로컬 목록을 나가지 않는다).
 
 `directoryListing` is a `DirectoryListing` state (`NoPath` / `Loading` / `Loaded` / `Failed`), never a bare list: a listing failure must not appear as an empty directory.
 
@@ -111,8 +111,8 @@ Top-level `_td`-suffixed functions are pure/standalone helpers: 로컬 파일 �
 
 - domain 모듈의 Repository 인터페이스와 UseCase는 로컬 파일시스템뿐 아니라 NAS 등 원격 스토리지도 구현체로 교체할 수 있도록 Android/로컬 I/O에 직접 의존하지 않는다.
 - 파일 경로는 `String` (절대 경로 또는 URI 문자열)으로 추상화하여 원격 경로도 동일하게 표현할 수 있도록 한다.
-- domain과 app은 경로를 합성·분해하지 않는다(구분자를 가정하지 않는다). 저장소 계약은 목적지를 "디렉터리 + 이름"으로 받아 경로를 구현이 만들고, 항목 이름은 목록이 준 `FileHolderItem.name`을, 부모·표시 이름은 `StoragePathRules.getParentPath` / `displayNameOf`(탐색 상태와 분리된 경로 규칙, 구현은 저장소별 `PathAwareFileSystem`)를 쓴다. 예외는 실패 메시지용 표시 경로(`FailedItem.path`)뿐이다.
-- 사용자가 입력한 이름의 규칙은 둘로 나뉜다: 앱이 모든 저장소에 강제하는 공통 규칙은 `FileNameUseCase`, 저장소의 파일 시스템이 정하는 제약(길이 한도 등)은 이름이 놓일 위치로 고르는 `StorageNameRules`(구현 `FileSystemNameRules` → 경로별 `PathAwareFileSystem.nameViolationsOf`, 로컬·원격 화면별 바인딩)가 판정한다. 위치는 새 항목이면 만들 폴더, 이름 변경이면 그 항목 자신이다.
+- domain과 app은 경로를 합성·분해하지 않는다(구분자를 가정하지 않는다). 저장소 계약은 목적지를 "디렉터리 + 이름"으로 받아 경로를 구현이 만들고, 항목 이름은 목록이 준 `FileHolderItem.name`을, 부모·표시 이름은 `StoragePathRules.getParentPath` / `displayNameOf`(탐색 상태와 분리된 경로 규칙, 구현은 저장소별 `PathRuleFileSystem`)를 쓴다. 예외는 실패 메시지용 표시 경로(`FailedItem.path`)뿐이다.
+- 사용자가 입력한 이름의 규칙은 둘로 나뉜다: 앱이 모든 저장소에 강제하는 공통 규칙은 `FileNameUseCase`, 저장소의 파일 시스템이 정하는 제약(길이 한도 등)은 이름이 놓일 위치로 고르는 `StorageNameRules`(구현 `FileSystemNameRules` → 경로별 `NameRuleFileSystem.nameViolationsOf`, 로컬·원격 화면별 바인딩)가 판정한다. 위치는 새 항목이면 만들 폴더, 이름 변경이면 그 항목 자신이다.
 - 원격 스토리지 구현체는 data 모듈에 별도 클래스로 작성하고, Hilt 바인딩만 교체하여 전환 가능하게 유지한다.
 - 저장된 원격 서버는 `RemoteStorageItem.settings`(sealed `RemoteProtocolSettings`)로 프로토콜과 그 프로토콜의 설정을 함께 갖는다. 프로토콜을 추가하면 exhaustive `when`이 처리할 곳을 컴파일 오류로 알려 준다. 여러 프로토콜의 동시 지원은 범위 밖이며, 두 번째 프로토콜을 구현할 때 저장 항목의 프로토콜로 구현을 고르는 라우터를 함께 추가한다.
 

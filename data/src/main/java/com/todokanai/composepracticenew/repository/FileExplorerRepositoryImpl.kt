@@ -11,14 +11,15 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 주입된 PathAwareFileSystem 집합이 다루는 경로를 탐색하는 FileNavigatorRepository 구현체.
+ * 주입된 NavigableFileSystem 집합이 다루는 경로를 탐색하는 FileNavigatorRepository 구현체.
  * 경로 종류별 처리는 파일 시스템에 위임하므로, 화면마다 다루는 스토리지는 넘기는 집합으로 정하고
  * 새 스토리지 타입은 이 클래스 수정 없이 DI 등록만으로 추가된다. 서버 연결은 다루지 않는다.
  * @param converter 파일 목록을 정렬·도메인 모델로 변환하는 DataConverter
  * @param sortPreference 정렬 기준 Flow를 제공하는 SortPreferenceRepository
  * @param appScope 파일 탐색 Flow를 공유할 애플리케이션 수명 CoroutineScope
  * @param started 목록 Flow를 공유하기 시작하고 멈추는 정책
- * @param fileSystems 이 저장소가 다루는 경로 종류별 PathAwareFileSystem 집합 — 각 handles()는 서로 배타적이다
+ * @param fileSystems 이 저장소가 다루는 경로 종류별 NavigableFileSystem 집합 — 각 handles()는 서로 배타적이다
+ * @param pathRules 거부한 이동을 알릴 때 경로의 표시 이름을 구하는 같은 화면의 StoragePathRules
  * @param notices 거부한 이동을 알리는 OperationNoticeReporter — 부르는 곳마다 결과를 확인하지 않아도 거부가 알려지도록 여기서 직접 알린다
  * @param initialPath 초기 탐색 경로; null이면 설정하지 않는다
  */
@@ -27,7 +28,8 @@ class FileExplorerRepositoryImpl(
     sortPreference: SortPreferenceRepository,
     appScope: CoroutineScope,
     started: SharingStarted,
-    fileSystems: Set<PathAwareFileSystem>,
+    fileSystems: Set<NavigableFileSystem>,
+    private val pathRules: StoragePathRules,
     private val notices: OperationNoticeReporter,
     initialPath: String? = null
 ) : FileNavigatorRepository {
@@ -51,7 +53,7 @@ class FileExplorerRepositoryImpl(
         val fileSystem = router.resolve(path)
         val resolved = fileSystem?.resolveNavigationPath(path)
         if (resolved == null) {
-            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.FolderUnreadable(fileSystem?.displayName(path) ?: path))
+            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.FolderUnreadable(pathRules.displayNameOf(path)))
             return NavigateResult.Rejected
         }
         navigation.navigateTo(resolved)

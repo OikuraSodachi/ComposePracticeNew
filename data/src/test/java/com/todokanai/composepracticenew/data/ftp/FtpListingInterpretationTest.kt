@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.FtpPathAwareFileSystem
+import com.todokanai.composepracticenew.repository.FtpFileSystem
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
@@ -61,7 +61,7 @@ class FtpListingInterpretationTest {
         // 숫자가 아닌 size는 commons-net 해석기가 예외를 던지는 줄이고, 공백이 없는 줄은 해석기가 null을 돌려주는 줄이다
         client.mlsdListings = mapOf("/r" to listOf(UNPARSEABLE_SIZE, "garbage", "type=file;size=3; a.txt", PROFTPD_LINK))
 
-        val result = runBlocking { FtpPathAwareFileSystem(managerConnectedWith(client)).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpFileSystem(managerConnectedWith(client)).listFiles("ftp://host/r") }
 
         assertEquals(listOf("a.txt"), (result as IoResult.Success).value.entries.map { it.name })
         assertEquals("빠진 줄 수를 목록 상태로 표시하고 이름 충돌 판정에서 빼도록 돌려줘야 함", 3, result.value.unreadableCount)
@@ -86,7 +86,7 @@ class FtpListingInterpretationTest {
     fun `해석하지 못한 줄이 없으면 화면 목록의 뺀 줄 수는 0이다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 
-        val result = runBlocking { FtpPathAwareFileSystem(managerConnectedWith(client)).listFiles("ftp://host/r") }
+        val result = runBlocking { FtpFileSystem(managerConnectedWith(client)).listFiles("ftp://host/r") }
 
         assertEquals(0, (result as IoResult.Success).value.unreadableCount)
     }

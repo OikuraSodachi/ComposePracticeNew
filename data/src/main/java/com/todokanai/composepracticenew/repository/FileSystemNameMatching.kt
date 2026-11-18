@@ -1,10 +1,10 @@
 package com.todokanai.composepracticenew.repository
 
 /**
- * 주입된 PathAwareFileSystem 집합에서 이름이 놓인 위치를 처리하는 파일 시스템의 비교 규칙으로 이름의 비교 값을 구하는 StorageNameMatching 구현체.
- * @param fileSystems 이 규칙이 다루는 경로 종류별 PathAwareFileSystem 집합 — 각 handles()는 서로 배타적이다
+ * 주입된 NameMatchFileSystem 집합에서 이름이 놓인 위치를 처리하는 파일 시스템의 비교 규칙으로 이름의 비교 값을 구하는 StorageNameMatching 구현체.
+ * @param fileSystems 이 규칙이 다루는 경로 종류별 NameMatchFileSystem 집합 — 각 handles()는 서로 배타적이다
  */
-class FileSystemNameMatching(fileSystems: Set<PathAwareFileSystem>) : StorageNameMatching {
+class FileSystemNameMatching(fileSystems: Set<NameMatchFileSystem>) : StorageNameMatching {
 
     /** 경로별 파일 시스템을 고르는 라우터. */
     private val router = FileSystemRouter(fileSystems)

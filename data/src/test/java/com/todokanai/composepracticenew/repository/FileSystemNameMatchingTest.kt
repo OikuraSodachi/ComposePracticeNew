@@ -2,8 +2,6 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.data.ftp.unconnectedManager
 import com.todokanai.composepracticenew.datasource.LocalFileDataSource
-import com.todokanai.composepracticenew.model.FileNameError
-import com.todokanai.composepracticenew.model.IoResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -15,12 +13,12 @@ import org.junit.Test
 class FileSystemNameMatchingTest {
 
     /** 로컬 경로를 처리하는 파일 시스템. */
-    private val local = LocalPathAwareFileSystem(LocalFileDataSource(), FakeStorageVolumes())
+    private val local = LocalFileSystem(LocalFileDataSource(), FakeStorageVolumes())
     /** ftp:// 경로를 처리하는 파일 시스템. */
-    private val ftp = FtpPathAwareFileSystem(unconnectedManager())
+    private val ftp = FtpFileSystem(unconnectedManager())
 
     /** 로컬·FTP 파일 시스템과 각자 처리하는 위치. */
-    private val fileSystems = listOf(local to "/dir", ftp to "ftp://host/dir")
+    private val fileSystems = listOf<Pair<NameMatchFileSystem, String>>(local to "/dir", ftp to "ftp://host/dir")
 
     @Test
     fun `대소문자만 다른 이름은 같은 항목으로 묶는다`() {
@@ -58,7 +56,7 @@ class FileSystemNameMatchingTest {
     }
 
     /** [fileSystem]이 [location]에서 [a]와 [b]를 같은 항목으로 묶는지 확인한다. */
-    private fun assertSameEntry(fileSystem: PathAwareFileSystem, location: String, a: String, b: String) {
+    private fun assertSameEntry(fileSystem: NameMatchFileSystem, location: String, a: String, b: String) {
         assertEquals("$a / $b", fileSystem.nameMatchKeyOf(a, location), fileSystem.nameMatchKeyOf(b, location))
     }
 
@@ -66,13 +64,8 @@ class FileSystemNameMatchingTest {
      * [prefix]로 시작하는 경로만 처리하고 이름 앞에 [prefix]를 붙인 값을 비교 값으로 돌려주는 테스트용 파일 시스템. 라우팅을 확인하는 데만 쓴다.
      * @param prefix 처리할 경로의 앞부분
      */
-    private class PrefixedKeyFileSystem(private val prefix: String) : PathAwareFileSystem {
+    private class PrefixedKeyFileSystem(private val prefix: String) : NameMatchFileSystem {
         override fun handles(path: String) = path.startsWith(prefix)
-        override suspend fun listFiles(path: String): IoResult<ListedDirectory> = IoResult.ItemFailed(null)
-        override fun getParent(path: String): String? = null
-        override fun displayName(path: String) = path
-        override fun nameViolationsOf(fullName: String, location: String) = emptySet<FileNameError>()
         override fun nameMatchKeyOf(name: String, location: String) = "$prefix:$name"
-        override suspend fun resolveNavigationPath(path: String): String? = null
     }
 }
