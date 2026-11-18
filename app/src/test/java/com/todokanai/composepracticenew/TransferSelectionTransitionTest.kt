@@ -227,6 +227,35 @@ class TransferSelectionTransitionTest {
     }
 
     @Test
+    fun `작업 목적지 확인 중에도 선택이 한 항목이면 그 항목을 꺼낸다`() {
+        viewModel.startLocalMultiSelect(localA)
+        viewModel.enterLocalOperation(SelectMode.LocalOperation.Copy)
+
+        val submitted = viewModel.submitLocalItem()
+
+        assertEquals(localA, submitted?.item)
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `기본 모드에서는 꺼낼 항목이 없다`() {
+        assertNull(viewModel.submitLocalItem())
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `원격 선택이 한 항목이면 원격 화면만 기본 모드로 돌아가고 로컬 화면은 그대로다`() {
+        viewModel.startRemoteMultiSelect(remoteX)
+        viewModel.startLocalMultiSelect(localA)
+
+        val submitted = viewModel.submitRemoteItem()
+
+        assertEquals(remoteX, submitted?.item)
+        assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
+        assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
+    }
+
+    @Test
     fun `원격 세션이 이미 끊긴 뒤에 만들어도 크래시 없이 기본 모드로 시작한다`() {
         connection.connectionState.value = RemoteConnectionState.Lost
 
