@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.OperationQuestion
 import com.todokanai.composepracticenew.model.PasswordAnswer
 import com.todokanai.composepracticenew.model.PasswordQuestion
+import com.todokanai.composepracticenew.model.QuestionRequest
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
 import kotlinx.coroutines.async
@@ -30,8 +31,8 @@ class OperationQuestionsTest {
 
     @Test
     fun `맡긴 순서대로 하나씩 내보내고 답하면 다음 질문으로 넘어간다`() = runTest {
-        val firstReply = async { questions.askConflict(FileOperationType.COPY, first) }
-        val secondReply = async { questions.askConflict(FileOperationType.UNZIP, second) }
+        val firstReply = async { questions.ask(FileOperationType.COPY, QuestionRequest.Conflict(first)) }
+        val secondReply = async { questions.ask(FileOperationType.UNZIP, QuestionRequest.Conflict(second)) }
         runCurrent()
         assertEquals(first, questions.current.value.conflictOf())
 
@@ -47,8 +48,8 @@ class OperationQuestionsTest {
 
     @Test
     fun `충돌 질문과 비밀번호 질문은 종류와 무관하게 맡긴 순서대로 하나씩 나온다`() = runTest {
-        val conflictReply = async { questions.askConflict(FileOperationType.UNZIP, first) }
-        val passwordReply = async { questions.askPassword(FileOperationType.UNZIP, "a.zip", ArchivePasswordPrompt.FIRST) }
+        val conflictReply = async { questions.ask(FileOperationType.UNZIP, QuestionRequest.Conflict(first)) }
+        val passwordReply = async { questions.ask(FileOperationType.UNZIP, QuestionRequest.ArchivePassword("a.zip", ArchivePasswordPrompt.FIRST)) }
         runCurrent()
         assertEquals(first, questions.current.value.conflictOf())
 
@@ -65,7 +66,7 @@ class OperationQuestionsTest {
 
     @Test
     fun `종류가 다른 답은 질문에 닿지 않는다`() = runTest {
-        val reply = async { questions.askPassword(FileOperationType.UNZIP, "a.zip", ArchivePasswordPrompt.FIRST) }
+        val reply = async { questions.ask(FileOperationType.UNZIP, QuestionRequest.ArchivePassword("a.zip", ArchivePasswordPrompt.FIRST)) }
         runCurrent()
         val id = questions.current.value!!.id
 
@@ -79,7 +80,7 @@ class OperationQuestionsTest {
 
     @Test
     fun `답한 질문에 다시 답해도 아무것도 바뀌지 않는다`() = runTest {
-        val reply = async { questions.askConflict(FileOperationType.COPY, first) }
+        val reply = async { questions.ask(FileOperationType.COPY, QuestionRequest.Conflict(first)) }
         runCurrent()
         val id = questions.current.value!!.id
 
@@ -91,7 +92,7 @@ class OperationQuestionsTest {
 
     @Test
     fun `기다리던 작업이 취소되면 질문을 거둔다`() = runTest {
-        val reply = async { questions.askConflict(FileOperationType.COPY, first) }
+        val reply = async { questions.ask(FileOperationType.COPY, QuestionRequest.Conflict(first)) }
         runCurrent()
 
         reply.cancel()

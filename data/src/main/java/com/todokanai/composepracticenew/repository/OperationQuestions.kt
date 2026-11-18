@@ -1,13 +1,12 @@
 package com.todokanai.composepracticenew.repository
 
-import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.ConflictQuestion
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.OperationQuestion
 import com.todokanai.composepracticenew.model.PasswordAnswer
 import com.todokanai.composepracticenew.model.PasswordQuestion
-import com.todokanai.composepracticenew.model.WriteConflict
+import com.todokanai.composepracticenew.model.QuestionRequest
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,22 +34,31 @@ class OperationQuestions @Inject constructor() : OperationQuestionAsker, Operati
     private val _current = MutableStateFlow<OperationQuestion?>(null)
     override val current: StateFlow<OperationQuestion?> = _current.asStateFlow()
 
-    override suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer =
-        ask { id -> ConflictQuestion(id, operationType, conflict) }
-
-    override suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer =
-        ask { id -> PasswordQuestion(id, operationType, archiveName, prompt) }
+    override suspend fun <A : Any> ask(operationType: FileOperationType, request: QuestionRequest<A>): A =
+        submit { id -> questionOf(id, operationType, request) }
 
     override fun answerConflict(id: Long, answer: ConflictAnswer) = answer<ConflictQuestion, ConflictAnswer>(id, answer)
 
     override fun answerPassword(id: Long, answer: PasswordAnswer) = answer<PasswordQuestion, PasswordAnswer>(id, answer)
 
     /**
+     * [request]를 발급한 [id]의 질문으로 만든다.
+     * @param id 발급한 질문 id
+     * @param operationType 질문하는 작업의 종류
+     * @param request 묻는 내용
+     * @return 화면이 보고 답할 질문
+     */
+    private fun questionOf(id: Long, operationType: FileOperationType, request: QuestionRequest<*>): OperationQuestion = when (request) {
+        is QuestionRequest.Conflict -> ConflictQuestion(id, operationType, request.conflict)
+        is QuestionRequest.ArchivePassword -> PasswordQuestion(id, operationType, request.archiveName, request.prompt)
+    }
+
+    /**
      * 새 id로 만든 질문을 맡기고 답을 기다린다. 취소·시간 초과로 기다림이 끝나면 질문을 거둔다.
      * @param question 발급한 id로 질문을 만드는 함수
      * @return 사용자의 답
      */
-    private suspend fun <A> ask(question: (Long) -> OperationQuestion): A {
+    private suspend fun <A> submit(question: (Long) -> OperationQuestion): A {
         val entry = synchronized(lock) {
             Entry<A>(question(++nextId)).also { entries += it; publish() }
         }
@@ -71,7 +79,7 @@ class OperationQuestions @Inject constructor() : OperationQuestionAsker, Operati
         val entry = synchronized(lock) { entries.firstOrNull { it.question.id == id && it.question is Q } } ?: return
         // 답한 질문은 묻는 작업이 다시 이어지기 전에 빼서, 화면이 같은 질문을 다시 띄우지 않게 한다
         remove(entry)
-        // Q 질문은 언제나 그 종류의 답을 기다리는 Entry로 맡겼다(askConflict·askPassword)
+        // Q 질문은 언제나 그 종류의 답을 기다리는 Entry로 맡겼다(questionOf — 요청의 답 타입이 질문 종류를 정한다)
         @Suppress("UNCHECKED_CAST")
         (entry as Entry<A>).reply.complete(answer)
     }

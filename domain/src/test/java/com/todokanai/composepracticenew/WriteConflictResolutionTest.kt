@@ -10,6 +10,7 @@ import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.PasswordAnswer
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.QuestionKind
+import com.todokanai.composepracticenew.model.QuestionRequest
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -240,21 +241,23 @@ class WriteConflictResolutionTest {
         /** 받은 비밀번호 질문의 (압축 파일 이름, 이유)(받은 순서). */
         val askedPasswords = mutableListOf<Pair<String, ArchivePasswordPrompt>>()
 
-        override suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer {
-            asked += conflict
-            return remaining.removeFirst()
-        }
-
-        override suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer {
-            askedPasswords += archiveName to prompt
-            return remainingPasswords.removeFirst()
+        // 요청의 하위 타입이 답 타입 A를 정한다
+        @Suppress("UNCHECKED_CAST")
+        override suspend fun <A : Any> ask(operationType: FileOperationType, request: QuestionRequest<A>): A = when (request) {
+            is QuestionRequest.Conflict -> {
+                asked += request.conflict
+                remaining.removeFirst() as A
+            }
+            is QuestionRequest.ArchivePassword -> {
+                askedPasswords += request.archiveName to request.prompt
+                remainingPasswords.removeFirst() as A
+            }
         }
     }
 
     /** 답하지 않는 질문 통로. 기다림이 끝날 때(시간 초과·취소)까지 돌아오지 않는다. */
     private object NeverAnsweringAsker : OperationQuestionAsker {
-        override suspend fun askConflict(operationType: FileOperationType, conflict: WriteConflict): ConflictAnswer = awaitCancellation()
-        override suspend fun askPassword(operationType: FileOperationType, archiveName: String, prompt: ArchivePasswordPrompt): PasswordAnswer = awaitCancellation()
+        override suspend fun <A : Any> ask(operationType: FileOperationType, request: QuestionRequest<A>): A = awaitCancellation()
     }
 
     /** 진행·대기 알림을 차례로 기록하는 알림기. */

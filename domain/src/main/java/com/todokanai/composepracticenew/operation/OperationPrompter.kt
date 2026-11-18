@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.PasswordAnswer
 import com.todokanai.composepracticenew.model.QuestionKind
+import com.todokanai.composepracticenew.model.QuestionRequest
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
@@ -48,7 +49,7 @@ internal class OperationPrompter(
         remembered[conflict.kind] ?: choiceFromUser(conflict)
 
     override suspend fun passwordFor(archiveName: String, prompt: ArchivePasswordPrompt): String =
-        when (val answer = awaitAnswer(QuestionKind.ARCHIVE_PASSWORD, archiveName) { questions.askPassword(operationType, archiveName, prompt) }) {
+        when (val answer = awaitAnswer(QuestionRequest.ArchivePassword(archiveName, prompt))) {
             PasswordAnswer.Cancel -> throw CancellationException("비밀번호 질문에서 작업을 취소함")
             is PasswordAnswer.Enter -> answer.password
         }
@@ -61,7 +62,7 @@ internal class OperationPrompter(
      * @throws CancellationException 사용자가 질문에서 취소했을 때
      */
     private suspend fun choiceFromUser(conflict: WriteConflict): ConflictChoice =
-        when (val answer = awaitAnswer(QuestionKind.CONFLICT, conflict.name) { questions.askConflict(operationType, conflict) }) {
+        when (val answer = awaitAnswer(QuestionRequest.Conflict(conflict))) {
             ConflictAnswer.Cancel -> throw CancellationException("충돌 질문에서 작업을 취소함")
             is ConflictAnswer.Choose -> answer.choice.also { choice ->
                 check(choice == ConflictChoice.SKIP || conflict.kind.canProceed) { "${conflict.kind} 겹침은 건너뛰기만 할 수 있습니다" }
@@ -70,16 +71,14 @@ internal class OperationPrompter(
         }
 
     /**
-     * 알림을 답을 기다리는 상태로 바꾸고 [ask]의 답을 기다린다. 답을 받으면 진행 알림을 되돌린다.
-     * @param kind 묻는 질문의 종류
-     * @param name 질문이 가리키는 이름(답이 없어 멈출 때 알린다)
-     * @param ask 질문을 맡기고 답을 기다리는 호출
+     * 알림을 [request]의 질문 종류로 답을 기다리는 상태로 바꾸고 [request]를 질문함에 맡겨 답을 기다린다. 답을 받으면 진행 알림을 되돌린다.
+     * @param request 묻는 내용
      * @return 사용자의 답
      * @throws UnansweredQuestion [MAX_QUESTION_ANSWER_WAIT] 동안 답이 없을 때
      */
-    private suspend fun <A : Any> awaitAnswer(kind: QuestionKind, name: String, ask: suspend () -> A): A {
-        onAwaiting(kind)
-        val answer = withTimeoutOrNull(MAX_QUESTION_ANSWER_WAIT) { ask() } ?: throw UnansweredQuestion(kind, name)
+    private suspend fun <A : Any> awaitAnswer(request: QuestionRequest<A>): A {
+        onAwaiting(request.kind)
+        val answer = withTimeoutOrNull(MAX_QUESTION_ANSWER_WAIT) { questions.ask(operationType, request) } ?: throw UnansweredQuestion(request.kind, request.name)
         onAnswered()
         return answer
     }
