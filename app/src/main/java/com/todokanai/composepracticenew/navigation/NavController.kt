@@ -1,33 +1,21 @@
 package com.todokanai.composepracticenew.navigation
 
 import androidx.activity.compose.BackHandler
-import androidx.annotation.StringRes
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
-import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.UploadCheckingDialog
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
@@ -37,9 +25,6 @@ import com.todokanai.composepracticenew.compose.listview.LocalTransferActions
 import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
-import com.todokanai.composepracticenew.model.ConnectFailureAlert
-import com.todokanai.composepracticenew.model.OperationNoticeKind
-import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
@@ -72,51 +57,6 @@ fun AppNavHost(
     // mainViewModel.exit()이 서비스 중단 후 emit — View는 호스트 종료 콜백 호출만 담당
     LaunchedEffect(Unit) {
         mainViewModel.exitEvent.collect { onExitApp() }
-    }
-
-    val context = LocalContext.current
-    // 키 없음 — AppNavHost가 살아 있는 동안 하나만 둔다. 설정 실패·작업 메시지·연결 끊김·연결 실패가 한 Snackbar 대기열을 함께 써 한 번에 하나만 보이도록
-    val snackbarHostState = remember { SnackbarHostState() }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 설정 저장소의 실패를 어느 화면에 있든 알린다(정렬이 바뀌지 않거나 기본값으로 보이는 이유).
-    // 화면이 보이는 동안만 꺼내, 보이지 않는 Activity가 실패를 가져가지 않고 보이지 않는 동안의 실패는 다시 보일 때 알리도록.
-    // Toast가 아니라 Snackbar로 알린다 — showSnackbar는 사라질 때까지 돌아오지 않아, 다 보여 준 알림만 지우고 시스템 Toast 한도로 버려지는 알림이 없도록
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            mainViewModel.showPreferenceFailures { failure ->
-                snackbarHostState.showSnackbar(context.getString(preferenceFailureMessage(failure)), duration = SnackbarDuration.Long)
-            }
-        }
-    }
-
-    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 파일 작업의 실패·거부·완료를 어느 화면에 있든(저장소 화면 포함) 알린다.
-    // 화면이 보이는 동안만 꺼내, 보이지 않는 동안 끝난 작업의 메시지는 버리지 않고 다시 보일 때 알리도록. Snackbar로 알리는 이유는 위와 같다
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            mainViewModel.showOperationNotices { notice ->
-                snackbarHostState.showSnackbar(notice.message.resolve(context), duration = snackbarDurationOf(notice.kind))
-            }
-        }
-    }
-
-    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 원격 세션의 끊김을 어느 화면에 있든 알린다.
-    // 화면이 보이는 동안만 꺼내, 보이지 않는 동안 끊긴 것은 다시 보일 때 알리도록. Snackbar로 알리는 이유는 위와 같다
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            mainViewModel.showConnectionLosses {
-                snackbarHostState.showSnackbar(context.getString(R.string.notice_connection_lost), duration = SnackbarDuration.Short)
-            }
-        }
-    }
-
-    // lifecycleOwner 키 — 소유자가 바뀌면 새 소유자의 수명으로 다시 시작. 연결·재연결 실패를 어느 화면에 있든 알린다(#371).
-    // 화면이 보이는 동안만 꺼내, 실패를 받은 화면이 그사이 사라졌거나 보이지 않는 동안 실패한 것도 다시 보일 때 알리도록. Snackbar로 알리는 이유는 위와 같다
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            mainViewModel.showConnectFailures { alert ->
-                snackbarHostState.showSnackbar(context.getString(connectFailureMessage(alert)), duration = SnackbarDuration.Short)
-            }
-        }
     }
 
     // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시 현재 화면이 REMOTE_FILE_LIST가 아니면 이동한다
@@ -159,7 +99,8 @@ fun AppNavHost(
         OperationQuestionSection(operationQuestionViewModel)
     }
 
-    NoticeSnackbarHost(snackbarHostState)
+    // 화면 이동과 무관하게 하나만 둔다 — 앱 알림을 어느 화면에 있든(저장소 화면 포함) 알리도록
+    AppNoticeHost(mainViewModel::showNotices)
 
     // 화면 이동과 무관하게 하나만 둔다 — 닫음 상태는 Activity 스코프 mainViewModel이 소유
     ProgressSection(
@@ -325,48 +266,4 @@ private fun RemoteFileListDestination(
             onCancel = { coordinator.resolveUploadConflict(ConflictResolution.CANCEL) }
         )
     }
-}
-
-/**
- * 화면 하단에 앱 알림 Snackbar를 띄우는 자리. 화면 위에 겹쳐 두며, 터치는 아래 화면으로 그대로 간다.
- * @param hostState 알림을 하나씩 띄우는 Snackbar 상태
- */
-@Composable
-private fun NoticeSnackbarHost(hostState: SnackbarHostState) {
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-        SnackbarHost(hostState = hostState)
-    }
-}
-
-/**
- * 파일 작업 메시지를 보여 줄 시간을 정한다. 실패는 원인과 대상을 읽을 수 있게 길게, 완료는 확인만 하면 되므로 짧게 보인다.
- * @param kind 메시지의 종류
- * @return Snackbar를 보여 줄 시간
- */
-private fun snackbarDurationOf(kind: OperationNoticeKind): SnackbarDuration = when (kind) {
-    OperationNoticeKind.FAILURE -> SnackbarDuration.Long
-    OperationNoticeKind.COMPLETION -> SnackbarDuration.Short
-}
-
-/**
- * 설정 저장소의 실패 [failure]를 사용자에게 알릴 문구로 바꾼다.
- * @param failure 일어난 실패
- * @return 알릴 문구의 문자열 리소스 id
- */
-@StringRes
-private fun preferenceFailureMessage(failure: PreferenceFailure): Int = when (failure) {
-    PreferenceFailure.READ -> R.string.toast_preference_read_failed
-    PreferenceFailure.SAVE -> R.string.toast_preference_save_failed
-    PreferenceFailure.RESET -> R.string.toast_preference_reset
-}
-
-/**
- * 원격 연결 실패 [alert]를 사용자에게 알릴 문구로 바꾼다.
- * @param alert 일어난 연결 실패
- * @return 알릴 문구의 문자열 리소스 id
- */
-@StringRes
-private fun connectFailureMessage(alert: ConnectFailureAlert): Int = when (alert) {
-    ConnectFailureAlert.CONNECTION_FAILED -> R.string.toast_connection_failed
-    ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE -> R.string.toast_reconnect_settings_unreadable
 }
