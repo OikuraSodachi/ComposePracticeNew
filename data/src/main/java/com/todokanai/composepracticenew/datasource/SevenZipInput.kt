@@ -56,7 +56,13 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
         override var missingVolume: String? = null
             private set
 
-        override fun stream(): IInStream = RandomAccessFileInStream(fileOf(first))
+        // 다시 열 때마다 볼륨 요청 기록을 처음으로 돌린다 — 라이브러리는 첫 볼륨을 연 직후 이름을 물어 그 다음 번호부터 요청하므로,
+        // 이전 열기의 마지막 볼륨 이름이 남으면 앞 볼륨을 건너뛰고, 이전 열기에서 없던 볼륨이 이번 열기의 빠진 볼륨으로 남는다
+        override fun stream(): IInStream {
+            currentVolumeName = first.path
+            missingVolume = null
+            return RandomAccessFileInStream(fileOf(first))
+        }
 
         override fun open(name: String): IInStream? {
             val volume = File(name).let { if (it.isAbsolute) it else File(first.parentFile, name) }
@@ -68,7 +74,7 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
             return RandomAccessFileInStream(fileOf(volume))
         }
 
-        override fun close() = opened.values.forEach { it.close() }
+        override fun close() = closeAll(opened.values)
 
         /**
          * [file]을 한 번만 열어 둔다.
@@ -112,7 +118,11 @@ internal class ConcatenatedInStream(files: List<File>) : IInStream {
         try {
             files.forEach { add(RandomAccessFile(it, "r")) }
         } catch (e: IOException) {
-            forEach { it.close() }
+            try {
+                closeAll(this)
+            } catch (closeFailure: IOException) {
+                e.addSuppressed(closeFailure)
+            }
             throw e
         }
     }
@@ -159,7 +169,7 @@ internal class ConcatenatedInStream(files: List<File>) : IInStream {
         return read
     }
 
-    override fun close() = parts.forEach { it.close() }
+    override fun close() = closeAll(parts)
 
     /**
      * [offset] 위치를 담은 파일의 순번을 찾는다.
@@ -167,4 +177,20 @@ internal class ConcatenatedInStream(files: List<File>) : IInStream {
      * @return 파일 순번. 길이가 0인 파일은 건너뛴다
      */
     private fun partIndexOf(offset: Long): Int = (0 until parts.size).first { offset < starts[it + 1] }
+}
+
+/**
+ * [closeables]를 모두 닫는다. 하나를 닫지 못해도 나머지를 마저 닫는다.
+ * @throws IOException 닫지 못한 것이 있을 때. 첫 실패에 뒤의 실패를 suppressed로 붙인다
+ */
+internal fun closeAll(closeables: Iterable<Closeable>) {
+    var failure: IOException? = null
+    for (closeable in closeables) {
+        try {
+            closeable.close()
+        } catch (e: IOException) {
+            failure?.addSuppressed(e) ?: run { failure = e }
+        }
+    }
+    failure?.let { throw it }
 }
