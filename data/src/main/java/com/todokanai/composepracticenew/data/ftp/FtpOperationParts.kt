@@ -17,7 +17,7 @@ internal class FtpOperationParts<S>(private val session: S, treeMemoryLimitBytes
     /** 성공 여부를 반환하는 명령과 대상 밖 이동을 실행하는 부품. */
     private val runner = FtpCommandRunner(session)
 
-    /** 이름 변경·폴더 생성·폴더 확인을 실행하는 부품. 전송이 쓴다. */
+    /** 이름 변경·폴더 생성·폴더 확인을 실행하는 부품. 업로드가 쓴다. */
     val executor = FtpCommandExecutor(session, runner)
 
     /** 원격 트리를 모으는 부품. */
