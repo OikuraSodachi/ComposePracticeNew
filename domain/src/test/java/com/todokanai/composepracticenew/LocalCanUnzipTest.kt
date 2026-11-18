@@ -25,7 +25,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** [LocalFileOperationUseCase.canUnzip]이 저장소의 지원 형식을 따르되 폴더는 제외하는지 검증하는 단위 테스트. */
+/** [LocalFileOperationUseCase.canUnzip]이 저장소가 묶은 압축 해제 대상이 하나일 때만 허용하고 폴더는 제외하는지 검증하는 단위 테스트. */
 class LocalCanUnzipTest {
 
     private val scope = CoroutineScope(Job())
@@ -39,24 +39,39 @@ class LocalCanUnzipTest {
 
     @Test
     fun `저장소가 지원하는 형식의 파일은 풀 수 있다`() {
-        assertEquals(true, local.canUnzip(item("/d/a.zip", isDirectory = false)))
+        assertEquals(true, local.canUnzip(listOf(item("/d/a.zip", isDirectory = false))))
     }
 
     @Test
     fun `저장소가 지원하지 않는 형식은 풀 수 없다`() {
-        assertEquals(false, local.canUnzip(item("/d/a.txt", isDirectory = false)))
+        assertEquals(false, local.canUnzip(listOf(item("/d/a.txt", isDirectory = false))))
     }
 
     @Test
     fun `이름이 아카이브 형식이어도 폴더는 풀 수 없다`() {
-        assertEquals(false, local.canUnzip(item("/d/a.zip", isDirectory = true)))
+        assertEquals(false, local.canUnzip(listOf(item("/d/a.zip", isDirectory = true))))
+    }
+
+    @Test
+    fun `저장소가 압축 파일 하나로 묶는 여러 항목은 풀 수 있다`() {
+        assertEquals(true, local.canUnzip(listOf(item("/d/a.zip", isDirectory = false), item("/d/a.z01", isDirectory = false))))
+    }
+
+    @Test
+    fun `저장소가 압축 파일 여럿으로 묶는 항목은 풀 수 없다`() {
+        assertEquals(false, local.canUnzip(listOf(item("/d/a.zip", isDirectory = false), item("/d/b.zip", isDirectory = false))))
+    }
+
+    @Test
+    fun `선택이 비어 있으면 풀 수 없다`() {
+        assertEquals(false, local.canUnzip(emptyList()))
     }
 
     /** [path]의 마지막 경로 조각을 이름으로 갖는 테스트 항목을 만든다. */
     private fun item(path: String, isDirectory: Boolean) =
         FileHolderItem(path = path, isDirectory = isDirectory, name = path.substringAfterLast('/'), sizeBytes = null, lastModifiedMillis = 0L)
 
-    /** `.zip`으로 끝나는 경로만 압축 해제할 수 있다고 답하는 테스트용 저장소. 다른 작업은 쓰지 않는다. */
+    /** `.zip`으로 끝나는 경로를 압축 해제 대상으로, `.z01`로 끝나는 경로를 앞의 대상에 합치는 볼륨으로 답하는 테스트용 저장소. 다른 작업은 쓰지 않는다. */
     private object ZipOnlyRepository : FileActionRepository {
         override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) = IoResult.Done
@@ -65,7 +80,8 @@ class LocalCanUnzipTest {
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override fun canExtract(path: String) = path.endsWith(".zip")
+        override fun extractionTargetsOf(paths: Set<String>): List<String>? =
+            paths.filterNot { it.endsWith(".z01") }.takeIf { targets -> targets.all { it.endsWith(".zip") } }
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
 

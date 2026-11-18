@@ -29,9 +29,9 @@ private fun multiSelectPrimaryActions(
 
 /**
  * 다중 선택 모드의 더보기 메뉴 항목을 만든다. 압축은 압축 파일을 만들 폴더를 정할 수 있을 때, 이름 변경은 하나만 선택했을 때,
- * 압축 해제는 그 항목을 해제할 수 있을 때만 넣는다.
+ * 압축 해제는 선택 전체를 한 번에 해제할 수 있을 때(아카이브 하나, 또는 시작 볼륨과 같은 분할 압축의 다른 볼륨)만 넣는다.
  * @param selectedList 현재 선택된 파일 목록
- * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수
+ * @param canUnzip 선택 목록을 압축 해제 한 번에 풀 수 있는지 판별하는 함수
  * @param archiveFolderOf 선택 목록으로 압축 파일을 만들 폴더를 정하는 함수. 정할 수 없으면 null
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
@@ -41,7 +41,7 @@ private fun multiSelectPrimaryActions(
  */
 internal fun multiSelectMoreActions(
     selectedList: List<FileHolderItem>,
-    canUnzip: (FileHolderItem) -> Boolean,
+    canUnzip: (List<FileHolderItem>) -> Boolean,
     archiveFolderOf: (List<FileHolderItem>) -> String?,
     dialogState: BottomButtonDialogState,
     onSelectOperation: (SelectMode.LocalOperation) -> Unit,
@@ -51,9 +51,8 @@ internal fun multiSelectMoreActions(
     archiveFolderOf(selectedList)?.let { folder -> add(BottomButtonAction(R.string.btn_zip) { dialogState.openCompress(folder) }) }
     add(BottomButtonAction(R.string.btn_info, onShowInfo))
     add(BottomButtonAction(R.string.btn_upload, onUpload))
-    val single = selectedList.singleOrNull() ?: return@buildList
-    add(BottomButtonAction(R.string.btn_rename, dialogState::openRename))
-    if (canUnzip(single)) {
+    if (selectedList.size == 1) add(BottomButtonAction(R.string.btn_rename, dialogState::openRename))
+    if (canUnzip(selectedList)) {
         add(operationAction(SelectMode.LocalOperation.Unzip, onSelectOperation))
         add(operationAction(SelectMode.LocalOperation.UnzipHere, onSelectOperation))
     }
@@ -65,7 +64,7 @@ internal fun multiSelectMoreActions(
  * @param modifier 레이아웃 수정자
  * @param selectMode 현재 로컬 선택 모드
  * @param selectedList 현재 선택된 파일 목록
- * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수
+ * @param canUnzip 선택 목록을 압축 해제 한 번에 풀 수 있는지 판별하는 함수
  * @param archiveFolderOf 선택 목록으로 압축 파일을 만들 폴더를 정하는 함수. 정할 수 없으면 null이며 압축 메뉴를 두지 않는다
  * @param dialogState 다이얼로그 열기 트리거에 사용하는 상태 홀더
  * @param onConfirmOperation 로컬 작업 실행을 요청하는 콜백 — 같은 이름의 항목은 작업이 쓰는 중에 묻는다
@@ -79,7 +78,7 @@ fun ModeAwareButtons(
     modifier: Modifier,
     selectMode: LocalSelectMode,
     selectedList: List<FileHolderItem>,
-    canUnzip: (FileHolderItem) -> Boolean,
+    canUnzip: (List<FileHolderItem>) -> Boolean,
     archiveFolderOf: (List<FileHolderItem>) -> String?,
     dialogState: BottomButtonDialogState,
     onConfirmOperation: (SelectMode.LocalOperation) -> Unit,

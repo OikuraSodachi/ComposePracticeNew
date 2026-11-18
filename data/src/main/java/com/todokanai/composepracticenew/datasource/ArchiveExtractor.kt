@@ -4,19 +4,20 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 
 /**
  * 아카이브 한 형식의 크기 산정과 추출을 담당하는 전략 인터페이스.
- * 구현체는 Hilt `@IntoSet`으로 등록되며 [supports]는 형식 간 서로 배타적이어야 한다.
+ * 구현체는 Hilt `@IntoSet`으로 등록되며 [nameRoleOf]가 역할을 주는 이름은 형식 간 서로 배타적이어야 한다.
+ * 분할 압축의 [measure]·[extract]는 시작 볼륨 경로를 받아 같은 폴더의 다른 볼륨까지 읽고, 볼륨이 빠졌으면 [MissingArchiveVolumeException]으로 알린다.
  * 새 형식은 이 인터페이스 구현과 DI 등록만으로 추가된다.
  * 읽지 못하는 아카이브(손상, 이름 해석 실패, 이름 없는 항목 등)는 [measure]·[extract] 모두 IOException으로 알린다 — 호출부는 IOException만 실패 결과로 바꾸므로(localIo), 라이브러리가 입력 결함을 다른 예외로 알리면 구현체가 IOException으로 바꾼다.
  */
 interface ArchiveExtractor {
 
     /**
-     * 이 추출기가 [path]의 아카이브 형식을 처리하는지 파일 이름의 확장자로만 판별한다(대소문자 무시).
-     * 파일을 읽지 않으므로 이름과 내용이 다른 파일도 true일 수 있으며, 그런 파일은 [measure]·[extract]에서 실패로 끝난다.
-     * @param path 아카이브 파일 경로
-     * @return 처리 가능하면 true
+     * 이 추출기의 형식에서 [fileName]이 맡는 역할(단일 아카이브·시작 볼륨, 또는 다른 볼륨)을 파일 이름으로만 정한다.
+     * 파일을 읽지 않으므로 이름과 내용이 다른 파일도 역할을 받을 수 있으며, 그런 파일은 [measure]·[extract]에서 실패로 끝난다.
+     * @param fileName 파일 이름
+     * @return 역할. 이 형식의 이름이 아니면 null
      */
-    fun supports(path: String): Boolean
+    fun nameRoleOf(fileName: String): ArchiveNameRole?
 
     /**
      * 추출 전 진행률 계산에 필요한 총 바이트·파일 수를 산정한다. 아카이브가 크기를 알려주지 않는 항목은 따로 센다.

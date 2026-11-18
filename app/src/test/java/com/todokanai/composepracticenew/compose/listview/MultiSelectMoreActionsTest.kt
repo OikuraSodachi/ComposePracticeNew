@@ -18,7 +18,7 @@ class MultiSelectMoreActionsTest {
     /** 메뉴 항목이 다이얼로그를 여는 상태 홀더. */
     private val dialogState = BottomButtonDialogState()
 
-    /** [selectedList], [canUnzip], 압축 파일을 만들 폴더 [archiveFolder]로 메뉴 항목을 만든다. */
+    /** [selectedList], 선택 전체의 압축 해제 가능 여부 [canUnzip], 압축 파일을 만들 폴더 [archiveFolder]로 메뉴 항목을 만든다. */
     private fun actions(selectedList: List<FileHolderItem>, canUnzip: Boolean = false, archiveFolder: String? = "/") =
         multiSelectMoreActions(
             selectedList = selectedList,
@@ -31,11 +31,29 @@ class MultiSelectMoreActionsTest {
         )
 
     @Test
-    fun `여러 개를 선택하면 압축 정보 업로드만 보인다`() {
+    fun `한 번에 압축 해제할 수 없는 여러 개를 선택하면 압축 정보 업로드만 보인다`() {
         assertEquals(
             listOf(R.string.btn_zip, R.string.btn_info, R.string.btn_upload),
-            actions(listOf(archive, other), canUnzip = true).map { it.labelRes },
+            actions(listOf(archive, other), canUnzip = false).map { it.labelRes },
         )
+    }
+
+    @Test
+    fun `한 번에 압축 해제할 수 있는 여러 개(분할 압축의 볼륨들)를 선택하면 이름 변경 없이 압축 해제 항목이 보인다`() {
+        assertEquals(
+            listOf(R.string.btn_zip, R.string.btn_info, R.string.btn_upload, R.string.btn_unzip, R.string.btn_unzip_here),
+            actions(listOf(item("/a.part1.rar"), item("/a.part2.rar")), canUnzip = true).map { it.labelRes },
+        )
+    }
+
+    @Test
+    fun `압축 해제 판별은 선택 목록 전체로 한다`() {
+        val judged = mutableListOf<List<FileHolderItem>>()
+        val selection = listOf(item("/a.part1.rar"), item("/a.part2.rar"))
+
+        multiSelectMoreActions(selection, { judged += it; false }, { null }, dialogState, {}, {}, {})
+
+        assertEquals(listOf(selection), judged)
     }
 
     @Test

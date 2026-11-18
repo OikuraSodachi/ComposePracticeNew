@@ -93,8 +93,8 @@ class FileListViewModel @Inject constructor(
     fun validateEntryName(target: String, name: String): Set<FileNameError> =
         localFileOperationUseCase.validateEntryName(name, target)
 
-    /** [item]을 압축 해제할 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식을 따르는 UseCase가 한다. */
-    fun canUnzip(item: FileHolderItem): Boolean = localFileOperationUseCase.canUnzip(item.toDomain())
+    /** [items]를 압축 해제 한 번에 풀 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식·분할 볼륨 묶음을 따르는 UseCase가 한다. */
+    fun canUnzip(items: List<FileHolderItem>): Boolean = localFileOperationUseCase.canUnzip(items.map { it.toDomain() })
 
     /** 압축 다이얼로그가 만드는 아카이브 형식. 형식을 고르는 화면이 없으므로 ZIP 하나다. */
     private val archiveFormat = ArchiveFormat.ZIP

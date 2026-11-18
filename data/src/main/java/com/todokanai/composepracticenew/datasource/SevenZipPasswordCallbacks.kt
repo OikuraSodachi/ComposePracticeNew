@@ -4,8 +4,11 @@ import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
 import net.sf.sevenzipjbinding.IArchiveExtractCallback
 import net.sf.sevenzipjbinding.IArchiveOpenCallback
+import net.sf.sevenzipjbinding.IArchiveOpenVolumeCallback
 import net.sf.sevenzipjbinding.ICryptoGetTextPassword
+import net.sf.sevenzipjbinding.IInStream
 import net.sf.sevenzipjbinding.ISequentialOutStream
+import net.sf.sevenzipjbinding.PropID
 import net.sf.sevenzipjbinding.SevenZipException
 import java.io.IOException
 
@@ -44,9 +47,18 @@ internal class FailureRecorder {
 /**
  * 아카이브를 열 때 넘기는 콜백. 항목 목록까지 암호화한 아카이브를 열 때만 라이브러리가 비밀번호를 묻는다.
  * 줄 비밀번호가 없으면 열기를 멈추게 하고, 비밀번호를 물었다는 사실을 남겨 호출부가 비밀번호 때문에 열지 못했는지 가리게 한다.
+ * 분할 압축을 열 때 라이브러리가 묻는 다른 볼륨은 [volumes]에서 받는다. 라이브러리는 마지막으로 받은 볼륨의 이름(NAME)으로 다음 볼륨의 이름을 계산한다.
  * @param password 줄 비밀번호. 없으면 null
+ * @param volumes 다른 볼륨을 받는 통로
  */
-internal class SevenZipOpenCallback(private val password: String?) : IArchiveOpenCallback, ICryptoGetTextPassword {
+internal class SevenZipOpenCallback(
+    private val password: String?,
+    private val volumes: SevenZipVolumeSource,
+) : IArchiveOpenCallback, ICryptoGetTextPassword, IArchiveOpenVolumeCallback {
+
+    override fun getProperty(propID: PropID): Any? = if (propID == PropID.NAME) volumes.currentVolumeName else null
+
+    override fun getStream(filename: String): IInStream? = volumes.open(filename)
 
     /** 여는 중에 라이브러리가 비밀번호를 물었는지. */
     var passwordRequested = false
