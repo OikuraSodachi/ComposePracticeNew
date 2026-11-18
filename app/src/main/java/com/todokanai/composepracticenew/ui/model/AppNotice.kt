@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.ui.model
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.ConnectFailureAlert
@@ -50,6 +51,7 @@ fun appNoticeTextOf(notice: AppNotice): UiText = when (notice) {
  * @param failure 일어난 실패
  * @return 알릴 문구의 문자열 리소스 id
  */
+@StringRes
 private fun preferenceFailureMessage(failure: PreferenceFailure): Int = when (failure) {
     PreferenceFailure.READ -> R.string.toast_preference_read_failed
     PreferenceFailure.SAVE -> R.string.toast_preference_save_failed
@@ -61,6 +63,7 @@ private fun preferenceFailureMessage(failure: PreferenceFailure): Int = when (fa
  * @param alert 일어난 연결 실패
  * @return 알릴 문구의 문자열 리소스 id
  */
+@StringRes
 private fun connectFailureMessage(alert: ConnectFailureAlert): Int = when (alert) {
     ConnectFailureAlert.CONNECTION_FAILED -> R.string.toast_connection_failed
     ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE -> R.string.toast_reconnect_settings_unreadable
