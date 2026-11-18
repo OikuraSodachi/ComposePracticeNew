@@ -8,22 +8,22 @@ sealed interface NoticeMessage {
 
     /**
      * 작업을 마쳤다.
-     * @param operationType 마친 작업의 종류. null이면 진행 표시가 없는 순간 작업(이름 변경·새 폴더)이다
+     * @param kind 마친 작업
      */
-    data class Completed(val operationType: FileOperationType?) : NoticeMessage
+    data class Completed(val kind: OperationKind) : NoticeMessage
 
     /**
      * 사용자가 작업을 취소했다. 이미 처리한 항목이 어떻게 남는지는 작업 종류로 정한다.
-     * @param operationType 취소한 작업의 종류. null이면 순간 작업이다
+     * @param kind 취소한 작업
      */
-    data class Cancelled(val operationType: FileOperationType?) : NoticeMessage
+    data class Cancelled(val kind: OperationKind) : NoticeMessage
 
     /**
      * 작업이 실패 결과를 돌려줬다.
-     * @param operationType 실패한 작업의 종류. 부분 실패의 머리말을 정한다. null이면 순간 작업이다
-     * @param failure 작업이 돌려준 실패
+     * @param kind 실패한 작업. 실패 문구의 머리말을 정한다
+     * @param failure 작업이 돌려준 실패. 원인에는 작업 맥락이 붙어 있지 않다
      */
-    data class OperationFailed(val operationType: FileOperationType?, val failure: IoResult.Failure) : NoticeMessage
+    data class OperationFailed(val kind: OperationKind, val failure: IoResult.Failure) : NoticeMessage
 
     /**
      * 작업의 질문 하나에 정해진 시간 동안 답이 없어 작업을 멈췄다. 이미 처리한 항목은 그대로 둔다.

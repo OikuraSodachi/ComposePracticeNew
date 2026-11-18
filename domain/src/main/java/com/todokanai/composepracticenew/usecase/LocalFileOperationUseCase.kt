@@ -5,9 +5,11 @@ import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.NoticeMessage
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.RelocateOperation
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
@@ -183,7 +185,7 @@ class LocalFileOperationUseCase(
      */
     fun rename(path: String, newName: String, overwrite: Boolean, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, NamingOperation.RENAME)) return
-        orchestrator.launch(onRefresh = onRefresh) { _ ->
+        orchestrator.launchInstant(OperationKind.Instant(InstantOperation.RENAME, newName), onRefresh) {
             fileActionRepo.renameFile(path, newName, overwrite)
         }
     }
@@ -197,7 +199,7 @@ class LocalFileOperationUseCase(
      */
     fun makeDirectory(parentPath: String, name: String, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(name, parentPath), name, NamingOperation.MAKE_FOLDER)) return
-        orchestrator.launch(onRefresh = onRefresh) { _ ->
+        orchestrator.launchInstant(OperationKind.Instant(InstantOperation.MAKE_FOLDER, name), onRefresh) {
             fileActionRepo.makeDirectory(parentPath, name)
         }
     }

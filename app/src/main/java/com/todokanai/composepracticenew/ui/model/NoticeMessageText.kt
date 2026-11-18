@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.LeftoverCause
 import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OpenFailure
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.RelocateOperation
 
@@ -16,9 +17,9 @@ import com.todokanai.composepracticenew.model.RelocateOperation
  * @return 표시 문구
  */
 fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
-    is NoticeMessage.Completed -> UiText.Resource(completionTextRes(message.operationType))
-    is NoticeMessage.Cancelled -> cancelledTextOf(message.operationType)
-    is NoticeMessage.OperationFailed -> failureTextOf(message.failure, message.operationType) ?: UiText.Resource(R.string.notice_unknown_failure)
+    is NoticeMessage.Completed -> UiText.Resource(completionTextRes(message.kind))
+    is NoticeMessage.Cancelled -> cancelledTextOf(message.kind)
+    is NoticeMessage.OperationFailed -> failureTextOf(message.failure, message.kind) ?: UiText.Resource(R.string.notice_unknown_failure)
     is NoticeMessage.UnansweredQuestion -> UiText.Resource(
         unansweredQuestionRes(message.kind),
         listOf(UiText.Resource(operationNameRes(message.operationType)), message.name, message.waitHours)
@@ -36,27 +37,31 @@ fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
 
 /**
  * 작업 완료 문구를 정한다. 화면 알림과 시스템 완료 알림이 함께 쓴다.
- * @param operationType 마친 작업의 종류. null이면 순간 작업
+ * @param kind 마친 작업
  * @return 완료 문구의 문자열 리소스 id
  */
 @StringRes
-fun completionTextRes(operationType: FileOperationType?): Int = when (operationType) {
-    FileOperationType.MOVE -> R.string.noti_move_complete
-    FileOperationType.DELETE -> R.string.noti_delete_complete
-    FileOperationType.DOWNLOAD -> R.string.noti_download_complete
-    FileOperationType.UPLOAD -> R.string.noti_upload_complete
-    FileOperationType.COPY, FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> R.string.noti_complete
+fun completionTextRes(kind: OperationKind): Int = when (kind) {
+    is OperationKind.Tracked -> when (kind.type) {
+        FileOperationType.MOVE -> R.string.noti_move_complete
+        FileOperationType.DELETE -> R.string.noti_delete_complete
+        FileOperationType.DOWNLOAD -> R.string.noti_download_complete
+        FileOperationType.UPLOAD -> R.string.noti_upload_complete
+        FileOperationType.COPY, FileOperationType.COMPRESS, FileOperationType.UNZIP -> R.string.noti_complete
+    }
+    is OperationKind.Instant -> R.string.noti_complete
 }
 
 /**
  * 취소 문구를 만든다. 취소는 쓰다 만 파일만 지우고 이미 끝난 항목은 되돌리지 않으므로, 그 사실을 함께 알린다.
- * @param operationType 취소한 작업의 종류. null이면 순간 작업
+ * @param kind 취소한 작업
  * @return 취소 문구
  */
-private fun cancelledTextOf(operationType: FileOperationType?): UiText =
-    operationType?.let {
-        UiText.Resource(R.string.notice_cancelled, listOf(UiText.Resource(operationNameRes(it)), UiText.Resource(cancelRemainderRes(it))))
-    } ?: UiText.Resource(R.string.notice_cancelled_instant)
+private fun cancelledTextOf(kind: OperationKind): UiText = when (kind) {
+    is OperationKind.Tracked ->
+        UiText.Resource(R.string.notice_cancelled, listOf(UiText.Resource(operationNameRes(kind.type)), UiText.Resource(cancelRemainderRes(kind.type))))
+    is OperationKind.Instant -> UiText.Resource(R.string.notice_cancelled_instant)
+}
 
 /**
  * 메시지에 쓸 작업 이름을 정한다.

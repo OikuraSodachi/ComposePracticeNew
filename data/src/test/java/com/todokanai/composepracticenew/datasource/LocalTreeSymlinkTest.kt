@@ -127,7 +127,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalEntryMutator().rename(source.path, dest.name, overwrite = true)
 
-        assertEquals(IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.UnsupportedLink("dest/link"))), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.UnsupportedLink("dest/link")), result)
         assertEquals("A", File(source, "a.txt").readText())
         assertEquals("K", File(outside, "keep.txt").readText())
     }
@@ -153,7 +153,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalEntryMutator().rename(link.path, file.name, overwrite = true)
 
-        assertEquals(IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.UnsupportedLink("c.txt"))), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.UnsupportedLink("c.txt")), result)
         assertEquals("C", file.readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
     }
@@ -166,7 +166,7 @@ class LocalTreeSymlinkTest {
 
         val result = LocalEntryMutator().rename(file.path, link.name, overwrite = true)
 
-        assertEquals(IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.UnsupportedLink("link"))), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.UnsupportedLink("link")), result)
         assertEquals("C", file.readText())
         assertTrue(Files.isSymbolicLink(link.toPath()))
         assertEquals("K", File(outside, "keep.txt").readText())

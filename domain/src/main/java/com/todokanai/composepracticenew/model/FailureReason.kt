@@ -7,34 +7,6 @@ package com.todokanai.composepracticenew.model
 sealed interface FailureReason {
 
     /**
-     * 이름을 바꾸지 못했다.
-     * @param name 바꾸려던 새 이름
-     * @param cause 저장소가 알린 원인. 모르면 null
-     */
-    data class RenameFailed(val name: String, val cause: FailureReason?) : FailureReason
-
-    /**
-     * 항목의 이름 바꾸기를 저장소가 해내지 못했다.
-     * @param fromName 원래 이름
-     * @param toName 바꾸려던 새 이름
-     * @param cause 저장소가 알린 원인. 모르면 null
-     */
-    data class RenameNotApplied(val fromName: String, val toName: String, val cause: FailureReason?) : FailureReason
-
-    /**
-     * 이름 바꾸기를 끝내지 못했다(바꾸기 전에 막았거나, 합친 뒤 정리하지 못했다).
-     * @param cause 끝내지 못한 원인
-     */
-    data class RenameStopped(val cause: FailureReason) : FailureReason
-
-    /**
-     * 폴더를 만들지 못했다.
-     * @param name 만들려던 폴더 이름
-     * @param cause 저장소가 알린 원인. 모르면 null
-     */
-    data class MakeFolderFailed(val name: String, val cause: FailureReason?) : FailureReason
-
-    /**
      * 항목을 옮기는 도중 멈췄다.
      * @param name 옮기던 항목 이름
      * @param movedCount 멈추기 전에 이미 옮긴 항목 수

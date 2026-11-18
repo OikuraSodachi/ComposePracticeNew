@@ -36,13 +36,11 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      */
     suspend fun rename(targetFile: String, newName: String, overwrite: Boolean): IoResult<Unit> = withContext(Dispatchers.IO) {
         val source = File(targetFile)
-        localIo(describe = { e -> FailureReason.RenameNotApplied(source.name, newName, ioFailureReasonOf(e)) }) {
-            renameEntry(source, newName, overwrite)
-        }
+        localIo { renameEntry(source, newName, overwrite) }
     }
 
     /**
-     * [rename]의 본체. 입출력 실패는 IOException으로 전파해 [rename]의 [localIo]가 이름 변경 실패 원인으로 바꾼다.
+     * [rename]의 본체. 입출력 실패는 IOException으로 전파해 [rename]의 [localIo]가 원인으로 바꾼다. 실패 원인에 이름 변경이라는 맥락은 붙이지 않는다(app이 작업으로 머리말을 붙인다, #460).
      * @param source 이름을 변경할 항목
      * @param newName 변경할 새 이름
      * @param overwrite 같은 이름의 항목을 덮어쓸지 여부
@@ -53,25 +51,25 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
         // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다.
         // 어느 쪽이 링크면 같은 항목 판정이 링크를 따라가 링크와 그 대상을 같은 항목으로 보므로, 이 지름길을 타지 않는다(대상을 링크로 대신하지 않도록)
         if (source.entryKind != LocalEntryKind.LINK && dest.entryKind != LocalEntryKind.LINK && isSameEntry(source, dest)) {
-            return if (source.renameTo(dest)) IoResult.Done else IoResult.ItemFailed(FailureReason.RenameNotApplied(source.name, newName, null))
+            return if (source.renameTo(dest)) IoResult.Done else IoResult.ItemFailed(null)
         }
         if (!dest.exists()) {
             // REPLACE_EXISTING 없이 이동 — 확인 직후 같은 이름이 생겨도 덮어쓰지 않고 실패한다
             Files.move(source.toPath(), dest.toPath())
             return IoResult.Done
         }
-        if (!overwrite) return IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.NameTaken(newName)))
+        if (!overwrite) return IoResult.ItemFailed(FailureReason.NameTaken(newName))
         val sourceKind = source.entryKind
         val destKind = dest.entryKind
         return when {
             // 링크를 합치거나 덮어쓰면 링크가 가리키는 폴더 안을 옮기거나, 폴더로 보이던 링크를 말없이 바꾼다
-            sourceKind == LocalEntryKind.LINK || destKind == LocalEntryKind.LINK -> IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.UnsupportedLink(newName)))
+            sourceKind == LocalEntryKind.LINK || destKind == LocalEntryKind.LINK -> IoResult.ItemFailed(FailureReason.UnsupportedLink(newName))
             sourceKind == LocalEntryKind.DIRECTORY && destKind == LocalEntryKind.DIRECTORY -> mergeDirectory(source, dest)
             sourceKind == LocalEntryKind.FILE && destKind == LocalEntryKind.FILE -> {
                 Files.move(source.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
                 IoResult.Done
             }
-            else -> IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.KindConflict(newName)))
+            else -> IoResult.ItemFailed(FailureReason.KindConflict(newName))
         }
     }
 
@@ -83,7 +81,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @return 합치기 결과
      */
     private fun mergeDirectory(source: File, dest: File): IoResult<Unit> {
-        findMergeBlocker(source, dest)?.let { reason -> return IoResult.ItemFailed(FailureReason.RenameStopped(reason)) }
+        findMergeBlocker(source, dest)?.let { reason -> return IoResult.ItemFailed(reason) }
         return mergeInto(source, dest)
     }
 
@@ -121,7 +119,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
             }
         }
         return if (source.delete()) IoResult.Done
-               else IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.MergedSourceNotRemoved(source.name)))
+               else IoResult.ItemFailed(FailureReason.MergedSourceNotRemoved(source.name))
     }
 
     /**
@@ -200,7 +198,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @return 생성 결과
      */
     suspend fun makeDirectory(parentPath: String, name: String): IoResult<Unit> = withContext(Dispatchers.IO) {
-        if (File(parentPath, name).mkdir()) IoResult.Done else IoResult.ItemFailed(FailureReason.MakeFolderFailed(name, null))
+        if (File(parentPath, name).mkdir()) IoResult.Done else IoResult.ItemFailed(null)
     }
 }
 

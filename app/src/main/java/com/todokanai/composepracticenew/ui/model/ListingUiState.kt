@@ -55,7 +55,7 @@ class ListingUiStateMapper(private val isLocalFile: Boolean) {
         DirectoryListing.NoPath -> ListingUiState.NoPath
         is DirectoryListing.Loading -> listing.stale?.let { ListingUiState.Loaded(itemsOf(it), ListingKey.from(it.request), it.unreadableCount, isRefreshing = true) } ?: ListingUiState.Loading
         is DirectoryListing.Loaded -> ListingUiState.Loaded(itemsOf(listing), ListingKey.from(listing.request), listing.unreadableCount)
-        is DirectoryListing.Failed -> ListingUiState.Failed(listing.reason, listing.failure?.let { failureTextOf(it, operationType = null) })
+        is DirectoryListing.Failed -> ListingUiState.Failed(listing.reason, listing.failure?.let { failureTextOf(it, kind = null) })
     }
 
     /**
