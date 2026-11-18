@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import net.sf.sevenzipjbinding.ISeekableStream
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -11,7 +12,7 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 
-/** [SevenZipInput.SelfLocating]이 라이브러리의 볼륨 요청을 기록하고 다시 열 때 그 기록을 처음으로 돌리는지, [closeAll]이 모두 닫는지 검증하는 단위 테스트. */
+/** [SevenZipInput.SelfLocating]이 라이브러리의 볼륨 요청을 기록하고 다시 열 때 그 기록과 읽기 위치를 처음으로 돌리는지, [closeAll]이 모두 닫는지 검증하는 단위 테스트. */
 class SevenZipInputTest {
 
     /** 볼륨 파일을 둘 임시 디렉터리. */
@@ -47,6 +48,18 @@ class SevenZipInputTest {
             input.stream()
 
             assertEquals(first.path to null, input.currentVolumeName to input.missingVolume)
+        }
+    }
+
+    @Test
+    fun `이전 열기가 읽다 만 볼륨도 다시 주면 처음부터 읽는다`() {
+        val first = volumes("a.part1.rar", "a.part2.rar")
+
+        SevenZipInput.SelfLocating(first).use { input ->
+            input.stream().read(ByteArray(1))
+            input.open("a.part2.rar")!!.read(ByteArray(1))
+
+            assertEquals(0L to 0L, input.stream().seek(0, ISeekableStream.SEEK_CUR) to input.open("a.part2.rar")!!.seek(0, ISeekableStream.SEEK_CUR))
         }
     }
 

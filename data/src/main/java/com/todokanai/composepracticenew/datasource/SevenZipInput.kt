@@ -31,7 +31,11 @@ internal interface SevenZipVolumeSource {
  */
 internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
 
-    /** 아카이브를 처음부터 읽는 스트림을 만든다. 형식을 바꿔 열어 볼 때마다 부른다. */
+    /**
+     * 아카이브를 처음부터 읽는 스트림을 만든다. 형식을 바꿔 열어 볼 때마다 부른다.
+     * 한 입력으로는 한 번에 아카이브 하나만 연다(앞서 연 아카이브를 닫거나 열기가 실패한 뒤에 부른다) —
+     * 열어 둔 파일의 읽기 위치를 모든 스트림이 함께 쓰므로, 열려 있는 아카이브가 있을 때 부르면 그 아카이브의 읽기 위치가 처음으로 옮겨진다.
+     */
     abstract fun stream(): IInStream
 
     /**
@@ -61,7 +65,7 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
         override fun stream(): IInStream {
             currentVolumeName = first.path
             missingVolume = null
-            return RandomAccessFileInStream(fileOf(first))
+            return streamOf(first)
         }
 
         override fun open(name: String): IInStream? {
@@ -71,17 +75,22 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
                 return null
             }
             currentVolumeName = volume.path
-            return RandomAccessFileInStream(fileOf(volume))
+            return streamOf(volume)
         }
 
         override fun close() = closeAll(opened.values)
 
         /**
-         * [file]을 한 번만 열어 둔다.
+         * [file]을 처음부터 읽는 스트림을 만든다. 파일은 한 번만 열어 두고, 줄 때마다 읽기 위치를 처음으로 돌린다([stream]의 한 번에 아카이브 하나 전제) —
+         * 7-Zip은 받은 스트림의 지금 위치를 아카이브(볼륨)의 시작으로 보는데, 열어 둔 파일은 이전 열기(비밀번호 없이 열다 실패한 열기 등)가 읽은 위치에 남아 있으므로.
          * @param file 볼륨 파일
-         * @return 열어 둔 파일
+         * @return 처음 위치의 스트림
          */
-        private fun fileOf(file: File): RandomAccessFile = opened.getOrPut(file.path) { RandomAccessFile(file, "r") }
+        private fun streamOf(file: File): IInStream {
+            val raf = opened.getOrPut(file.path) { RandomAccessFile(file, "r") }
+            raf.seek(0)
+            return RandomAccessFileInStream(raf)
+        }
     }
 
     /**
