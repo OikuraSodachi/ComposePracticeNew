@@ -93,8 +93,9 @@ class FileOperationOrchestrator(
         onRefresh: suspend () -> Unit,
         block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
     ) {
-        val handle = startHandle(OperationKind.Tracked(operationType))
-        val callback = OperationCallback(OperationKind.Tracked(operationType), onRefresh)
+        val kind = OperationKind.Tracked(operationType)
+        val handle = startHandle(kind)
+        val callback = OperationCallback(kind, onRefresh)
         launchOperation(handle, callback) {
             protection.acquire().valueOr { return@launchOperation OperationOutcome.Finished(it) }
             OperationOutcome.Finished(block(progressReporterOf(handle, operationType)))
@@ -130,8 +131,9 @@ class FileOperationOrchestrator(
         onRefresh: suspend () -> Unit,
         block: suspend (onProgress: (ProgressState) -> Unit, prompts: OperationPrompts) -> IoResult<Unit>
     ) {
-        val handle = startHandle(OperationKind.Tracked(operationType))
-        val callback = OperationCallback(OperationKind.Tracked(operationType), onRefresh)
+        val kind = OperationKind.Tracked(operationType)
+        val handle = startHandle(kind)
+        val callback = OperationCallback(kind, onRefresh)
         launchOperation(handle, callback) {
             protection.acquire().valueOr { return@launchOperation OperationOutcome.Finished(it) }
             val prompter = OperationPrompter(

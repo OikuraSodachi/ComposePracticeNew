@@ -27,17 +27,17 @@ private const val BYTES_PER_KB = 1024
  */
 fun failureTextOf(failure: IoResult.Failure, kind: OperationKind?): UiText? = when (kind) {
     is OperationKind.Instant -> instantFailureTextOf(failure, kind)
-    is OperationKind.Tracked -> trackedFailureTextOf(failure, kind.type)
-    null -> trackedFailureTextOf(failure, null)
+    is OperationKind.Tracked -> nonInstantFailureTextOf(failure, kind.type)
+    null -> nonInstantFailureTextOf(failure, null)
 }
 
 /**
- * 진행 표시가 있는 작업이나 조회의 실패 문구를 만든다. 부분 실패만 작업 종류로 머리말을 붙인다.
+ * 순간 작업이 아닌 실패(진행 표시가 있는 작업이나 조회)의 문구를 만든다. 부분 실패만 작업 종류로 머리말을 붙인다.
  * @param failure 표시할 실패
  * @param operationType 실패한 작업의 종류. null이면 작업이 아닌 조회다
  * @return 표시 문구. 원인을 알 수 없는 항목 실패면 null
  */
-private fun trackedFailureTextOf(failure: IoResult.Failure, operationType: FileOperationType?): UiText? = when (failure) {
+private fun nonInstantFailureTextOf(failure: IoResult.Failure, operationType: FileOperationType?): UiText? = when (failure) {
     is IoResult.ItemFailed -> failure.reason?.let(::reasonTextOf)
     is IoResult.ConnectionLost -> reasonTextOf(failure.reason)
     is IoResult.PartiallyFailed ->
