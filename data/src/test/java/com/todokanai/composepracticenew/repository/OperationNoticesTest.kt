@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
@@ -25,13 +26,13 @@ class OperationNoticesTest {
     fun `받는 화면이 없을 때 넣은 메시지는 나중에 받기 시작하면 넣은 순서대로 알린다`() = runTest {
         // replay 없는 SharedFlow로 흘려보내던 이전 구현에서는 수집자가 없는 동안의 메시지가 버려졌다 — 저장소 화면에 있을 때 끝난 작업의 실패가 그랬다
         notices.report(msg("복사 실패"))
-        notices.report(msg("삭제 완료"))
+        notices.report(completed(FileOperationType.DELETE))
 
         val shown = mutableListOf<NoticeMessage>()
         backgroundScope.launch { OperationNoticeUseCase(notices).deliver { shown += it.message } }
         runCurrent()
 
-        assertEquals(listOf(msg("복사 실패"), msg("삭제 완료")), shown)
+        assertEquals(listOf(msg("복사 실패"), completed(FileOperationType.DELETE)), shown)
         assertEquals(emptyList<Any>(), notices.pending.value)
     }
 
@@ -44,10 +45,10 @@ class OperationNoticesTest {
         runCurrent()
 
         notices.report(msg("이동 실패"))
-        notices.report(msg("복사 완료"))
+        notices.report(completed(FileOperationType.COPY))
         runCurrent()
 
-        assertEquals(setOf(msg("복사 완료"), msg("이동 실패")), (first + second).toSet())
+        assertEquals(setOf(completed(FileOperationType.COPY), msg("이동 실패")), (first + second).toSet())
         assertEquals(2, (first + second).size)
         assertEquals(emptyList<Any>(), notices.pending.value)
     }
@@ -82,14 +83,14 @@ class OperationNoticesTest {
     fun `보여 주는 도중 취소되면 그 메시지를 넣은 순서 자리로 돌려놓는다`() = runTest {
         // 화면이 보이지 않게 되면(STARTED를 벗어나면) 보여 주던 메시지를 끝까지 보여 주지 못한다 — 다시 보일 때 처음부터 알려야 한다
         notices.report(msg("압축 실패"))
-        notices.report(msg("이동 완료"))
+        notices.report(completed(FileOperationType.MOVE))
         val receiving = backgroundScope.launch { OperationNoticeUseCase(notices).deliver { Channel<Unit>().receive() } }
         runCurrent()
 
         receiving.cancel()
         runCurrent()
 
-        assertEquals(listOf(msg("압축 실패"), msg("이동 완료")), notices.pending.value.map { it.content.message })
+        assertEquals(listOf(msg("압축 실패"), completed(FileOperationType.MOVE)), notices.pending.value.map { it.content.message })
     }
 
     @Test
@@ -103,4 +104,7 @@ class OperationNoticesTest {
 
     /** 실패 문구가 [text]인 알림 내용을 만든다. */
     private fun msg(text: String) = NoticeMessage.OperationFailed(null, IoResult.ItemFailed(FailureReason.IoFailed(text)))
+
+    /** [type] 작업의 완료 알림 내용을 만든다 — 실패와 종류가 다른 메시지로 섞어 넣기 위해. */
+    private fun completed(type: FileOperationType) = NoticeMessage.Completed(type)
 }
