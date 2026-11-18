@@ -33,8 +33,11 @@ import com.todokanai.composepracticenew.model.IndeterminatePhaseModel
 import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.sizeText
+import com.todokanai.composepracticenew.ui.model.asString
+import com.todokanai.composepracticenew.ui.model.knownPartTextOf
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
-import com.todokanai.composepracticenew.ui.model.unknownFilesTextRes
+import com.todokanai.composepracticenew.ui.model.phaseTextOf
+import com.todokanai.composepracticenew.ui.model.unknownFilesTextOf
 
 /**
  * 파일 작업 하나의 진행률을 표시하는 다이얼로그.
@@ -133,7 +136,7 @@ private fun ProgressItem(state: ProgressStateModel) {
 private fun IndeterminatePart(phase: IndeterminatePhaseModel) {
     IndeterminateIndicator()
     Text(
-        text = phaseText(phase),
+        text = phaseTextOf(phase).asString(),
         style = MaterialTheme.typography.bodySmall
     )
     Text(
@@ -143,17 +146,6 @@ private fun IndeterminatePart(phase: IndeterminatePhaseModel) {
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
     )
-}
-
-/**
- * 퍼센트 없이 보이는 단계의 문구를 고른다.
- * @param phase 단계
- * @return 표시 문구
- */
-@Composable
-private fun phaseText(phase: IndeterminatePhaseModel): String = when (phase) {
-    is IndeterminatePhaseModel.Preparing -> stringResource(R.string.progress_preparing, phase.foundEntries)
-    is IndeterminatePhaseModel.CheckingPassword -> stringResource(R.string.progress_checking_password)
 }
 
 /**
@@ -189,7 +181,7 @@ private fun KnownSizePart(knownSize: KnownSizeProgressModel, operationType: File
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(text = stringResource(R.string.progress_known_part, progress), style = MaterialTheme.typography.bodySmall)
+            Text(text = knownPartTextOf(progress).asString(), style = MaterialTheme.typography.bodySmall)
             Text(text = "${knownSize.writtenSize} / ${knownSize.totalSize}", style = MaterialTheme.typography.bodySmall)
         }
         ProgressLinearIndicator(
@@ -200,7 +192,7 @@ private fun KnownSizePart(knownSize: KnownSizeProgressModel, operationType: File
         )
     }
     Text(
-        text = stringResource(unknownFilesTextRes(operationType), knownSize.unknownFileCount, knownSize.unknownWrittenSize),
+        text = unknownFilesTextOf(knownSize, operationType).asString(),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
