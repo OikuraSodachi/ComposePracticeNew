@@ -99,7 +99,7 @@ sealed interface AttributesInfo {
                 kind = kindOf(result.value, name),
                 lastModified = DateFormat.getDateTimeInstance().format(result.value.lastModifiedMillis)
             )
-            is IoResult.Failure -> Failed(failureTextOf(result, operationType = null))
+            is IoResult.Failure -> Failed(failureTextOf(result, kind = null))
         }
 
         /** 항목 종류. 파일이면 이름에서 확장자를 나눈다. */
@@ -155,7 +155,7 @@ sealed interface SizeInfo {
                 is SizeMeasurement.Complete -> Exact(readableFileSize_td(measurement.bytes))
                 is SizeMeasurement.LowerBound -> AtLeast(readableFileSize_td(measurement.bytes), measurement.unreadable.size)
             }
-            is IoResult.Failure -> Failed(failureTextOf(result, operationType = null))
+            is IoResult.Failure -> Failed(failureTextOf(result, kind = null))
         }
     }
 }
@@ -185,7 +185,7 @@ sealed interface ChildCountInfo {
          */
         fun from(result: IoResult<Int>): ChildCountInfo = when (result) {
             is IoResult.Success -> Known(result.value)
-            is IoResult.Failure -> Failed(failureTextOf(result, operationType = null))
+            is IoResult.Failure -> Failed(failureTextOf(result, kind = null))
         }
     }
 }

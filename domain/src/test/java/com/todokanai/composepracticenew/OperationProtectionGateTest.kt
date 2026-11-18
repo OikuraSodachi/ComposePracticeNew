@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -55,7 +57,7 @@ class OperationProtectionGateTest {
         protection.result.complete(IoResult.Done)
 
         assertTrue(ran)
-        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.COPY)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(OperationKind.Tracked(FileOperationType.COPY))), notices.completions)
     }
 
     @Test
@@ -69,7 +71,7 @@ class OperationProtectionGateTest {
         protection.result.complete(IoResult.ItemFailed(FailureReason.IoFailed("보호 거부")))
 
         assertFalse(ran)
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.IoFailed("보호 거부")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.COPY), IoResult.ItemFailed(FailureReason.IoFailed("보호 거부")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
         assertTrue(progressReporter.progressMap.value.isEmpty())
     }
@@ -77,7 +79,7 @@ class OperationProtectionGateTest {
     @Test
     fun `순간 작업은 보호를 요청하지 않고 바로 실행한다`() {
         var ran = false
-        orchestrator.launch(onRefresh = {}) { _ ->
+        orchestrator.launchInstant(OperationKind.Instant(InstantOperation.MAKE_FOLDER, "new"), onRefresh = {}) {
             ran = true
             IoResult.Done
         }
@@ -112,7 +114,7 @@ class OperationProtectionGateTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
+        override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }

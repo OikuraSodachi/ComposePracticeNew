@@ -4,7 +4,9 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.FileSystemRefusal
+import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.ui.model.UiText
 import com.todokanai.composepracticenew.ui.model.failureTextOf
@@ -18,17 +20,23 @@ class FailureTextTest {
     /** 권한 없음 원인. */
     private val denied = FailureReason.IoFailed("권한 없음")
 
+    /** "b.txt"로 바꾸는 이름 변경. */
+    private val rename = OperationKind.Instant(InstantOperation.RENAME, "b.txt")
+
+    /** "new" 폴더를 만드는 새 폴더. */
+    private val makeFolder = OperationKind.Instant(InstantOperation.MAKE_FOLDER, "new")
+
     /** 삭제 작업 부분 실패의 머리말. */
     private val deleteHeading = UiText.Resource(R.string.failure_partial_heading_delete)
 
     @Test
     fun `원인을 모르는 항목 실패는 문구가 없다`() {
-        assertNull(failureTextOf(IoResult.ItemFailed(null), FileOperationType.COPY))
+        assertNull(failureTextOf(IoResult.ItemFailed(null), OperationKind.Tracked(FileOperationType.COPY)))
     }
 
     @Test
     fun `항목 실패는 원인 문구만 보인다`() {
-        assertEquals(UiText.Raw("권한 없음"), failureTextOf(IoResult.ItemFailed(denied), FileOperationType.COPY))
+        assertEquals(UiText.Raw("권한 없음"), failureTextOf(IoResult.ItemFailed(denied), OperationKind.Tracked(FileOperationType.COPY)))
     }
 
     @Test
@@ -38,7 +46,7 @@ class FailureTextTest {
             listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), "b.txt")), UiText.Raw("550"))
         )
 
-        assertEquals(expected, failureTextOf(IoResult.ConnectionLost(FailureReason.RenameFailed("b.txt", FailureReason.IoFailed("550"))), null))
+        assertEquals(expected, failureTextOf(IoResult.ConnectionLost(FailureReason.IoFailed("550")), rename))
     }
 
     @Test
@@ -47,9 +55,9 @@ class FailureTextTest {
             R.string.failure_with_cause,
             listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), "b.txt")), UiText.Raw("550 denied"))
         )
-        val reason = FailureReason.RenameFailed("b.txt", FailureReason.ServerRefused(RemoteStep.RENAME, "550 denied"))
+        val reason = FailureReason.ServerRefused(RemoteStep.RENAME, "550 denied")
 
-        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), null))
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), rename))
     }
 
     @Test
@@ -59,9 +67,9 @@ class FailureTextTest {
             R.string.failure_with_cause,
             listOf(UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_make_folder), "new")), refused)
         )
-        val reason = FailureReason.MakeFolderFailed("new", FailureReason.ServerRefused(RemoteStep.OPEN_FOLDER, "550 no"))
+        val reason = FailureReason.ServerRefused(RemoteStep.OPEN_FOLDER, "550 no")
 
-        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), null))
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(reason), makeFolder))
     }
 
     @Test
@@ -71,10 +79,10 @@ class FailureTextTest {
         val single = UiText.Resource(R.string.failure_with_cause, listOf(UiText.Resource(R.string.failure_at, listOf(heading, "a.txt")), UiText.Raw("550 gone")))
         val multiple = UiText.Resource(R.string.failure_partial_multiple, listOf(heading, 2, UiText.Raw("550 gone"), UiText.Raw("a.txt, b.txt")))
 
-        assertEquals(single, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused))), FileOperationType.DOWNLOAD))
+        assertEquals(single, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused))), OperationKind.Tracked(FileOperationType.DOWNLOAD)))
         assertEquals(
             multiple,
-            failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused), FailedItem("b.txt", refused))), FileOperationType.DOWNLOAD)
+            failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", refused), FailedItem("b.txt", refused))), OperationKind.Tracked(FileOperationType.DOWNLOAD))
         )
     }
 
@@ -82,7 +90,7 @@ class FailureTextTest {
     fun `원인을 모르는 폴더 생성 실패는 이름만 보인다`() {
         val expected = UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_make_folder), "new"))
 
-        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.MakeFolderFailed("new", null)), null))
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(null), makeFolder))
     }
 
     @Test
@@ -94,19 +102,26 @@ class FailureTextTest {
     fun `실패 하나면 작업 종류의 머리말과 경로와 원인을 보인다`() {
         val expected = UiText.Resource(R.string.failure_with_cause, listOf(UiText.Resource(R.string.failure_at, listOf(deleteHeading, "a/b/x")), denied.asText()))
 
-        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a/b/x", denied))), FileOperationType.DELETE))
+        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a/b/x", denied))), OperationKind.Tracked(FileOperationType.DELETE)))
     }
 
     @Test
     fun `작업 대상 자신이 원인 없이 실패하면 머리말만 보인다`() {
-        assertEquals(deleteHeading, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("", null))), FileOperationType.DELETE))
+        assertEquals(deleteHeading, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("", null))), OperationKind.Tracked(FileOperationType.DELETE)))
     }
 
     @Test
-    fun `순간 작업의 부분 실패는 일반 머리말을 쓴다`() {
-        val expected = UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.failure_partial_heading_instant), "a"))
+    fun `작업이 아닌 조회의 부분 실패는 일반 머리말을 쓴다`() {
+        val expected = UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.failure_partial_heading_generic), "a"))
 
         assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a", null))), null))
+    }
+
+    @Test
+    fun `순간 작업의 부분 실패는 그 작업의 머리말을 쓴다`() {
+        val expected = UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), "a"))
+
+        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a", null))), rename))
     }
 
     @Test
@@ -122,7 +137,7 @@ class FailureTextTest {
             )
         )
 
-        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), FileOperationType.UPLOAD))
+        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), OperationKind.Tracked(FileOperationType.UPLOAD)))
     }
 
     @Test
@@ -133,7 +148,7 @@ class FailureTextTest {
             listOf(UiText.Resource(R.string.failure_partial_heading_upload), 2, denied.asText(), UiText.Raw("a, b"))
         )
 
-        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), FileOperationType.UPLOAD))
+        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), OperationKind.Tracked(FileOperationType.UPLOAD)))
     }
 
     @Test
@@ -150,7 +165,7 @@ class FailureTextTest {
             listOf(UiText.Resource(R.string.failure_partial_heading_copy), 4, summary, UiText.Resource(R.string.failure_listed_paths_omitted, listOf("a, b, c", 1)))
         )
 
-        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), FileOperationType.COPY))
+        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), OperationKind.Tracked(FileOperationType.COPY)))
     }
 
     @Test
@@ -159,7 +174,7 @@ class FailureTextTest {
         val summary = UiText.Resource(R.string.failure_reason_summary_mixed, listOf(UiText.Resource(R.string.failure_reason_unknown), 1, 1, 1))
         val expected = UiText.Resource(R.string.failure_partial_multiple, listOf(deleteHeading, 2, summary, UiText.Raw("a.txt, dir/sub/x.txt")))
 
-        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), FileOperationType.DELETE))
+        assertEquals(expected, failureTextOf(IoResult.PartiallyFailed(failures), OperationKind.Tracked(FileOperationType.DELETE)))
     }
 
     @Test
@@ -203,17 +218,20 @@ class FailureTextTest {
     fun `이동 중단은 원인을 모르면 원인 모름으로 보인다`() {
         val expected = UiText.Resource(R.string.failure_move_interrupted, listOf("dir", UiText.Resource(R.string.failure_reason_unknown), 3))
 
-        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.MoveInterrupted("dir", 3, null)), FileOperationType.MOVE))
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.MoveInterrupted("dir", 3, null)), OperationKind.Tracked(FileOperationType.MOVE)))
     }
 
     @Test
-    fun `이름 변경을 끝내지 못한 원인은 이름 변경 실패 뒤에 보인다`() {
+    fun `이름 변경을 끝내지 못한 원인은 이름 변경 실패와 새 이름 뒤에 보인다`() {
         val expected = UiText.Resource(
-            R.string.failure_at,
-            listOf(UiText.Resource(R.string.notice_failure_prefix_rename), UiText.Resource(R.string.failure_name_taken, listOf("b")))
+            R.string.failure_with_cause,
+            listOf(
+                UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), "b.txt")),
+                UiText.Resource(R.string.failure_name_taken, listOf("b.txt"))
+            )
         )
 
-        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.RenameStopped(FailureReason.NameTaken("b"))), null))
+        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.NameTaken("b.txt")), rename))
     }
 
     @Test

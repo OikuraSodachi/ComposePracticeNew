@@ -68,18 +68,6 @@ inline fun <T, R> IoResult<T>.map(transform: (T) -> R): IoResult<R> = when (this
 }
 
 /**
- * 실패의 원인을 [wrap]으로 감싼다(예: 저장소가 알린 원인을 "이름 변경 실패"의 원인으로). 실패 종류는 그대로 둬,
- * 연결 끊김을 받은 여러 대상 작업이 남은 대상을 시도하지 않게 한다. 부분 실패는 항목별 원인을 이미 담고 있으므로 그대로 돌려준다.
- * @param wrap 원래 원인(모르면 null)을 받아 감싼 원인을 만드는 함수
- * @return 성공·부분 실패면 이 결과 그대로, 그 밖의 실패면 원인을 감싼 같은 종류의 실패
- */
-inline fun <T> IoResult<T>.wrappingFailureReason(wrap: (FailureReason?) -> FailureReason): IoResult<T> = when (this) {
-    is IoResult.Success, is IoResult.PartiallyFailed -> this
-    is IoResult.ItemFailed -> IoResult.ItemFailed(wrap(reason))
-    is IoResult.ConnectionLost -> IoResult.ConnectionLost(wrap(reason))
-}
-
-/**
  * 이 실패를 [path] 항목의 실패 목록으로 바꾼다. 부분 실패는 항목마다 [path] 아래 경로로 옮긴다(중첩 평탄화).
  * @param path 이 실패를 낸 항목의 경로. 빈 문자열이면 작업 대상 자신이다
  * @return 실패한 항목 목록

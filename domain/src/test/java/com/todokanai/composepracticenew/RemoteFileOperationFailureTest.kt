@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.FailureReason
@@ -7,6 +8,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FileHolderItem
+import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteSession
@@ -51,7 +53,7 @@ class RemoteFileOperationFailureTest {
 
         remote.download(listOf(item("ftp://h/r/a.txt", isDirectory = false)), "/local") {}
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.DOWNLOAD, IoResult.ItemFailed(FailureReason.IoFailed("RETR 실패: 550 No such file")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.DOWNLOAD), IoResult.ItemFailed(FailureReason.IoFailed("RETR 실패: 550 No such file")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
     }
 
@@ -61,7 +63,7 @@ class RemoteFileOperationFailureTest {
 
         remote.upload(listOf(item("/local/a.txt", isDirectory = false)), "ftp://h/r") {}
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.UPLOAD, IoResult.ConnectionLost(FailureReason.IoFailed("FTP 서버와의 연결이 끊겼습니다")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.UPLOAD), IoResult.ConnectionLost(FailureReason.IoFailed("FTP 서버와의 연결이 끊겼습니다")))), notices.failures)
         assertTrue(notices.completions.isEmpty())
     }
 
@@ -69,7 +71,7 @@ class RemoteFileOperationFailureTest {
     fun `전송이 성공하면 완료를 알린다`() {
         remote.download(listOf(item("ftp://h/r/a.txt", isDirectory = false)), "/local") {}
 
-        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.DOWNLOAD)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(OperationKind.Tracked(FileOperationType.DOWNLOAD))), notices.completions)
         assertTrue(notices.failures.isEmpty())
     }
 
@@ -80,7 +82,7 @@ class RemoteFileOperationFailureTest {
         remote.download(items, "/local") {}
 
         assertEquals(listOf(items), transferRepo.downloads)
-        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.DOWNLOAD)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(OperationKind.Tracked(FileOperationType.DOWNLOAD))), notices.completions)
     }
 
     @Test
@@ -91,7 +93,7 @@ class RemoteFileOperationFailureTest {
         remote.upload(items, "ftp://h/r") {}
 
         assertEquals(listOf(items), transferRepo.uploads)
-        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.UPLOAD)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(OperationKind.Tracked(FileOperationType.UPLOAD))), notices.completions)
     }
 
     @Test
@@ -102,27 +104,29 @@ class RemoteFileOperationFailureTest {
         remote.deleteRemote(targets = items) {}
 
         assertEquals(listOf(items), mutationRepo.deletes)
-        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.DELETE)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(OperationKind.Tracked(FileOperationType.DELETE))), notices.completions)
     }
 
     @Test
-    fun `원격 이름 변경이 실패하면 새 이름과 서버가 알린 원인을 함께 알린다`() {
-        mutationRepo.renameResult = IoResult.ItemFailed(FailureReason.IoFailed("RNTO 실패: 553"))
+    fun `원격 이름 변경이 실패하면 새 이름의 이름 변경과 서버가 알린 원인을 그대로 알린다`() {
+        val failure = IoResult.ItemFailed(FailureReason.IoFailed("RNTO 실패: 553"))
+        mutationRepo.renameResult = failure
 
         remote.renameRemote("ftp://h/r/a.txt", "b.txt") {}
 
-        val expected = IoResult.ItemFailed(FailureReason.RenameFailed("b.txt", FailureReason.IoFailed("RNTO 실패: 553")))
-        assertEquals(listOf(NoticeMessage.OperationFailed(null, expected)), notices.failures)
+        val rename = OperationKind.Instant(InstantOperation.RENAME, "b.txt")
+        assertEquals(listOf(NoticeMessage.OperationFailed(rename, failure)), notices.failures)
     }
 
     @Test
-    fun `원격 폴더 생성 중 연결이 끊기면 끊김으로 남기고 폴더 이름과 원인을 함께 알린다`() {
-        mutationRepo.makeDirectoryResult = IoResult.ConnectionLost(FailureReason.IoFailed("연결 끊김"))
+    fun `원격 폴더 생성 중 연결이 끊기면 끊김을 그대로 폴더 이름의 폴더 생성과 함께 알린다`() {
+        val failure = IoResult.ConnectionLost(FailureReason.IoFailed("연결 끊김"))
+        mutationRepo.makeDirectoryResult = failure
 
         remote.makeDirectoryRemote("ftp://h/r", "new") {}
 
-        val expected = IoResult.ConnectionLost(FailureReason.MakeFolderFailed("new", FailureReason.IoFailed("연결 끊김")))
-        assertEquals(listOf(NoticeMessage.OperationFailed(null, expected)), notices.failures)
+        val makeFolder = OperationKind.Instant(InstantOperation.MAKE_FOLDER, "new")
+        assertEquals(listOf(NoticeMessage.OperationFailed(makeFolder, failure)), notices.failures)
     }
 
     @Test
@@ -131,7 +135,7 @@ class RemoteFileOperationFailureTest {
 
         remote.deleteRemote(targets = listOf(item("ftp://h/r/b.txt", false))) {}
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.DELETE, mutationRepo.deleteResult as IoResult.Failure)), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.DELETE), mutationRepo.deleteResult as IoResult.Failure)), notices.failures)
         assertTrue(notices.completions.isEmpty())
     }
 
@@ -190,7 +194,7 @@ class RemoteFileOperationFailureTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
+        override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }

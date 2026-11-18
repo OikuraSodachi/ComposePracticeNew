@@ -213,14 +213,13 @@
     <string name="failure_partial_heading_unzip">압축을 풀지 못함</string>
     <string name="failure_partial_heading_download">다운로드 실패</string>
     <string name="failure_partial_heading_upload">업로드 실패</string>
-    <string name="failure_partial_heading_instant">작업 실패</string>
+    <string name="failure_partial_heading_generic">작업 실패</string>
     <string name="failure_at">%1$s: %2$s</string>
     <string name="failure_with_cause">%1$s (%2$s)</string>
     <string name="failure_partial_multiple">%1$s: %2$d개 항목 — %3$s (%4$s)</string>
     <string name="failure_reason_summary_mixed">%1$s %2$d개, 그 밖의 원인 %3$d종 %4$d개</string>
     <string name="failure_reason_unknown">원인 모름</string>
     <string name="failure_listed_paths_omitted">%1$s 외 %2$d개</string>
-    <string name="failure_rename_not_applied">이름 변경 실패: %1$s → %2$s</string>
     <string name="failure_move_interrupted">이동 실패: %1$s — %2$s (%3$d개 항목은 이미 이동됨)</string>
     <string name="failure_fs_already_exists">같은 이름의 항목이 이미 있음</string>
     <string name="failure_fs_access_denied">권한 없음</string>

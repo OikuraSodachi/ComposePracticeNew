@@ -4,10 +4,11 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NamingOperation
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.RemoteSession
-import com.todokanai.composepracticenew.model.wrappingFailureReason
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -83,8 +84,8 @@ class RemoteFileOperationUseCase(
     fun renameRemote(path: String, newName: String, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, NamingOperation.RENAME)) return
         val session = sessions.current()
-        orchestrator.launch(onRefresh = onRefresh) { _ ->
-            onSession(session) { mutationRepo.rename(it, path, newName) }.wrappingFailureReason { FailureReason.RenameFailed(newName, it) }
+        orchestrator.launchInstant(OperationKind.Instant(InstantOperation.RENAME, newName), onRefresh) {
+            onSession(session) { mutationRepo.rename(it, path, newName) }
         }
     }
 
@@ -111,8 +112,8 @@ class RemoteFileOperationUseCase(
     fun makeDirectoryRemote(parentPath: String, dirName: String, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, NamingOperation.MAKE_FOLDER)) return
         val session = sessions.current()
-        orchestrator.launch(onRefresh = onRefresh) { _ ->
-            onSession(session) { mutationRepo.makeDirectory(it, parentPath, dirName) }.wrappingFailureReason { FailureReason.MakeFolderFailed(dirName, it) }
+        orchestrator.launchInstant(OperationKind.Instant(InstantOperation.MAKE_FOLDER, dirName), onRefresh) {
+            onSession(session) { mutationRepo.makeDirectory(it, parentPath, dirName) }
         }
     }
 

@@ -6,8 +6,10 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.FileSystemRefusal
+import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRefusal
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.RemoteStep
 
 /** 여러 항목 실패 메시지에 경로를 나열할 최대 항목 수. 나머지는 "외 n개"로 줄인다. */
@@ -18,15 +20,65 @@ private const val BYTES_PER_KB = 1024
 
 /**
  * 파일 입출력 실패의 표시 문구를 만든다(#218). 실패 종류와 원인마다 exhaustive `when`으로 문자열 리소스에 대응시킨다.
+ * 실패 원인에는 작업 맥락이 없으므로, 머리말은 여기서 작업으로 정한다(#460).
  * @param failure 표시할 실패
- * @param operationType 실패한 작업의 종류. 부분 실패의 머리말을 정한다. null이면 순간 작업이거나 작업이 아닌 조회다
+ * @param kind 실패한 작업. null이면 작업이 아닌 조회다
+ * @return 표시 문구. 진행 표시가 있는 작업·조회의 원인을 알 수 없는 항목 실패면 null
+ */
+fun failureTextOf(failure: IoResult.Failure, kind: OperationKind?): UiText? = when (kind) {
+    is OperationKind.Instant -> instantFailureTextOf(failure, kind)
+    is OperationKind.Tracked -> nonInstantFailureTextOf(failure, kind.type)
+    null -> nonInstantFailureTextOf(failure, null)
+}
+
+/**
+ * 순간 작업이 아닌 실패(진행 표시가 있는 작업이나 조회)의 문구를 만든다. 부분 실패만 작업 종류로 머리말을 붙인다.
+ * @param failure 표시할 실패
+ * @param operationType 실패한 작업의 종류. null이면 작업이 아닌 조회다
  * @return 표시 문구. 원인을 알 수 없는 항목 실패면 null
  */
-fun failureTextOf(failure: IoResult.Failure, operationType: FileOperationType?): UiText? = when (failure) {
+private fun nonInstantFailureTextOf(failure: IoResult.Failure, operationType: FileOperationType?): UiText? = when (failure) {
     is IoResult.ItemFailed -> failure.reason?.let(::reasonTextOf)
     is IoResult.ConnectionLost -> reasonTextOf(failure.reason)
     is IoResult.PartiallyFailed ->
         partialFailureTextOf(UiText.Resource(partialFailureHeadingRes(operationType)), headingStepOf(operationType), failure.failures)
+}
+
+/**
+ * 순간 작업(이름 변경·새 폴더)의 실패 문구를 만든다. 항목 실패와 연결 끊김은 "머리말: 이름 (원인)"으로, 부분 실패는 같은 머리말로 항목을 나열한다.
+ * @param failure 표시할 실패
+ * @param kind 실패한 순간 작업
+ * @return 표시 문구
+ */
+private fun instantFailureTextOf(failure: IoResult.Failure, kind: OperationKind.Instant): UiText {
+    val prefixRes = instantPrefixRes(kind.operation)
+    val headingStep = instantStepOf(kind.operation)
+    return when (failure) {
+        is IoResult.ItemFailed -> namedFailureTextOf(prefixRes, headingStep, kind.name, failure.reason)
+        is IoResult.ConnectionLost -> namedFailureTextOf(prefixRes, headingStep, kind.name, failure.reason)
+        is IoResult.PartiallyFailed -> partialFailureTextOf(UiText.Resource(prefixRes), headingStep, failure.failures)
+    }
+}
+
+/**
+ * 순간 작업 실패 문구의 머리말을 정한다.
+ * @param operation 순간 작업의 종류
+ * @return 머리말의 문자열 리소스 id
+ */
+@StringRes
+private fun instantPrefixRes(operation: InstantOperation): Int = when (operation) {
+    InstantOperation.RENAME -> R.string.notice_failure_prefix_rename
+    InstantOperation.MAKE_FOLDER -> R.string.notice_failure_prefix_make_folder
+}
+
+/**
+ * 순간 작업의 머리말이 말하는 원격 단계를 정한다. 원인이 같은 단계면 단계 이름을 되풀이하지 않도록 쓴다.
+ * @param operation 순간 작업의 종류
+ * @return 머리말이 말하는 원격 단계
+ */
+private fun instantStepOf(operation: InstantOperation): RemoteStep = when (operation) {
+    InstantOperation.RENAME -> RemoteStep.RENAME
+    InstantOperation.MAKE_FOLDER -> RemoteStep.MAKE_FOLDER
 }
 
 /**
@@ -35,12 +87,6 @@ fun failureTextOf(failure: IoResult.Failure, operationType: FileOperationType?):
  * @return 표시 문구
  */
 private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
-    is FailureReason.RenameFailed -> namedFailureTextOf(R.string.notice_failure_prefix_rename, RemoteStep.RENAME, reason.name, reason.cause)
-    is FailureReason.RenameNotApplied ->
-        withCause(UiText.Resource(R.string.failure_rename_not_applied, listOf(reason.fromName, reason.toName)), null, reason.cause)
-    is FailureReason.RenameStopped ->
-        UiText.Resource(R.string.failure_at, listOf(UiText.Resource(R.string.notice_failure_prefix_rename), reasonTextOf(reason.cause)))
-    is FailureReason.MakeFolderFailed -> namedFailureTextOf(R.string.notice_failure_prefix_make_folder, RemoteStep.MAKE_FOLDER, reason.name, reason.cause)
     is FailureReason.MoveInterrupted ->
         UiText.Resource(R.string.failure_move_interrupted, listOf(reason.name, reasonOrUnknownTextOf(reason.cause, null), reason.movedCount))
     FailureReason.ProtectionRefused -> UiText.Resource(R.string.error_protection_refused)
@@ -260,7 +306,7 @@ private fun listedPathsOf(failures: List<FailedItem>): UiText {
 
 /**
  * 부분 실패의 머리말을 작업 종류로 정한다. 안쪽 수집이 아니라 작업 단위로 정해, 평탄화된 실패도 작업의 머리말로 보인다.
- * @param operationType 실패한 작업의 종류. null이면 순간 작업이거나 작업이 아닌 조회다
+ * @param operationType 실패한 작업의 종류. null이면 작업이 아닌 조회다
  * @return 머리말의 문자열 리소스 id
  */
 @StringRes
@@ -272,12 +318,12 @@ private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = w
     FileOperationType.UNZIP -> R.string.failure_partial_heading_unzip
     FileOperationType.DOWNLOAD -> R.string.failure_partial_heading_download
     FileOperationType.UPLOAD -> R.string.failure_partial_heading_upload
-    null -> R.string.failure_partial_heading_instant
+    null -> R.string.failure_partial_heading_generic
 }
 
 /**
  * 부분 실패의 머리말이 말하는 원격 단계를 작업 종류로 정한다. 머리말과 단계 이름이 같은 말일 때만 단계를 돌려준다.
- * @param operationType 실패한 작업의 종류. null이면 순간 작업이거나 작업이 아닌 조회다
+ * @param operationType 실패한 작업의 종류. null이면 작업이 아닌 조회다
  * @return 머리말이 말하는 원격 단계. 없으면 null
  */
 private fun headingStepOf(operationType: FileOperationType?): RemoteStep? = when (operationType) {

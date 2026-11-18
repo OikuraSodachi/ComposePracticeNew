@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NoticeMessage
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.PasswordAnswer
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.QuestionKind
@@ -105,7 +106,7 @@ class WriteConflictResolutionTest {
         }
         runCurrent()
 
-        assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.COPY)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Cancelled(OperationKind.Tracked(FileOperationType.COPY))), notices.completions)
         assertEquals(emptyList<NoticeMessage>(), notices.failures)
     }
 
@@ -139,7 +140,7 @@ class WriteConflictResolutionTest {
         }
         runCurrent()
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.COPY, IoResult.ItemFailed(FailureReason.Unexpected("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.COPY), IoResult.ItemFailed(FailureReason.Unexpected("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")))), notices.failures)
     }
 
     @Test
@@ -173,7 +174,7 @@ class WriteConflictResolutionTest {
 
         assertEquals(listOf("secret"), passwords)
         assertEquals(listOf("a.zip" to ArchivePasswordPrompt.WRONG), asker.askedPasswords)
-        assertEquals(listOf(NoticeMessage.Completed(FileOperationType.UNZIP)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Completed(OperationKind.Tracked(FileOperationType.UNZIP))), notices.completions)
     }
 
     @Test
@@ -186,7 +187,7 @@ class WriteConflictResolutionTest {
         }
         runCurrent()
 
-        assertEquals(listOf(NoticeMessage.Cancelled(FileOperationType.UNZIP)), notices.completions)
+        assertEquals(listOf(NoticeMessage.Cancelled(OperationKind.Tracked(FileOperationType.UNZIP))), notices.completions)
         assertEquals(emptyList<NoticeMessage>(), notices.failures)
     }
 
@@ -264,7 +265,7 @@ class WriteConflictResolutionTest {
         val events = mutableListOf<String>()
         override fun progressNoti(state: ProgressState, instanceId: Int) { events += "progress ${state.progress}" }
         override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) { events += "awaiting $operationType $kind" }
-        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
+        override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
     }
 

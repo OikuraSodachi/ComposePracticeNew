@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NoticeMessage
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
@@ -87,7 +88,7 @@ class RemoteOperationSessionBindingTest {
         protectionGate.complete(Unit)
 
         assertTrue(transferRepo.sessionIds.isEmpty())
-        assertEquals(listOf(NoticeMessage.OperationFailed(FileOperationType.UPLOAD, IoResult.ConnectionLost(FailureReason.NotConnected))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.UPLOAD), IoResult.ConnectionLost(FailureReason.NotConnected))), notices.failures)
     }
 
     private fun item(path: String) =
@@ -139,7 +140,7 @@ class RemoteOperationSessionBindingTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
+        override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }

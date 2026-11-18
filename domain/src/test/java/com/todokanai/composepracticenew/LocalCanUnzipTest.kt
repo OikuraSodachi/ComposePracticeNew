@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -92,7 +93,7 @@ class LocalCanUnzipTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
+        override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }

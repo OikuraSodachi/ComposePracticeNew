@@ -1,7 +1,9 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
@@ -67,7 +69,7 @@ class FileOperationStartTest {
 
     @Test
     fun `순간 작업은 등록하지 않는다`() {
-        orchestrator.launch(onRefresh = {}) { _ ->
+        orchestrator.launchInstant(OperationKind.Instant(InstantOperation.MAKE_FOLDER, "new"), onRefresh = {}) {
             gate.await()
             IoResult.Done
         }
@@ -91,7 +93,7 @@ class FileOperationStartTest {
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
         override fun progressNoti(state: ProgressState, instanceId: Int) {}
-        override fun completedNotification(operationType: FileOperationType?, instanceId: Int) {}
+        override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
         override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
