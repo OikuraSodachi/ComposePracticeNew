@@ -118,7 +118,7 @@ private fun ProgressItem(state: ProgressStateModel) {
                 backgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
             )
             Text(
-                text = "${state.currentIndex} / ${state.listSize} 파일",
+                text = stringResource(R.string.progress_file_count, state.currentIndex, state.listSize),
                 style = MaterialTheme.typography.bodySmall
             )
         }
