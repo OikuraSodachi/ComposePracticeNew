@@ -242,7 +242,7 @@ class FtpOperationSessionTest {
      */
     private fun upload(token: RemoteSession, vararg names: String): IoResult<Unit> {
         val sources = names.map { UploadSource(localFile(it).path, "ftp://host/$it") }
-        return runBlocking { manager.withOperationSession(token) { it.transferrer(OperationNotices()).upload(sources) } }
+        return runBlocking { manager.withOperationSession(token) { it.uploader(OperationNotices()).upload(sources) } }
     }
 
     /**

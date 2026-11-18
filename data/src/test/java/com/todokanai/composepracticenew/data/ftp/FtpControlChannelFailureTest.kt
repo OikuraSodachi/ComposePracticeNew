@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
-import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -28,7 +27,8 @@ class FtpControlChannelFailureTest {
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     private val session = FtpSession(client)
     private val commands = FtpOperationParts(session)
-    private val transferrer = commands.transferrer(OperationNotices())
+    /** 검증 대상 다운로더. */
+    private val downloader = commands.downloader
 
     @After
     fun tearDown() {
@@ -40,7 +40,7 @@ class FtpControlChannelFailureTest {
         loggedIn()
         client.onCompletePending = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", ((result as IoResult.ConnectionLost).reason as FailureReason.NoResponse).detail.contains("Read timed out"))
         assertSessionEnded()
@@ -52,7 +52,7 @@ class FtpControlChannelFailureTest {
         client.remoteFiles = listOf("a.txt", "b.txt")
         client.onCompletePending = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
@@ -63,7 +63,7 @@ class FtpControlChannelFailureTest {
         loggedIn()
         client.onMlst = { throw SocketTimeoutException("Read timed out") }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 
         assertTrue("$result", result is IoResult.ConnectionLost)
         assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())
@@ -77,7 +77,7 @@ class FtpControlChannelFailureTest {
         client.streamReadFailure = SocketException("Connection reset")
         client.onCompletePending = { false }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
         assertEquals(listOf("r/a.txt", "r/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)

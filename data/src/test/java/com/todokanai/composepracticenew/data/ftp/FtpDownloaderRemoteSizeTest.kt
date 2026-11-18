@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
-import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.apache.commons.net.MalformedServerReplyException
@@ -18,7 +17,7 @@ import java.nio.file.Files
  * 다운로드 전 크기 조회(MLST)에서 응답을 끝까지 읽은 뒤의 항목 해석 실패만 "크기 모름"으로 넘기고,
  * 응답을 읽다 실패한 경우(형식 오류 포함)와 구현 오류는 삼키지 않는지 검증하는 단위 테스트.
  */
-class FtpTransferrerRemoteSizeTest {
+class FtpDownloaderRemoteSizeTest {
 
     /** 받은 파일을 저장할 로컬 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-remote-size-test").toFile()
@@ -26,8 +25,8 @@ class FtpTransferrerRemoteSizeTest {
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     /** 검증 대상 세션. */
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
-    /** 검증 대상 전송기. */
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    /** 검증 대상 다운로더. */
+    private val downloader = FtpOperationParts(session).downloader
 
     @After
     fun tearDown() {
@@ -72,5 +71,5 @@ class FtpTransferrerRemoteSizeTest {
     }
 
     /** 원격 파일 하나를 받는다. */
-    private fun download(): IoResult<Unit> = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
+    private fun download(): IoResult<Unit> = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver) }
 }

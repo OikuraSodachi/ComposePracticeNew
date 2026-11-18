@@ -15,7 +15,7 @@ import java.io.File
 import java.nio.file.Files
 
 /** 단일 파일 다운로드·업로드가 파일 하나짜리 작업으로 폴더 전송과 같은 진행률 규칙을 따르고(#242), 여러 항목 업로드가 묶음 전체로 보고하는지(#356) 검증하는 단위 테스트. */
-class FtpTransferrerFileProgressTest {
+class FtpTransferFileProgressTest {
 
     /** 받을 파일과 올릴 파일을 둘 로컬 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-file-progress-test").toFile()
@@ -23,8 +23,10 @@ class FtpTransferrerFileProgressTest {
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     /** 검증 대상 세션. */
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
-    /** 검증 대상 전송기. */
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    /** 검증 대상 다운로더. */
+    private val downloader = FtpOperationParts(session).downloader
+    /** 검증 대상 업로더. */
+    private val uploader = FtpOperationParts(session).uploader(OperationNotices())
     /** 보고된 진행 상태. */
     private val reports = mutableListOf<ProgressState>()
 
@@ -69,7 +71,7 @@ class FtpTransferrerFileProgressTest {
     fun `0바이트 파일을 올려도 완료 응답 뒤에 100%를 보고한다`() {
         val empty = File(dir, "empty.txt").apply { writeBytes(ByteArray(0)) }
 
-        assertEquals(IoResult.Done, runBlocking { transferrer.upload(listOf(UploadSource(empty.path, "ftp://host/r/empty.txt")), onProgress = { reports += it }) })
+        assertEquals(IoResult.Done, runBlocking { uploader.upload(listOf(UploadSource(empty.path, "ftp://host/r/empty.txt")), onProgress = { reports += it }) })
 
         assertEquals(100, reports.single().progress)
         assertEquals(0L, reports.single().totalBytes)
@@ -82,7 +84,7 @@ class FtpTransferrerFileProgressTest {
         val second = File(dir, "b.txt").apply { writeBytes(ByteArray(4)) }
 
         val result = runBlocking {
-            transferrer.upload(listOf(UploadSource(first.path, "ftp://host/r/a.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
+            uploader.upload(listOf(UploadSource(first.path, "ftp://host/r/a.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
         }
 
         assertEquals(IoResult.Done, result)
@@ -99,7 +101,7 @@ class FtpTransferrerFileProgressTest {
         val second = File(dir, "b.txt").apply { writeBytes(ByteArray(4)) }
 
         runBlocking {
-            transferrer.upload(listOf(UploadSource(missing.path, "ftp://host/r/missing.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
+            uploader.upload(listOf(UploadSource(missing.path, "ftp://host/r/missing.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
         }
 
         val secondReports = reports.filter { it.currentFileName == "b.txt" }
@@ -113,6 +115,6 @@ class FtpTransferrerFileProgressTest {
     /** 원격 파일 하나를 받는다. */
     private fun download(): IoResult<Unit> = runBlocking {
         // 받기 전 준비 단계(#284)는 빼고 전송 단계의 진행만 본다
-        transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it.indeterminate == null) reports += it })
+        downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it.indeterminate == null) reports += it })
     }
 }

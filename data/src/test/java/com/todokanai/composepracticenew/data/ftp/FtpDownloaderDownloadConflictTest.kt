@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
-import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -21,12 +20,12 @@ import java.nio.file.Files
  * 다운로드가 로컬 자리에 같은 이름의 항목이 있을 때 쓰는 시점에 묻고, 답대로 받거나 건너뛰는지 검증하는 단위 테스트(#316).
  * 묻는 것은 세션 잠금 밖에서 하며, 서버가 전송을 거부하면 이 다운로드가 만든 빈 파일만 지우고 덮어쓰기로 한 기존 파일은 비우지 않는다.
  */
-class FtpTransferrerDownloadConflictTest {
+class FtpDownloaderDownloadConflictTest {
 
     private val dir: File = Files.createTempDirectory("ftp-download-conflict-test").toFile()
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    private val downloader = FtpOperationParts(session).downloader
     private val local = File(dir, "a.txt")
 
     /** 받은 겹침(받은 순서). */
@@ -87,7 +86,7 @@ class FtpTransferrerDownloadConflictTest {
         client.remoteFiles = listOf("a.txt")
         client.streamContent = "new".toByteArray()
 
-        val result = runBlocking { transferrer.download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, isDirectory = true)), answering(ConflictChoice.SKIP)) }
+        val result = runBlocking { downloader.download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, isDirectory = true)), answering(ConflictChoice.SKIP)) }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf(WriteConflictKind.FOLDER), asked.map { it.kind })
@@ -106,7 +105,7 @@ class FtpTransferrerDownloadConflictTest {
         )
 
         assertThrows(CancellationException::class.java) {
-            runBlocking { transferrer.download(sources, answering { throw CancellationException("질문에서 취소") }) }
+            runBlocking { downloader.download(sources, answering { throw CancellationException("질문에서 취소") }) }
         }
 
         assertEquals(emptyList<String>(), client.retrieveRequests)
@@ -119,7 +118,7 @@ class FtpTransferrerDownloadConflictTest {
 
     /** 원격 a.txt를 [local]로 받는다. */
     private fun download(resolver: WriteConflictResolver): IoResult<Unit> =
-        runBlocking { transferrer.download(listOf(DownloadSource("ftp://host/r/a.txt", local.path, isDirectory = false)), resolver).singleItemResult() }
+        runBlocking { downloader.download(listOf(DownloadSource("ftp://host/r/a.txt", local.path, isDirectory = false)), resolver).singleItemResult() }
 
     /** 받은 겹침을 [asked]에 기록하고 [choice]로 답하는 resolver. */
     private fun answering(choice: ConflictChoice) = answering { choice }

@@ -19,7 +19,7 @@ import java.nio.file.Files
 /**
  * 전송의 로컬 파일 실패가 세션 종료로 잘못 분류되지 않는지, 폴더 업로드의 원격 폴더 생성 규칙이 유지되는지 검증하는 단위 테스트(#233).
  */
-class FtpTransferrerLocalFileFailureTest {
+class FtpTransferLocalFileFailureTest {
 
     /** 테스트의 로컬 파일을 두는 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("ftp-local-failure-test").toFile()
@@ -30,8 +30,10 @@ class FtpTransferrerLocalFileFailureTest {
     /** [client]를 쓰는 세션. */
     private val session = FtpSession(client)
 
-    /** 검증 대상. */
-    private val transferrer = FtpOperationParts(session).transferrer(OperationNotices())
+    /** 검증 대상 다운로더. */
+    private val downloader = FtpOperationParts(session).downloader
+    /** 검증 대상 업로더. */
+    private val uploader = FtpOperationParts(session).uploader(OperationNotices())
 
     @Before
     fun setUp() {
@@ -46,7 +48,7 @@ class FtpTransferrerLocalFileFailureTest {
 
     @Test
     fun `열 수 없는 로컬 파일을 올리면 STOR를 보내지 않고 이 항목만 실패한다`() {
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(File(dir, "missing.txt").path, "ftp://host/r/a.txt"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(File(dir, "missing.txt").path, "ftp://host/r/a.txt"))).singleItemResult() }
 
         assertTrue("로컬 파일 실패는 이 항목의 실패여야 함: $result", result is IoResult.ItemFailed)
         assertEquals("서버 파일을 비우는 STOR를 보내면 안 됨", emptyList<String>(), client.storeRequests)
@@ -57,7 +59,7 @@ class FtpTransferrerLocalFileFailureTest {
     fun `열 수 있는 로컬 파일은 STOR로 올린다`() {
         val local = File(dir, "a.txt").apply { writeText("A") }
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(local.path, "ftp://host/r/a.txt"))).singleItemResult() }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("/r/a.txt"), client.storeRequests)
@@ -67,7 +69,7 @@ class FtpTransferrerLocalFileFailureTest {
     fun `쓸 수 없는 로컬 경로로 받으면 이 항목만 실패하고 세션은 유지된다`() {
         val directoryAsTarget = File(dir, "target").apply { mkdirs() }
 
-        val result = runBlocking { transferrer.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", directoryAsTarget.path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+        val result = runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", directoryAsTarget.path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertTrue("로컬 파일 실패는 이 항목의 실패여야 함: $result", result is IoResult.ItemFailed)
         assertTrue("로컬 파일 실패로 세션이 끝나면 안 됨", runBlocking { session.isReady() })
@@ -84,7 +86,7 @@ class FtpTransferrerLocalFileFailureTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpOperationParts(session).let { parts -> FtpTransferrer(observing, parts.executor, parts.trees, DataCommandRunner(session), OperationNotices()) }
+        val observed = FtpOperationParts(session).let { parts -> FtpDownloader(observing, parts.trees, DataCommandRunner(session)) }
 
         val result = runBlocking { observed.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", target.path, false)), resolveConflict = UnexpectedConflictResolver) }
 
@@ -98,7 +100,7 @@ class FtpTransferrerLocalFileFailureTest {
         File(folder, "a.txt").writeText("A")
         client.serverBehaviors = mapOf("MKD" to ServerBehavior.Refuse(550, "550 Already exists"))
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
 
         assertEquals(IoResult.Done, result)
         assertEquals(listOf("/r"), client.makeDirectoryRequests)
@@ -110,7 +112,7 @@ class FtpTransferrerLocalFileFailureTest {
         val folder = File(dir, "r").apply { mkdirs() }
         client.serverBehaviors = mapOf("MKD" to ServerBehavior.Refuse(550, "550 Already exists"))
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
 
         assertEquals(IoResult.Done, result)
         assertEquals("/r", client.workingDirectory)
@@ -122,7 +124,7 @@ class FtpTransferrerLocalFileFailureTest {
         client.serverBehaviors = mapOf("MKD" to ServerBehavior.Refuse(550, "550 No write access"))
         client.onChangeWorkingDirectory = { false }
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
 
         assertTrue("폴더가 없는데 성공으로 보고하면 안 됨: $result", result is IoResult.Failure)
         assertTrue("MKD의 거부 응답을 알려야 함: $result", ((result as IoResult.ItemFailed).reason as FailureReason.ServerRefused).let { it.step == RemoteStep.MAKE_FOLDER && it.reply.contains("No write access") })
@@ -136,7 +138,7 @@ class FtpTransferrerLocalFileFailureTest {
         client.serverBehaviors = mapOf("MKD" to ServerBehavior.Refuse(550, "550 No write access"))
         client.onChangeWorkingDirectory = { false }
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))) }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(folder.path, "ftp://host/r"))) }
 
         val failure = (result as IoResult.PartiallyFailed).failures.single()
         assertEquals(folder.name, failure.path)
@@ -148,7 +150,7 @@ class FtpTransferrerLocalFileFailureTest {
         val local = File(dir, "b.txt").apply { writeText("B") }
 
         val result = runBlocking {
-            transferrer.upload(listOf(UploadSource(File(dir, "missing.txt").path, "ftp://host/r/missing.txt"), UploadSource(local.path, "ftp://host/r/b.txt")))
+            uploader.upload(listOf(UploadSource(File(dir, "missing.txt").path, "ftp://host/r/missing.txt"), UploadSource(local.path, "ftp://host/r/b.txt")))
         }
 
         assertEquals(listOf("missing.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
@@ -164,7 +166,7 @@ class FtpTransferrerLocalFileFailureTest {
             "CWD" to ServerBehavior.Fail(IOException("read timed out"))
         )
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
 
         assertTrue("연결 끊김은 숨기면 안 됨: $result", result is IoResult.ConnectionLost)
         assertEquals(emptyList<String>(), client.storeRequests)
@@ -177,7 +179,7 @@ class FtpTransferrerLocalFileFailureTest {
         File(folder, "a.txt").writeText("A")
         client.serverBehaviors = mapOf("MKD" to ServerBehavior.Fail(IOException("read timed out")))
 
-        val result = runBlocking { transferrer.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
+        val result = runBlocking { uploader.upload(listOf(UploadSource(folder.path, "ftp://host/r"))).singleItemResult() }
 
         assertTrue("연결 끊김은 숨기면 안 됨: $result", result is IoResult.ConnectionLost)
         assertEquals(emptyList<String>(), client.storeRequests)
