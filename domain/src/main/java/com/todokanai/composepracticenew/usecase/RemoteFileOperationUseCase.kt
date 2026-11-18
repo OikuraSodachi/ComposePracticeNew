@@ -4,20 +4,26 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NamingOperation
+import com.todokanai.composepracticenew.model.RemoteSession
 import com.todokanai.composepracticenew.model.wrappingFailureReason
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
+import com.todokanai.composepracticenew.repository.RemoteSessionProvider
 
 /**
  * 원격 파일 작업(다운로드·업로드·이름변경·삭제·새폴더)을 조율하는 단일 진입점 UseCase.
  * 이름 변경·새 폴더처럼 사용자가 정한 이름을 쓰는 작업은 실행 전에 [fileNameUseCase] 규칙을 강제한다.
+ * 작업은 실행을 요청할 때(보호를 기다리기 전에) 지금 연결된 세션에 묶는다 — 그 뒤 다른 서버에 접속해도 작업은 고른 세션에서만 실행된다(#436).
+ * 요청할 때 연결돼 있지 않으면 저장소를 부르지 않고 [FailureReason.NotConnected] 실패로 끝낸다.
  * @param orchestrator 인스턴스 ID·진행 핸들·콜백·실행 스코프를 제공하는 공통 오케스트레이터
  * @param notices 실행 전 거부 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param transferRepo 원격↔로컬 파일 전송을 실행하는 RemoteFileTransferRepository
  * @param mutationRepo 원격 파일 이름변경·삭제·생성을 실행하는 RemoteFileMutationRepository
+ * @param sessions 작업을 묶을 지금의 원격 세션을 읽는 RemoteSessionProvider
  * @param fileNameUseCase 원격 화면이 다루는 저장소의 제약을 포함한 파일 이름 규칙을 검증하는 UseCase
  */
 class RemoteFileOperationUseCase(
@@ -25,6 +31,7 @@ class RemoteFileOperationUseCase(
     private val notices: OperationNoticeReporter,
     private val transferRepo: RemoteFileTransferRepository,
     private val mutationRepo: RemoteFileMutationRepository,
+    private val sessions: RemoteSessionProvider,
     private val fileNameUseCase: FileNameUseCase
 ) {
     /**
@@ -45,8 +52,9 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun download(items: List<FileHolderItem>, localDestPath: String, onRefresh: suspend () -> Unit) {
+        val session = sessions.current()
         orchestrator.launchAsking(FileOperationType.DOWNLOAD, onRefresh) { onProgress, prompts ->
-            transferRepo.download(items, localDestPath, prompts, onProgress)
+            onSession(session) { transferRepo.download(it, items, localDestPath, prompts, onProgress) }
         }
     }
 
@@ -59,8 +67,9 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun upload(items: List<FileHolderItem>, remoteDestPath: String, onRefresh: suspend () -> Unit) {
+        val session = sessions.current()
         orchestrator.launch(FileOperationType.UPLOAD, onRefresh) { onProgress ->
-            transferRepo.upload(items, remoteDestPath, onProgress)
+            onSession(session) { transferRepo.upload(it, items, remoteDestPath, onProgress) }
         }
     }
 
@@ -73,8 +82,9 @@ class RemoteFileOperationUseCase(
      */
     fun renameRemote(path: String, newName: String, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(newName, path), newName, NamingOperation.RENAME)) return
+        val session = sessions.current()
         orchestrator.launch(onRefresh = onRefresh) { _ ->
-            mutationRepo.rename(path, newName).wrappingFailureReason { FailureReason.RenameFailed(newName, it) }
+            onSession(session) { mutationRepo.rename(it, path, newName) }.wrappingFailureReason { FailureReason.RenameFailed(newName, it) }
         }
     }
 
@@ -87,7 +97,8 @@ class RemoteFileOperationUseCase(
      * @return Unit
      */
     fun deleteRemote(targets: List<FileHolderItem>, onRefresh: suspend () -> Unit) {
-        orchestrator.launch(FileOperationType.DELETE, onRefresh) { onProgress -> mutationRepo.delete(targets, onProgress) }
+        val session = sessions.current()
+        orchestrator.launch(FileOperationType.DELETE, onRefresh) { onProgress -> onSession(session) { mutationRepo.delete(it, targets, onProgress) } }
     }
 
     /**
@@ -99,8 +110,18 @@ class RemoteFileOperationUseCase(
      */
     fun makeDirectoryRemote(parentPath: String, dirName: String, onRefresh: suspend () -> Unit) {
         if (notices.rejectsInvalidName(validateEntryName(dirName, parentPath), dirName, NamingOperation.MAKE_FOLDER)) return
+        val session = sessions.current()
         orchestrator.launch(onRefresh = onRefresh) { _ ->
-            mutationRepo.makeDirectory(parentPath, dirName).wrappingFailureReason { FailureReason.MakeFolderFailed(dirName, it) }
+            onSession(session) { mutationRepo.makeDirectory(it, parentPath, dirName) }.wrappingFailureReason { FailureReason.MakeFolderFailed(dirName, it) }
         }
     }
+
+    /**
+     * 실행을 요청할 때 묶은 [session]으로 [run]을 실행한다.
+     * @param session 요청할 때 읽은 세션. 연결돼 있지 않았으면 null
+     * @param run 묶은 세션으로 저장소를 부르는 동작
+     * @return run의 결과. [session]이 null이면 연결 없음 실패
+     */
+    private inline fun onSession(session: RemoteSession?, run: (RemoteSession) -> IoResult<Unit>): IoResult<Unit> =
+        if (session == null) IoResult.ConnectionLost(FailureReason.NotConnected) else run(session)
 }

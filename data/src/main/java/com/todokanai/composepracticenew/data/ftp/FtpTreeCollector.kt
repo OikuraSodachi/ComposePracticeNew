@@ -4,8 +4,6 @@ import com.todokanai.composepracticenew.data.progress.PreparationProgressReporte
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.valueOr
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 트리 수집이 들어가 있는 디렉터리 하나.
@@ -70,14 +68,13 @@ private class TreeMemoryBudget(private val limitBytes: Long) {
  * @param listing 각 디렉터리의 목록을 받는 FtpListingReader
  * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree]). 0보다 커야 한다
  */
-@Singleton
 class FtpTreeCollector internal constructor(
     private val listing: FtpListingReader,
     private val treeMemoryLimitBytes: Long
 ) {
 
     /** 트리 수집 메모리 상한을 [TREE_MEMORY_LIMIT_BYTES]로 둔 수집기를 만든다. Hilt가 사용하는 생성자다. */
-    @Inject internal constructor(listing: FtpListingReader) : this(listing, TREE_MEMORY_LIMIT_BYTES)
+    internal constructor(listing: FtpListingReader) : this(listing, TREE_MEMORY_LIMIT_BYTES)
 
     init {
         // 0 이하는 상한이 아니다 — 어떤 목록도 받을 수 없어 빈 시작 폴더 말고는 모두 실패한다

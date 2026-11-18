@@ -22,6 +22,7 @@ import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
 import com.todokanai.composepracticenew.repository.RemoteFileTransferRepository
+import com.todokanai.composepracticenew.repository.RemoteSessionProvider
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import com.todokanai.composepracticenew.repository.StorageNameMatching
@@ -186,6 +187,7 @@ object UseCaseModule {
         notices: OperationNoticeReporter,
         transferRepo: RemoteFileTransferRepository,
         mutationRepo: RemoteFileMutationRepository,
+        sessions: RemoteSessionProvider,
         @RemoteNavigator nameRules: StorageNameRules
-    ) = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, FileNameUseCase(nameRules))
+    ) = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, sessions, FileNameUseCase(nameRules))
 }

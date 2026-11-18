@@ -20,6 +20,8 @@ internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : So
     private val sockets: MutableSet<WriteBoundedSocket> = ConcurrentHashMap.newKeySet()
     /** [capturing] 중인 스레드에서 만든 소켓을 모으는 목록. 스레드마다 따로 두어 다른 스레드가 만든 소켓은 섞이지 않는다. */
     private val captured = ThreadLocal<MutableList<WriteBoundedSocket>>()
+    /** [closeAll]을 불렀는지 여부. 참이면 그 뒤에 만드는 소켓도 바로 닫는다. */
+    @Volatile private var isClosed = false
 
     override fun createSocket(): Socket = track(WriteBoundedSocket(writeTimeoutMillis))
 
@@ -34,10 +36,12 @@ internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : So
         connected(InetSocketAddress(address, port), InetSocketAddress(localAddress, localPort))
 
     /**
-     * 지금까지 만든 소켓을 모두 중단으로 닫는다([WriteBoundedSocket.abort]). 그 소켓에서 I/O를 기다리던 스레드는 SocketException을 받는다.
+     * 지금까지 만든 소켓을 모두 중단으로 닫고([WriteBoundedSocket.abort]), 그 뒤에 만드는 소켓도 만들자마자 닫는다. 그 소켓에서 I/O를 기다리던 스레드는 SocketException을 받는다.
      * 진행 중인 명령을 끊는 닫기이므로, 업로드 중인 데이터 연결이 서버에 파일 끝으로 읽히지 않게 한다.
+     * 닫은 세션은 다시 열리지 않으므로([FtpSession]) 되돌리지 않는다 — 소켓이 아직 없을 때(호스트 이름을 찾는 중 등) 닫아도 그 뒤의 접속이 끝까지 진행되지 않는다.
      */
     fun closeAll() {
+        isClosed = true
         sockets.removeIf { socket ->
             socket.abort()
             true
@@ -89,6 +93,8 @@ internal class AbortableSocketFactory(private val writeTimeoutMillis: Long) : So
         sockets.removeIf { it.isClosed }
         sockets += socket
         captured.get()?.add(socket)
+        // 기억한 뒤에 확인한다 — [closeAll]과 겹쳐도 둘 중 한쪽이 이 소켓을 닫는다
+        if (isClosed) socket.abort()
         return socket
     }
 }

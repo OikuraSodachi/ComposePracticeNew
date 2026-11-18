@@ -9,7 +9,6 @@ import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -25,7 +24,7 @@ import java.net.SocketTimeoutException
 class FtpTreeProgressTest {
 
     private val client = FakeFtpClient()
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     private val commands = FtpCommandParts(session)
 
     @Test
@@ -148,5 +147,5 @@ class FtpTreeProgressTest {
     /** 찾은 항목마다 [onProgress]로 알리는 준비 단계 보고기 — 기본 보고 간격이면 테스트가 시간에 기대게 된다. */
     private fun everyEntry(onProgress: (ProgressState) -> Unit) = PreparationProgressReporter(IndeterminateProgressReporter(onProgress, ProgressThrottle(intervalNanos = 0)))
 
-    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(home = null) }
 }

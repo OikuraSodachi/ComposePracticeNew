@@ -4,64 +4,49 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
-import org.junit.Assert.fail
 import org.junit.Test
 import java.net.Socket
 import java.net.SocketException
 import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.concurrent.thread
 
 /**
- * 앱의 종료 요청([FtpSession.closeBypassingIoLock])이 연결 작업([FtpConnector.connect])이나 진행 중인 목록 조회와 겹쳐도
+ * 앱의 종료 요청([FtpSessionManager.disconnect])·끊김 종료([FtpSessionManager.drop])가 접속([FtpSessionManager.connect])이나 진행 중인 목록 조회와 겹쳐도
  * 연결 성공으로 뒤집히지 않고 명령을 연결 끊김으로 끝내는지, 그리고 LIST 서버의 목록 조회 명령 형태를 검증하는 통합 테스트.
  * 소켓을 닫을 때의 예외와 명령 인자는 commons-net 내부 동작이므로 실제 FTPClient로 로컬 테스트 서버에 접속한다.
  */
-class FtpConnectorCloseRequestTest {
+class FtpSessionManagerCloseTest {
 
-    /** 검증 대상이 쓰는 실제 FTP 클라이언트. 명령을 보내기 직전에 테스트가 끼어들 수 있다. */
-    private val client = InterceptingFtpClient()
-    /** 연결 상태를 소유한 세션. 서버 스크립트가 응답하지 않을 때 오래 기다리지 않도록 I/O 상한을 짧게 둔다. */
-    private val session = FtpSession(client, ConnectionLossNotices(), ioTimeoutMillis = ScriptedFtpServer.TIMEOUT_MILLIS)
-    /** Keep-Alive 루프를 돌리는 스코프. 테스트가 끝나면 취소한다. */
-    private val keepAliveScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    /** 연결에 성공하면 시작되는 Keep-Alive. 테스트가 끝나면 멈춘다. */
-    private val keepAlive = FtpKeepAlive(session, session, keepAliveScope)
+    /** 검증 대상을 실제 클라이언트로 테스트 서버에 접속시키는 도구. */
+    private val fixture = SessionManagerFixture()
     /** 검증 대상. */
-    private val connector = FtpConnector(session, keepAlive)
+    private val manager = fixture.manager
+    /** 탐색 세션이 쓰는 클라이언트. 명령을 보내기 직전에 테스트가 끼어들 수 있다. */
+    private val client = InterceptingFtpClient().also { intercepting -> fixture.clientFactory = { intercepting } }
     /** 서버가 받은 LIST 인자. 받은 순서대로 쌓는다. */
     private val listArguments = CopyOnWriteArrayList<String>()
     /** 서버가 받은 CWD 인자. 받은 순서대로 쌓는다. */
     private val cwdArguments = CopyOnWriteArrayList<String>()
-    /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
-    private val servers = mutableListOf<ScriptedFtpServer>()
+    /** 마지막으로 띄운 서버. */
+    private lateinit var server: ScriptedFtpServer
 
     @After
-    fun tearDown() {
-        runBlocking { keepAlive.stop() }
-        keepAliveScope.cancel()
-        runCatching { client.disconnect() }
-        servers.forEach { it.close() }
-    }
+    fun tearDown() = fixture.close()
 
     @Test
     fun `LIST 서버에 연결할 때는 목록을 조회하지 않는다`() {
         val result = connectToListServer { exchange -> sendListing(exchange, "a.txt") }
 
         assertEquals(ConnectResult.Connected, result)
-        assertFalse(servers.last().received.toString(), "LIST" in servers.last().received)
+        assertFalse(server.received.toString(), "LIST" in server.received)
     }
 
     @Test
@@ -79,7 +64,7 @@ class FtpConnectorCloseRequestTest {
         client.beforeCommand = { command ->
             // 홈을 확인하는 PWD를 보내기 직전에 종료를 요청해, 로그인까지 마친 연결 작업과 종료 요청이 겹치게 한다
             if (command == "PWD") {
-                closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
+                closer.set(thread { runBlocking { manager.disconnect() } })
                 awaitUntil("제어 연결 소켓이 닫히지") { client.isControlSocketClosed }
             }
         }
@@ -87,7 +72,8 @@ class FtpConnectorCloseRequestTest {
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
-        assertFalse(runBlocking { session.isReady() })
+        assertNull(manager.current())
+        assertEquals(RemoteConnectionState.Disconnected, manager.connectionState.value)
         assertFalse(client.isConnected)
     }
 
@@ -95,16 +81,17 @@ class FtpConnectorCloseRequestTest {
     fun `서버에 접속하기 전에 종료를 요청해도 연결 성공으로 알리지 않는다`() {
         val closer = AtomicReference<Thread?>()
         client.beforeConnect = {
-            // 소켓을 열기 전, 연결 작업이 잠금을 쥔 채로 앱 종료가 연결 종료를 요청하게 한다 — 닫을 소켓이 아직 없어도 요청은 남아야 한다
-            val mark = session.closeRequestMark()
-            closer.set(thread { runBlocking { connector.disconnect() } })
-            awaitUntil("종료 요청이 기록되지") { session.closeRequestMark() != mark }
+            // 소켓을 열기 전, 연결 작업이 세션 잠금을 쥔 채로 앱 종료가 연결 종료를 요청하게 한다 — 닫을 소켓이 아직 없어도 요청은 남아야 한다.
+            // 종료 요청은 세션 잠금을 기다리며 멈춰야 하므로, 그 스레드가 멈출 때까지 기다린다(종료 기록은 잠금을 기다리기 전에 끝난다)
+            val disconnecting = thread { runBlocking { manager.disconnect() } }
+            closer.set(disconnecting)
+            awaitUntil("종료 요청이 세션 잠금을 기다리지") { disconnecting.state == Thread.State.WAITING || disconnecting.state == Thread.State.TIMED_WAITING }
         }
         val result = connectToListServer { exchange -> sendListing(exchange, "a.txt") }
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
-        assertFalse(runBlocking { session.isReady() })
+        assertNull(manager.current())
         assertFalse(client.isConnected)
     }
 
@@ -116,19 +103,19 @@ class FtpConnectorCloseRequestTest {
             exchange.data.accept().use { socket ->
                 exchange.send("150 Here comes the directory listing")
                 socket.getOutputStream().write(listingLines("a.txt").toByteArray())
-                closer.set(thread { runBlocking { session.closeBypassingIoLock() } })
+                closer.set(thread { runBlocking { manager.disconnect() } })
                 // 전송을 끝내지 않고 클라이언트가 데이터 연결을 닫을 때까지 기다린다. 중단이므로 정상 닫기(-1)가 아니라 리셋이어야 한다
                 socket.soTimeout = ScriptedFtpServer.TIMEOUT_MILLIS
                 dataResetByClient.set(isResetOnRead(socket))
             }
         }
 
-        val listing = runBlocking { FtpCommandParts(session).listing.listFiles("ftp://host/r") }
+        val listing = runBlocking { manager.withBrowsingSession { it.listing.listFiles("ftp://host/r") } }
         closer.get()?.join(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
 
         assertTrue(listing.toString(), listing is IoResult.ConnectionLost)
         assertTrue("데이터 연결을 리셋해 전송을 기다리지 않는다", dataResetByClient.get())
-        assertFalse("진행 중인 명령이 있으면 다른 스레드에서 QUIT을 보내지 않는다", "QUIT" in servers.last().received)
+        assertFalse("진행 중인 명령이 있으면 다른 스레드에서 QUIT을 보내지 않는다", "QUIT" in server.received)
         assertFalse(client.isConnected)
     }
 
@@ -136,10 +123,11 @@ class FtpConnectorCloseRequestTest {
     fun `진행 중인 명령이 없을 때 종료를 요청하면 로그아웃한 뒤 연결을 닫는다`() {
         connectToListServer { exchange -> sendListing(exchange, "a.txt") }
 
-        runBlocking { session.closeBypassingIoLock() }
+        runBlocking { manager.disconnect() }
 
-        assertEquals("QUIT", servers.last().received.last())
-        assertFalse(runBlocking { session.isReady() })
+        assertEquals("QUIT", server.received.last())
+        assertNull(manager.current())
+        assertEquals(RemoteConnectionState.Disconnected, manager.connectionState.value)
         assertFalse(client.isConnected)
     }
 
@@ -147,10 +135,10 @@ class FtpConnectorCloseRequestTest {
     fun `앱이 연결을 더 유지할 수 없어 끝내면 연결을 닫고 끊김으로 남긴다`() {
         connectToListServer { exchange -> sendListing(exchange, "a.txt") }
 
-        assertTrue(runBlocking { connector.drop() })
+        assertTrue(runBlocking { manager.drop() })
 
-        assertEquals(RemoteConnectionState.Lost, session.connectionState.value)
-        assertEquals("QUIT", servers.last().received.last())
+        assertEquals(RemoteConnectionState.Lost, manager.connectionState.value)
+        assertEquals("QUIT", server.received.last())
         assertFalse(client.isConnected)
     }
 
@@ -158,51 +146,62 @@ class FtpConnectorCloseRequestTest {
     fun `연결 작업 중에는 끊김으로 끝내지 않아 그 연결 작업이 연결에 성공한다`() {
         val dropped = AtomicReference<Boolean?>()
         client.beforeConnect = {
-            // 소켓을 열기 전, 연결 작업이 잠금을 쥔 채로 실행 시간 한도의 종료가 들어오게 한다 — 보호하던 연결이 아닌 새 연결이다
-            dropped.set(runBlocking { connector.drop() })
+            // 소켓을 열기 전에 실행 시간 한도의 종료가 들어오게 한다 — 보호하던 연결이 아닌 새 연결이다
+            dropped.set(runBlocking { manager.drop() })
         }
 
         val result = connectToListServer { exchange -> sendListing(exchange, "a.txt") }
 
         assertEquals(false, dropped.get())
         assertEquals(ConnectResult.Connected, result)
-        assertEquals(RemoteConnectionState.Connected("server"), session.connectionState.value)
+        assertEquals(RemoteConnectionState.Connected("server"), manager.connectionState.value)
     }
 
     @Test
     fun `연결된 세션이 없으면 끊김으로 끝내지 않는다`() {
-        assertFalse(runBlocking { connector.drop() })
+        assertFalse(runBlocking { manager.drop() })
 
-        assertEquals(RemoteConnectionState.Disconnected, session.connectionState.value)
+        assertEquals(RemoteConnectionState.Disconnected, manager.connectionState.value)
+    }
+
+    @Test
+    fun `접속과 종료가 모두 끝나면 작업 중으로 보이지 않는다`() {
+        connectToListServer { exchange -> sendListing(exchange, "a.txt") }
+        assertFalse(manager.isConnecting.value)
+
+        runBlocking { manager.disconnect() }
+
+        assertFalse(manager.isConnecting.value)
     }
 
     /**
-     * LIST에 [onList]대로 응답하는 LIST 서버(MLSD 미지원)를 띄워 [FtpConnector]로 접속한다. 받은 LIST·CWD 인자는 [listArguments]·[cwdArguments]에 쌓는다.
+     * LIST에 [onList]대로 응답하는 LIST 서버(MLSD 미지원)를 띄워 접속한다. 받은 LIST·CWD 인자는 [listArguments]·[cwdArguments]에 쌓는다.
      * @param onList LIST를 받았을 때의 응답 동작
      * @return 연결 결과
      */
     private fun connectToListServer(onList: (ScriptedFtpServer.Exchange) -> Unit): ConnectResult {
-        val script = mapOf<String, (ScriptedFtpServer.Exchange) -> Unit>(
-            "CWD" to { exchange ->
-                cwdArguments += exchange.argument
-                exchange.send("250 Directory changed")
-            },
-            "LIST" to { exchange ->
-                listArguments += exchange.argument
-                onList(exchange)
-            },
+        server = fixture.server(
+            mapOf(
+                "CWD" to { exchange ->
+                    cwdArguments += exchange.argument
+                    exchange.send("250 Directory changed")
+                },
+                "LIST" to { exchange ->
+                    listArguments += exchange.argument
+                    onList(exchange)
+                },
+            )
         )
-        val server = ScriptedFtpServer(script).also { servers += it }
-        return runBlocking { connector.connect("server", server.host, server.port, "user", "password", "UTF-8") }
+        return fixture.connect(server)
     }
 
     /**
-     * 연결한 세션으로 [path]의 화면 목록을 조회해 항목 이름을 돌려준다.
+     * 탐색 세션으로 [path]의 화면 목록을 조회해 항목 이름을 돌려준다.
      * @param path ftp://server/path 형식의 디렉터리 경로
      * @return 항목 이름 집합
      */
     private fun listedNamesOf(path: String): Set<String> {
-        val listing = runBlocking { FtpCommandParts(session).listing.listFiles(path) }
+        val listing = runBlocking { manager.withBrowsingSession { it.listing.listFiles(path) } }
         return (listing as IoResult.Success).value.mapTo(HashSet()) { (it as ListedItem.Entry).entry.name }
     }
 
@@ -237,20 +236,6 @@ class FtpConnectorCloseRequestTest {
         false
     } catch (_: SocketException) {
         true
-    }
-
-    /**
-     * [condition]이 참이 될 때까지 기다린다. 검증 대상이 회귀해 조건이 끝내 참이 되지 않아도 테스트가 멈추지 않도록,
-     * 기한([ScriptedFtpServer.TIMEOUT_MILLIS])이 지나면 실패로 끝낸다.
-     * @param description 실패 메시지에 담을, 기다린 조건의 설명(예: "소켓이 닫히지")
-     * @param condition 기다릴 조건
-     */
-    private fun awaitUntil(description: String, condition: () -> Boolean) {
-        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(ScriptedFtpServer.TIMEOUT_MILLIS.toLong())
-        while (!condition()) {
-            if (System.nanoTime() > deadline) fail("기한 안에 $description 않았다")
-            Thread.yield()
-        }
     }
 
     /** 명령을 보내기 직전에 테스트가 끼어들 수 있는 실제 FTP 클라이언트. 연결 단계 사이에 종료 요청을 끼워 넣는 데 쓴다. */

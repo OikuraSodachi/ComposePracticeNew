@@ -8,8 +8,6 @@ import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.fileexplorer.defaultDisplayName
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 고른 원격 파일·디렉터리를 하나의 작업으로 지운다. 디렉터리는 트리를 모아 리프부터 지우고, 진행을 작업 전체 기준으로 보고한다.
@@ -17,8 +15,7 @@ import javax.inject.Singleton
  * @param treeCollector 디렉터리 대상의 원격 트리를 모으는 FtpTreeCollector
  * @param commands 삭제 명령(DELE·RMD)과 대상 밖으로 나가는 이동을 실행하는 FtpCommandRunner
  */
-@Singleton
-class FtpRemoteDeletion @Inject internal constructor(
+class FtpRemoteDeletion internal constructor(
     private val treeCollector: FtpTreeCollector,
     private val commands: FtpCommandRunner
 ) {

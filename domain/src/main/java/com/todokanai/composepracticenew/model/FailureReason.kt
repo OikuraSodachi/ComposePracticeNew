@@ -161,6 +161,9 @@ sealed interface FailureReason {
      */
     data class NoResponse(val detail: String) : FailureReason
 
+    /** 원격 서버의 목록 형식을 알 수 없어(시스템 종류를 알려주지 않거나 해석할 수 없는 형식) 그 서버의 목록을 읽을 수 없다. */
+    data object ListingFormatUnknown : FailureReason
+
     /**
      * 원격 목록의 한 줄을 해석하지 못했다.
      * @param line 해석하지 못한 줄(표시용)
@@ -260,4 +263,7 @@ enum class RemoteStep {
 
     /** 데이터 연결 준비. */
     PREPARE_TRANSFER,
+
+    /** 작업용 연결 열기 — 진행 표시가 있는 원격 작업이 자기 연결을 열어 로그인하는 단계(#436). */
+    OPEN_SESSION,
 }

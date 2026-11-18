@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.RemoteSession
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
@@ -48,7 +49,7 @@ class FileNameEnforcementTest {
     /** 저장소의 제약을 물은 이름과 위치를 기록하는 이름 규칙. */
     private val storageNames = RecordingStorageNameRules()
     private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(storageNames), LocalPathRules())
-    private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, mutationRepo, FileNameUseCase(storageNames))
+    private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, mutationRepo, ConnectedSessionProvider, FileNameUseCase(storageNames))
 
     @After
     fun tearDown() = scope.cancel()
@@ -136,15 +137,15 @@ class FileNameEnforcementTest {
     /** 호출된 작업 이름을 기록하는 테스트용 원격 변경 저장소. */
     private class RecordingMutationRepository : RemoteFileMutationRepository {
         val calls = mutableListOf<String>()
-        override suspend fun rename(path: String, newName: String) = IoResult.Done.also { calls += "rename" }
-        override suspend fun delete(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
-        override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
+        override suspend fun rename(session: RemoteSession, path: String, newName: String) = IoResult.Done.also { calls += "rename" }
+        override suspend fun delete(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
+        override suspend fun makeDirectory(session: RemoteSession, parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
     }
 
     /** 전송을 수행하지 않는 테스트용 원격 전송 저장소. 이 테스트의 대상 작업은 전송을 쓰지 않는다. */
     private object NoOpTransferRepository : RemoteFileTransferRepository {
-        override suspend fun download(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun upload(items: List<com.todokanai.composepracticenew.model.FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun download(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun upload(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */

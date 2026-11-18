@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.repository.OperationNotices
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -23,7 +22,7 @@ class FtpTransferrerConnectionLostTest {
 
     private val dir: File = Files.createTempDirectory("ftp-connection-lost-test").toFile()
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     private val transferrer = FtpCommandParts(session).transferrer(OperationNotices())
 
     @After
@@ -81,7 +80,7 @@ class FtpTransferrerConnectionLostTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpCommandParts(session).transferrer(OperationNotices(), transferSession = counting)
+        val observed = FtpCommandParts(session).let { parts -> FtpTransferrer(counting, parts.executor, parts.trees, DataCommandRunner(session), OperationNotices()) }
 
         val result = runBlocking { observed.upload(listOf(UploadSource(first.path, "ftp://host/r/a.txt"), UploadSource(second.path, "ftp://host/r/b.txt"))) }
 
@@ -113,5 +112,5 @@ class FtpTransferrerConnectionLostTest {
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(home = null) }
 }

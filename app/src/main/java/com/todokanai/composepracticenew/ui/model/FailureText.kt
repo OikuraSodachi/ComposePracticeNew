@@ -67,6 +67,7 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     FailureReason.NotConnected -> UiText.Resource(R.string.failure_not_connected)
     FailureReason.ConnectionClosed -> UiText.Resource(R.string.failure_connection_closed)
     is FailureReason.NoResponse -> UiText.Resource(R.string.failure_no_response, listOf(reason.detail))
+    FailureReason.ListingFormatUnknown -> UiText.Resource(R.string.failure_listing_format_unknown)
     is FailureReason.UnreadableListingEntry -> UiText.Resource(R.string.failure_unreadable_listing_entry, listOf(reason.line))
     is FailureReason.TooManyEntries ->
         withCycleNote(UiText.Resource(R.string.failure_too_many_entries, listOf(reason.path)), reason.cycleUndecidable)
@@ -158,6 +159,7 @@ private fun remoteStepRes(step: RemoteStep): Int = when (step) {
     RemoteStep.DOWNLOAD -> R.string.remote_step_download
     RemoteStep.UPLOAD -> R.string.remote_step_upload
     RemoteStep.PREPARE_TRANSFER -> R.string.remote_step_prepare_transfer
+    RemoteStep.OPEN_SESSION -> R.string.remote_step_open_session
 }
 
 /**

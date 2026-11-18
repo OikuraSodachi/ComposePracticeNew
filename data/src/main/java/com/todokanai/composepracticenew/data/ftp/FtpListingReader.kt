@@ -12,8 +12,6 @@ import org.apache.commons.net.ftp.parser.MLSxEntryParser
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
-import javax.inject.Inject
-import javax.inject.Singleton
 
 /**
  * 목록 조회 결과와, 서버가 알려준 식별값(MLSD `unique`). 트리 수집이 순환을 판별하는 데 쓴다.
@@ -133,8 +131,7 @@ private class BoundedListingStream(
  * @param session 조회할 FTPClient와 잠금을 소유한 FTP 세션
  * @param dataCommands 목록 조회 명령(LIST·MLSD)을 전송과 같은 규칙으로 실행하는 실행기
  */
-@Singleton
-class FtpListingReader @Inject internal constructor(
+class FtpListingReader internal constructor(
     private val session: FtpCommandSession,
     private val dataCommands: DataCommandRunner
 ) {

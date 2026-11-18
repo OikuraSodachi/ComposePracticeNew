@@ -2,62 +2,62 @@ package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.RemoteConnectionState
-import com.todokanai.composepracticenew.repository.ConnectionLossNoticeReporter
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import org.apache.commons.net.ftp.FTP
 import org.apache.commons.net.ftp.FTPConnectionClosedException
+import org.apache.commons.net.ftp.FTPReply
 import java.io.Closeable
 import java.io.IOException
 import java.time.Duration
-import java.util.concurrent.atomic.AtomicInteger
-import javax.inject.Inject
-import javax.inject.Singleton
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * 단일 FTPClient와 그 잠금·로그인 상태를 캡슐화하는 FTP 세션.
+ * 접속 한 번(접속 → 로그인 → 종료)만 사는 FTP 세션. 단일 FTPClient와 그 잠금·로그인 상태를 캡슐화한다.
+ * 한 번 연 세션은 다시 접속하지 않는다 — 닫히거나 끊긴 세션은 다시 쓰지 않고, 새 접속은 새 세션 객체가 맡는다(#436).
+ * 그래서 이 세션에 보낸 명령은 이 세션의 서버에만 가며, 명령을 보내는 쪽이 다른 접속으로 이어질 수 없다.
  * 클라이언트와 Mutex는 외부로 노출하지 않으며, 명령 실행은 [withClient] 또는 [withConnectedClient]를 통해서만 가능하다.
- * 쓰는 쪽은 자기 역할의 인터페이스로만 의존한다 — 명령은 [FtpCommandSession], 데이터 연결은 [FtpDataCommandSession], 연결 수명은 [FtpConnectionLifecycle], 상태 읽기는 [FtpConnectionStatus].
- * 잠금 규칙: 로그인 상태 플래그는 stateMutex, FTP 명령 I/O는 ioMutex로 직렬화한다.
+ * 쓰는 쪽은 자기 역할의 인터페이스로만 의존한다 — 명령은 [FtpCommandSession], 데이터 연결은 [FtpDataCommandSession].
+ * 어느 세션을 열고 닫을지, 연결 상태를 어떻게 보일지는 [FtpSessionManager]가 정한다.
+ * 잠금 규칙: 로그인·종료 상태 플래그는 stateMutex, FTP 명령 I/O는 ioMutex로 직렬화한다.
  * 서버가 응답하지 않아도 명령이 잠금을 쥔 채 끝없이 기다리지 않도록, [client]의 모든 소켓 읽기·쓰기 한 번에 [ioTimeoutMillis]의 상한을 건다.
  * 상한은 [client]가 소켓 팩토리로 만드는 제어 연결과 수동 모드 데이터 연결에 걸린다. 능동 모드 데이터 연결은 상한을 걸 수 없어 열지 않는다([PassiveOnlyServerSocketFactory]).
  * 상한을 넘긴 I/O는 IOException으로 끝나며, 그 의미(이 항목만의 실패인지 세션 종료인지)는 다른 I/O 실패와 같이 정한다([withConnectedClient]).
  * @param client 세션이 단독 소유하는 FTP 클라이언트. 외부에는 [withClient]·[withConnectedClient]로만 노출한다. 앱에서는 새 클라이언트를, 테스트에서는 가짜 클라이언트를 넘긴다.
  * 목록 조회도 데이터 스트림을 직접 열어야 하므로([DataCommandRunner]) 그 함수를 가진 [SessionFtpClient]다.
  * 소켓 상한·소켓 팩토리는 세션이 정하므로 먼저 정해 둔 값은 덮어쓴다 — 상한을 바꾸려면 [ioTimeoutMillis]로 넘긴다
- * @param lossNotices 연결된 세션이 끊김으로 바뀔 때 끊김을 넣고, 새 연결을 시작할 때 알리지 않은 끊김을 빼는 알림함
  * @param ioTimeoutMillis 소켓 읽기·쓰기 한 번에서 데이터가 하나도 오가지 않을 때 기다리는 상한(ms). 전송 전체 시간의 상한이 아니다. 0보다 커야 한다
+ * @param onLost 로그인된 세션이 예기치 않게 끊겼을 때(응답 순서를 잃음·서버가 닫음) 한 번 부른다. 앱이 요청한 종료([close])에서는 부르지 않는다.
+ * 끊김을 연결 상태에 보일지는 받는 쪽이 정한다. 취소되지 않는 문맥에서 부른다
  */
-@Singleton
 internal class FtpSession(
     private val client: SessionFtpClient,
-    private val lossNotices: ConnectionLossNoticeReporter,
-    ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS
-) : FtpCommandSession, FtpDataCommandSession, FtpConnectionLifecycle {
-
-    /** 새 FTPClient를 소유하는 세션을 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor(lossNotices: ConnectionLossNoticeReporter) : this(SessionFtpClient(), lossNotices)
+    ioTimeoutMillis: Int = IO_TIMEOUT_MILLIS,
+    private val onLost: suspend () -> Unit = {}
+) : FtpCommandSession, FtpDataCommandSession {
 
     init {
         // 0 이하는 상한이 아니다 — SO_TIMEOUT 0은 무제한 읽기, 쓰기 감시는 즉시 닫기, 음수는 setSoTimeout이 거부한다
         require(ioTimeoutMillis > 0) { "ioTimeoutMillis must be positive: $ioTimeoutMillis" }
     }
 
-    /** isLoggedIn, _connectionState, _isConnecting 갱신을 직렬화한다. */
+    /** isLoggedIn, isClosed 갱신을 직렬화한다. */
     private val stateMutex = Mutex()
-    /** FTP 명령 I/O를 직렬화한다. [closeBypassingIoLock]은 이 lock을 기다리지 않고 진행 중 I/O의 소켓을 닫아 즉시 중단한다. */
+    /** FTP 명령 I/O를 직렬화한다. [close]는 이 lock을 기다리지 않고 진행 중 I/O의 소켓을 닫아 즉시 중단한다. */
     private val ioMutex = Mutex()
     /** 로그인까지 완료된 상태인지 여부. stateMutex로 보호한다. */
     private var isLoggedIn = false
-    /** [closeBypassingIoLock]이 요청된 횟수. stateMutex 안에서 늘리고, ioMutex를 쥔 연결 작업이 잠금 없이 읽으므로 원자 값으로 둔다. */
-    private val bypassCloseRequests = AtomicInteger()
-    /** [client]가 연 제어·데이터 소켓. [closeBypassingIoLock]이 잠금 밖에서 FTPClient를 건드리지 않고 진행 중 I/O를 깨우려고 닫는다. */
+    /** [close]가 요청됐는지 여부. 한 번 참이 되면 다시 거짓이 되지 않으며, 그 뒤로는 로그인 상태가 되지 않는다. stateMutex로 보호한다. */
+    private var isClosed = false
+    /** [open]을 이미 불렀는지 여부. 세션은 한 번만 연다. */
+    private val openRequested = AtomicBoolean(false)
+    /** [client]가 연 제어·데이터 소켓. [close]가 잠금 밖에서 FTPClient를 건드리지 않고 진행 중 I/O를 깨우려고 닫는다. */
     private val sockets = AbortableSocketFactory(writeTimeoutMillis = ioTimeoutMillis.toLong()).also { client.setSocketFactory(it) }
 
     init {
@@ -68,29 +68,15 @@ internal class FtpSession(
         client.setServerSocketFactory(PassiveOnlyServerSocketFactory())
     }
 
-    private val _connectionState = MutableStateFlow<RemoteConnectionState>(RemoteConnectionState.Disconnected)
-    /**
-     * FTP 서버와의 연결 상태. 예기치 않은 끊김([markConnectionDropped])과 앱이 요청한 종료([markLoggedOut]·[closeBypassingIoLock])를 구분해,
-     * 끊김은 다음 연결 시도([beginConnecting])나 종료 요청까지 [RemoteConnectionState.Lost]로 남긴다.
-     */
-    override val connectionState: StateFlow<RemoteConnectionState> = _connectionState.asStateFlow()
-
-    private val _isConnecting = MutableStateFlow(false)
-    /** connect() 또는 disconnect() 호출이 진행 중인 경우 true를 방출한다. */
-    override val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()
-
     /** 소켓 연결과 로그인이 모두 유효하면 true를 반환한다. */
     override suspend fun isReady(): Boolean = stateMutex.withLock { client.isConnected && isLoggedIn }
-
-    /** 소켓이 열려 있으면 true를 반환한다. 잠금 없이 조회한다. */
-    override fun isSocketOpen(): Boolean = client.isConnected
 
     /**
      * ioMutex를 확보한 상태로 [block]에 FTPClient를 넘겨 실행한다. 스레드 전환은 호출부가 결정한다.
      * @param block 잠금 안에서 실행할 FTP 명령
      * @return block의 반환값
      */
-    override suspend fun <T> withClient(block: suspend (SessionFtpClient) -> T): T = ioMutex.withLock { block(client) }
+    suspend fun <T> withClient(block: suspend (SessionFtpClient) -> T): T = ioMutex.withLock { block(client) }
 
     /**
      * 연결된 상태에서만 [withClient]로 [block]을 실행한다. FTP 명령 실패의 의미를 정하는 경계이며, 규칙은 다음 하나뿐이다.
@@ -110,7 +96,7 @@ internal class FtpSession(
             block(client)
         } catch (e: IOException) {
             endUnusableSession()
-            IoResult.ConnectionLost(unusableSessionReason(e))
+            IoResult.ConnectionLost(connectionFailureReason(e))
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -163,130 +149,128 @@ internal class FtpSession(
     }
 
     /**
-     * 세션을 종료하게 된 실패를 원인으로 바꾼다.
-     * @param cause 세션을 종료하게 된 예외
-     * @return 연결이 끊긴 원인
+     * [endpoint]의 서버에 접속하고 로그인해, 명령을 보낼 수 있는 세션으로 연다. 세션마다 한 번만 부를 수 있다.
+     * 로그인한 뒤 목록을 해석할 수 없는 서버([FtpListingFormat.isReadable])면 어느 폴더도 볼 수 없으므로 열지 않는다.
+     * 로그인 직후의 현재 디렉터리(홈)를 기록한다 — 연결 확인은 디렉터리를 옮기지 않으므로 그때의 현재 디렉터리가 홈이다. 서버가 PWD를 거부하면 홈을 모르는 채로 연다.
+     * 여는 동안 종료가 요청됐으면([close]) 어느 단계에서 끝났든 열린 것으로 보지 않는다. 열지 못하면 소켓을 닫아 연결을 남기지 않는다.
+     * 접속·응답 읽기는 막히는 소켓 I/O라 코루틴 취소를 듣지 않으므로, 취소되면 이 세션을 닫아(소켓을 닫아) 바로 끝낸다.
+     * @param endpoint 접속할 서버 정보
+     * @return 연 결과
      */
-    private fun unusableSessionReason(cause: IOException): FailureReason =
-        if (cause is FTPConnectionClosedException) FailureReason.ConnectionClosed
-        else FailureReason.NoResponse(cause.message ?: cause.javaClass.simpleName)
-
-    /**
-     * FTP 연결이 서버 측에서 끊긴 경우 로그인 상태를 초기화한다. 진행 중인 작업은 다음 명령에서 [withConnectedClient]가 끊김으로 알린다.
-     * 연결된 세션에서만 끊김([RemoteConnectionState.Lost])으로 기록한다 — 앱이 먼저 종료한 세션의 진행 중 명령이 소켓이 닫혀 실패한 것은 끊김이 아니다.
-     * 끊김으로 기록할 때 같은 잠금 안에서 알림함([lossNotices])에도 넣는다 — 상태와 알림이 어긋나지 않도록.
-     */
-    suspend fun markConnectionDropped() {
-        stateMutex.withLock {
-            isLoggedIn = false
-            if (_connectionState.value is RemoteConnectionState.Connected) {
-                _connectionState.value = RemoteConnectionState.Lost
-                lossNotices.report()
+    suspend fun open(endpoint: FtpEndpoint): SessionOpening {
+        check(openRequested.compareAndSet(false, true)) { "FtpSession can be opened only once" }
+        return coroutineScope {
+            val opening = async(Dispatchers.IO) { withClient { client -> openOn(client, endpoint) } }
+            try {
+                opening.await()
+            } catch (e: CancellationException) {
+                withContext(NonCancellable) { close() }
+                throw e
             }
         }
     }
 
     /**
-     * 새 연결 작업을 시작한다. 연결 상태는 이전 세션이 연결돼 있었든 끊겼든 [RemoteConnectionState.Disconnected]로 둔다 —
-     * 연결 작업이 ioMutex를 기다리는 동안 이전 세션의 명령이 실패해도([markConnectionDropped]) 그건 새 연결의 끊김이 아니므로 [RemoteConnectionState.Lost]가 되지 않는다.
-     * 아직 화면에 알리지 않은 이전 세션의 끊김은 알림함([lossNotices])에서 뺀다 — 새 연결이 끊긴 것으로 보이지 않도록.
-     * 종료 요청 표지를 연결 작업 표시와 같은 잠금 안에서 읽는다 — 연결 작업으로 보인 뒤에 온 종료 요청([closeBypassingIoLock])은 모두 [markLoggedIn]이 알아챈다.
-     * @return 연결 작업이 [markLoggedIn]에 넘길 종료 요청 표지
+     * [client]로 [open]의 절차를 실행한다. ioMutex를 쥔 상태에서 부른다.
+     * @param client 이 세션의 FTP 클라이언트
+     * @param endpoint 접속할 서버 정보
+     * @return 연 결과
      */
-    override suspend fun beginConnecting(): Int = stateMutex.withLock {
-        _isConnecting.value = true
-        _connectionState.value = RemoteConnectionState.Disconnected
-        lossNotices.connectionStarted()
-        bypassCloseRequests.get()
+    private suspend fun openOn(client: SessionFtpClient, endpoint: FtpEndpoint): SessionOpening {
+        val result = try {
+            client.connectTimeout = CONNECT_TIMEOUT_MS
+            client.setControlEncoding(endpoint.encoding)
+            // 응답 읽기의 상한은 세션이 정해 둔 값([ioTimeoutMillis])으로 접속할 때 걸린다
+            client.connect(ftpServerOf(endpoint.address), endpoint.port)
+            val checked = loginAndCheck(client, endpoint)
+            if (checked != SessionOpening.Opened) checked
+            else if (markLoggedIn(client.printWorkingDirectory())) SessionOpening.Opened
+            else SessionOpening.Closed
+        } catch (e: IOException) {
+            failedOpening(client, e)
+        }
+        if (result != SessionOpening.Opened) closeQuietly(client)
+        return result
     }
 
-    /** 연결 작업이 끝났음을 기록한다. */
-    override suspend fun endConnecting() = stateMutex.withLock { _isConnecting.value = false }
+    /**
+     * 접속한 [client]로 로그인하고 전송 방식을 정한 뒤, 이 서버의 목록을 해석할 수 있는지 확인한다.
+     * @param client 서버에 접속한 FTPClient
+     * @param endpoint 로그인 정보를 담은 서버 정보
+     * @return 쓸 수 있으면 [SessionOpening.Opened]. 로그인이 거부됐으면 그 응답을 담은 거부, 목록을 해석할 수 없으면 [SessionOpening.ListingFormatUnknown]
+     * @throws IOException 응답을 읽지 못한 경우
+     */
+    private fun loginAndCheck(client: SessionFtpClient, endpoint: FtpEndpoint): SessionOpening {
+        if (!client.login(endpoint.userId, endpoint.password)) return SessionOpening.Refused(client.replyString.trim())
+        client.enterLocalPassiveMode()
+        client.setFileType(FTP.BINARY_FILE_TYPE)
+        if (!FtpListingFormat.isReadable(client)) return SessionOpening.ListingFormatUnknown
+        return SessionOpening.Opened
+    }
+
+    /**
+     * 여는 도중 난 IOException을 결과로 바꾼다. 종료 요청으로 소켓이 닫힌 실패는 닫힘으로, 접속 인사·응답의 421(commons-net이
+     * [FTPConnectionClosedException]으로 던진다)은 서버의 거부로 본다.
+     * @param client 이 세션의 FTP 클라이언트
+     * @param cause 여는 도중 난 예외
+     * @return 연 결과
+     */
+    private suspend fun failedOpening(client: SessionFtpClient, cause: IOException): SessionOpening = when {
+        stateMutex.withLock { isClosed } -> SessionOpening.Closed
+        cause is FTPConnectionClosedException && client.replyCode == FTPReply.SERVICE_NOT_AVAILABLE -> SessionOpening.Refused(client.replyString.trim())
+        else -> SessionOpening.Unreachable(cause)
+    }
+
+    /**
+     * 쓰지 않을 연결을 로그아웃 후 닫는다. 이미 닫혔거나 응답이 없어도 실패를 알리지 않는다 — 연결을 남기지 않는 것이 목적이다.
+     * @param client 닫을 FTPClient
+     */
+    private fun closeQuietly(client: SessionFtpClient) {
+        if (client.isConnected) runCatching { client.logout() }
+        runCatching { client.disconnect() }
+    }
 
     /**
      * 로그인 성공 상태로 전환한다. 새 연결의 현재 디렉터리는 로그인 직후의 홈이다.
-     * [closeMark]를 읽은 뒤 종료가 요청됐으면 전환하지 않는다 — 종료 요청과 같은 잠금 안에서 판단하므로, 연결 작업과 겹친 종료 요청이 연결 상태로 뒤집히지 않는다.
-     * @param closeMark 연결 작업을 시작할 때 읽은 종료 요청 표지([closeRequestMark])
+     * 종료가 요청된 세션은 전환하지 않는다 — 종료 요청과 같은 잠금 안에서 판단하므로, 여는 작업과 겹친 종료 요청이 로그인 상태로 뒤집히지 않는다.
      * @param home 로그인 직후의 현재 디렉터리(FTP 경로). 서버가 알려주지 않았으면 null
-     * @param serverName 연결한 서버의 표시 이름. 연결 상태([RemoteConnectionState.Connected])에 함께 담는다
-     * @return 로그인 상태로 전환했으면 true, 그 사이 종료가 요청돼 전환하지 않았으면 false
+     * @return 로그인 상태로 전환했으면 true, 종료가 요청돼 전환하지 않았으면 false
      */
-    override suspend fun markLoggedIn(closeMark: Int, home: String?, serverName: String): Boolean = stateMutex.withLock {
-        if (isCloseRequestedSince(closeMark)) return@withLock false
+    suspend fun markLoggedIn(home: String?): Boolean = stateMutex.withLock {
+        if (isClosed) return@withLock false
         client.recordLogin(home)
         isLoggedIn = true
-        _connectionState.value = RemoteConnectionState.Connected(serverName)
         true
     }
 
     /**
-     * 지금까지 [closeBypassingIoLock]이 요청된 횟수를 돌려준다. 연결 작업이 시작할 때 읽어 두었다가 [markLoggedIn]으로 그 사이의 종료 요청을 확인한다.
-     * @return 종료 요청 표지
+     * 서버 쪽에서 끊긴 세션의 로그인 상태를 해제한다. 진행 중인 작업은 다음 명령에서 [withConnectedClient]가 끊김으로 알린다.
+     * 로그인된 세션이 끊긴 경우에만 [onLost]를 부른다 — 앱이 먼저 닫은 세션([close])의 진행 중 명령이 소켓이 닫혀 실패한 것은 끊김이 아니다.
      */
-    internal fun closeRequestMark(): Int = bypassCloseRequests.get()
-
-    /**
-     * [mark]를 읽은 뒤 [closeBypassingIoLock]이 요청됐는지 판별한다.
-     * @param mark [closeRequestMark]로 읽어 둔 표지
-     * @return 그 뒤 종료가 요청됐으면 true
-     */
-    private fun isCloseRequestedSince(mark: Int): Boolean = bypassCloseRequests.get() != mark
-
-    /** 로그인 해제 상태로 전환한다. */
-    override suspend fun markLoggedOut() = stateMutex.withLock {
-        isLoggedIn = false
-        _connectionState.value = RemoteConnectionState.Disconnected
+    private suspend fun markConnectionDropped() {
+        val wasLoggedIn = stateMutex.withLock { isLoggedIn.also { isLoggedIn = false } }
+        if (wasLoggedIn) onLost()
     }
 
     /**
-     * 진행 중인 FTP 명령을 기다리지 않고 연결을 끊는다. 로그인 상태를 먼저 해제하므로 [withConnectedClient]는 이를 연결 끊김으로 알린다.
+     * 진행 중인 FTP 명령을 기다리지 않고 세션을 닫는다. 닫은 세션은 다시 열리지 않는다. 여러 번 불러도 된다.
+     * 로그인 상태를 먼저 해제하므로 [withConnectedClient]는 이를 연결 끊김으로 알리며, 끊김([onLost])으로 보지 않는다.
      * 진행 중인 명령이 없으면 ioMutex를 얻어 로그아웃한 뒤 연결을 닫는다.
      * 진행 중이면 그 명령이 쓰는 소켓(제어·데이터)만 중단으로 닫는다(업로드가 서버에 파일 끝으로 읽히지 않도록) — FTPClient는 스레드에 안전하지 않으므로 잠금 밖에서 명령을 보내거나 내부 상태를 바꾸지 않는다.
      * 그 명령은 IOException을 받아 자기 잠금 안에서 세션을 정리하고, 이 함수는 ioMutex를 얻은 뒤 남은 연결을 닫는다.
-     * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn]), 소켓을 닫기 전에 요청을 기록한다.
-     * 호출 전 소켓이 열려 있거나([isSocketOpen]) 연결 작업 중인지([isConnecting]) 확인해야 한다.
+     * 여는 중인 세션([open])도 닫을 수 있다 — 닫을 소켓이 아직 없어도 종료 요청이 남아 열린 것으로 끝나지 않고, 그 뒤에 만드는 소켓은 바로 닫힌다.
+     * 로그아웃은 네트워크 I/O이므로 부르는 쪽의 스레드(화면의 Main 등)와 무관하게 IO 스레드에서 한다.
      */
-    override suspend fun closeBypassingIoLock() {
-        stateMutex.withLock { markClosing(RemoteConnectionState.Disconnected) }
-        closeClient()
-    }
-
-    /**
-     * 연결된 세션만 [closeBypassingIoLock]과 같이 닫되, 사용자가 요청한 종료가 아니므로 끊김([RemoteConnectionState.Lost])으로 남기고 알림함([lossNotices])에도 넣는다.
-     * 연결돼 있는지를 종료 기록과 같은 잠금 안에서 확인한다 — 연결 작업 중인 세션(보호하던 연결이 아닌 새 연결)을 끝내거나, 이미 끊긴 세션의 끊김을 종료로 덮어쓰지 않도록.
-     * @return 연결된 세션을 끝냈으면 true, 연결된 세션이 없어 아무것도 하지 않았으면 false
-     */
-    override suspend fun dropConnected(): Boolean {
-        val connected = stateMutex.withLock {
-            val isConnected = _connectionState.value is RemoteConnectionState.Connected
-            if (isConnected) {
-                markClosing(RemoteConnectionState.Lost)
-                lossNotices.report()
-            }
-            isConnected
+    suspend fun close(): Unit = withContext(Dispatchers.IO) {
+        stateMutex.withLock {
+            isClosed = true
+            isLoggedIn = false
         }
-        if (connected) closeClient()
-        return connected
-    }
-
-    /**
-     * 잠금 밖 종료를 기록하고 연결 상태를 [state]로 둔다. stateMutex를 쥔 상태에서 호출한다.
-     * 진행 중인 연결 작업이 이 종료를 연결 결과에 반영하도록([markLoggedIn]), 소켓을 닫기 전에 요청을 기록한다.
-     * @param state 종료 뒤의 연결 상태
-     */
-    private fun markClosing(state: RemoteConnectionState) {
-        bypassCloseRequests.incrementAndGet()
-        isLoggedIn = false
-        _connectionState.value = state
-        _isConnecting.value = true
-    }
-
-    /** [markClosing]으로 기록한 종료를 진행 중 I/O를 기다리지 않고 실행한다 — 명령이 없으면 로그아웃 후 닫고, 있으면 소켓만 중단으로 닫는다. */
-    private suspend fun closeClient() {
         if (ioMutex.tryLock()) {
             try {
-                runCatching { client.logout() }
-                runCatching { client.disconnect() }
+                closeQuietly(client)
+                // 아직 잠금을 얻지 못한 여는 작업이 뒤이어 소켓을 만들어도 바로 닫히게 한다
+                sockets.closeAll()
             } finally {
                 ioMutex.unlock()
             }
@@ -294,11 +278,21 @@ internal class FtpSession(
             sockets.closeAll()
             ioMutex.withLock { runCatching { client.disconnect() } }
         }
-        stateMutex.withLock { _isConnecting.value = false }
     }
 
     companion object {
         /** 소켓 읽기·쓰기 한 번을 기다리는 기본 상한(ms). FileZilla의 기본 무응답 제한(20초)과 비슷한 수준이다. */
-        private const val IO_TIMEOUT_MILLIS = 15_000
+        const val IO_TIMEOUT_MILLIS = 15_000
+        /** 서버에 접속(TCP 연결)하는 데 기다리는 상한(ms). */
+        private const val CONNECT_TIMEOUT_MS = 10_000
     }
 }
+
+/**
+ * 세션을 쓸 수 없게 한 IOException(서버가 닫음·응답을 읽지 못함·접속하지 못함)을 원인으로 바꾼다.
+ * @param cause 세션을 쓸 수 없게 한 예외
+ * @return 연결이 끊긴 원인
+ */
+internal fun connectionFailureReason(cause: IOException): FailureReason =
+    if (cause is FTPConnectionClosedException) FailureReason.ConnectionClosed
+    else FailureReason.NoResponse(cause.message ?: cause.javaClass.simpleName)

@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.data.progress.PreparationProgressReporte
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import com.todokanai.composepracticenew.data.FileEntry
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -21,7 +20,7 @@ import java.net.SocketTimeoutException
 class FtpListingReaderListFilesTest {
 
     private val client = FakeFtpClient()
-    private val session = FtpSession(client, ConnectionLossNotices())
+    private val session = FtpSession(client)
     private val commands = FtpCommandParts(session)
 
     @Test
@@ -112,5 +111,5 @@ class FtpListingReaderListFilesTest {
     }
 
     /** 세션을 로그인 완료 상태로 만든다. */
-    private fun loggedIn() = runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+    private fun loggedIn() = runBlocking { session.markLoggedIn(home = null) }
 }

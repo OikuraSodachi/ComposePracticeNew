@@ -81,6 +81,7 @@ class TransferDestinationGuardTest {
             notices,
             transferRepo,
             NoOpMutationRepository,
+            ConnectedSessionProvider,
             FileNameUseCase(NoStorageNameRules)
         )
         viewModel = FileTransferCoordinatorViewModel(

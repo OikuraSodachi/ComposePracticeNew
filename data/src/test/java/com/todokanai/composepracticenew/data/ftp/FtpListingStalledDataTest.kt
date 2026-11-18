@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIM
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.repository.ConnectionLossNotices
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -25,7 +24,7 @@ class FtpListingStalledDataTest {
     /** 검증 대상이 쓰는 실제 FTP 클라이언트. */
     private val client = SessionFtpClient()
     /** 검증 대상 세션. 데이터 연결의 읽기 상한을 짧게 둔다. */
-    private val session = FtpSession(client, ConnectionLossNotices(), ioTimeoutMillis = IO_TIMEOUT_MILLIS)
+    private val session = FtpSession(client, ioTimeoutMillis = IO_TIMEOUT_MILLIS)
     /** 테스트마다 띄운 서버. 테스트가 끝나면 닫는다. */
     private var server: ScriptedFtpServer? = null
 
@@ -93,7 +92,7 @@ class FtpListingStalledDataTest {
         client.connect(scripted.host, scripted.port)
         client.soTimeout = TIMEOUT_MILLIS
         client.enterLocalPassiveMode()
-        runBlocking { session.markLoggedIn(session.closeRequestMark(), home = null, serverName = "server") }
+        runBlocking { session.markLoggedIn(home = null) }
     }
 
     private companion object {
