@@ -8,7 +8,6 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
-import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -21,11 +20,12 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
 import javax.inject.Inject
 
 /**
  * 여러 아카이브의 압축 해제를 조율한다. 형식별 처리는 주입된 [ArchiveExtractor] 집합에 위임한다.
- * @param extractors 형식별 아카이브 추출기 집합 — 각 supports()는 서로 배타적이다
+ * @param extractors 형식별 아카이브 추출기 집합 — 각 nameRoleOf()가 역할을 주는 이름은 서로 배타적이다
  */
 class LocalArchiveExtraction @Inject constructor(
     private val extractors: Set<@JvmSuppressWildcards ArchiveExtractor>
@@ -39,7 +39,9 @@ class LocalArchiveExtraction @Inject constructor(
      * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로. 폴더끼리는 묻지 않고 합친다
      * @param askPassword 암호화된 아카이브의 비밀번호를 묻는 통로. 아카이브마다 필요할 때 따로 묻는다
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 압축 해제 결과. 지원하지 않는 형식이 있으면 아무것도 해제하지 않고 실패한다. 루트 밖을 가리키거나(경로 검증 실패) 자리에 심볼릭 링크가 있어 풀지 않은 항목이 있으면, 그 항목들을 담은 [IoResult.PartiallyFailed]
+     * @return 압축 해제 결과. 풀 수 없는 경로(지원하지 않는 형식, 시작 볼륨 없이 받은 분할 압축의 다른 볼륨)가 있으면 아무것도 해제하지 않고 실패한다.
+     * 분할 압축의 볼륨이 빠졌으면 알아챈 때에 [FailureReason.MissingArchiveVolume]으로 실패한다(이미 만든 항목은 남는다).
+     * 루트 밖을 가리키거나(경로 검증 실패) 자리에 심볼릭 링크가 있어 풀지 않은 항목이 있으면, 그 항목들을 담은 [IoResult.PartiallyFailed]
      */
     suspend fun unzip(
         zipFiles: Set<String>,
@@ -52,15 +54,16 @@ class LocalArchiveExtraction @Inject constructor(
         // 추출 라이브러리의 콜백은 일시 중단할 수 없으므로 그 자리에서 답을 기다린다. 이 작업의 Job을 부모로 두어 작업 취소가 기다림을 끝낸다
         val job = coroutineContext.job
         val ask: (WriteConflict) -> ConflictChoice = { conflict -> runBlocking(job) { resolveConflict.resolve(conflict) } }
-        localIo {
-            val archives = zipFiles.map { path ->
-                path to (extractorFor(path) ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(File(path).name)))
+        localIo(::extractionFailureReasonOf) {
+            val archives = when (val grouping = groupIntoArchives(zipFiles)) {
+                is ArchiveGrouping.Archives -> grouping.archives
+                is ArchiveGrouping.Unextractable -> return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(File(grouping.path).name))
             }
             // 비밀번호 확인 단계의 보고 간격은 작업 전체에서 하나로 센다 — 아카이브가 바뀌어도 보고가 몰리지 않도록
             val checking = IndeterminateProgressReporter(onProgress)
             // 아카이브마다 비밀번호 세션을 따로 둔다 — 한 아카이브에서 확인한 비밀번호를 다른 아카이브에 쓰지 않도록. 산정과 추출은 같은 세션을 쓴다
-            val sessions = archives.map { (path, _) -> passwordSessionOf(File(path).name, askPassword, job, checking) }
-            val sizes = archives.mapIndexed { i, (path, extractor) -> extractor.measure(path, sessions[i]) }
+            val sessions = archives.map { passwordSessionOf(File(it.path).name, askPassword, job, checking) }
+            val sizes = archives.mapIndexed { i, archive -> archive.extractor.measure(archive.path, sessions[i]) }
             val knownBytes = sizes.sumOf { it.knownBytes }
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
             checkDiskSpace(knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
@@ -69,8 +72,8 @@ class LocalArchiveExtraction @Inject constructor(
             tracker.reportStart()
 
             val failures = mutableListOf<FailedItem>()
-            archives.forEachIndexed { i, (zipFilePath, extractor) ->
-                val root = rootOf(File(destPath), zipFilePath, layout)
+            archives.forEachIndexed { i, archive ->
+                val root = rootOf(File(destPath), archive, layout)
                 // 바로 풀기의 루트는 사용자가 고른 목적지 폴더라 확인하지 않는다(링크로 들어온 폴더일 수 있다). 아카이브 폴더는 새로 놓는 자리라 확인한다
                 val slot = if (layout == ExtractLayout.IntoDestination) WriteSlot.Ready(Unit) else mergeDirectoryResolving(root, ask)
                 // 아카이브 폴더 자리에 파일이나 링크가 있어 건너뛰면 그 아카이브의 항목을 모두 처리한 것으로 넘긴다
@@ -81,7 +84,7 @@ class LocalArchiveExtraction @Inject constructor(
                     return@forEachIndexed
                 }
                 val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker)
-                extractor.extract(zipFilePath, writer, sessions[i], tracker)
+                archive.extractor.extract(archive.path, writer, sessions[i], tracker)
                 failures += writer.failures.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
             }
             tracker.reportComplete()
@@ -103,35 +106,90 @@ class LocalArchiveExtraction @Inject constructor(
     )
 
     /**
-     * [layout]에 따라 [zipFile]의 항목을 풀 루트 디렉터리를 정한다.
+     * [layout]에 따라 [archive]의 항목을 풀 루트 디렉터리를 정한다.
      * @param dest 압축 해제 대상 디렉터리
-     * @param zipFile 아카이브 파일 경로
+     * @param archive 풀 아카이브
      * @param layout 배치 방식
-     * @return 아카이브 폴더에 풀면 [dest] 아래 아카이브 이름(확장자 제외)의 폴더, 바로 풀면 [dest]
+     * @return 아카이브 폴더에 풀면 [dest] 아래 아카이브 폴더 이름(볼륨 번호와 확장자 제외)의 폴더, 바로 풀면 [dest]
      */
-    private fun rootOf(dest: File, zipFile: String, layout: ExtractLayout): File = when (layout) {
-        ExtractLayout.IntoArchiveFolder -> File(dest, archiveFolderName(File(zipFile).name))
+    private fun rootOf(dest: File, archive: TargetArchive, layout: ExtractLayout): File = when (layout) {
+        ExtractLayout.IntoArchiveFolder -> File(dest, archive.folderName)
         ExtractLayout.IntoDestination -> dest
     }
 
     /**
-     * 아카이브 폴더의 이름을 정한다. 숨김 표시인 첫 점은 확장자로 나누지 않으므로(예: `.zip`) 이름이 비어 대상 디렉터리에 바로 풀리는 일이 없다.
-     * @param archiveName 아카이브 파일 이름
-     * @return 확장자를 뺀 이름
+     * [paths]를 [unzip]이 푸는 아카이브로 묶고, 아카이브마다 풀 때 여는 경로를 돌려준다. [unzip]과 같은 묶기 규칙을 쓰므로 실제 압축 해제와 어긋나지 않는다.
+     * @param paths 압축 해제할 파일 경로들
+     * @return 아카이브마다의 경로(단일 아카이브 또는 분할 압축의 시작 볼륨). 풀 수 없는 경로가 있으면 null
      */
-    private fun archiveFolderName(archiveName: String): String = archiveName.substring(0, FileNameParts.baseNameEnd(archiveName))
+    fun extractionTargetsOf(paths: Set<String>): List<String>? =
+        (groupIntoArchives(paths) as? ArchiveGrouping.Archives)?.archives?.map { it.path }
 
     /**
-     * [path]를 압축 해제할 수 있는지 판별한다. [unzip]이 쓰는 추출기 집합으로만 정하므로 실제 지원 형식과 어긋나지 않는다.
-     * @param path 아카이브 파일 경로
-     * @return 처리할 추출기가 있으면 true
+     * [paths]를 풀 아카이브로 묶는다. 분할 압축의 다른 볼륨은 같은 폴더·같은 세트의 시작 볼륨이 [paths]에 있으면 그 시작 볼륨에 합친다.
+     * @param paths 압축 해제할 파일 경로들
+     * @return 받은 순서의 아카이브 목록. 지원하지 않는 형식이거나 시작 볼륨 없이 받은 다른 볼륨이 있으면 그 경로
      */
-    fun canExtract(path: String): Boolean = extractorFor(path) != null
+    private fun groupIntoArchives(paths: Collection<String>): ArchiveGrouping {
+        val named = paths.map { path -> namedPathOf(path) ?: return ArchiveGrouping.Unextractable(path) }
+        val entrySets = named.filter { it.role is ArchiveNameRole.Entry }.mapTo(HashSet()) { it.setKey }
+        named.firstOrNull { it.role is ArchiveNameRole.LaterVolume && it.setKey !in entrySets }?.let { return ArchiveGrouping.Unextractable(it.path) }
+        return ArchiveGrouping.Archives(
+            named.filter { it.role is ArchiveNameRole.Entry }.map { TargetArchive(it.path, it.extractor, it.role.set.folderName) },
+        )
+    }
 
     /**
-     * [path] 형식을 처리하는 추출기를 찾는다.
-     * @param path 아카이브 파일 경로
-     * @return 추출기. 지원하지 않는 형식이면 null
+     * [path]의 파일 이름에 역할을 주는 추출기를 찾는다.
+     * @param path 파일 경로
+     * @return 추출기와 역할. 지원하지 않는 형식이면 null
      */
-    private fun extractorFor(path: String): ArchiveExtractor? = extractors.firstOrNull { it.supports(path) }
+    private fun namedPathOf(path: String): NamedPath? {
+        val name = File(path).name
+        for (extractor in extractors) extractor.nameRoleOf(name)?.let { return NamedPath(path, extractor, it) }
+        return null
+    }
+
+    /**
+     * 압축 해제의 입출력 실패를 원인으로 바꾼다. 빠진 볼륨은 그 원인으로, 나머지는 [ioFailureReasonOf]로 바꾼다.
+     * @param e 입출력 실패
+     * @return 실패 원인
+     */
+    private fun extractionFailureReasonOf(e: IOException): FailureReason? =
+        if (e is MissingArchiveVolumeException) FailureReason.MissingArchiveVolume(e.archiveName, e.volumeName) else ioFailureReasonOf(e)
+
+    /**
+     * 추출기가 역할을 준 파일 경로.
+     * @param path 파일 경로
+     * @param extractor 역할을 준 추출기
+     * @param role 파일 이름의 역할
+     */
+    private data class NamedPath(val path: String, val extractor: ArchiveExtractor, val role: ArchiveNameRole) {
+        /** 같은 아카이브의 볼륨을 묶는 값: 형식(추출기), 폴더, 세트. */
+        val setKey: Triple<ArchiveExtractor, String?, String> get() = Triple(extractor, File(path).parent, role.set.id)
+    }
+
+    /**
+     * 풀 아카이브 하나.
+     * @param path 열 경로(단일 아카이브 또는 분할 압축의 시작 볼륨)
+     * @param extractor 이 아카이브를 푸는 추출기
+     * @param folderName 아카이브 폴더에 풀 때의 폴더 이름
+     */
+    private data class TargetArchive(val path: String, val extractor: ArchiveExtractor, val folderName: String)
+
+    /** 압축 해제할 경로들을 아카이브로 묶은 결과. */
+    private sealed interface ArchiveGrouping {
+
+        /**
+         * 모두 풀 수 있다.
+         * @param archives 받은 순서의 아카이브 목록
+         */
+        data class Archives(val archives: List<TargetArchive>) : ArchiveGrouping
+
+        /**
+         * 풀 수 없는 경로가 있다.
+         * @param path 처음 찾은 풀 수 없는 경로
+         */
+        data class Unextractable(val path: String) : ArchiveGrouping
+    }
 }

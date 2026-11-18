@@ -22,7 +22,7 @@ import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
  * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
  * @param onRequestConfirm 선택에서 꺼낸 작업 대상([SubmittedSelection])으로 로컬 작업의 실행을 요청하는 콜백
  * @param compress 압축 다이얼로그의 콜백 묶음
- * @param canUnzip 항목을 압축 해제할 수 있는지 판별하는 함수 — 압축 해제 버튼 표시 여부를 정한다
+ * @param canUnzip 선택 목록을 압축 해제 한 번에 풀 수 있는지 판별하는 함수 — 압축 해제 버튼 표시 여부를 정한다
  * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
  * @param onDelete 선택에서 꺼낸 작업 대상([SubmittedSelection])을 삭제하는 콜백
@@ -39,7 +39,7 @@ fun BottomButtonListView(
     transfer: LocalTransferActions,
     onRequestConfirm: (SubmittedSelection, SelectMode.LocalOperation) -> Unit,
     compress: CompressActions,
-    canUnzip: (FileHolderItem) -> Boolean,
+    canUnzip: (List<FileHolderItem>) -> Boolean,
     rename: RenameActions,
     pendingRename: PendingRename?,
     onDelete: (SubmittedSelection) -> Unit,

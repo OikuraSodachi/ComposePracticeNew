@@ -17,10 +17,12 @@ import javax.inject.Inject
  * 암호화된 항목(AES, ZipCrypto)은 출력을 만들기 전에 비밀번호를 확인한다. 확인은 내용이 있는 가장 작은 암호화 항목([passwordCheckEntryOf])을 끝까지 풀어 보는 것이다 —
  * 비밀번호 검증값(AES 2바이트, ZipCrypto 1바이트)만으로는 틀린 비밀번호가 통과할 수 있고, 그때는 내용 검증에서야 드러나기 때문이다.
  * 항목 이름은 UTF-8로만 읽는다. UTF-8이 아닌 이름은 풀지 않고 실패로 알린다(지원 범위 밖). 이름에 원래 U+FFFD가 든 항목도 같은 실패가 된다.
+ * 분할 압축(이름 규칙은 [zipNameRoleOf])은 zip4j가 시작 파일에서 다른 볼륨을 찾아 읽는다: PKWARE 분할(`.z01` …)은 내용 목록이 있는 `.zip`에서, 번호 분할은 `.zip.001`에서.
+ * 빠진 볼륨은 열 때 확인해 아무것도 풀기 전에 알린다. 번호 분할의 마지막 볼륨이 빠진 것은 이름으로 알 수 없어 손상된 아카이브로 알린다.
  */
 class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
-    override fun supports(path: String): Boolean = path.endsWith(".zip", ignoreCase = true)
+    override fun nameRoleOf(fileName: String): ArchiveNameRole? = zipNameRoleOf(fileName)
 
     override fun measure(path: String, passwords: ArchivePasswordSession): ArchiveSize =
         openZip(path).use { zf ->
@@ -56,17 +58,40 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     /**
      * [path]를 zip4j로 연다. zip4j는 읽기·쓰기 겸용이라 없는 파일과 0바이트 파일을 새로 만들 빈 아카이브로 열므로(그 밖의 손상은 예외로 알린다),
-     * 이 두 경우가 항목 없는 성공으로 끝나지 않도록 먼저 확인한다.
-     * @param path 아카이브 파일 경로
+     * 이 두 경우가 항목 없는 성공으로 끝나지 않도록 먼저 확인한다. 분할 압축은 빠진 볼륨이 없는지도 확인한다.
+     * @param path 아카이브 파일(분할 압축이면 시작 파일) 경로
      * @return 이름을 UTF-8로 읽도록 연 ZipFile
      * @throws FileNotFoundException [path]가 파일이 아닐 때
      * @throws ZipException [path]가 0바이트 파일일 때
+     * @throws MissingArchiveVolumeException 분할 압축의 볼륨이 빠졌을 때
      */
     private fun openZip(path: String): ZipFile {
         val file = File(path)
         if (!file.isFile) throw FileNotFoundException("압축 파일이 없습니다: ${file.name}")
         if (file.length() == 0L) throw ZipException("ZIP 파일이 아니거나 손상된 파일입니다(0바이트): ${file.name}")
-        return ZipFile(path).apply { charset = Charsets.UTF_8 }
+        if (zipNameRoleOf(file.name)?.set?.layout == VolumeLayout.NUMBERED) {
+            numberedVolumesOf(file)
+            return ZipFile(path).apply { charset = Charsets.UTF_8 }
+        }
+        val zf = ZipFile(path).apply { charset = Charsets.UTF_8 }
+        try {
+            checkSplitVolumes(zf, file.name)
+        } catch (e: IOException) {
+            zf.close()
+            throw e
+        }
+        return zf
+    }
+
+    /**
+     * PKWARE 분할 ZIP이면 zip4j가 내용 목록으로 계산한 볼륨이 모두 있는지 확인한다.
+     * @param zf 연 ZIP 파일
+     * @param name 실패 메시지에 쓰는 시작 파일 이름
+     * @throws MissingArchiveVolumeException 볼륨이 빠졌을 때
+     */
+    private fun checkSplitVolumes(zf: ZipFile, name: String) {
+        if (!zf.isSplitArchive) return
+        zf.splitZipFiles.firstOrNull { !it.isFile }?.let { throw MissingArchiveVolumeException(name, it.name) }
     }
 
     /**

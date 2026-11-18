@@ -92,6 +92,13 @@ sealed interface FailureReason {
      */
     data class UnsupportedArchiveFormat(val name: String) : FailureReason
 
+    /**
+     * 분할 압축 파일의 볼륨 일부가 없어 풀지 못했다.
+     * @param archiveName 압축 해제를 시작한 볼륨의 파일 이름
+     * @param volumeName 없는 볼륨의 파일 이름
+     */
+    data class MissingArchiveVolume(val archiveName: String, val volumeName: String) : FailureReason
+
     /** 압축에 넣을 항목이 없다. */
     data object NothingToCompress : FailureReason
 

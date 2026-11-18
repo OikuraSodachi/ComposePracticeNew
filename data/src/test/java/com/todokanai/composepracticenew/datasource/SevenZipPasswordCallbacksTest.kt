@@ -3,6 +3,8 @@ package com.todokanai.composepracticenew.datasource
 import kotlinx.coroutines.CancellationException
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
+import net.sf.sevenzipjbinding.IInStream
+import net.sf.sevenzipjbinding.PropID
 import net.sf.sevenzipjbinding.SevenZipException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -30,7 +32,7 @@ class SevenZipPasswordCallbacksTest {
 
     @Test
     fun `비밀번호가 없는 열기 콜백은 비밀번호를 물으면 열기를 멈추고 물었다는 것을 남긴다`() {
-        val callback = SevenZipOpenCallback(password = null)
+        val callback = SevenZipOpenCallback(password = null, volumes = NoVolumes)
 
         assertThrows(SevenZipException::class.java) { callback.cryptoGetTextPassword() }
         assertTrue(callback.passwordRequested)
@@ -38,7 +40,7 @@ class SevenZipPasswordCallbacksTest {
 
     @Test
     fun `비밀번호를 묻지 않은 열기 콜백은 물었다고 남기지 않는다`() {
-        assertFalse(SevenZipOpenCallback(password = "secret").passwordRequested)
+        assertFalse(SevenZipOpenCallback(password = "secret", volumes = NoVolumes).passwordRequested)
     }
 
     @Test
@@ -78,5 +80,26 @@ class SevenZipPasswordCallbacksTest {
 
         assertThrows(CancellationException::class.java) { callback.setCompleted(0) }
         assertSame(cancelled, callback.failure)
+    }
+
+    @Test
+    fun `열기 콜백은 볼륨 요청을 볼륨 통로에 맡기고 마지막 볼륨의 이름을 알린다`() {
+        val requested = mutableListOf<String>()
+        val volumes = object : SevenZipVolumeSource {
+            override val currentVolumeName = "/d/a.part1.rar"
+            override fun open(name: String): IInStream? { requested += name; return null }
+        }
+        val callback = SevenZipOpenCallback(password = null, volumes = volumes)
+
+        assertEquals("/d/a.part1.rar", callback.getProperty(PropID.NAME))
+        assertNull(callback.getProperty(PropID.SIZE))
+        assertNull(callback.getStream("/d/a.part2.rar"))
+        assertEquals(listOf("/d/a.part2.rar"), requested)
+    }
+
+    /** 다른 볼륨이 없는 볼륨 통로. */
+    private object NoVolumes : SevenZipVolumeSource {
+        override val currentVolumeName = "/d/a.rar"
+        override fun open(name: String): IInStream? = null
     }
 }

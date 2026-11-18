@@ -54,6 +54,7 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     is FailureReason.UnsupportedLink -> withLocation(UiText.Resource(R.string.failure_unsupported_link), reason.location)
     FailureReason.UnsafeArchiveEntryPath -> UiText.Resource(R.string.failure_unsafe_archive_entry_path)
     is FailureReason.UnsupportedArchiveFormat -> UiText.Resource(R.string.failure_unsupported_archive_format, listOf(reason.name))
+    is FailureReason.MissingArchiveVolume -> UiText.Resource(R.string.failure_missing_archive_volume, listOf(reason.archiveName, reason.volumeName))
     FailureReason.NothingToCompress -> UiText.Resource(R.string.failure_nothing_to_compress)
     is FailureReason.NameTaken -> UiText.Resource(R.string.failure_name_taken, listOf(reason.name))
     is FailureReason.KindConflict -> UiText.Resource(R.string.failure_kind_conflict, listOf(reason.location))

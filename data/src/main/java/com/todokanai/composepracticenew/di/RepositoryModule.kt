@@ -152,9 +152,13 @@ abstract class RepositoryModule {
     abstract fun bindZipArchiveCompressor(impl: ZipArchiveCompressor): ArchiveCompressor
 
     companion object {
-        /** RAR(RAR4·RAR5) 추출기. */
+        /** RAR(RAR4·RAR5, 분할 압축 포함) 추출기. */
         @Provides @IntoSet
         fun provideRarArchiveExtractor(): ArchiveExtractor = SevenZipArchiveExtractor.rar()
+
+        /** 7z(번호 분할 포함) 추출기. */
+        @Provides @IntoSet
+        fun provideSevenZipArchiveExtractor(): ArchiveExtractor = SevenZipArchiveExtractor.sevenZip()
 
         /** ISO 이미지(ISO9660·UDF) 추출기. */
         @Provides @IntoSet
