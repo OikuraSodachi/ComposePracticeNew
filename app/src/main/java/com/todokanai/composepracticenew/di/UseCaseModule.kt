@@ -47,9 +47,11 @@ import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteConnectionDropUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
+import com.todokanai.composepracticenew.usecase.RemoteDisconnectUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
@@ -130,6 +132,14 @@ object UseCaseModule {
     @Provides @Singleton
     fun provideRemoteConnectionStateUseCase(repo: RemoteConnectionRepository) =
         RemoteConnectionStateUseCase(repo)
+
+    @Provides @Singleton
+    fun provideRemoteDisconnectUseCase(repo: RemoteConnectionRepository) =
+        RemoteDisconnectUseCase(repo)
+
+    @Provides @Singleton
+    fun provideRemoteConnectionDropUseCase(repo: RemoteConnectionRepository) =
+        RemoteConnectionDropUseCase(repo)
 
     @Provides @Singleton
     fun provideRemoteConnectionUseCase(

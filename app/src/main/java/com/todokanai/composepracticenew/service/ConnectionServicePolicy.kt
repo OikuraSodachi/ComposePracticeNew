@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.service
 
 import com.todokanai.composepracticenew.model.RemoteConnectionState
+import com.todokanai.composepracticenew.usecase.RemoteConnectionDropUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -13,9 +14,11 @@ import javax.inject.Inject
  * 원격 연결 상태에서 연결 유지 서비스의 시작 요청과 멈출 때를 파생하는 규칙. MyApplication(시작)과 [FtpForegroundService](멈춤)가 이 규칙만 따른다.
  * 보호를 줄 수 없게 되면(시스템의 실행 시간 한도, 시작 거부) 연결도 끝낸다([endProtection]) — 보호 없이 남은 연결은 언제든 프로세스와 함께 사라질 수 있다.
  * @param connectionStateUseCase 서비스가 따를 원격 연결 상태를 제공하는 UseCase
+ * @param connectionDropUseCase 보호를 줄 수 없게 됐을 때 연결을 끊김으로 종료하는 UseCase
  */
 class ConnectionServicePolicy @Inject constructor(
-    private val connectionStateUseCase: RemoteConnectionStateUseCase
+    private val connectionStateUseCase: RemoteConnectionStateUseCase,
+    private val connectionDropUseCase: RemoteConnectionDropUseCase
 ) {
 
     /** 서비스를 시작(이미 실행 중이면 알림의 서버 이름 갱신)해야 할 때마다 알림에 표시할 서버 이름을 방출한다 — 연결되거나 연결한 서버가 바뀔 때. */
@@ -38,5 +41,5 @@ class ConnectionServicePolicy @Inject constructor(
      * 연결된 세션이 없으면(연결 작업 중·이미 끊김·종료됨) 아무것도 끝내지 않는다. 연결 작업 중인 세션은 연결되면 서비스를 시작하므로, 그때 시작이 거부되면 다시 이 종료를 받는다.
      * @return 연결된 세션을 끝냈으면 true
      */
-    suspend fun endProtection(): Boolean = connectionStateUseCase.drop()
+    suspend fun endProtection(): Boolean = connectionDropUseCase.drop()
 }

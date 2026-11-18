@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.tools
 
 import com.todokanai.composepracticenew.di.ApplicationScope
-import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
+import com.todokanai.composepracticenew.usecase.RemoteDisconnectUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -24,12 +24,12 @@ interface AppExitHandler {
 
 /**
  * [AppExitHandler]의 기본 구현. 연결 유지 서비스는 연결이 종료된 상태를 보고 멈추므로 여기서 직접 멈추지 않는다.
- * @param connectionStateUseCase 원격 연결을 종료하는 UseCase
+ * @param disconnectUseCase 원격 연결을 종료하는 UseCase
  * @param appScope 화면이 닫힌 뒤에도 연결 종료를 끝까지 실행하는 앱 수명 스코프
  */
 @Singleton
 class AppExitHandlerImpl @Inject constructor(
-    private val connectionStateUseCase: RemoteConnectionStateUseCase,
+    private val disconnectUseCase: RemoteDisconnectUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : AppExitHandler {
     private val _exitChannel = Channel<Unit>(Channel.CONFLATED)
@@ -37,7 +37,7 @@ class AppExitHandlerImpl @Inject constructor(
     override val exitEvent: Flow<Unit> = _exitChannel.receiveAsFlow()
 
     override fun execute() {
-        appScope.launch { connectionStateUseCase.disconnect() }
+        appScope.launch { disconnectUseCase.disconnect() }
         _exitChannel.trySend(Unit)
     }
 }
