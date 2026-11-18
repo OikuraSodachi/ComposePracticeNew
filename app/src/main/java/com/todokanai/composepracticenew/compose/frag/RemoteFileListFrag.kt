@@ -23,24 +23,25 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 import com.todokanai.composepracticenew.viewmodel.SubmittedItem
 import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * 원격 세션 끊김 상태를 관찰해 콜백을 실행한다.
  * 끊김과 재연결 실패는 화면 호스트가 앱 전역에서 알리므로 여기서는 화면을 떠나는 콜백만 실행한다.
  *
- * @param viewModel 끊김 상태를 제공하는 ViewModel
+ * @param sessionLost 원격 세션이 끊긴 상태인지 나타내는 StateFlow. 이 helper 안에서 읽어 값이 바뀌어도 화면 전체를 다시 그리지 않는다
  * @param onConnectionLost 세션이 끊긴 상태일 때(이 화면에 들어왔을 때 이미 끊겨 있던 경우 포함) 실행할 콜백
  */
 @Composable
 private fun RemoteFileListConnectionEffects(
-    viewModel: RemoteFileListViewModel,
+    sessionLost: StateFlow<Boolean>,
     onConnectionLost: () -> Unit,
 ) {
-    val sessionLost by viewModel.sessionLost.collectAsStateWithLifecycle()
+    val isSessionLost by sessionLost.collectAsStateWithLifecycle()
 
-    // sessionLost를 키로 — 끊긴 상태가 되거나 끊긴 상태로 들어왔을 때 한 번 화면을 떠난다
-    LaunchedEffect(sessionLost) {
-        if (sessionLost) onConnectionLost()
+    // isSessionLost를 키로 — 끊긴 상태가 되거나 끊긴 상태로 들어왔을 때 한 번 화면을 떠난다
+    LaunchedEffect(isSessionLost) {
+        if (isSessionLost) onConnectionLost()
     }
 }
 
@@ -98,7 +99,7 @@ fun RemoteFileListFrag(
     }
 
     RemoteFileListConnectionEffects(
-        viewModel = viewModel,
+        sessionLost = viewModel.sessionLost,
         onConnectionLost = onConnectionLost,
     )
 
