@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.data.progress.PreparationProgressReporte
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.valueOr
-import javax.inject.Singleton
 
 /**
  * 트리 수집이 들어가 있는 디렉터리 하나.
@@ -69,7 +68,6 @@ private class TreeMemoryBudget(private val limitBytes: Long) {
  * @param listing 각 디렉터리의 목록을 받는 FtpListingReader
  * @param treeMemoryLimitBytes 트리 수집 하나가 받은 목록에 쓸 수 있는 메모리의 추정 상한(바이트, [collectRemoteTree]). 0보다 커야 한다
  */
-@Singleton
 class FtpTreeCollector internal constructor(
     private val listing: FtpListingReader,
     private val treeMemoryLimitBytes: Long

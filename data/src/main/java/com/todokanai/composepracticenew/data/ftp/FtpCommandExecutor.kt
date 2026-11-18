@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import javax.inject.Singleton
 
 /**
  * FTP 파일 명령(이름변경·생성·폴더 확인)을 FtpSession을 통해 실행한다. 목록 조회는 [FtpListingReader], 트리 수집은 [FtpTreeCollector], 삭제는 [FtpRemoteDeletion]이 맡는다.
@@ -12,7 +11,6 @@ import javax.inject.Singleton
  * @param session 폴더 확인([ensureDirectory])을 실행할 FTPClient와 잠금을 소유한 FTP 세션
  * @param commands 이름 변경·생성 명령과 대상 밖으로 나가는 이동을 실행하는 FtpCommandRunner
  */
-@Singleton
 class FtpCommandExecutor internal constructor(
     private val session: FtpCommandSession,
     private val commands: FtpCommandRunner

@@ -3,14 +3,12 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import javax.inject.Singleton
 
 /**
  * 성공 여부를 반환하는 FTP 명령(이름 변경·삭제·생성)을 FtpSession을 통해 실행하고, 지우거나 옮길 대상 밖으로 먼저 나가는 디렉터리 이동을 만든다.
  * 실패는 결과로 알리며, 연결이 없거나 끊기면 [IoResult.ConnectionLost]를 돌려준다. 서버 응답의 해석은 [FtpReplyRules]에 맡긴다.
  * @param session 명령을 실행할 FTPClient와 잠금을 소유한 FTP 세션
  */
-@Singleton
 class FtpCommandRunner internal constructor(
     private val session: FtpCommandSession
 ) {

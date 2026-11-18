@@ -33,7 +33,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
-import javax.inject.Singleton
 
 /**
  * FTP 파일 다운로드와 업로드를 스트리밍으로 수행하며 진행률을 보고한다.
@@ -48,7 +47,6 @@ import javax.inject.Singleton
  * @param dataCommands 전송 명령(RETR·STOR)을 목록 조회와 같은 규칙으로 실행하는 실행기
  * @param notices 취소한 업로드가 서버에 남겼을 수 있는 파일을 알리는 OperationNoticeReporter — 취소는 결과로 돌려줄 수 없으므로 직접 알린다
  */
-@Singleton
 class FtpTransferrer internal constructor(
     private val session: FtpCommandSession,
     private val cmd: FtpCommandExecutor,
