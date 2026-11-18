@@ -1,6 +1,5 @@
 package com.todokanai.composepracticenew.compose.dialog
 
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +34,7 @@ import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.ProgressStateModel
 import com.todokanai.composepracticenew.model.sizeText
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
+import com.todokanai.composepracticenew.ui.model.unknownFilesTextRes
 
 /**
  * 파일 작업 하나의 진행률을 표시하는 다이얼로그.
@@ -204,19 +204,6 @@ private fun KnownSizePart(knownSize: KnownSizeProgressModel, operationType: File
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
-}
-
-/**
- * 크기를 모르는 파일의 처리 문구를 작업 종류로 고른다. 작업 종류를 모두 나열해 새 종류가 생기면 컴파일 단계에서 드러나게 한다.
- * @param operationType 작업 종류. 모르면 null
- * @return 문자열 리소스 ID
- */
-@StringRes
-private fun unknownFilesTextRes(operationType: FileOperationType?): Int = when (operationType) {
-    FileOperationType.DOWNLOAD -> R.string.progress_unknown_files_received
-    FileOperationType.UPLOAD -> R.string.progress_unknown_files_sent
-    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE,
-    FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> R.string.progress_unknown_files_processed
 }
 
 /** 진행률의 표시 문구. 모르면 퍼센트 대신 알 수 없음을 보여준다. */
