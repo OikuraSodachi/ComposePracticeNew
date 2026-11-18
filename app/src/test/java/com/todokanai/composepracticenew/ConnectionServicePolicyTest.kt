@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.service.ConnectionServicePolicy
+import com.todokanai.composepracticenew.usecase.RemoteConnectionDropUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
@@ -24,7 +25,10 @@ class ConnectionServicePolicyTest {
     private val connection = FakeConnectionRepository()
 
     /** 검증 대상 규칙. */
-    private val policy = ConnectionServicePolicy(RemoteConnectionStateUseCase(connection))
+    private val policy = ConnectionServicePolicy(
+        RemoteConnectionStateUseCase(connection),
+        RemoteConnectionDropUseCase(connection),
+    )
 
     @Test
     fun `종료한 뒤 같은 서버에 다시 연결하면 다시 시작을 요청한다`() = runTest(UnconfinedTestDispatcher()) {
