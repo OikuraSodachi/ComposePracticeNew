@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.model.RemoteStep
 import kotlinx.coroutines.CancellationException
 import java.io.Closeable
 import java.io.IOException
@@ -13,9 +14,9 @@ internal sealed interface DataCommandOutcome {
 
     /**
      * 서버가 데이터 연결을 열기 전에 명령을 거부했다(PASV·EPSV·REST 실패, 명령의 1xx 아닌 응답). 거부 응답은 FTPClient에 남아 있다.
-     * @param command 서버가 거부한 명령 이름. 보낸 데이터 명령이 아니라 그 앞의 준비 명령일 수 있다
+     * @param step 거부된 단계. 보낸 데이터 명령이 아니라 그 앞의 준비 명령이 거부됐으면 데이터 연결 준비다([FtpReplyRules.refusedDataStepOf])
      */
-    data class Refused(val command: String) : DataCommandOutcome
+    data class Refused(val step: RemoteStep) : DataCommandOutcome
 
     /**
      * 데이터를 끝까지 주고받고 데이터 연결을 정상으로 닫은 뒤 완료 응답을 읽었다.
@@ -61,7 +62,7 @@ internal sealed interface CancelCleanup {
 }
 
 /**
- * 데이터 연결을 쓰는 명령(RETR·STOR·LIST·MLSD)을 한 규칙으로 실행한다. 데이터 연결의 실패는 그 명령만의 실패이고, 완료 응답을 읽지 못한 실패는 세션 종료다.
+ * 데이터 연결을 쓰는 명령([DataStreamRequest])을 한 규칙으로 실행한다. 데이터 연결의 실패는 그 명령만의 실패이고, 완료 응답을 읽지 못한 실패는 세션 종료다.
  * 데이터 연결은 제어 채널과 따로 오가므로, 그 실패 뒤에도 완료 응답까지 읽으면 응답 순서가 유지된다.
  * 데이터 연결은 데이터를 끝까지 주고받았을 때만 정상으로 닫고([DataConnection.finish]), 실패·취소·구현 오류로 멈췄으면 중단으로 닫는다([DataConnection.abort]) —
  * 중단을 정상 닫기로 알리면 서버는 잘린 업로드를 다 받은 파일로 저장한다(RFC 959 §3.4.1). 정상으로 닫지 못한 것(남은 데이터를 보내지 못함)도 데이터 연결의 실패다.
@@ -70,13 +71,13 @@ internal sealed interface CancelCleanup {
 internal class DataCommandRunner(private val session: FtpDataCommandSession) {
 
     /**
-     * [open]으로 데이터 연결을 열어 [exchange]로 데이터를 주고받고, 연결을 닫은 뒤 완료 응답을 읽는다. 세션 잠금을 쥔 블록 안에서 호출한다.
+     * [request]로 데이터 연결을 열어 [exchange]로 데이터를 주고받고, 연결을 닫은 뒤 완료 응답을 읽는다. 세션 잠금을 쥔 블록 안에서 호출한다.
      * 완료 응답을 읽다 실패하면 제어 채널을 더 쓸 수 없으므로 그 예외를 전파해 [FtpSession.withConnectedClient]가 세션을 끝내게 한다(데이터 연결의 실패는 suppressed로 붙인다).
      * 데이터 소켓을 연결하지 못했으면 명령을 보내지 않은 것이므로 이 명령만의 실패([DataCommandOutcome.NotConnected])다. 단, 세션이 그사이 끝났으면(잠금 밖 종료) 그 예외를 전파한다.
      * 취소와 구현 오류는 결과로 바꾸지 않고 전파한다. 구현 오류는 [FtpSession.withConnectedClient]가 세션을 끝내므로 데이터 연결만 닫는다.
      * 취소는 세션을 끝내지 않고 전파되므로, [onCancel]을 실행하고 완료 응답을 기다려 응답 순서를 맞춘다. 완료 응답을 읽지 못했으면 여기서 세션을 끝낸다.
      * @param client 잠금을 확보한 FTP 클라이언트
-     * @param open 명령을 보내 데이터 스트림을 여는 동작. 서버가 거부하면 null을 돌려준다
+     * @param request 보낼 데이터 명령과 그 명령으로 데이터 스트림을 여는 동작. 데이터 연결을 열기 전의 거부가 이 명령의 거부인지 판정하는 데도 쓴다
      * @param onCancel 취소됐을 때 실행할 정리 작업
      * @param exchange 열린 데이터 스트림으로 데이터를 주고받는 동작. 스트림은 이 함수가 닫는다
      * @return 명령의 결과
@@ -84,15 +85,15 @@ internal class DataCommandRunner(private val session: FtpDataCommandSession) {
      */
     suspend fun <S : Closeable> run(
         client: FtpCommandClient,
-        open: () -> S?,
+        request: DataStreamRequest<S>,
         onCancel: () -> Unit = {},
         exchange: suspend (S) -> Unit
     ): DataCommandOutcome {
         // 스트림을 열지 못했으면 응답을 끝까지 읽은 것이다 — 응답 코드와 관계없이 이 명령만 실패다.
         // 기다릴 응답이 없으므로 completePendingCommand는 부르지 않는다. 부르면 오지 않을 응답을 상한까지 기다리며 세션 잠금을 쥔다
-        val connection = when (val opening = session.openDataConnection(open)) {
+        val connection = when (val opening = session.openDataConnection { request.open(client) }) {
             is DataConnectionOpening.Opened -> opening.connection
-            DataConnectionOpening.Refused -> return DataCommandOutcome.Refused(refusedCommand(client))
+            DataConnectionOpening.Refused -> return DataCommandOutcome.Refused(FtpReplyRules.refusedDataStepOf(request.command, refusedCommand(client)))
             is DataConnectionOpening.NotConnected -> {
                 // 잠금 밖 종료가 소켓을 닫아 연결하지 못한 것이면 세션이 끝난 것이다 — 이 명령만의 실패로 보지 않고 경계가 끊김으로 알리게 한다
                 if (!session.isReady()) throw opening.cause
