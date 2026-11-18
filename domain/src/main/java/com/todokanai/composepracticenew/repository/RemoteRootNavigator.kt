@@ -11,6 +11,7 @@ interface RemoteRootNavigator {
 
     /**
      * [item] 서버의 루트 디렉터리로 원격 화면의 탐색 위치를 옮긴다.
+     * 실패를 결과로 돌려주지 않는다 — 이동하지 못하는 것은 구현 오류(루트 경로 형식과 탐색 저장소의 배선 불일치)이며 예외로 부르는 쪽에 전파된다.
      * @param item 연결한 원격 스토리지 접속 정보
      */
     suspend fun navigateToRoot(item: RemoteStorageItem)
