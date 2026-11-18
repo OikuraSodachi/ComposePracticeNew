@@ -1,35 +1,14 @@
 package com.todokanai.composepracticenew
 
-import com.todokanai.composepracticenew.model.ConnectFailureAlert
-import com.todokanai.composepracticenew.model.ConnectionLossNotice
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.OperationNotice
-import com.todokanai.composepracticenew.model.PendingNotice
-import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.StorageVolumeInfo
-import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
-import com.todokanai.composepracticenew.repository.ConnectionLossNoticeRepository
-import com.todokanai.composepracticenew.repository.OperationNoticeRepository
-import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.ProgressRepository
-import com.todokanai.composepracticenew.repository.StorageVolumeRepository
-import com.todokanai.composepracticenew.tools.AppExitHandler
-import com.todokanai.composepracticenew.usecase.ConnectFailureAlertUseCase
-import com.todokanai.composepracticenew.usecase.ConnectionLossNoticeUseCase
-import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
-import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
-import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
-import com.todokanai.composepracticenew.viewmodel.MainViewModel
+import com.todokanai.composepracticenew.viewmodel.ProgressDialogViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -44,7 +23,7 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * [MainViewModel]이 진행 중인 작업 목록·닫기·알림 클릭을 받아 진행률 다이얼로그에 띄울 작업 하나를 내보내는지 검증하는 단위 테스트.
+ * [ProgressDialogViewModel]이 진행 중인 작업 목록·닫기·알림 클릭을 받아 진행률 다이얼로그에 띄울 작업 하나를 내보내는지 검증하는 단위 테스트.
  * 어느 작업을 띄울지의 세부 규칙은 ProgressDialogSelectionTest가 검증한다.
  * 띄울 작업 계산이 Dispatchers.Default에서 돌므로 기대하는 값이 나올 때까지 기다린다.
  */
@@ -55,7 +34,7 @@ class ProgressDialogVisibilityTest {
     private val progressRepo = MutableProgressRepository()
 
     /** 검증 대상 ViewModel. 테스트마다 새로 만든다. */
-    private lateinit var viewModel: MainViewModel
+    private lateinit var viewModel: ProgressDialogViewModel
 
     @Before
     fun setUp() {
@@ -160,15 +139,9 @@ class ProgressDialogVisibilityTest {
     }
 
     /** [progressRepo]의 지금 상태로 ViewModel을 만든다. 앱을 여는 시점에 해당한다. */
-    private fun createViewModel() = MainViewModel(
-        getStorageListUseCase = GetStorageListUseCase(EmptyStorageRepository),
+    private fun createViewModel() = ProgressDialogViewModel(
         progressUseCase = ProgressUseCase(progressRepo),
-        operationNoticeUseCase = OperationNoticeUseCase(NoOperationNotices),
-        exitHandler = NoOpExitHandler,
-        connectionLossNoticeUseCase = ConnectionLossNoticeUseCase(NoConnectionLosses),
-        preferenceFailureUseCase = PreferenceFailureUseCase(NoPreferenceFailures),
-        cancelOperationUseCase = idleCancelOperationUseCase(),
-        connectFailureAlertUseCase = ConnectFailureAlertUseCase(NoConnectFailures)
+        cancelOperationUseCase = idleCancelOperationUseCase()
     )
 
     /** 띄울 작업의 ID가 [expected]가 될 때까지 기다린다. 끝내 되지 않으면 runTest 시간 제한으로 실패한다. */
@@ -192,50 +165,3 @@ internal class MutableProgressRepository : ProgressRepository {
     }
 }
 
-/** 스토리지가 없는 테스트용 스토리지 저장소. 이 테스트는 스토리지 목록을 쓰지 않는다. */
-internal object EmptyStorageRepository : StorageVolumeRepository {
-    override val storageList: StateFlow<List<StorageVolumeInfo>> = MutableStateFlow(emptyList())
-    override fun load() {}
-}
-
-/** 종료 이벤트를 발행하지 않는 테스트용 종료 핸들러. 이 테스트는 앱 종료를 쓰지 않는다. */
-internal object NoOpExitHandler : AppExitHandler {
-    override val exitEvent: Flow<Unit> = emptyFlow()
-    override fun execute() {}
-}
-
-/** 실패를 알리지 않는 테스트용 설정 실패 저장소. 이 테스트는 설정 저장소 실패를 쓰지 않는다. */
-internal object NoPreferenceFailures : PreferenceFailureRepository {
-    override val pending: StateFlow<List<PendingNotice<PreferenceFailure>>> = MutableStateFlow(emptyList())
-    override val claimedIds: Flow<Set<Long>> = flowOf(emptySet())
-    override fun claim(id: Long): Boolean = false
-    override fun complete(id: Long) {}
-    override fun release(id: Long) {}
-}
-
-/** 메시지를 알리지 않는 테스트용 작업 메시지 알림함. 이 테스트는 작업 메시지를 쓰지 않는다. */
-internal object NoOperationNotices : OperationNoticeRepository {
-    override val pending: StateFlow<List<PendingNotice<OperationNotice>>> = MutableStateFlow(emptyList())
-    override val claimedIds: Flow<Set<Long>> = flowOf(emptySet())
-    override fun claim(id: Long): Boolean = false
-    override fun complete(id: Long) {}
-    override fun release(id: Long) {}
-}
-
-/** 끊김을 알리지 않는 테스트용 연결 끊김 알림함. 이 테스트는 연결 끊김을 쓰지 않는다. */
-internal object NoConnectionLosses : ConnectionLossNoticeRepository {
-    override val pending: StateFlow<List<PendingNotice<ConnectionLossNotice>>> = MutableStateFlow(emptyList())
-    override val claimedIds: Flow<Set<Long>> = flowOf(emptySet())
-    override fun claim(id: Long): Boolean = false
-    override fun complete(id: Long) {}
-    override fun release(id: Long) {}
-}
-
-/** 연결 실패를 알리지 않는 테스트용 연결 실패 알림함. 이 테스트는 연결 실패를 쓰지 않는다. */
-internal object NoConnectFailures : ConnectFailureAlertRepository {
-    override val pending: StateFlow<List<PendingNotice<ConnectFailureAlert>>> = MutableStateFlow(emptyList())
-    override val claimedIds: Flow<Set<Long>> = flowOf(emptySet())
-    override fun claim(id: Long): Boolean = false
-    override fun complete(id: Long) {}
-    override fun release(id: Long) {}
-}

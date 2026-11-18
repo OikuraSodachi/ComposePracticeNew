@@ -34,12 +34,14 @@ import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import com.todokanai.composepracticenew.viewmodel.OperationQuestionViewModel
+import com.todokanai.composepracticenew.viewmodel.AppNoticeViewModel
 import com.todokanai.composepracticenew.viewmodel.MainViewModel
+import com.todokanai.composepracticenew.viewmodel.ProgressDialogViewModel
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 
 /**
  * 앱 전체 navigation graph를 정의하고 각 destination을 composable에 연결한다.
- * @param viewModelStoreOwner Activity 스코프 MainViewModel을 얻을 owner — 알림 Intent 처리와 동일 인스턴스를 공유한다
+ * @param viewModelStoreOwner Activity 스코프 ViewModel을 얻을 owner — 진행률 다이얼로그는 알림 Intent 처리와 동일 인스턴스를 공유한다
  * @param onExitApp 앱 종료 이벤트 수신 시 호스트(Activity)를 종료하는 콜백
  */
 @Composable
@@ -48,9 +50,13 @@ fun AppNavHost(
     onExitApp: () -> Unit
 ) {
     val navController = rememberNavController()
-    // activity-scoped: MainActivity.handleProgressIntent와 동일 인스턴스를 공유하기 위해 Activity를 owner로 지정
+    // activity-scoped: 시작 때 스토리지 목록을 한 번만 불러오고, 어느 화면에서든 같은 종료 이벤트를 받도록
     // coordinator는 FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     val mainViewModel: MainViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
+    // activity-scoped: MainActivity가 알림 클릭으로 띄우라고 요청한 다이얼로그를 같은 인스턴스에서 보이도록 Activity를 owner로 지정
+    val progressDialogViewModel: ProgressDialogViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
+    // activity-scoped: 앱 알림은 화면 이동과 무관하게 한곳에서 꺼낸다
+    val appNoticeViewModel: AppNoticeViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
     // activity-scoped: 작업 질문(충돌·비밀번호)은 화면 이동과 무관하게 하나만 묻는다
     val operationQuestionViewModel: OperationQuestionViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
 
@@ -61,7 +67,7 @@ fun AppNavHost(
 
     // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시 현재 화면이 REMOTE_FILE_LIST가 아니면 이동한다
     LaunchedEffect(Unit) {
-        mainViewModel.remoteProgressNavigation.collect {
+        progressDialogViewModel.remoteProgressNavigation.collect {
             if (navController.currentDestination?.route != NavDestinations.REMOTE_FILE_LIST) {
                 navController.navigate(NavDestinations.REMOTE_FILE_LIST)
             }
@@ -100,14 +106,14 @@ fun AppNavHost(
     }
 
     // 화면 이동과 무관하게 하나만 둔다 — 앱 알림을 어느 화면에 있든(저장소 화면 포함) 알리도록
-    AppNoticeHost(mainViewModel::showNotices)
+    AppNoticeHost(appNoticeViewModel::showNotices)
 
-    // 화면 이동과 무관하게 하나만 둔다 — 닫음 상태는 Activity 스코프 mainViewModel이 소유
+    // 화면 이동과 무관하게 하나만 둔다 — 닫음 상태는 Activity 스코프 progressDialogViewModel이 소유
     ProgressSection(
-        shownProgress = mainViewModel.shownProgress,
+        shownProgress = progressDialogViewModel.shownProgress,
         openDialogRegistry = openDialogRegistry,
-        onDismiss = mainViewModel::dismissProgressDialog,
-        onCancel = mainViewModel::cancelOperation
+        onDismiss = progressDialogViewModel::dismissProgressDialog,
+        onCancel = progressDialogViewModel::cancelOperation
     )
 }
 

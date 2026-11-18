@@ -20,7 +20,7 @@ import com.todokanai.composepracticenew.ui.model.appNoticeTextOf
 
 /**
  * 앱 알림(설정 저장소 실패, 파일 작업 메시지, 원격 끊김·연결 실패)을 어느 화면에 있든 화면 하단 Snackbar로 하나씩 알린다. 화면 위에 겹쳐 두며, 터치는 아래 화면으로 그대로 간다.
- * @param showNotices 알림을 하나씩 받아 주어진 함수로 보여 주고, 취소될 때까지 돌아오지 않는 함수([com.todokanai.composepracticenew.viewmodel.MainViewModel.showNotices])
+ * @param showNotices 알림을 하나씩 받아 주어진 함수로 보여 주고, 취소될 때까지 돌아오지 않는 함수([com.todokanai.composepracticenew.viewmodel.AppNoticeViewModel.showNotices])
  */
 @Composable
 fun AppNoticeHost(showNotices: suspend (suspend (AppNotice) -> Unit) -> Nothing) {
