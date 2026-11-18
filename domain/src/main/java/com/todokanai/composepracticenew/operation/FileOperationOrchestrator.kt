@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NoticeMessage
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.model.QuestionKind
@@ -264,7 +263,7 @@ class FileOperationOrchestrator(
         /** 성공 시 완료 알림 전송·완료 메시지 보관·갱신을 수행한다. */
         suspend fun onSuccess(instanceId: Int) {
             notifier.completedNotification(operationType, instanceId)
-            notices.report(OperationNoticeKind.COMPLETION, NoticeMessage.Completed(operationType))
+            notices.report(NoticeMessage.Completed(operationType))
             onRefresh()
         }
 
@@ -279,14 +278,14 @@ class FileOperationOrchestrator(
         /** 실패 시 알림 취소·실패 메시지 보관·갱신을 수행한다. 진행 알림은 지우므로, 실패는 보관한 메시지로만 알린다. */
         suspend fun onFailure(message: NoticeMessage, instanceId: Int) {
             notifier.cancelNotification(instanceId)
-            notices.report(OperationNoticeKind.FAILURE, message)
+            notices.report(message)
             onRefresh()
         }
 
         /** 취소 시 진행 알림 제거·취소 메시지 보관·갱신을 수행한다. 사용자가 요청한 결과이므로 완료와 같은 종류로 알린다. */
         suspend fun onCancelled(instanceId: Int) {
             notifier.cancelNotification(instanceId)
-            notices.report(OperationNoticeKind.COMPLETION, NoticeMessage.Cancelled(operationType))
+            notices.report(NoticeMessage.Cancelled(operationType))
             onRefresh()
         }
     }

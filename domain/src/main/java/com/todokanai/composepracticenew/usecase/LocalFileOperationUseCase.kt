@@ -8,7 +8,6 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.NoticeMessage
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.RelocateOperation
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
@@ -59,11 +58,11 @@ class LocalFileOperationUseCase(
      */
     private fun rejectsDestination(files: Set<String>, destPath: String, operation: RelocateOperation): Boolean {
         files.firstOrNull { isIntoItself(it, destPath) }?.let { srcPath ->
-            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.DestinationInsideSource(operation, paths.displayNameOf(srcPath)))
+            notices.report(NoticeMessage.DestinationInsideSource(operation, paths.displayNameOf(srcPath)))
             return true
         }
         if (files.any { isInPlace(it, destPath) }) {
-            notices.report(OperationNoticeKind.FAILURE, NoticeMessage.SameDestination(operation))
+            notices.report(NoticeMessage.SameDestination(operation))
             return true
         }
         return false
@@ -210,7 +209,7 @@ class LocalFileOperationUseCase(
      */
     private fun rejectsUnsupportedFormat(format: ArchiveFormat): Boolean {
         if (format in fileActionRepo.supportedArchiveFormats()) return false
-        notices.report(OperationNoticeKind.FAILURE, NoticeMessage.UnsupportedArchiveFormat(format.extension))
+        notices.report(NoticeMessage.UnsupportedArchiveFormat(format.extension))
         return true
     }
 }

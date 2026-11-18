@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNotice
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.PendingNotice
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +19,7 @@ class OperationNotices @Inject constructor() : OperationNoticeRepository, Operat
 
     override val claimedIds: Flow<Set<Long>> get() = box.claimedIds
 
-    override fun report(kind: OperationNoticeKind, message: NoticeMessage) = box.report(OperationNotice(kind, message))
+    override fun report(message: NoticeMessage) = box.report(OperationNotice(message))
 
     override fun claim(id: Long): Boolean = box.claim(id)
 

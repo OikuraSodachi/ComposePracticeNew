@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileLaunchResult
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OpenFailure
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -28,7 +27,7 @@ class OpenFileUseCase(
      */
     suspend fun open(item: FileHolderItem) {
         if (item.isDirectory) nav.navigate(item.path)
-        else failureOf(launcher.launch(item.path))?.let { notices.report(OperationNoticeKind.FAILURE, NoticeMessage.OpenFailed(it, item.name)) }
+        else failureOf(launcher.launch(item.path))?.let { notices.report(NoticeMessage.OpenFailed(it, item.name)) }
     }
 
     /**

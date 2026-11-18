@@ -11,7 +11,6 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.LeftoverCause
 import com.todokanai.composepracticenew.model.NoticeMessage
-import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.composepracticenew.model.valueOr
@@ -217,7 +216,7 @@ class FtpUploader internal constructor(
             is CancelCleanup.Refused -> LeftoverCause.Refused(cleanup.reply.trim())
             CancelCleanup.SessionEnded -> LeftoverCause.SessionEnded
         }
-        notices.report(OperationNoticeKind.FAILURE, NoticeMessage.UploadLeftover(ftpPath, cause))
+        notices.report(NoticeMessage.UploadLeftover(ftpPath, cause))
     }
 }
 
