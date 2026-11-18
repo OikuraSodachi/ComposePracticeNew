@@ -217,11 +217,11 @@ class FileListViewModel @Inject constructor(
     /**
      * selection의 항목 하나의 이름을 [name]으로 변경한다. 겹침 판정과 덮어쓰기 확인 요청은 [entryNaming]이 한다.
      * 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
-     * @param selection 로컬 화면의 선택에서 꺼낸 항목. 이름 변경은 하나만 선택했을 때만 열리므로 항목이 정확히 하나다
+     * @param selection 로컬 화면의 선택에서 꺼낸 한 항목
      * @param name 새 이름
      */
-    fun rename(selection: SubmittedSelection, name: String) {
-        val item = selection.items.single()
+    fun rename(selection: SubmittedItem, name: String) {
+        val item = selection.item
         entryNaming.requestRename(item, name) { overwrite ->
             localFileOperationUseCase.rename(
                 path = item.path,

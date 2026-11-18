@@ -111,16 +111,28 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun setRemoteSelectedList(list: List<FileHolderItem>) = remote.replaceSelection(list)
 
     /**
-     * 로컬 화면의 선택을 작업 대상으로 꺼내고 로컬 화면을 기본 모드로 되돌린다. 같은 저장소 작업(복사·이동·압축 해제·압축·삭제·이름 변경)은 확인할 때 이것으로 대상을 받는다.
+     * 로컬 화면의 선택을 작업 대상으로 꺼내고 로컬 화면을 기본 모드로 되돌린다. 같은 저장소 작업(복사·이동·압축 해제·압축·삭제)은 확인할 때 이것으로 대상을 받는다.
      * @return 꺼낸 선택. 로컬 화면에 꺼낼 선택이 없으면(기본 모드·다운로드 확인) null
      */
     fun submitLocalSelection(): SubmittedSelection? = local.submit()
 
     /**
-     * 원격 화면의 선택을 작업 대상으로 꺼내고 원격 화면을 기본 모드로 되돌린다. 원격 작업(삭제·이름 변경)은 확인할 때 이것으로 대상을 받는다.
+     * 로컬 화면의 선택이 한 항목일 때만 그 항목을 작업 대상으로 꺼내고 로컬 화면을 기본 모드로 되돌린다. 이름 변경은 확인할 때 이것으로 대상을 받는다.
+     * @return 꺼낸 항목. 로컬 화면의 선택이 한 항목이 아니면 null
+     */
+    fun submitLocalItem(): SubmittedItem? = local.submitSingle()
+
+    /**
+     * 원격 화면의 선택을 작업 대상으로 꺼내고 원격 화면을 기본 모드로 되돌린다. 원격 삭제는 확인할 때 이것으로 대상을 받는다.
      * @return 꺼낸 선택. 원격 화면에 꺼낼 선택이 없으면(기본 모드·업로드 확인) null
      */
     fun submitRemoteSelection(): SubmittedSelection? = remote.submit()
+
+    /**
+     * 원격 화면의 선택이 한 항목일 때만 그 항목을 작업 대상으로 꺼내고 원격 화면을 기본 모드로 되돌린다. 원격 이름 변경은 확인할 때 이것으로 대상을 받는다.
+     * @return 꺼낸 항목. 원격 화면의 선택이 한 항목이 아니면 null
+     */
+    fun submitRemoteItem(): SubmittedItem? = remote.submitSingle()
 
     /**
      * 로컬 선택을 꺼내 업로드 대기 목록으로 원격 화면에 넘긴다. 로컬 화면은 꺼낼 때 기본 모드로 돌아간다.

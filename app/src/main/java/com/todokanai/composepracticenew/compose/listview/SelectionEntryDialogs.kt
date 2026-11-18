@@ -20,7 +20,7 @@ import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
  * @param deleteOpen 삭제 다이얼로그 열림 여부
  * @param onDismissDelete 삭제 다이얼로그를 닫는 콜백
  * @param isRemote 원격 저장소이면 true — 덮어쓰기 확인에 결과가 서버 동작에 따라 다르다는 안내를 보여준다
- * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
+ * @param onSubmitSelection 확인한 삭제의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
  * @param rename 이름 변경 다이얼로그의 콜백 묶음
  * @param pendingRename 덮어쓰기 확인을 기다리는 이름 변경. null이면 확인 다이얼로그를 표시하지 않음
  * @param onDelete 선택에서 꺼낸 항목의 삭제 실행 콜백
@@ -47,7 +47,7 @@ fun SelectionEntryDialogs(
             RenameDialog(
                 currentName = target.name,
                 isDirectory = target.isDirectory,
-                onConfirm = { name -> onSubmitSelection()?.let { rename.onRename(it, name) } },
+                onConfirm = { name -> rename.onSubmitItem()?.let { rename.onRename(it, name) } },
                 onDismiss = onDismissRename,
                 validate = { name -> rename.validate(target, name) }
             )

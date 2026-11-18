@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.compose.listview
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.SelectionSummary
+import com.todokanai.composepracticenew.viewmodel.SubmittedItem
 import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 
 /**
@@ -31,13 +32,15 @@ class CompressActions(
 
 /**
  * 이름 변경 다이얼로그가 쓰는 콜백 묶음. 로컬·원격 화면이 함께 쓴다.
- * @param onRename 선택에서 꺼낸 항목 하나와 새 이름으로 이름 변경을 실행하는 콜백
+ * @param onSubmitItem 확인한 이름 변경의 대상으로 선택의 한 항목을 꺼내고 기본 모드로 되돌리는 콜백. 선택이 한 항목이 아니면 null
+ * @param onRename 선택에서 꺼낸 항목과 새 이름으로 이름 변경을 실행하는 콜백
  * @param validate 대상 항목과 새 이름을 검증해 위반한 규칙 집합을 반환하는 함수(같은 폴더의 종류가 다른 같은 이름 항목 포함)
  * @param onConfirmOverwrite 이름 변경 덮어쓰기(합치기) 확인 콜백
  * @param onCancelOverwrite 이름 변경 덮어쓰기 취소 콜백
  */
 class RenameActions(
-    val onRename: (SubmittedSelection, String) -> Unit,
+    val onSubmitItem: () -> SubmittedItem?,
+    val onRename: (SubmittedItem, String) -> Unit,
     val validate: (FileHolderItem, String) -> Set<FileNameError>,
     val onConfirmOverwrite: () -> Unit,
     val onCancelOverwrite: () -> Unit,

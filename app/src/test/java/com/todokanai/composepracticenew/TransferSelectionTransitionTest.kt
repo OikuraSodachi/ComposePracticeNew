@@ -23,6 +23,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -202,6 +203,27 @@ class TransferSelectionTransitionTest {
         assertEquals(listOf(remoteX), submitted?.items)
         assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
         assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `선택이 한 항목이면 그 항목을 꺼내고 기본 모드로 돌아간다`() {
+        viewModel.startLocalMultiSelect(localA)
+
+        val submitted = viewModel.submitLocalItem()
+
+        assertEquals(localA, submitted?.item)
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `선택이 한 항목이 아니면 꺼내지 않고 선택을 그대로 둔다`() {
+        viewModel.startLocalMultiSelect(localA)
+        viewModel.addToLocalList(localB)
+
+        val submitted = viewModel.submitLocalItem()
+
+        assertNull(submitted)
+        assertEquals(SelectionState.MultiSelect(listOf(localA, localB)), viewModel.localSelection.value)
     }
 
     @Test
