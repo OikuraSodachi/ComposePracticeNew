@@ -24,7 +24,7 @@ private fun multiSelectPrimaryActions(
 ): List<BottomButtonAction> = listOf(
     operationAction(SelectMode.LocalOperation.Move, onSelectOperation),
     operationAction(SelectMode.LocalOperation.Copy, onSelectOperation),
-    BottomButtonAction(R.string.btn_delete, dialogState::openDelete),
+    BottomButtonAction(R.string.btn_delete, dialogState.entryActions::openDelete),
 )
 
 /**
@@ -51,7 +51,7 @@ internal fun multiSelectMoreActions(
     archiveFolderOf(selectedList)?.let { folder -> add(BottomButtonAction(R.string.btn_zip) { dialogState.openCompress(folder) }) }
     add(BottomButtonAction(R.string.btn_info, onShowInfo))
     add(BottomButtonAction(R.string.btn_upload, onUpload))
-    if (selectedList.size == 1) add(BottomButtonAction(R.string.btn_rename, dialogState::openRename))
+    if (selectedList.size == 1) add(BottomButtonAction(R.string.btn_rename, dialogState.entryActions::openRename))
     if (canUnzip(selectedList)) {
         add(operationAction(SelectMode.LocalOperation.Unzip, onSelectOperation))
         add(operationAction(SelectMode.LocalOperation.UnzipHere, onSelectOperation))

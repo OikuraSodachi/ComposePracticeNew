@@ -14,24 +14,17 @@ import javax.inject.Inject
 /** BottomButtonListView의 입력·확인용 다이얼로그 open/close 상태를 보유한다. 파일 충돌 상태와 정보 다이얼로그(계산을 수반함)는 ViewModel이 보유한다. */
 class BottomButtonDialogState : ScreenDialogState() {
     /** 열린 압축 다이얼로그가 압축 파일을 만들 폴더. null이면 닫혀 있다. 열 때 정해, 검증과 실행이 같은 폴더를 쓴다. */
-    var compressTarget     by mutableStateOf<String?>(null); private set
-    var renameDialog       by mutableStateOf(false); private set
-    var deleteDialog       by mutableStateOf(false); private set
+    var compressTarget by mutableStateOf<String?>(null); private set
+    /** 선택한 항목의 이름 변경·삭제 다이얼로그 열림 상태. */
+    val entryActions = EntryActionDialogs(::beginOpening)
 
     /** [folder]에 압축 파일을 만드는 다이얼로그를 연다. */
     fun openCompress(folder: String) { beginOpening(); compressTarget = folder }
     fun dismissCompress() { compressTarget = null }
 
-    fun openRename()    { beginOpening(); renameDialog = true }
-    fun dismissRename() { renameDialog = false }
-
-    fun openDelete()    { beginOpening(); deleteDialog = true }
-    fun dismissDelete() { deleteDialog = false }
-
     override fun dismissAll() {
         compressTarget = null
-        renameDialog = false
-        deleteDialog = false
+        entryActions.dismissAll()
     }
 }
 

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.RenameConflict
+import com.todokanai.composepracticenew.model.RenameOverwrite
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RenameConfirmGate
 import org.junit.Assert.assertEquals
@@ -16,18 +17,19 @@ class RenameConfirmGateTest {
 
     @Test
     fun `겹침이 없거나 종류가 다르면 덮어쓰지 않는 실행을 즉시 한다`() {
-        gate.request(item, "c.txt", RenameConflict.NONE) { calls += it }
-        gate.request(item, "x", RenameConflict.TYPE_MISMATCH) { calls += it }
+        gate.request(item, "c.txt", RenameConflict.NONE, RenameOverwrite.REPLACE_FILE) { calls += it }
+        gate.request(item, "x", RenameConflict.TYPE_MISMATCH, RenameOverwrite.REPLACE_FILE) { calls += it }
 
         assertEquals(listOf(false, false), calls)
         assertNull(gate.pending.value)
     }
 
     @Test
-    fun `파일·폴더 겹침은 확인을 기다렸다가 확인하면 덮어쓰기로 실행한다`() {
-        gate.request(item, "b.txt", RenameConflict.FILE) { calls += it }
+    fun `파일·폴더 겹침은 덮어쓰기 결과를 담아 확인을 기다렸다가 확인하면 덮어쓰기로 실행한다`() {
+        gate.request(item, "b.txt", RenameConflict.FILE, RenameOverwrite.REPLACE_FILE) { calls += it }
         assertEquals(emptyList<Boolean>(), calls)
         assertEquals("b.txt", gate.pending.value?.newName)
+        assertEquals(RenameOverwrite.REPLACE_FILE, gate.pending.value?.overwrite)
 
         gate.confirm()
 
@@ -37,8 +39,8 @@ class RenameConfirmGateTest {
 
     @Test
     fun `취소하면 실행하지 않고, 대기 중에 들어온 새 요청은 무시한다`() {
-        gate.request(item, "b.txt", RenameConflict.FOLDER) { calls += it }
-        gate.request(item, "c.txt", RenameConflict.NONE) { calls += it }
+        gate.request(item, "b.txt", RenameConflict.FOLDER, RenameOverwrite.MERGE_FOLDER) { calls += it }
+        gate.request(item, "c.txt", RenameConflict.NONE, RenameOverwrite.REPLACE_FILE) { calls += it }
         assertEquals("b.txt", gate.pending.value?.newName)
 
         gate.cancel()

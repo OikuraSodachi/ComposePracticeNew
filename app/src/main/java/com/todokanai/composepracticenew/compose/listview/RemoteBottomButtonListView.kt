@@ -59,11 +59,7 @@ fun RemoteBottomButtonListView(
     SelectionEntryDialogs(
         openId = dialogState.openId,
         selectedList = currentSelectedList,
-        renameOpen = dialogState.renameDialog,
-        onDismissRename = dialogState::dismissRename,
-        deleteOpen = dialogState.deleteDialog,
-        onDismissDelete = dialogState::dismissDelete,
-        isRemote = true,
+        entryActions = dialogState.entryActions,
         onSubmitSelection = onSubmitSelection,
         rename = rename,
         pendingRename = pendingRename,
@@ -82,11 +78,11 @@ fun RemoteBottomButtonListView(
                 TextButton(onClick = onEnterDownloadMode) { Text(strRemoteDownload) }
                 TextButton(
                     enabled = currentSelectedList.isNotEmpty(),
-                    onClick = dialogState::openDelete
+                    onClick = dialogState.entryActions::openDelete
                 ) { Text(strRemoteDelete) }
                 TextButton(
                     enabled = currentSelectedList.size == 1,
-                    onClick = dialogState::openRename
+                    onClick = dialogState.entryActions::openRename
                 ) { Text(strRemoteRename) }
             }
         }

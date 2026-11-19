@@ -13,11 +13,11 @@ class ScreenDialogStateTest {
     @Test
     fun `다시 열면 새 회차(openId)가 발급된다`() {
         val state = BottomButtonDialogState()
-        state.openRename()
+        state.entryActions.openRename()
         val first = state.openId
-        state.dismissRename()
+        state.entryActions.dismissRename()
 
-        state.openRename()
+        state.entryActions.openRename()
 
         assertNotEquals(first, state.openId)
     }
@@ -26,25 +26,25 @@ class ScreenDialogStateTest {
     fun `dismissAll은 로컬 하단 버튼의 모든 다이얼로그를 닫는다`() {
         val state = BottomButtonDialogState()
         state.openCompress("/folder")
-        state.openRename()
-        state.openDelete()
+        state.entryActions.openRename()
+        state.entryActions.openDelete()
 
         state.dismissAll()
 
         assertNull(state.compressTarget)
-        assertFalse(state.renameDialog)
-        assertFalse(state.deleteDialog)
+        assertFalse(state.entryActions.renameDialog)
+        assertFalse(state.entryActions.deleteDialog)
     }
 
     @Test
     fun `dismissAll은 원격 하단 버튼의 모든 다이얼로그를 닫는다`() {
         val state = RemoteBottomButtonDialogState()
-        state.openRename()
-        state.openDelete()
+        state.entryActions.openRename()
+        state.entryActions.openDelete()
 
         state.dismissAll()
 
-        assertFalse(state.renameDialog)
-        assertFalse(state.deleteDialog)
+        assertFalse(state.entryActions.renameDialog)
+        assertFalse(state.entryActions.deleteDialog)
     }
 }

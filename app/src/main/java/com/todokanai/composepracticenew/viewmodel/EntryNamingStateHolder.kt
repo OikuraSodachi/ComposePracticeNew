@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.RenameConflict
+import com.todokanai.composepracticenew.model.RenameOverwrite
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingRename
@@ -13,12 +14,14 @@ import kotlinx.coroutines.flow.StateFlow
  * 목록 화면의 이름 변경(검증·충돌 판정·덮어쓰기 확인 대기)과 새 폴더 이름 제안을 맡는다. 로컬·원격 목록 ViewModel이 구성(composition)으로 보유한다.
  * 화면이 쓰는 멤버는 ViewModel이 다시 노출하지 않고 public 프로퍼티로 둔다. 이름 변경 실행은 저장소마다 다르므로 ViewModel이 [requestRename]에 넘긴다.
  * @param validateEntryName 이름과 그 이름이 놓일 경로를 받아 화면이 다루는 저장소의 이름 규칙 위반 집합을 반환하는 함수
+ * @param renameOverwriteOf 이름을 바꿀 항목이 폴더인지를 받아, 같은 종류 항목 위로 덮어쓰면 화면이 다루는 저장소에서 일어나는 일을 반환하는 함수
  * @param conflictCheckUseCase 같은 이름 항목과의 겹침 판정과 겹치지 않는 이름 제안을 하는 UseCase
  * @param folder 판정할 목록을 가진 화면의 탐색 UseCase
  * @param folderNames 새 폴더 다이얼로그의 기본 이름 제공자
  */
 class EntryNamingStateHolder(
     private val validateEntryName: (name: String, location: String) -> Set<FileNameError>,
+    private val renameOverwriteOf: (isDirectory: Boolean) -> RenameOverwrite,
     private val conflictCheckUseCase: ConflictCheckUseCase,
     private val folder: FileNavigatorUseCase,
     private val folderNames: NewFolderNameDefaults,
@@ -57,7 +60,7 @@ class EntryNamingStateHolder(
      */
     fun requestRename(item: FileHolderItem, name: String, execute: (overwrite: Boolean) -> Unit) {
         val conflict = renameConflictOf(item, name) ?: return
-        renameGate.request(item, name, conflict, execute)
+        renameGate.request(item, name, conflict, renameOverwriteOf(item.isDirectory), execute)
     }
 
     /** 확인을 기다리는 이름 변경을 [requestRename]에 넘긴 실행 함수에 덮어쓰기(true)로 넘겨 실행한다. */
