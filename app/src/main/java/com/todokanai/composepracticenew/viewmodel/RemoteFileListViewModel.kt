@@ -4,7 +4,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
-import com.todokanai.composepracticenew.model.FileNameError
 import com.todokanai.composepracticenew.model.ReconnectResult
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
@@ -151,17 +150,7 @@ class RemoteFileListViewModel @Inject constructor(
         }
     }
 
-    /** 원격 새 폴더를 만들 대상인 현재 폴더. 없으면 만들 곳이 없어 화면이 새 폴더 메뉴를 두지 않는다. */
-    val newFolderTarget: StateFlow<String?> = fileNavigatorUseCase.currentPath
-
-    /**
-     * [target] 폴더에 만들 원격 새 폴더 이름 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다.
-     * [target]은 다이얼로그를 연 때 정한 대상 폴더로, [onMakeDirectory]에도 같은 값이 넘어간다.
-     */
-    fun validateEntryName(target: String, name: String): Set<FileNameError> =
-        remoteFileOperationUseCase.validateEntryName(name, target)
-
-    /** 이름 변경의 검증·충돌 판정·덮어쓰기 확인 대기와 새 폴더 이름 제안. */
+    /** 이름 변경의 검증·충돌 판정·덮어쓰기 확인 대기와 새 폴더의 대상 폴더·이름 제안·검증. */
     val entryNaming = EntryNamingStateHolder(
         validateEntryName = remoteFileOperationUseCase::validateEntryName,
         renameOverwriteOf = remoteFileOperationUseCase::renameOverwriteOf,
@@ -202,7 +191,7 @@ class RemoteFileListViewModel @Inject constructor(
 
     /**
      * [target] 원격 폴더 아래에 dirName 이름의 새 디렉터리를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
-     * @param target 다이얼로그를 연 때 정한 대상 폴더 — [validateEntryName]이 판정한 것과 같은 폴더
+     * @param target 다이얼로그를 연 때 정한 대상 폴더 — [EntryNamingStateHolder.validateNewFolderName]이 판정한 것과 같은 폴더
      * @param dirName 생성할 디렉터리 이름
      */
     fun onMakeDirectory(target: String, dirName: String) {

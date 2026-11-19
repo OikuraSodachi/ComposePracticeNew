@@ -80,7 +80,7 @@ fun RemoteFileListFrag(
     /** 경로 breadcrumb 목록. 이 값이 바뀌어도 NavController 블록은 다시 실행하지 않고 이 화면만 갱신한다. */
     val dirTree by viewModel.dirTreeStateHolder.dirTree.collectAsStateWithLifecycle()
     /** 원격 새 폴더를 만들 현재 폴더. 없으면 새 폴더 메뉴를 두지 않는다. */
-    val newFolderTarget by viewModel.newFolderTarget.collectAsStateWithLifecycle()
+    val newFolderTarget by viewModel.entryNaming.newFolderTarget.collectAsStateWithLifecycle()
     val pendingRename by viewModel.entryNaming.pendingRename.collectAsStateWithLifecycle()
     val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
     val invalidPort by viewModel.invalidPort.collectAsStateWithLifecycle()
@@ -124,7 +124,7 @@ fun RemoteFileListFrag(
             newFolderTarget = newFolderTarget,
             onNewFolder = viewModel::onMakeDirectory,
             suggestFolderName = viewModel.entryNaming::suggestNewFolderName,
-            validateFolderName = viewModel::validateEntryName,
+            validateFolderName = viewModel.entryNaming::validateNewFolderName,
             onExit = onExit
         )
         DirectoryListingContent(
