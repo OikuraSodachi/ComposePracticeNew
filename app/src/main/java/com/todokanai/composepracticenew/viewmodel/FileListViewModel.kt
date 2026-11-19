@@ -2,10 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
-import com.todokanai.composepracticenew.model.FileNameError
-import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
@@ -43,7 +40,7 @@ class FileListViewModel @Inject constructor(
     private val openFileUseCase: OpenFileUseCase,
     sortModeUseCase: SortModeUseCase,
     private val localFileOperationUseCase: LocalFileOperationUseCase,
-    private val conflictCheckUseCase: ConflictCheckUseCase,
+    conflictCheckUseCase: ConflictCheckUseCase,
     folderNames: NewFolderNameDefaults,
 ) : ViewModel() {
 
@@ -85,57 +82,12 @@ class FileListViewModel @Inject constructor(
     /** [items]를 압축 해제 한 번에 풀 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식·분할 볼륨 묶음을 따르는 UseCase가 한다. */
     fun canUnzip(items: List<FileHolderItem>): Boolean = localFileOperationUseCase.canUnzip(items.map { it.toDomain() })
 
-    /** 압축 다이얼로그가 만드는 아카이브 형식. 형식을 고르는 화면이 없으므로 ZIP 하나다. */
-    private val archiveFormat = ArchiveFormat.ZIP
-
-    /**
-     * 압축 파일을 만들 폴더를 정한다. 압축 파일은 첫 항목 옆에 만든다. 다이얼로그를 열 때 한 번 정해 [validateArchiveName]과 [compress]에 함께 넘긴다.
-     * @param selectedList 압축할 항목
-     * @return 첫 항목의 부모 폴더. 항목이 없거나 부모를 정할 수 없으면 null(화면은 압축 메뉴를 두지 않는다)
-     */
-    fun archiveFolderOf(selectedList: List<FileHolderItem>): String? =
-        selectedList.firstOrNull()?.path?.let(fileNavigatorUseCase::parentOf)
-
-    /**
-     * [folder]에 만들 압축 파일 이름([name]+[archiveFormat]의 확장자)을 검증해 위반한 규칙 집합을 반환한다. 실행 시점의 강제는 UseCase가 한다.
-     * [folder]는 다이얼로그를 연 때 [archiveFolderOf]로 정한 폴더로, [compress]에도 같은 값이 넘어간다.
-     */
-    fun validateArchiveName(folder: String, name: String): Set<FileNameError> =
-        localFileOperationUseCase.validateArchiveName(name, folder, archiveFormat)
-
-    /**
-     * 압축 다이얼로그에 미리 채울 이름(확장자 제외). 같은 이름의 아카이브가 있으면 `이름 (n)`으로 겹치지 않게 고른다.
-     * @param selectedList 압축할 항목
-     * @return 하나면 그 항목의 이름(파일은 확장자 제외), 여러 개면 항목들이 있는 폴더의 이름
-     */
-    fun suggestArchiveName(selectedList: List<FileHolderItem>): String {
-        val first = selectedList.firstOrNull() ?: return ""
-        return conflictCheckUseCase.suggestNameBeside(
-            siblingPath = first.path,
-            baseName = archiveBaseName(selectedList, first),
-            extension = archiveFormat.extension,
-            folder = fileNavigatorUseCase,
-        )
-    }
-
-    /**
-     * 압축 파일의 기본 이름을 정한다. 항목들이 있는 폴더가 파일시스템 루트라 이름이 없으면 첫 항목의 이름을 쓴다.
-     * @param selectedList 압축할 항목
-     * @param first [selectedList]의 첫 항목
-     * @return 확장자를 뺀 기본 이름
-     */
-    private fun archiveBaseName(selectedList: List<FileHolderItem>, first: FileHolderItem): String {
-        val folderName = fileNavigatorUseCase.parentOf(first.path)?.let(fileNavigatorUseCase::displayNameOf).orEmpty()
-        return if (selectedList.size > 1 && folderName.isNotEmpty()) folderName else nameWithoutExtension(first)
-    }
-
-    /**
-     * 항목의 이름에서 확장자를 뗀다. 폴더 이름의 점은 확장자가 아니므로 그대로 둔다.
-     * @param item 이름을 꺼낼 항목
-     * @return 파일은 확장자를 뺀 이름, 폴더는 이름 그대로
-     */
-    private fun nameWithoutExtension(item: FileHolderItem): String =
-        if (item.isDirectory) item.name else item.name.substring(0, FileNameParts.baseNameEnd(item.name))
+    /** 압축 파일의 형식·위치·기본 이름 제안·이름 검증. */
+    val archiveNaming = ArchiveNaming(
+        validateArchiveName = localFileOperationUseCase::validateArchiveName,
+        conflictCheckUseCase = conflictCheckUseCase,
+        folder = fileNavigatorUseCase,
+    )
 
     /**
      * [target] 폴더에 [name] 이름의 새 폴더를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
@@ -184,9 +136,9 @@ class FileListViewModel @Inject constructor(
     }
 
     /**
-     * selection의 파일들을 [folder]에 [name]+[archiveFormat]의 확장자 이름의 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
+     * selection의 파일들을 [folder]에 [name]+[ArchiveNaming.format]의 확장자 이름의 아카이브로 압축한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
      * @param selection 로컬 화면의 선택에서 꺼낸 압축할 항목
-     * @param folder 다이얼로그를 연 때 [archiveFolderOf]로 정한 폴더 — [validateArchiveName]이 판정한 것과 같은 폴더
+     * @param folder 다이얼로그를 연 때 [ArchiveNaming.folderOf]로 정한 폴더 — [ArchiveNaming.validateName]이 판정한 것과 같은 폴더
      * @param name 압축 파일 이름(확장자 제외)
      * @param password 압축 파일에 걸 비밀번호(AES-256). null이면 비밀번호 없이 만든다
      */
@@ -196,7 +148,7 @@ class FileListViewModel @Inject constructor(
             files = targets,
             parentPath = folder,
             name = name,
-            format = archiveFormat,
+            format = archiveNaming.format,
             password = password,
             onRefresh = { fileNavigatorUseCase.refresh() }
         )

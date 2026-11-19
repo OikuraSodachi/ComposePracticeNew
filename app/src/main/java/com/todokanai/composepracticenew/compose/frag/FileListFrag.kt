@@ -81,10 +81,10 @@ fun FileListFrag(
     // viewModel을 키로 — 리컴포지션마다 새 묶음을 만들어 하단 버튼 영역의 건너뛰기가 깨지지 않도록 같은 ViewModel 동안 유지한다
     val compressActions = remember(viewModel) {
         CompressActions(
-            folderOf = viewModel::archiveFolderOf,
+            folderOf = viewModel.archiveNaming::folderOf,
             onCompress = viewModel::compress,
-            suggestName = viewModel::suggestArchiveName,
-            validateName = viewModel::validateArchiveName,
+            suggestName = viewModel.archiveNaming::suggestName,
+            validateName = viewModel.archiveNaming::validateName,
         )
     }
     /** 이름 변경 다이얼로그의 콜백 묶음. */
