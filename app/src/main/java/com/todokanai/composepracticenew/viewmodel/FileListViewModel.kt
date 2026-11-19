@@ -73,7 +73,7 @@ class FileListViewModel @Inject constructor(
     /** 경로 breadcrumb 상태와 그 항목으로의 이동. */
     val dirTreeStateHolder = DirTreeStateHolder(fileNavigatorUseCase, viewModelScope)
 
-    /** 이름 변경의 검증·충돌 판정·덮어쓰기 확인 대기와 새 폴더 이름 제안. */
+    /** 이름 변경의 검증·충돌 판정·덮어쓰기 확인 대기와 새 폴더의 대상 폴더·이름 제안·검증. */
     val entryNaming = EntryNamingStateHolder(
         validateEntryName = localFileOperationUseCase::validateEntryName,
         renameOverwriteOf = localFileOperationUseCase::renameOverwriteOf,
@@ -81,16 +81,6 @@ class FileListViewModel @Inject constructor(
         folder = fileNavigatorUseCase,
         folderNames = folderNames,
     )
-
-    /** 새 폴더를 만들 대상인 현재 폴더. 없으면 만들 곳이 없어 화면이 새 폴더 메뉴를 두지 않는다. */
-    val newFolderTarget: StateFlow<String?> = fileNavigatorUseCase.currentPath
-
-    /**
-     * [target] 폴더에 만들 새 폴더 이름 [name]을 검증해 위반한 규칙 집합을 반환한다. 비어 있으면 유효하다. 실행 시점의 강제는 UseCase가 한다.
-     * [target]은 다이얼로그를 연 때 정한 대상 폴더로, [newFolder]에도 같은 값이 넘어간다.
-     */
-    fun validateEntryName(target: String, name: String): Set<FileNameError> =
-        localFileOperationUseCase.validateEntryName(name, target)
 
     /** [items]를 압축 해제 한 번에 풀 수 있는지 반환한다. 판별은 압축 해제 구현이 지원하는 형식·분할 볼륨 묶음을 따르는 UseCase가 한다. */
     fun canUnzip(items: List<FileHolderItem>): Boolean = localFileOperationUseCase.canUnzip(items.map { it.toDomain() })
@@ -149,7 +139,7 @@ class FileListViewModel @Inject constructor(
 
     /**
      * [target] 폴더에 [name] 이름의 새 폴더를 생성한다. 규칙을 위반한 이름이면 UseCase가 거부하고 오류를 알린다.
-     * @param target 다이얼로그를 연 때 정한 대상 폴더 — [validateEntryName]이 판정한 것과 같은 폴더
+     * @param target 다이얼로그를 연 때 정한 대상 폴더 — [EntryNamingStateHolder.validateNewFolderName]이 판정한 것과 같은 폴더
      * @param name 새 폴더 이름
      */
     fun newFolder(target: String, name: String) {

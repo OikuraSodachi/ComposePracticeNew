@@ -11,8 +11,9 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 목록 화면의 이름 변경(검증·충돌 판정·덮어쓰기 확인 대기)과 새 폴더 이름 제안을 맡는다. 로컬·원격 목록 ViewModel이 구성(composition)으로 보유한다.
- * 화면이 쓰는 멤버는 ViewModel이 다시 노출하지 않고 public 프로퍼티로 둔다. 이름 변경 실행은 저장소마다 다르므로 ViewModel이 [requestRename]에 넘긴다.
+ * 목록 화면의 이름 변경(검증·충돌 판정·덮어쓰기 확인 대기)과 새 폴더 이름(대상 폴더·이름 제안·검증)을 맡는다. 로컬·원격 목록 ViewModel이 구성(composition)으로 보유한다.
+ * 화면이 쓰는 멤버는 ViewModel이 다시 노출하지 않고 public 프로퍼티로 둔다. 이름 변경 실행은 저장소마다 다르므로 ViewModel이 [requestRename]에 넘기고,
+ * 새 폴더 생성은 ViewModel이 실행한다.
  * @param validateEntryName 이름과 그 이름이 놓일 경로를 받아 화면이 다루는 저장소의 이름 규칙 위반 집합을 반환하는 함수
  * @param renameOverwriteOf 이름을 바꿀 항목이 폴더인지를 받아, 같은 종류 항목 위로 덮어쓰면 화면이 다루는 저장소에서 일어나는 일을 반환하는 함수
  * @param conflictCheckUseCase 같은 이름 항목과의 겹침 판정과 겹치지 않는 이름 제안을 하는 UseCase
@@ -69,12 +70,23 @@ class EntryNamingStateHolder(
     /** 확인을 기다리는 이름 변경을 취소한다. */
     fun cancelRename() = renameGate.cancel()
 
+    /** 새 폴더를 만들 대상인 현재 폴더. 없으면 만들 곳이 없어 화면이 새 폴더 메뉴를 두지 않는다. */
+    val newFolderTarget: StateFlow<String?> = folder.currentPath
+
     /** 새 폴더 다이얼로그에 미리 채울 이름. 현재 폴더에 기본 이름이 있으면 `이름 (n)`으로 겹치지 않게 고른다. */
     fun suggestNewFolderName(): String = conflictCheckUseCase.suggestNewEntryName(
         baseName = folderNames.defaultNewFolderName,
         extension = "",
         folder = folder,
     )
+
+    /**
+     * [target] 폴더에 만들 새 폴더 이름 [name]을 검증한다. 실행 시점의 강제는 UseCase가 한다.
+     * @param target 다이얼로그를 연 때 정한 대상 폴더 — 새 폴더를 만드는 ViewModel 함수에도 같은 값이 넘어간다
+     * @param name 사용자가 입력한 새 폴더 이름
+     * @return 위반한 규칙의 집합. 비어 있으면 유효하다
+     */
+    fun validateNewFolderName(target: String, name: String): Set<FileNameError> = validateEntryName(name, target)
 
     /**
      * [item]을 [name]으로 바꿀 때 현재 폴더의 기존 항목과 겹치는 방식을 판정한다.

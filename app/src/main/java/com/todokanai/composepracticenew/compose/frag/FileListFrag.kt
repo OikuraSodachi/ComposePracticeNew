@@ -70,7 +70,7 @@ fun FileListFrag(
     // dirTree 변경 시 NavController 블록 recompose 없이 FileListFrag 내부만 갱신
     val dirTree by viewModel.dirTreeStateHolder.dirTree.collectAsStateWithLifecycle()
     /** 새 폴더를 만들 현재 폴더. 없으면 새 폴더 메뉴를 두지 않는다. */
-    val newFolderTarget by viewModel.newFolderTarget.collectAsStateWithLifecycle()
+    val newFolderTarget by viewModel.entryNaming.newFolderTarget.collectAsStateWithLifecycle()
     /** 파일 검색의 결과 표시 상태. 여기서는 열림 여부만 읽고, 결과·검색어는 FileSearchFrag가 읽는다. */
     val searchState = searchViewModel.state.collectAsStateWithLifecycle()
     // searchState를 추적 — 결과 묶음·글자 입력마다 바뀌는 상태 대신 열림 여부가 바뀔 때만 이 화면을 다시 실행한다. searchState(State 객체)가 바뀌면 새로 만든다
@@ -121,7 +121,7 @@ fun FileListFrag(
             newFolderTarget = newFolderTarget,
             onNewFolder = viewModel::newFolder,
             suggestFolderName = viewModel.entryNaming::suggestNewFolderName,
-            validateFolderName = viewModel::validateEntryName,
+            validateFolderName = viewModel.entryNaming::validateNewFolderName,
             onExit = onExit,
             // 다중 선택 중에는 검색을 열지 않는다 — 검색 결과의 선택·작업은 범위 밖이다
             onSearchClick = searchViewModel::open.takeIf { selectMode != SelectMode.MultiSelect }
