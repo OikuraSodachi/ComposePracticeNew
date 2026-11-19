@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.viewmodel
 
 import com.todokanai.composepracticenew.model.RenameConflict
+import com.todokanai.composepracticenew.model.RenameOverwrite
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,15 +28,16 @@ class RenameConfirmGate {
      * @param target 이름을 바꿀 항목
      * @param newName 새 이름
      * @param conflict 같은 폴더의 기존 항목과 겹치는 방식
+     * @param overwrite 확인하면 저장소에서 일어나는 일. 확인 다이얼로그가 문구를 고른다
      * @param execute 덮어쓰기 여부를 받아 이름 변경을 실행하는 함수
      * @return Unit
      */
-    fun request(target: FileHolderItem, newName: String, conflict: RenameConflict, execute: (overwrite: Boolean) -> Unit) {
+    fun request(target: FileHolderItem, newName: String, conflict: RenameConflict, overwrite: RenameOverwrite, execute: (overwrite: Boolean) -> Unit) {
         if (_pending.value != null) return
         when (conflict) {
             RenameConflict.FILE, RenameConflict.FOLDER -> {
                 pendingExecution = execute
-                _pending.value = PendingRename(target, newName, conflict)
+                _pending.value = PendingRename(target, newName, overwrite)
             }
             RenameConflict.NONE, RenameConflict.TYPE_MISMATCH -> execute(false)
         }

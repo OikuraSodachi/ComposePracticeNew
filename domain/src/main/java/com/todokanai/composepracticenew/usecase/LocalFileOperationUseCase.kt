@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.RelocateOperation
+import com.todokanai.composepracticenew.model.RenameOverwrite
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
@@ -189,6 +190,14 @@ class LocalFileOperationUseCase(
             fileActionRepo.renameFile(path, newName, overwrite)
         }
     }
+
+    /**
+     * 같은 이름의 같은 종류 항목 위로 [rename]을 덮어쓰기로 실행할 때 일어나는 일을 알려 준다. 파일은 기존 파일을 덮어쓰고, 폴더는 두 폴더를 합친다.
+     * @param isDirectory 이름을 바꿀 항목이 폴더인지
+     * @return 덮어쓰기의 결과
+     */
+    fun renameOverwriteOf(isDirectory: Boolean): RenameOverwrite =
+        if (isDirectory) RenameOverwrite.MERGE_FOLDER else RenameOverwrite.REPLACE_FILE
 
     /**
      * [parentPath] 아래에 [name] 이름의 디렉터리를 생성한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.

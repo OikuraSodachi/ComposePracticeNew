@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NamingOperation
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.RemoteSession
+import com.todokanai.composepracticenew.model.RenameOverwrite
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -88,6 +89,13 @@ class RemoteFileOperationUseCase(
             onSession(session) { mutationRepo.rename(it, path, newName) }
         }
     }
+
+    /**
+     * 같은 이름의 같은 종류 항목 위로 [renameRemote]를 실행할 때 일어나는 일을 알려 준다. 확인 뒤에도 이름 변경 명령만 보내므로, 덮어쓸지와 폴더를 어떻게 다룰지는 서버 동작에 따른다.
+     * @param isDirectory 이름을 바꿀 항목이 폴더인지 — 원격은 종류와 무관하게 서버가 정한다
+     * @return 덮어쓰기의 결과
+     */
+    fun renameOverwriteOf(isDirectory: Boolean): RenameOverwrite = RenameOverwrite.STORAGE_DEFINED
 
     /**
      * [targets]의 원격 파일·디렉터리를 하나의 작업으로 삭제한다.

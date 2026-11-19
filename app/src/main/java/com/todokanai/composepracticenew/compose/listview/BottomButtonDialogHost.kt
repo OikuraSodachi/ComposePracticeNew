@@ -49,11 +49,7 @@ fun BottomButtonDialogHost(
     SelectionEntryDialogs(
         openId = dialogState.openId,
         selectedList = selectedList,
-        renameOpen = dialogState.renameDialog,
-        onDismissRename = dialogState::dismissRename,
-        deleteOpen = dialogState.deleteDialog,
-        onDismissDelete = dialogState::dismissDelete,
-        isRemote = false,
+        entryActions = dialogState.entryActions,
         onSubmitSelection = onSubmitSelection,
         rename = rename,
         pendingRename = pendingRename,

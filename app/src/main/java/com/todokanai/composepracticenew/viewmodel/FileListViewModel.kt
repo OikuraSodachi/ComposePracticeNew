@@ -78,6 +78,7 @@ class FileListViewModel @Inject constructor(
     /** 이름 변경의 검증·충돌 판정·덮어쓰기 확인 대기와 새 폴더 이름 제안. */
     val entryNaming = EntryNamingStateHolder(
         validateEntryName = localFileOperationUseCase::validateEntryName,
+        renameOverwriteOf = localFileOperationUseCase::renameOverwriteOf,
         conflictCheckUseCase = conflictCheckUseCase,
         folder = fileNavigatorUseCase,
         folderNames = folderNames,
