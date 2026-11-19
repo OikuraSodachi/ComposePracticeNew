@@ -22,6 +22,7 @@ class EntryNamingNewFolderTest {
     /** 이름 규칙에 넘어온 (이름, 위치) 쌍. */
     private val validated = mutableListOf<Pair<String, String>>()
 
+    /** 이름 규칙 호출을 기록하는 람다로 만든 검증 대상. */
     private val holder = EntryNamingStateHolder(
         validateEntryName = { name, location -> validated += name to location; setOf(FileNameError.BLANK) },
         renameOverwriteOf = { RenameOverwrite.STORAGE_DEFINED },
