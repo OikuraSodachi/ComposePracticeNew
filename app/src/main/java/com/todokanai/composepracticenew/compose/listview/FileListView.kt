@@ -22,6 +22,7 @@ import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.compose.util.verticalScrollbar
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ItemClickAction
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.viewmodel.ChildCountSource
@@ -49,6 +50,8 @@ fun rememberListingScrollState(listing: ListingUiState): LazyListState {
  * @param listState 목록과 스크롤바가 함께 쓰는 스크롤 상태. 목록이 화면에서 빠져도 위치가 남도록 호출부가 [rememberListingScrollState]로 만들어 넘긴다
  * @param selectedList 선택 목록을 반환하는 함수 — 항목별 선택 여부를 derivedStateOf로 구독해, 선택이 바뀐 행만 리컴포지션한다
  * @param childCounts [fileHolderItemList]의 폴더별 하위 항목 수. 폴더 행이 화면에 있는 동안에만 센다. null이면 세지 않는다(원격 목록)
+ * @param clickActionOf 누른 항목에 할 일을 정하는 함수 — 화면의 선택 모드 규칙
+ * @param onOpen 항목을 여는 콜백. [clickActionOf]가 열기로 정한 항목에만 부른다
  */
 @Composable
 fun FileListView(
@@ -58,7 +61,8 @@ fun FileListView(
     childCounts: ChildCountSource?,
     selectedList: () -> List<FileHolderItem>,
     selectMode: SelectMode,
-    onItemClick: (FileHolderItem) -> Unit,
+    clickActionOf: (FileHolderItem) -> ItemClickAction,
+    onOpen: (FileHolderItem) -> Unit,
     onStartMultiSelect: (FileHolderItem) -> Unit,
     onRangeSelect: (List<FileHolderItem>) -> Unit,
     addToList: (FileHolderItem) -> Unit,
@@ -106,11 +110,10 @@ fun FileListView(
                     childCount = childCounts?.takeIf { fileHolderItem.isDirectory }?.let { childCountOf(it, fileHolderItem) },
                     // Strong Skipping이 캡처값 기준으로 람다를 memoize하므로 수동 remember 불필요
                     onClick = {
-                        if (selectMode == SelectMode.MultiSelect) {
-                            if (isSelected) removeFromList(fileHolderItem)
-                            else addToList(fileHolderItem)
-                        } else {
-                            onItemClick(fileHolderItem)
+                        when (clickActionOf(fileHolderItem)) {
+                            ItemClickAction.TOGGLE -> if (isSelected) removeFromList(fileHolderItem) else addToList(fileHolderItem)
+                            ItemClickAction.OPEN -> onOpen(fileHolderItem)
+                            ItemClickAction.IGNORE -> {}
                         }
                     },
                     onLongClick = noOpLongClick

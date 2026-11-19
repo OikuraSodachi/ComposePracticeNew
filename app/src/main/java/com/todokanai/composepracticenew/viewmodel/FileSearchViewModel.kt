@@ -9,11 +9,12 @@ import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.SearchBatch
 import com.todokanai.composepracticenew.model.SearchQuery
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ItemClickAction
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SearchResult
 import com.todokanai.composepracticenew.ui.model.SearchStatus
 import com.todokanai.composepracticenew.ui.model.SearchUiState
-import com.todokanai.composepracticenew.ui.model.opensOnClick
+import com.todokanai.composepracticenew.ui.model.clickActionOf
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -96,14 +97,17 @@ class FileSearchViewModel @Inject constructor(
     }
 
     /**
-     * 검색 결과 [item]을 누른 동작. 여는지는 목록 행 클릭과 같은 규칙([opensOnClick])으로 정한다 — 폴더는 그리로 이동하고 이동했으면 검색을 닫으며,
-     * 파일은 열고 검색은 그대로 둔다(돌아와 다른 결과를 볼 수 있도록).
+     * 검색 결과 [item]을 누른 동작. 할 일은 목록 행 클릭과 같은 규칙([clickActionOf])으로 정한다 — 열면 폴더는 그리로 이동하고 이동했으면 검색을 닫으며,
+     * 파일은 열고 검색은 그대로 둔다(돌아와 다른 결과를 볼 수 있도록). 선택 토글은 하지 않는다 — 결과는 지금 폴더 밖 항목일 수 있어 목록 선택에 넣지 않는다.
      * @param item 누른 결과 항목
      * @param selectMode 지금 로컬 화면의 선택 모드
      */
     fun onResultClick(item: FileHolderItem, selectMode: LocalSelectMode) {
-        if (!selectMode.opensOnClick(item)) return
-        if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) } else openFile(item)
+        when (selectMode.clickActionOf(item)) {
+            ItemClickAction.OPEN ->
+                if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) } else openFile(item)
+            ItemClickAction.TOGGLE, ItemClickAction.IGNORE -> {}
+        }
     }
 
     /**

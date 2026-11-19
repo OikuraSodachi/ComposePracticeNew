@@ -21,6 +21,7 @@ import com.todokanai.composepracticenew.compose.listview.rememberListingScrollSt
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.clickActionOf
 import com.todokanai.composepracticenew.ui.model.ListingKey
 import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
@@ -137,7 +138,8 @@ fun FileListFrag(
                 childCounts = childCountsFor(loaded.key),
                 selectedList = selectedList,
                 selectMode = selectMode,
-                onItemClick = { viewModel.onItemClick(it, selectMode) },
+                clickActionOf = { selectMode.clickActionOf(it) },
+                onOpen = viewModel::openItem,
                 onStartMultiSelect = onStartMultiSelect,
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,

@@ -220,6 +220,16 @@ class FileSearchViewModelTest {
     }
 
     @Test
+    fun `다중 선택 중에는 결과를 열지도 선택하지도 않는다`() {
+        val results = searchedResults()
+
+        results.forEach { viewModel.onResultClick(it, SelectMode.MultiSelect) }
+
+        assertEquals(emptyList<String>(), launcher.launched)
+        assertEquals(emptyList<String>(), nav.navigated)
+    }
+
+    @Test
     fun `위치 열기는 항목이 들어 있는 폴더로 이동하고 검색을 닫는다`() {
         val file = searchedResults().first { !it.isDirectory }
 

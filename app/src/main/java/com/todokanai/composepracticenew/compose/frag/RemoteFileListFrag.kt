@@ -19,6 +19,7 @@ import com.todokanai.composepracticenew.compose.listview.RenameActions
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.clickActionOf
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
 import com.todokanai.composepracticenew.viewmodel.SubmittedItem
@@ -139,7 +140,8 @@ fun RemoteFileListFrag(
                 childCounts = null,
                 selectedList = selectedList,
                 selectMode = selectMode,
-                onItemClick = { viewModel.onItemClick(it) },
+                clickActionOf = { selectMode.clickActionOf(it) },
+                onOpen = viewModel::openFolder,
                 onStartMultiSelect = onStartMultiSelect,
                 onRangeSelect = onRangeSelect,
                 addToList = addToList,
