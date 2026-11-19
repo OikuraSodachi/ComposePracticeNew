@@ -10,9 +10,7 @@ import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ListingUiState
 import com.todokanai.composepracticenew.ui.model.ListingUiStateMapper
-import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
-import com.todokanai.composepracticenew.ui.model.opensOnClick
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
@@ -172,9 +170,8 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    /** 선택 모드에 따라 항목을 열거나(디렉터리 진입 포함) 무시한다. 여는지는 [opensOnClick]이 정한다. */
-    fun onItemClick(selected: FileHolderItem, selectMode: LocalSelectMode) {
-        if (!selectMode.opensOnClick(selected)) return
+    /** 항목을 연다 — 폴더는 그리로 이동하고, 파일은 외부 앱으로 연다. 열지는 선택 모드 규칙(clickActionOf)이 정한다. */
+    fun openItem(selected: FileHolderItem) {
         viewModelScope.launch { openFileUseCase.open(selected.toDomain()) }
     }
 

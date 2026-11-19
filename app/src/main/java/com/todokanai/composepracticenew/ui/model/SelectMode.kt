@@ -46,19 +46,38 @@ sealed interface SelectMode {
 sealed interface LocalSelectMode : SelectMode
 
 /**
- * 이 모드에서 로컬 항목 [item]을 눌렀을 때 여는지(폴더는 그리로 이동, 파일은 외부 앱으로 열기) 판별한다. 목록 행과 검색 결과가 같은 규칙을 따르도록 한 곳에 둔다.
- * 기본 모드에서는 모두 열고, 다중 선택 중에는 열지 않으며, 목적지 확인 중에는 목적지를 찾아 들어갈 폴더만 연다.
+ * 이 모드에서 로컬 항목 [item]을 눌렀을 때 할 일을 정한다. 목록 행과 검색 결과가 같은 규칙을 따르도록 한 곳에 둔다.
+ * 기본 모드에서는 모두 열고, 다중 선택 중에는 선택을 토글하며, 목적지 확인 중에는 목적지를 찾아 들어갈 폴더만 연다.
  * @param item 누른 항목
- * @return 열면 true
+ * @return 누른 항목에 할 일
  */
-fun LocalSelectMode.opensOnClick(item: FileHolderItem): Boolean = when (this) {
-    SelectMode.Default -> true
-    SelectMode.MultiSelect -> false
-    is SelectMode.LocalOperation, SelectMode.Download -> item.isDirectory
+fun LocalSelectMode.clickActionOf(item: FileHolderItem): ItemClickAction = when (this) {
+    SelectMode.Default -> ItemClickAction.OPEN
+    SelectMode.MultiSelect -> ItemClickAction.TOGGLE
+    is SelectMode.LocalOperation, SelectMode.Download -> opensFolderOnly(item)
 }
 
 /** 원격 파일 목록 화면에서 가능한 선택 모드. */
 sealed interface RemoteSelectMode : SelectMode
+
+/**
+ * 이 모드에서 원격 항목 [item]을 눌렀을 때 할 일을 정한다. 다중 선택 중에는 선택을 토글하고, 그 밖에는 폴더만 연다
+ * (원격 파일 열기는 먼저 내려받아야 하는 별도 기능이며 지원 범위 밖이다).
+ * @param item 누른 항목
+ * @return 누른 항목에 할 일
+ */
+fun RemoteSelectMode.clickActionOf(item: FileHolderItem): ItemClickAction = when (this) {
+    SelectMode.MultiSelect -> ItemClickAction.TOGGLE
+    SelectMode.Default, SelectMode.Upload -> opensFolderOnly(item)
+}
+
+/**
+ * 폴더만 여는 모드에서 [item]에 할 일을 정한다.
+ * @param item 누른 항목
+ * @return 폴더면 열기, 파일이면 무시
+ */
+private fun opensFolderOnly(item: FileHolderItem): ItemClickAction =
+    if (item.isDirectory) ItemClickAction.OPEN else ItemClickAction.IGNORE
 
 /** 확인 버튼을 표시하는 선택 모드. */
 sealed interface ConfirmMode : SelectMode {
