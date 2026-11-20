@@ -155,7 +155,7 @@ class LocalFileOperationUseCase(
     /**
      * [zipFiles]를 [destPath]에 압축 해제한다. 같은 이름의 파일은 그 항목을 풀려 할 때 사용자에게 묻고, 폴더는 묻지 않고 합친다.
      * 암호화된 항목을 만나면 압축 파일마다 비밀번호를 묻고, 틀리면 다시 묻는다.
-     * @param zipFiles 압축 해제할 압축 파일의 절대 경로 집합. 분할 압축의 다른 볼륨은 함께 받은 시작 볼륨으로 한 번 푼다
+     * @param zipFiles 압축 해제할 압축 파일의 절대 경로 집합. [canUnzip]이 true인 선택(아카이브 하나)이어야 한다. 분할 압축의 다른 볼륨은 함께 받은 시작 볼륨으로 한 번 푼다
      * @param destPath 압축 해제 대상 디렉터리의 절대 경로
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
@@ -173,7 +173,7 @@ class LocalFileOperationUseCase(
      * @return 폴더가 없고, 모두 합쳐 아카이브 하나(단일 아카이브, 또는 시작 볼륨과 같은 분할 압축의 다른 볼륨)이면 true
      */
     fun canUnzip(items: List<FileHolderItem>): Boolean =
-        items.none { it.isDirectory } && fileActionRepo.extractionTargetsOf(items.mapTo(HashSet()) { it.path })?.size == 1
+        items.none { it.isDirectory } && fileActionRepo.extractionTargetOf(items.mapTo(HashSet()) { it.path }) != null
 
     /**
      * [path]의 파일 이름을 [newName]으로 변경한다. 이름이 규칙을 위반하면 실행하지 않고 오류를 방출한다.

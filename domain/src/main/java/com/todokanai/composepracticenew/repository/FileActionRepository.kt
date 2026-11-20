@@ -48,15 +48,17 @@ interface FileActionRepository {
     // [resolveConflict] (PROCEED replaces the file); an entry whose type differs from the existing one can only be skipped.
     // Encrypted entries get their password from [askPassword], asked once per archive when first needed and asked again
     // (WRONG / WRONG_OR_DAMAGED) until a password is verified before any output is written for it.
-    // [zipFiles] are grouped as in [extractionTargetsOf]: the later volumes of a split archive are extracted once, through
-    // its first volume. A missing volume fails the extraction once it is detected; entries already written stay.
+    // [zipFiles] must group into one archive as in [extractionTargetOf]: the later volumes of a split archive are extracted
+    // once, through its first volume. Paths that group into no archive or several archives are rejected with
+    // IllegalArgumentException before anything is extracted. A missing volume fails the extraction once it is detected;
+    // entries already written stay.
     suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
 
-    // Groups [paths] into the archives [unzipAction] extracts and returns the path each one is extracted through:
-    // a single archive, or the first volume of a split archive joined by the later volumes of that archive in [paths].
+    // Returns the path [unzipAction] extracts [paths] through if they group into one archive: a single archive, or the
+    // first volume of a split archive joined by the later volumes of that archive in [paths].
     // Returns null if [unzipAction] cannot extract some path — an unsupported format, or a later volume whose first
-    // volume is not in [paths].
-    fun extractionTargetsOf(paths: Set<String>): List<String>?
+    // volume is not in [paths] — or if [paths] group into no archive or several archives.
+    fun extractionTargetOf(paths: Set<String>): String?
 
     // Creates a new directory named [name] under [parentPath].
     suspend fun makeDirectory(parentPath: String, name: String): IoResult<Unit>
