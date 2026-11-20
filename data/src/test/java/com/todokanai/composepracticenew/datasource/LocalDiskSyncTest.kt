@@ -28,7 +28,7 @@ class LocalDiskSyncTest {
 
     @Test
     fun `폴더를 기록할 수 있다`() {
-        // Windows는 폴더를 채널로 열 수 없다 — 앱이 도는 Android(Linux)에서만 쓰는 길이다
+        // Windows는 폴더를 채널로 열 수 없다 — 앱이 도는 Android에서는 계측 테스트 LocalDiskSyncDeviceTest가 확인한다
         assumeFalse(System.getProperty("os.name").startsWith("Windows"))
         File(dir, "a.txt").writeText("A")
 

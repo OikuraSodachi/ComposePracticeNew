@@ -161,8 +161,9 @@ class LocalTreeTransfer internal constructor(
                 output.use { tracker.pump(input, it, src.name, src.length()) }
             }
         }
-        tracker.onFileCompleted(src.name, src.length())
+        // 기록을 마친 뒤에 끝난 파일로 센다 — 큰 파일을 기록하는 동안 진행 표시가 끝난 것처럼 보이지 않도록
         if (deleteSource) persistCopy(target)
+        tracker.onFileCompleted(src.name, src.length())
         if (deleteSource && !src.delete()) throw IOException("원본 삭제 실패: ${src.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다")
         return true
     }

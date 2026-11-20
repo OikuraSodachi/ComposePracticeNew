@@ -28,6 +28,7 @@ sevenzipjbinding = "Release-16.02-2.03"
 junit = "4.13.2"
 junitExt = "1.1.5"
 espressoCore = "3.5.1"
+testRunner = "1.5.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -70,6 +71,7 @@ sevenzipjbinding = { group = "com.github.omicronapps", name = "7-Zip-JBinding-4A
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitExt" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "testRunner" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
