@@ -23,14 +23,17 @@ import javax.inject.Inject
  * @param isSamePartition 두 경로가 같은 파티션에 있는지 판별하는 함수. 앱에서는 OS 디바이스 ID로,
  * 테스트에서는 Android 프레임워크 없이 두 이동 경로를 고르도록 넘긴다
  * @param freeSpaceOf 경로가 속한 파티션의 여유 공간(bytes)을 돌려주는 함수. 테스트에서는 공간 부족을 재현하도록 넘긴다
+ * @param syncToDisk 파일이나 폴더에 쓰인 내용을 장치에 기록하는 함수. 교차 파티션 이동이 원본을 지우기 전에 부른다.
+ * 테스트에서는 폴더를 열 수 없는 OS(Windows)에서도 돌고 기록 순서를 확인하도록 넘긴다
  */
 class LocalTreeTransfer internal constructor(
     private val isSamePartition: (File, File) -> Boolean,
-    private val freeSpaceOf: (File) -> Long
+    private val freeSpaceOf: (File) -> Long,
+    private val syncToDisk: (File) -> Unit
 ) {
 
     /** 실제 파일시스템을 판별하는 transfer를 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor() : this(LocalFileChecks::isSamePartition, File::getFreeSpace)
+    @Inject constructor() : this(LocalFileChecks::isSamePartition, File::getFreeSpace, ::forceToDisk)
 
     /**
      * [targetFiles]를 [targetPath] 디렉터리 아래로 복사한다.
@@ -116,7 +119,7 @@ class LocalTreeTransfer internal constructor(
         if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skippedLinks)
 
     /**
-     * [src]를 [target] 자리로 복사한다. 폴더는 안쪽 항목을 하나씩 복사하고, [deleteSource]면 다 옮긴 항목의 원본을 지운다(교차 파티션 이동).
+     * [src]를 [target] 자리로 복사한다. 폴더는 안쪽 항목을 하나씩 복사하고, [deleteSource]면 다 옮긴 항목의 원본을 복사본과 그 이름을 장치에 기록한 뒤 지운다(교차 파티션 이동, #430).
      * 같은 이름의 항목이 있으면 [resolveConflict]에 묻는다. 건너뛴 항목(폴더면 그 안쪽 전체)은 진행률에서 처리한 것으로 넘기고 원본을 남긴다.
      * 링크는 따라가지 않고 건너뛰어 [skippedLinks]에 넣으며, 원본에 남는다. 목적지 자리에 링크가 있는 원본도 같이 건너뛴다.
      * 입출력 실패는 IOException으로 전파해 호출부의 [localIo]가 결과로 바꾼다. 취소되면 쓰던 파일만 지우고, 이미 다 쓴 파일은 남긴다.
@@ -137,6 +140,8 @@ class LocalTreeTransfer internal constructor(
                     is WriteSlot.Ready -> Unit
                     WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, tracker, skippedLinks)
                 }
+                // 안쪽 원본을 지우기 전에 이 폴더의 이름을 장치에 남긴다 — 남기지 않으면 안쪽 파일을 기록해도 찾아갈 길이 없다
+                if (deleteSource) syncToDisk(target.parentFile!!)
                 val complete = childrenOf(src).fold(true) { complete, child ->
                     copyEntry(child, File(target, child.name), tracker, resolveConflict, deleteSource, skippedLinks) && complete
                 }
@@ -157,8 +162,20 @@ class LocalTreeTransfer internal constructor(
             }
         }
         tracker.onFileCompleted(src.name, src.length())
+        if (deleteSource) persistCopy(target)
         if (deleteSource && !src.delete()) throw IOException("원본 삭제 실패: ${src.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다")
         return true
+    }
+
+    /**
+     * 다 쓴 복사본 [copy]의 내용과 그 이름(부모 폴더)을 장치에 기록한다. 원본을 지우기 전에 부른다 —
+     * 닫은 출력은 OS 캐시에만 있을 수 있어, 지운 직후 전원이 끊기거나 매체가 빠지면 원본과 복사본을 함께 잃는다(#430).
+     * @param copy 다 쓴 복사본
+     * @throws IOException 기록하지 못했을 때 — 원본을 지우지 않고 실패로 알린다
+     */
+    private fun persistCopy(copy: File) {
+        syncToDisk(copy)
+        syncToDisk(copy.parentFile!!)
     }
 
     /**
