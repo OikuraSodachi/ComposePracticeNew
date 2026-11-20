@@ -77,7 +77,7 @@ class LocalDeleteBatchTest {
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
         override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
         override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override fun extractionTargetsOf(paths: Set<String>): List<String>? = null
+        override fun extractionTargetOf(paths: Set<String>): String? = null
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
 

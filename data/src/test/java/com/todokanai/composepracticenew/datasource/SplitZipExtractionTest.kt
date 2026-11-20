@@ -55,7 +55,7 @@ class SplitZipExtractionTest {
         assertEquals(IoResult.Done, result)
         assertArrayEquals(content, File(dest, "a/big.bin").readBytes())
         assertEquals(listOf("a"), dest.list()!!.toList())
-        assertEquals(zip.path, extraction.extractionTargetsOf(volumes.toSet())!!.single())
+        assertEquals(zip.path, extraction.extractionTargetOf(volumes.toSet()))
     }
 
     @Test

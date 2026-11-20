@@ -36,6 +36,6 @@ class FileActionRepositoryImpl @Inject constructor(
         treeTransfer.move(targetFiles, targetPath, resolveConflict, onProgress)
     override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) =
         archiveExtraction.unzip(zipFiles, destPath, layout, resolveConflict, askPassword, onProgress)
-    override fun extractionTargetsOf(paths: Set<String>) = archiveExtraction.extractionTargetsOf(paths)
+    override fun extractionTargetOf(paths: Set<String>) = archiveExtraction.extractionTargetOf(paths)
     override suspend fun makeDirectory(parentPath: String, name: String) = entryMutator.makeDirectory(parentPath, name)
 }

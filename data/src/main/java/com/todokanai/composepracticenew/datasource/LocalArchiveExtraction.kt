@@ -24,7 +24,7 @@ import java.io.IOException
 import javax.inject.Inject
 
 /**
- * 여러 아카이브의 압축 해제를 조율한다. 형식별 처리는 주입된 [ArchiveExtractor] 집합에 위임한다.
+ * 아카이브 하나(단일 아카이브 또는 분할 압축 한 세트)의 압축 해제를 조율한다. 형식별 처리는 주입된 [ArchiveExtractor] 집합에 위임한다.
  * @param extractors 형식별 아카이브 추출기 집합 — 각 nameRoleOf()가 역할을 주는 이름은 서로 배타적이다
  */
 class LocalArchiveExtraction @Inject constructor(
@@ -33,7 +33,7 @@ class LocalArchiveExtraction @Inject constructor(
 
     /**
      * [zipFiles]를 [destPath]에 압축 해제한다.
-     * @param zipFiles 압축 해제할 아카이브 파일 경로 집합
+     * @param zipFiles 압축 해제할 아카이브 파일 경로 집합. 아카이브 하나로 묶여야 한다([extractionTargetOf]가 null이 아니어야 한다) — 단일 아카이브 하나, 또는 분할 압축의 시작 볼륨과 그 세트의 다른 볼륨들
      * @param destPath 압축 해제 대상 디렉터리 경로
      * @param layout 압축 해제한 항목을 [destPath]의 어디에 둘지 정하는 배치 방식
      * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로. 폴더끼리는 묻지 않고 합친다
@@ -42,6 +42,7 @@ class LocalArchiveExtraction @Inject constructor(
      * @return 압축 해제 결과. 풀 수 없는 경로(지원하지 않는 형식, 시작 볼륨 없이 받은 분할 압축의 다른 볼륨)가 있으면 아무것도 해제하지 않고 실패한다.
      * 분할 압축의 볼륨이 빠졌으면 알아챈 때에 [FailureReason.MissingArchiveVolume]으로 실패한다(이미 만든 항목은 남는다).
      * 루트 밖을 가리키거나(경로 검증 실패) 자리에 심볼릭 링크가 있어 풀지 않은 항목이 있으면, 그 항목들을 담은 [IoResult.PartiallyFailed]
+     * @throws IllegalArgumentException 풀 수 있는 경로지만 아카이브 하나로 묶이지 않을 때(없거나 둘 이상) — 아무것도 풀지 않는다
      */
     suspend fun unzip(
         zipFiles: Set<String>,
@@ -55,39 +56,31 @@ class LocalArchiveExtraction @Inject constructor(
         val job = coroutineContext.job
         val ask: (WriteConflict) -> ConflictChoice = { conflict -> runBlocking(job) { resolveConflict.resolve(conflict) } }
         localIo(::extractionFailureReasonOf) {
-            val archives = when (val grouping = groupIntoArchives(zipFiles)) {
-                is ArchiveGrouping.Archives -> grouping.archives
+            val archive = when (val grouping = groupIntoArchives(zipFiles)) {
+                is ArchiveGrouping.Archive -> grouping.archive
+                is ArchiveGrouping.NotOneArchive -> throw IllegalArgumentException("아카이브 하나로 묶이는 경로만 받는다: 아카이브 ${grouping.count}개")
                 is ArchiveGrouping.Unextractable -> return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(File(grouping.path).name))
             }
-            // 비밀번호 확인 단계의 보고 간격은 작업 전체에서 하나로 센다 — 아카이브가 바뀌어도 보고가 몰리지 않도록
-            val checking = IndeterminateProgressReporter(onProgress)
-            // 아카이브마다 비밀번호 세션을 따로 둔다 — 한 아카이브에서 확인한 비밀번호를 다른 아카이브에 쓰지 않도록. 산정과 추출은 같은 세션을 쓴다
-            val sessions = archives.map { passwordSessionOf(File(it.path).name, askPassword, job, checking) }
-            val sizes = archives.mapIndexed { i, archive -> archive.extractor.measure(archive.path, sessions[i]) }
-            val knownBytes = sizes.sumOf { it.knownBytes }
+            // 산정과 추출은 같은 비밀번호 세션을 쓴다 — 산정에서 확인한 비밀번호를 추출에서 다시 묻지 않도록
+            val passwords = passwordSessionOf(File(archive.path).name, askPassword, job, IndeterminateProgressReporter(onProgress))
+            val size = archive.extractor.measure(archive.path, passwords)
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
-            checkDiskSpace(knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
-            val total = TransferTotal.of(knownBytes, sizes.sumOf { it.unknownSizeCount })
-            val tracker = ByteProgressTracker(total, sizes.sumOf { it.fileCount }, onProgress)
+            checkDiskSpace(size.knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
+            val tracker = ByteProgressTracker(TransferTotal.of(size.knownBytes, size.unknownSizeCount), size.fileCount, onProgress)
             tracker.reportStart()
 
-            val failures = mutableListOf<FailedItem>()
-            archives.forEachIndexed { i, archive ->
-                val root = rootOf(File(destPath), archive, layout)
-                // 바로 풀기의 루트는 사용자가 고른 목적지 폴더라 확인하지 않는다(링크로 들어온 폴더일 수 있다). 아카이브 폴더는 새로 놓는 자리라 확인한다
-                val slot = if (layout == ExtractLayout.IntoDestination) WriteSlot.Ready(Unit) else mergeDirectoryResolving(root, ask)
-                // 아카이브 폴더 자리에 파일이나 링크가 있어 건너뛰면 그 아카이브의 항목을 모두 처리한 것으로 넘긴다
-                if (slot !is WriteSlot.Ready) {
-                    if (slot == WriteSlot.Link) failures += FailedItem(root.name, FailureReason.UnsupportedLink())
-                    tracker.skipFiles(sizes[i].fileCount)
-                    tracker.addBytes(sizes[i].knownBytes, root.name, fileBytes = null)
-                    return@forEachIndexed
-                }
-                val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker)
-                archive.extractor.extract(archive.path, writer, sessions[i], tracker)
-                failures += writer.failures.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
+            val root = rootOf(File(destPath), archive, layout)
+            // 바로 풀기의 루트는 사용자가 고른 목적지 폴더라 확인하지 않는다(링크로 들어온 폴더일 수 있다). 아카이브 폴더는 새로 놓는 자리라 확인한다
+            val slot = if (layout == ExtractLayout.IntoDestination) WriteSlot.Ready(Unit) else mergeDirectoryResolving(root, ask)
+            // 아카이브 폴더 자리에 파일이나 링크가 있어 건너뛰면 아무것도 풀지 않고 끝낸다
+            if (slot !is WriteSlot.Ready) {
+                tracker.reportComplete()
+                return@localIo if (slot == WriteSlot.Link) IoResult.PartiallyFailed(listOf(FailedItem(root.name, FailureReason.UnsupportedLink()))) else IoResult.Done
             }
+            val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker)
+            archive.extractor.extract(archive.path, writer, passwords, tracker)
             tracker.reportComplete()
+            val failures = writer.failures.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
             if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failures)
         }
     }
@@ -118,25 +111,24 @@ class LocalArchiveExtraction @Inject constructor(
     }
 
     /**
-     * [paths]를 [unzip]이 푸는 아카이브로 묶고, 아카이브마다 풀 때 여는 경로를 돌려준다. [unzip]과 같은 묶기 규칙을 쓰므로 실제 압축 해제와 어긋나지 않는다.
+     * [paths]가 [unzip]이 푸는 아카이브 하나로 묶이면 풀 때 여는 경로를 돌려준다. [unzip]과 같은 묶기 규칙을 쓰므로 실제 압축 해제와 어긋나지 않는다.
      * @param paths 압축 해제할 파일 경로들
-     * @return 아카이브마다의 경로(단일 아카이브 또는 분할 압축의 시작 볼륨). 풀 수 없는 경로가 있으면 null
+     * @return 아카이브의 경로(단일 아카이브 또는 분할 압축의 시작 볼륨). 풀 수 없는 경로가 있거나 아카이브 하나로 묶이지 않으면 null
      */
-    fun extractionTargetsOf(paths: Set<String>): List<String>? =
-        (groupIntoArchives(paths) as? ArchiveGrouping.Archives)?.archives?.map { it.path }
+    fun extractionTargetOf(paths: Set<String>): String? =
+        (groupIntoArchives(paths) as? ArchiveGrouping.Archive)?.archive?.path
 
     /**
      * [paths]를 풀 아카이브로 묶는다. 분할 압축의 다른 볼륨은 같은 폴더·같은 세트의 시작 볼륨이 [paths]에 있으면 그 시작 볼륨에 합친다.
      * @param paths 압축 해제할 파일 경로들
-     * @return 받은 순서의 아카이브 목록. 지원하지 않는 형식이거나 시작 볼륨 없이 받은 다른 볼륨이 있으면 그 경로
+     * @return 묶인 아카이브 하나, 아카이브 하나로 묶이지 않으면 그 수. 지원하지 않는 형식이거나 시작 볼륨 없이 받은 다른 볼륨이 있으면 그 경로
      */
     private fun groupIntoArchives(paths: Collection<String>): ArchiveGrouping {
         val named = paths.map { path -> namedPathOf(path) ?: return ArchiveGrouping.Unextractable(path) }
         val entrySets = named.filter { it.role is ArchiveNameRole.Entry }.mapTo(HashSet()) { it.setKey }
         named.firstOrNull { it.role is ArchiveNameRole.LaterVolume && it.setKey !in entrySets }?.let { return ArchiveGrouping.Unextractable(it.path) }
-        return ArchiveGrouping.Archives(
-            named.filter { it.role is ArchiveNameRole.Entry }.map { TargetArchive(it.path, it.extractor, it.role.set.folderName) },
-        )
+        val archives = named.filter { it.role is ArchiveNameRole.Entry }.map { TargetArchive(it.path, it.extractor, it.role.set.folderName) }
+        return archives.singleOrNull()?.let(ArchiveGrouping::Archive) ?: ArchiveGrouping.NotOneArchive(archives.size)
     }
 
     /**
@@ -181,10 +173,16 @@ class LocalArchiveExtraction @Inject constructor(
     private sealed interface ArchiveGrouping {
 
         /**
-         * 모두 풀 수 있다.
-         * @param archives 받은 순서의 아카이브 목록
+         * 모두 아카이브 하나로 묶인다.
+         * @param archive 풀 아카이브
          */
-        data class Archives(val archives: List<TargetArchive>) : ArchiveGrouping
+        data class Archive(val archive: TargetArchive) : ArchiveGrouping
+
+        /**
+         * 모두 풀 수 있는 경로지만 아카이브 하나로 묶이지 않는다(없거나 둘 이상).
+         * @param count 묶인 아카이브 수
+         */
+        data class NotOneArchive(val count: Int) : ArchiveGrouping
 
         /**
          * 풀 수 없는 경로가 있다.
