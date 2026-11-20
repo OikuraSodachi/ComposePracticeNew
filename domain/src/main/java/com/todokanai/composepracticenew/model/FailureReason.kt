@@ -36,8 +36,11 @@ sealed interface FailureReason {
      */
     data class FolderNotListed(val kind: ListingRefusal) : FailureReason
 
-    /** 폴더가 아니거나 읽을 권한이 없어 폴더 안을 읽지 못했다. */
-    data object FolderUnreadable : FailureReason
+    /**
+     * 폴더가 아니거나 읽을 권한이 없어 폴더 안을 읽지 못했다.
+     * @param location 읽지 못한 폴더의 자리. 실패 항목의 경로가 곧 자리이거나 읽으려던 폴더 자신이면 null
+     */
+    data class FolderUnreadable(val location: String? = null) : FailureReason
 
     /**
      * 쓸 자리의 여유 공간이 모자란다.

@@ -53,28 +53,32 @@ class LocalArchiveCompression @Inject constructor(
 
     /**
      * [compress]의 본체. 입출력 실패는 IOException으로 전파해 [compress]의 [localIo]가 결과로 바꾼다.
-     * 링크는 따라가지 않고 아카이브에 넣지 않으며, 나머지 항목으로 아카이브를 만든 뒤 넣지 못한 링크를 실패로 알린다.
+     * 링크는 따라가지 않고 아카이브에 넣지 않으며, 안을 나열하지 못한 폴더도 빈 폴더로 넣지 않는다(#422).
+     * 나머지 항목으로 아카이브를 만든 뒤 넣지 못한 항목을 실패로 알린다.
      * @param compressor 아카이브를 쓸 형식별 구현
      * @param targetFiles 압축 대상 파일 경로 집합
      * @param desired 만들 아카이브의 희망 경로
      * @param password 암호화할 비밀번호. null이면 암호화하지 않는다
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 압축 결과. 넣지 못한 링크가 있으면 [IoResult.PartiallyFailed]
+     * @return 압축 결과. 넣지 못한 항목이 있으면 [IoResult.PartiallyFailed]
      */
     private fun compressEntries(compressor: ArchiveCompressor, targetFiles: Set<String>, desired: File, password: String?, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
         val roots = targetFiles.map(::File)
         val entries = mutableListOf<ArchiveSource>()
-        val skippedLinks = mutableListOf<FailedItem>()
+        val skipped = mutableListOf<FailedItem>()
         // 위에서 아래로 순회하므로 폴더 항목이 항상 그 하위 항목보다 먼저 온다
         roots.forEach { root ->
             root.localTreeTopDown().forEach { entry ->
-                if (entry.kind == LocalEntryKind.LINK) skippedLinks += unsupportedLinkUnder(root, entry.file)
-                else entries += sourceOf(root, entry)
+                when (entry.kind) {
+                    LocalTreeEntryKind.LINK -> skipped += unsupportedLinkUnder(root, entry.file)
+                    LocalTreeEntryKind.UNLISTED_DIRECTORY -> skipped += unlistedFolderUnder(root, entry.file)
+                    LocalTreeEntryKind.DIRECTORY, LocalTreeEntryKind.FILE -> entries += sourceOf(root, entry)
+                }
             }
         }
         if (entries.isEmpty()) {
-            return if (skippedLinks.isEmpty()) IoResult.ItemFailed(FailureReason.NothingToCompress)
-                   else IoResult.PartiallyFailed(skippedLinks)
+            return if (skipped.isEmpty()) IoResult.ItemFailed(FailureReason.NothingToCompress)
+                   else IoResult.PartiallyFailed(skipped)
         }
         val files = entries.filterIsInstance<ArchiveSource.Regular>()
         val totalBytes = files.sumOf { it.bytes }
@@ -90,11 +94,11 @@ class LocalArchiveCompression @Inject constructor(
             compressor.write(entries, output, password, tracker)
             tracker.reportComplete()
         }
-        return if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skippedLinks)
+        return if (skipped.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skipped)
     }
 
     /**
-     * 링크가 아닌 트리 항목을 아카이브 항목으로 만든다. 폴더인지와 파일 크기는 여기서 한 번만 정한다 — 진행 합계와 형식별 쓰기가 같은 값을 쓰도록.
+     * 아카이브에 넣는 트리 항목(나열한 폴더, 파일)을 아카이브 항목으로 만든다. 폴더인지와 파일 크기는 여기서 한 번만 정한다 — 진행 합계와 형식별 쓰기가 같은 값을 쓰도록.
      * @param root 사용자가 선택한 압축 대상(파일 또는 폴더)
      * @param entry [root] 자신 또는 그 하위 항목
      * @return 폴더면 [ArchiveSource.Folder], 아니면 지금 크기를 담은 [ArchiveSource.Regular]
@@ -102,7 +106,7 @@ class LocalArchiveCompression @Inject constructor(
     private fun sourceOf(root: File, entry: LocalTreeEntry): ArchiveSource {
         val file = entry.file
         val name = entryNameOf(root, file)
-        return if (entry.kind == LocalEntryKind.DIRECTORY) ArchiveSource.Folder(name) else ArchiveSource.Regular(name, file, file.length())
+        return if (entry.kind == LocalTreeEntryKind.DIRECTORY) ArchiveSource.Folder(name) else ArchiveSource.Regular(name, file, file.length())
     }
 
     /**

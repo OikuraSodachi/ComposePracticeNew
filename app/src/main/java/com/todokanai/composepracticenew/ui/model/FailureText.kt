@@ -93,7 +93,7 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     is FailureReason.IoFailed -> UiText.Raw(reason.detail)
     is FailureReason.FileSystemRefused -> fileSystemRefusedTextOf(reason)
     is FailureReason.FolderNotListed -> UiText.Resource(listingRefusalRes(reason.kind))
-    FailureReason.FolderUnreadable -> UiText.Resource(R.string.failure_folder_unreadable)
+    is FailureReason.FolderUnreadable -> withLocation(UiText.Resource(R.string.failure_folder_unreadable), reason.location)
     is FailureReason.NotEnoughSpace ->
         UiText.Resource(R.string.failure_not_enough_space, listOf(reason.neededBytes / BYTES_PER_KB, reason.freeBytes / BYTES_PER_KB))
     FailureReason.NoFreeSpace -> UiText.Resource(R.string.failure_no_free_space)

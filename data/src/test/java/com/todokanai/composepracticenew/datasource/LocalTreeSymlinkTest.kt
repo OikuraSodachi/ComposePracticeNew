@@ -50,7 +50,7 @@ class LocalTreeSymlinkTest {
 
         val entries = source.localTreeTopDown().associate { source.slashRelativePathOf(it.file) to it.kind }
 
-        assertEquals(mapOf("" to LocalEntryKind.DIRECTORY, "a.txt" to LocalEntryKind.FILE, "loop" to LocalEntryKind.LINK), entries)
+        assertEquals(mapOf("" to LocalTreeEntryKind.DIRECTORY, "a.txt" to LocalTreeEntryKind.FILE, "loop" to LocalTreeEntryKind.LINK), entries)
     }
 
     @Test

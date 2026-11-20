@@ -75,7 +75,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
 
     /**
      * [source] 폴더의 내용을 [dest] 폴더에 합친 뒤 비게 된 [source]를 지운다. 겹치는 파일은 덮어쓰고 겹치지 않는 [dest]의 항목은 유지한다.
-     * 하위 어디에서든 파일↔폴더 종류가 겹치거나 링크가 있으면 아무것도 바꾸기 전에 실패한다.
+     * 하위 어디에서든 파일↔폴더 종류가 겹치거나, 링크가 있거나, 안을 나열하지 못한 폴더를 같은 이름의 폴더에 합쳐야 하면 아무것도 바꾸기 전에 실패한다.
      * @param source 이름을 바꿀 폴더
      * @param dest 같은 이름의 기존 폴더
      * @return 합치기 결과
@@ -87,6 +87,8 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
 
     /**
      * [source] 트리를 [dest]에 겹쳐 보았을 때 합칠 수 없는 첫 항목을 찾는다. [source]의 링크와, 겹치는 자리의 [dest] 링크는 합칠 수 없다.
+     * 안을 나열하지 못한 [source]의 폴더도 겹치는 자리에 [dest]의 폴더가 있으면 합칠 수 없다 — 안쪽을 옮길 수 없어 합치기가 중간에 멈추고 이름 변경이 절반만 되므로(#422).
+     * 겹치는 폴더가 없으면 안을 읽지 않고 통째로 옮기므로 막지 않는다.
      * @param source 합칠 폴더
      * @param dest 합쳐질 기존 폴더
      * @return 합칠 수 없는 원인과 그 항목의 경로, 없으면 null
@@ -97,8 +99,9 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
             val counterpartKind = counterpart.toFile().entryKind.takeIf { Files.exists(counterpart, LinkOption.NOFOLLOW_LINKS) }
             val location = "${dest.name}/${source.slashRelativePathOf(entry.file)}"
             when {
-                entry.kind == LocalEntryKind.LINK || counterpartKind == LocalEntryKind.LINK -> FailureReason.UnsupportedLink(location)
-                counterpartKind != null && counterpartKind != entry.kind -> FailureReason.KindConflict(location)
+                entry.kind == LocalTreeEntryKind.LINK || counterpartKind == LocalEntryKind.LINK -> FailureReason.UnsupportedLink(location)
+                entry.kind == LocalTreeEntryKind.UNLISTED_DIRECTORY && counterpartKind == LocalEntryKind.DIRECTORY -> FailureReason.FolderUnreadable(location)
+                counterpartKind != null && counterpartKind != entry.kind.entryKind -> FailureReason.KindConflict(location)
                 else -> null
             }
         }
