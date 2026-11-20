@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.repository.UploadEntryNamesRepositoryImpl
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -58,7 +59,7 @@ class LocalTreeUnlistedFolderTest {
     fun `업로드 전 이름 읽기는 업로드가 만들지 않는 나열하지 못한 폴더를 넣지 않는다`() = runBlocking {
         assumeUnlistable(locked)
 
-        val result = LocalFileInfoDataSource().folderEntryNames(listOf(source.path))
+        val result = UploadEntryNamesRepositoryImpl().folderEntryNames(listOf(source.path))
 
         assertEquals(mapOf("src" to listOf("a.txt")), result.associate { it.folderLabel to it.names })
     }
@@ -73,6 +74,20 @@ class LocalTreeUnlistedFolderTest {
         assertEquals(IoResult.ItemFailed(FailureReason.FolderUnreadable("dest/locked")), result)
         assertEquals("A", File(source, "a.txt").readText())
         assertFalse(File(dest, "a.txt").exists())
+    }
+
+    @Test
+    fun `이름 변경할 폴더 자신을 나열하지 못하면 같은 이름 폴더에 합치지 않고 그 폴더를 읽지 못한 실패로 알린다`() = runBlocking {
+        val dest = File(dir, "dest").apply { mkdirs() }
+        assumeUnlistable(source)
+        try {
+            val result = LocalEntryMutator().rename(source.path, dest.name, overwrite = true)
+
+            assertEquals(IoResult.ItemFailed(FailureReason.FolderUnreadable("dest")), result)
+        } finally {
+            restoreListable(source)
+        }
+        assertEquals("A", File(source, "a.txt").readText())
     }
 
     @Test

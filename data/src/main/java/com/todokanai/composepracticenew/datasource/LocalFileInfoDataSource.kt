@@ -2,7 +2,6 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
-import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.ListingRefusal
@@ -27,7 +26,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import javax.inject.Inject
 
 /**
- * 로컬 항목의 정보(속성, 하위 항목을 포함한 크기, 하위 항목 수, 폴더 안 항목 이름)를 읽는다.
+ * 로컬 항목의 정보(속성, 하위 항목을 포함한 크기, 하위 항목 수)를 읽는다.
  *
  * 크기는 일반 파일 내용의 바이트 합이다. 특수 파일(FIFO, 장치 파일, 소켓)은 디스크에 내용이 없어 0으로 친다 — stat이 보고하는 크기도 0이며,
  * 읽지 못한 항목이 아니므로 하한으로 알리지 않는다. 트리 안의 심볼릭 링크는 따라가지 않고 크기에도 넣지 않는다 — 링크 대상은 이 폴더의 내용이 아니며,
@@ -68,48 +67,6 @@ class LocalFileInfoDataSource @Inject constructor() {
             IoResult.Success(Files.newDirectoryStream(Paths.get(path)).use { entries -> entries.count() })
         }
     }
-
-    /**
-     * [paths] 중 폴더마다 그 아래 모든 폴더(자신 포함)의 바로 안 항목 이름을 읽는다. 폴더가 아닌 경로는 건너뛰고, 코루틴이 취소되면 멈춘다.
-     * 폴더 업로드(`FtpUploader.uploadDirectory`)와 같은 순회(`localTreeTopDown`)로 읽어 업로드가 함께 올릴 이름을 그대로 얻는다 —
-     * 그래서 업로드가 올리지 않는 링크(경로 자신 포함)와 나열하지 못한 폴더는 이름에 넣지 않고 그 안으로 들어가지도 않는다.
-     * @param paths 항목의 절대 경로 목록
-     * @return 폴더별 항목 이름(바로 안에 항목이 있는 폴더만, 위 폴더부터)
-     */
-    suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = withContext(Dispatchers.IO) {
-        val job = coroutineContext.job
-        paths.map(::File).filter { it.entryKind == LocalEntryKind.DIRECTORY }.flatMap { root -> entryNamesUnder(root, job) }
-    }
-
-    /**
-     * [root] 아래 폴더마다 바로 안 항목 이름을 모은다.
-     * @param root 읽기 시작할 폴더
-     * @param job 취소를 확인할 작업
-     * @return 폴더별 항목 이름(처음 나온 순서)
-     */
-    private fun entryNamesUnder(root: File, job: Job): List<FolderEntryNames> {
-        val namesByFolder = LinkedHashMap<File, MutableList<String>>()
-        root.localTreeTopDown().drop(1).forEach { entry ->
-            job.ensureActive()
-            if (isUploaded(entry.kind)) namesByFolder.getOrPut(entry.file.parentFile) { mutableListOf() } += entry.file.name
-        }
-        return namesByFolder.map { (folder, names) -> FolderEntryNames(folderLabelOf(root, folder), names) }
-    }
-
-    /** 폴더 업로드(`FtpUploader.uploadDirectory`)가 [kind] 항목을 서버에 만드는지. 링크와 나열하지 못한 폴더는 실패로 건너뛴다. */
-    private fun isUploaded(kind: LocalTreeEntryKind): Boolean = when (kind) {
-        LocalTreeEntryKind.DIRECTORY, LocalTreeEntryKind.FILE -> true
-        LocalTreeEntryKind.LINK, LocalTreeEntryKind.UNLISTED_DIRECTORY -> false
-    }
-
-    /**
-     * [folder]의 표시용 경로를 [root]의 이름부터 '/'로 이어 만든다.
-     * @param root 읽기 시작한 폴더
-     * @param folder [root] 자신 또는 그 아래 폴더
-     * @return 표시용 경로
-     */
-    private fun folderLabelOf(root: File, folder: File): String =
-        root.slashRelativePathOf(folder).let { relative -> if (relative.isEmpty()) root.name else "${root.name}/$relative" }
 
     /**
      * 디렉터리를 나열하지 못한 원인을 정한다. NIO 예외의 메시지는 경로뿐인 경우가 많아 예외 종류로 원인을 정한다.
