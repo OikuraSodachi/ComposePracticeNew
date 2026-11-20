@@ -89,7 +89,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 - 퍼센트를 낼 수 없는 단계는 `ProgressState.indeterminate`(sealed `IndeterminatePhase`)로 보고하며, 진행 다이얼로그·알림은 퍼센트 대신 움직이는 막대와 단계별 문구(exhaustive `when`)를 보인다: 처리 전에 대상을 훑는 준비 단계(`Preparing`, 찾은 항목 수)와 압축 해제의 비밀번호 확인(`CheckingPassword`, 압축 파일 이름 — `.claude/rules/archive.md`). 시간 간격 보고는 `IndeterminateProgressReporter` 하나가 맡는다. 진행 보고가 곧 취소를 확인하는 자리다(코루틴 `Mutex`는 잠금을 바로 얻으면 취소를 확인하지 않는다). 그래서 걸리는 시간이 서버 목록에 달린 FTP 트리 수집(폴더 다운로드·재귀 삭제)은 받은 항목마다 `PreparationProgressReporter`에 알리고(#284), 출력 없이 내용을 푸는 동안(비밀번호 확인, solid RAR이 건너뛴 항목을 푸는 동안)도 라이브러리가 진행을 알릴 때마다 보고한다(#418). 원격 삭제는 진행 표시·보호·취소가 있는 삭제 작업(`FileOperationType.REMOTE_DELETE` — 문구는 로컬 삭제와 같고, 진행 알림을 누르면 원격 화면으로 가도록 로컬 `DELETE`와 나눈다, #466)이며(#334), 진행을 작업 전체 기준으로 보고하도록 고른 대상을 한 번에 저장소에 맡긴다(`RemoteFileMutationRepository.delete` — 폴더 안쪽 수는 구현만 안다). 로컬 작업(복사·이동·삭제·압축·압축 해제)과 폴더 업로드의 사전 순회는 준비 단계를 보고하지 않는다 — 링크를 따라가지 않아 실제 트리 크기만큼만 걸리므로, 그동안 진행 표시가 시작 상태에 머물고 취소가 순회가 끝난 뒤에 듣는 것은 지원 범위 밖이다.
 - 로컬 트리 순회·심볼릭 링크(로컬·FTP)·쓰다 만 파일은 `.claude/rules/local-tree.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.
 - 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다.
-- 로컬: 기존 파일을 교체하는 곳은 `replaceFileAtomically`(`ATOMIC_MOVE` rename) 하나다(#432) — `REPLACE_EXISTING`은 Unix에서 대상을 먼저 지운 뒤 rename해, 실패하면 대상만 사라진다.
+- 로컬: rename으로 기존 파일을 교체하는 곳은 `replaceFileAtomically`(`ATOMIC_MOVE` rename) 하나다(#432) — `REPLACE_EXISTING`은 Unix에서 대상을 먼저 지운 뒤 rename해, 실패하면 대상만 사라진다.
 
 ### Data Layer
 
