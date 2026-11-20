@@ -194,11 +194,12 @@ class LocalArchiveCompressionTest {
     fun `ZIP을 쓰다 원본을 읽지 못하면 앞 항목까지만 담겨 정상으로 열리는 아카이브를 남기지 않는다(#427)`() = runBlocking {
         val src = folderWith("a.txt", "hello")
         val gone = File(src, "b.txt").apply { writeText("world") }
-        // 항목을 모은 뒤 쓰기 직전에 원본 하나를 없애, a.txt를 쓴 다음 항목에서 읽기가 실패하게 한다
+        // 항목을 모은 뒤 쓰기 직전에 원본 하나를 없애고 그 항목을 맨 뒤로 보내, a.txt를 쓴 다음 항목에서 읽기가 실패하게 한다.
+        // 폴더 안 형제 순서(listFiles)는 정해져 있지 않아 테스트가 순서를 정한다 — 안정 정렬이라 폴더 항목은 맨 앞에 남는다
         val vanishing = object : ArchiveCompressor {
             override fun write(entries: List<ArchiveSource>, output: File, password: String?, tracker: ByteProgressTracker) {
                 gone.delete()
-                ZipArchiveCompressor().write(entries, output, password, tracker)
+                ZipArchiveCompressor().write(entries.sortedBy { it is ArchiveSource.Regular && it.file == gone }, output, password, tracker)
             }
         }
 

@@ -48,6 +48,7 @@ internal inline fun <T> deletingOnCancel(file: File, block: () -> T): T =
  * [file]을 쓰는 [block]을 실행하고, 끝까지 성공하지 못하면(취소·입출력 실패·구현 오류) [file]을 지운 뒤 그 예외를 그대로 전파한다.
  * 닫을 때 목차를 써서 멈춘 곳까지만 담고도 온전하게 열리는 형식(ZIP — 압축, #427)에 쓴다. 지우지 못해도 원래 실패를 알린다.
  * [file]은 이 작업이 새로 만든 파일이어야 한다 — 기존 파일을 지우지 않도록.
+ * [block]은 예외로 끝날 때도 [file]의 출력을 닫아야 한다 — 열린 채로는 Windows에서 지우지 못하고, Android에서는 지운 뒤에도 열린 fd가 남는다.
  * @param file [block]이 쓰는 파일
  * @param block [file]을 쓰는 작업
  * @return [block]의 결과

@@ -14,6 +14,7 @@ interface ArchiveCompressor {
 
     /**
      * [entries]를 [output]에 이 구현의 형식으로 쓰며 [tracker]로 파일마다 진행을 보고한다.
+     * 예외로 끝날 때도 [output]의 출력을 닫은 뒤 던진다 — 호출부가 끝까지 쓰지 못한 [output]을 지우기 때문이다(#427).
      * @param entries 담을 항목. 폴더 항목은 언제나 그 하위 항목보다 앞에 온다
      * @param output 이 작업을 위해 새로 만든 빈 파일
      * @param password 파일 항목을 AES-256으로 암호화할 비밀번호(비어 있지 않다). null이면 암호화하지 않는다
