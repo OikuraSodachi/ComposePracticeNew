@@ -14,7 +14,6 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 
 /**
@@ -200,7 +199,7 @@ class LocalTreeTransfer internal constructor(
         when (val slot = reserveFileResolving(target) { resolveConflict.resolve(it) }) {
             // 확보한 자리를 rename으로 한 번에 대신한다 — 옮기지 못하면 이 이동이 만든 빈 파일만 지운다
             is WriteSlot.Ready -> try {
-                replaceWith(src, target)
+                replaceFileAtomically(src, target)
             } catch (e: IOException) {
                 if (slot.value == FileReservation.CREATED) target.delete()
                 throw e
@@ -223,14 +222,6 @@ class LocalTreeTransfer internal constructor(
         tracker.passOver(src)
         if (slot == WriteSlot.Link) skippedLinks += src
         return false
-    }
-
-    /**
-     * [src] 파일을 [target] 자리로 rename해 그 자리의 파일을 한 번에 대신한다(지우고 옮기지 않는다 — 그 사이에 생긴 항목과 다시 겹치지 않도록).
-     * [target]이 폴더이면 실패한다.
-     */
-    private fun replaceWith(src: File, target: File) {
-        Files.move(src.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE)
     }
 
     /**

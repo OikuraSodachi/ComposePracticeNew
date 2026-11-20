@@ -128,6 +128,19 @@ class LocalEntryMutatorRenameTest {
     }
 
     @Test
+    fun `합치기에서 겹치는 파일을 교체하지 못하면 덮어쓸 파일을 지우지 않고 그대로 둔다(#432)`() = runBlocking {
+        val stuck = file("src/sub/x.txt", "new")
+        file("dst/sub/x.txt", "old")
+
+        // 옮길 파일이 든 폴더를 막는다 — 대상을 먼저 지우는 교체라면 대상 쪽 폴더는 쓸 수 있어 대상만 지워진다
+        val result = blockingMoveOf(stuck, stuck.parentFile!!) { mutator.rename(File(dir, "src").path, "dst", overwrite = true) }
+
+        assertEquals(listOf("src/sub/x.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
+        assertEquals("old", File(dir, "dst/sub/x.txt").readText())
+        assertEquals("new", stuck.readText())
+    }
+
+    @Test
     fun `대소문자만 바꾸는 이름 변경은 충돌로 보지 않는다`() = runBlocking {
         val a = file("a.txt", "A")
 
@@ -138,15 +151,15 @@ class LocalEntryMutatorRenameTest {
     }
 
     /**
-     * [file]을 [intoDir]로 옮길 수 없게 막은 채 [block]을 실행한다. Windows는 [file]을 열어 두어(공유 삭제 없이 열린 파일은 옮길 수 없다),
-     * 그 밖의 OS는 [intoDir]의 쓰기 권한을 빼서 막는다. 막을 수 없는 환경(root 계정 등)에서는 테스트를 건너뛴다.
+     * [file]을 옮길 수 없게 막은 채 [block]을 실행한다. Windows는 [file]을 열어 두어(공유 삭제 없이 열린 파일은 옮길 수 없다),
+     * 그 밖의 OS는 [lockedDir](옮길 파일이 든 폴더나 받을 폴더)의 쓰기 권한을 빼서 막는다. 막을 수 없는 환경(root 계정 등)에서는 테스트를 건너뛴다.
      */
-    private suspend fun <T> blockingMoveOf(file: File, intoDir: File, block: suspend () -> T): T {
+    private suspend fun <T> blockingMoveOf(file: File, lockedDir: File, block: suspend () -> T): T {
         try {
-            if (!isWindows) assumeTrue(intoDir.setWritable(false) && !Files.isWritable(intoDir.toPath()))
+            if (!isWindows) assumeTrue(lockedDir.setWritable(false) && !Files.isWritable(lockedDir.toPath()))
             return if (isWindows) FileInputStream(file).use { block() } else block()
         } finally {
-            intoDir.setWritable(true)
+            lockedDir.setWritable(true)
         }
     }
 
