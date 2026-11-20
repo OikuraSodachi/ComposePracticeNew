@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.ShownProgress
 import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -30,11 +31,13 @@ import javax.inject.Inject
  * Activity 스코프에서 진행률 다이얼로그에 띄울 작업을 정하고, 진행 알림 클릭으로 그 작업을 보여 달라는 요청을 받는 ViewModel(#448).
  * @param progressUseCase 진행 중인 작업 상태를 제공하는 UseCase
  * @param cancelOperationUseCase 진행 중인 작업을 취소하는 UseCase
+ * @param remoteSessionCheckUseCase 원격 작업 알림 클릭으로 원격 화면에 가기 전에 연결된 원격 세션이 있는지 확인하는 UseCase
  */
 @HiltViewModel
 class ProgressDialogViewModel @Inject constructor(
     progressUseCase: ProgressUseCase,
-    private val cancelOperationUseCase: CancelOperationUseCase
+    private val cancelOperationUseCase: CancelOperationUseCase,
+    private val remoteSessionCheckUseCase: RemoteSessionCheckUseCase
 ) : ViewModel() {
 
     /**
@@ -58,7 +61,7 @@ class ProgressDialogViewModel @Inject constructor(
 
     /** 원격 파일 목록 화면으로의 이동 요청을 화면이 수집할 때까지 하나만 보관하는 채널. 연속 요청은 한 번의 이동으로 합쳐진다. */
     private val _remoteProgressNavigation = Channel<Unit>(Channel.CONFLATED)
-    /** 원격 전송 알림 클릭으로 원격 파일 목록 화면으로 이동해야 할 때 발행된다. */
+    /** 원격 작업 알림 클릭으로 원격 파일 목록 화면으로 이동해야 할 때(연결된 원격 세션이 있을 때만) 발행된다. */
     val remoteProgressNavigation: Flow<Unit> = _remoteProgressNavigation.receiveAsFlow()
 
     init {
@@ -72,16 +75,21 @@ class ProgressDialogViewModel @Inject constructor(
 
     /**
      * 알림 클릭으로 전달된 작업의 진행률 다이얼로그를 띄운다. 그 작업이 이미 끝났으면 띄우지 않는다.
-     * 원격 전송이면 원격 파일 목록 화면으로의 이동도 요청한다.
+     * 원격 작업이고 연결된 원격 세션이 있으면 원격 파일 목록 화면으로의 이동도 요청한다.
+     * 작업 세션은 탐색 세션과 따로라(#436) 탐색 연결이 없어도 원격 작업 알림이 남으므로, 세션이 없으면 다이얼로그만 띄운다(#492).
      * @param operationTypeId 알림 Intent로 전달된 FileOperationType.id
      * @param instanceId 알림 Intent로 전달된 작업 인스턴스 ID
      */
     fun requestShowProgressDialog(operationTypeId: Int, instanceId: Int) {
         dialogSelection.update { it.show(instanceId) }
-        if (FileOperationType.fromId(operationTypeId)?.isRemote == true) {
+        if (shouldNavigateToRemote(operationTypeId)) {
             _remoteProgressNavigation.trySend(Unit)
         }
     }
+
+    /** [operationTypeId] 작업의 알림 클릭이 원격 화면으로 가야 하는지 — 원격 작업이고 갈 원격 화면에 연결된 세션이 있을 때만. */
+    private fun shouldNavigateToRemote(operationTypeId: Int): Boolean =
+        FileOperationType.fromId(operationTypeId)?.isRemote == true && remoteSessionCheckUseCase.hasSession()
 
     /**
      * [instanceId] 작업의 진행률 다이얼로그를 닫는다. 작업은 계속 진행되며, 다른 작업의 다이얼로그도 띄우지 않는다.
