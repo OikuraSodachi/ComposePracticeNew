@@ -90,6 +90,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 - 로컬 트리 순회·심볼릭 링크(로컬·FTP)·쓰다 만 파일은 `.claude/rules/local-tree.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.
 - 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다.
 - 로컬: rename으로 기존 파일을 교체하는 곳은 `replaceFileAtomically`(`ATOMIC_MOVE` rename) 하나다(#432) — `REPLACE_EXISTING`은 Unix에서 대상을 먼저 지운 뒤 rename해, 실패하면 대상만 사라진다.
+- 로컬: 원본을 지우는 교차 파티션 이동은 복사본과 그 이름(부모 폴더)을 장치에 기록(`forceToDisk`, fsync)한 뒤에만 원본을 지운다(#430) — 닫은 출력은 OS 캐시에만 있을 수 있어, 지운 직후 전원이 끊기거나 매체가 빠지면 둘 다 잃는다. 기록하지 못하면 원본을 남기고 실패한다. 원본이 남는 쓰기(복사·압축·압축 해제·다운로드)는 기록을 기다리지 않는다.
 
 ### Data Layer
 

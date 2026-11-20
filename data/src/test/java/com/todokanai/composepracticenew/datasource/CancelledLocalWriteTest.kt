@@ -41,7 +41,7 @@ class CancelledLocalWriteTest {
 
     @Test
     fun `복사를 취소하면 쓰던 파일만 지우고 이미 복사한 파일은 남긴다`() {
-        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE })
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
 
         assertThrows(CancellationException::class.java) { runBlocking { transfer.copy(linkedSetOf(a.path, b.path), out.path, UnexpectedConflictResolver, cancelOnB) } }
 

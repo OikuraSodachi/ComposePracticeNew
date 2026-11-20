@@ -386,5 +386,5 @@ class LocalTreeSymlinkTest {
      * 파티션 판별을 정하고 여유 공간은 넉넉한 transfer를 만든다.
      * @param samePartition 원본과 목적지를 같은 파티션으로 볼지 여부
      */
-    private fun transfer(samePartition: Boolean) = LocalTreeTransfer(isSamePartition = { _, _ -> samePartition }, freeSpaceOf = { Long.MAX_VALUE })
+    private fun transfer(samePartition: Boolean) = LocalTreeTransfer(isSamePartition = { _, _ -> samePartition }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
 }

@@ -33,7 +33,7 @@ class LocalTreeTransferTest {
 
     @Test
     fun `복사할 크기보다 여유 공간이 작으면 아무것도 복사하지 않고 공간 부족으로 실패한다`() {
-        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 1L })
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 1L }, syncToDisk = {})
 
         val result = runBlocking { transfer.copy(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
@@ -43,7 +43,7 @@ class LocalTreeTransferTest {
 
     @Test
     fun `다른 파티션으로 옮길 때 대상에 여유 공간이 없으면 원본을 그대로 두고 실패한다`() {
-        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 0L })
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 0L }, syncToDisk = {})
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
@@ -54,7 +54,7 @@ class LocalTreeTransferTest {
 
     @Test
     fun `다른 파티션으로 옮길 때 여유 공간이 있지만 모자라면 원본을 그대로 두고 필요한 공간과 함께 실패한다`() {
-        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 1L })
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { 1L }, syncToDisk = {})
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
@@ -67,7 +67,7 @@ class LocalTreeTransferTest {
     fun `다른 파티션으로 복사해 옮기다 실패하면 어느 항목인지와 함께 실패를 알리고 원본을 남긴다`() {
         // 같은 이름의 파일이 대상에 있어 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던져 항목 중간의 실패를 만든다
         File(target, "src").writeText("file")
-        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE })
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
 
@@ -80,7 +80,7 @@ class LocalTreeTransferTest {
     @Test
     fun `같은 파티션 이동이 입출력 실패로 멈추면 어느 항목인지와 함께 실패를 알리고 원본을 남긴다`() {
         File(target, "src").apply { mkdirs(); File(this, "b.txt").writeText("B") }
-        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE })
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
 
@@ -92,13 +92,46 @@ class LocalTreeTransferTest {
 
     @Test
     fun `같은 파티션 이동은 원본을 대상 아래로 옮긴다`() {
-        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE })
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
         assertEquals(IoResult.Done, result)
         assertEquals("AAAA", File(target, "src/a.txt").readText())
         assertFalse(source.exists())
+    }
+
+    @Test
+    fun `다른 파티션 이동은 복사본과 그 이름을 장치에 기록한 뒤에 원본을 지운다(#430)`() {
+        // 기록할 때마다 그 순간 원본 파일이 남아 있었는지를 함께 남긴다
+        val synced = mutableListOf<Pair<String, Boolean>>()
+        val original = File(source, "a.txt")
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = { synced += it.relativeTo(dir).invariantSeparatorsPath to original.exists() })
+
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
+
+        assertEquals(IoResult.Done, result)
+        assertEquals(listOf("dst" to true, "dst/src/a.txt" to true, "dst/src" to true), synced)
+        assertFalse(source.exists())
+    }
+
+    @Test
+    fun `다른 파티션 이동에서 복사본을 장치에 기록하지 못하면 원본을 지우지 않고 실패한다(#430)`() {
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = { if (it.isFile) throw IOException("기록 실패") })
+
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
+
+        assertEquals("src", ((result as IoResult.ItemFailed).reason as FailureReason.MoveInterrupted).name)
+        assertEquals("AAAA", File(source, "a.txt").readText())
+    }
+
+    @Test
+    fun `복사는 원본이 남으므로 장치 기록을 기다리지 않는다(#430)`() {
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = { throw AssertionError("복사에서 기록함: $it") })
+
+        val result = runBlocking { transfer.copy(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
+
+        assertEquals(IoResult.Done, result)
     }
 
     /** 묻는 순간 입출력 실패를 던지는 resolver. 이동 중간의 입출력 실패를 만든다. */
