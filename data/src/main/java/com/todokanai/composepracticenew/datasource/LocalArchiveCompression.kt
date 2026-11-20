@@ -88,9 +88,10 @@ class LocalArchiveCompression @Inject constructor(
         tracker.reportStart()
         // 압축 대상 목록을 만든 뒤에 새 파일을 확보 — 기존 파일(선택 항목 자신 포함)은 절대 열지 않으므로 잘라내기·자기 참조가 생기지 않는다
         val output = createUniqueFile(desired)
-        // 취소로 멈춘 아카이브는 일부 항목만 담긴 깨진 파일이므로 통째로 지운다 — 이 호출이 새로 만든 파일이라 기존 파일을 건드리지 않는다.
-        // 완료 보고도 취소를 확인하므로 함께 감싼다 — 다 쓴 직후의 취소도 아카이브를 남기지 않아, 취소된 압축은 언제나 파일이 없다
-        deletingOnCancel(output) {
+        // 끝까지 쓰지 못한 아카이브는 통째로 지운다 — 이 호출이 새로 만든 파일이라 기존 파일을 건드리지 않는다.
+        // 입출력 실패도 지운다: zip4j는 닫을 때 목차를 써서, 멈춘 곳까지만 담은 아카이브가 다른 앱에서 정상으로 열린다(#427).
+        // 완료 보고도 취소를 확인하므로 함께 감싼다 — 다 쓴 직후의 취소도 아카이브를 남기지 않아, 실패·취소된 압축은 언제나 파일이 없다
+        deletingUnlessCompleted(output) {
             compressor.write(entries, output, password, tracker)
             tracker.reportComplete()
         }
