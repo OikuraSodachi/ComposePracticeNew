@@ -7,7 +7,7 @@ import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 
 /**
  * 원격 화면으로 들어가기 전에 연결된 원격 세션이 있는지 확인하는 UseCase.
- * 원격 연결은 저장소 화면에서 사용자가 서버를 고를 때만 시작하므로, 연결 없이 원격 화면으로 가는 진입(하단 전환·업로드)은 여기서 막는다.
+ * 원격 연결은 저장소 화면에서 사용자가 서버를 고를 때만 시작하므로, 연결 없이 원격 화면으로 가는 진입(하단 전환·업로드·원격 작업 진행 알림)은 여기서 막는다.
  * @param connection 연결 상태를 제공하는 RemoteConnectionRepository 구현체
  * @param notices 업로드 진입 거부를 화면이 알릴 때까지 맡는 OperationNoticeReporter
  */
