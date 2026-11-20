@@ -3,6 +3,8 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import java.io.Closeable
 import java.io.IOException
 
@@ -141,13 +143,14 @@ internal class DataCommandRunner(private val session: FtpDataCommandSession) {
      * 취소로 멈춘 명령([run]이 취소를 전파함)이 서버에 남긴 것을 [cleanup] 명령 하나로 정리한다. 같은 잠금 안에서 [run] 바로 뒤에 호출한다.
      * 취소는 [FtpSession.withConnectedClient]를 그대로 지나가므로, 취소 뒤의 정리 명령이 실패한 의미는 그 경계 대신 여기서 같은 규칙으로 정한다.
      * [run]의 취소 정리에서 세션을 끝냈으면 명령을 보내지 않는다. 정리 명령의 응답을 읽지 못하면 응답 순서를 알 수 없으므로 세션을 끝낸다.
+     * 취소된 코루틴에서 부르므로 끝까지 실행한다 — 세션 상태 잠금을 기다리다 취소로 멈추면 정리 명령도, 정리하지 못했다는 결과도 없이 끝난다(#433).
      * @param client 잠금을 확보한 FTP 클라이언트
      * @param cleanup 정리 명령을 보내고 서버가 받아들였는지(2xx)를 돌려주는 동작
      * @return 정리 명령의 결과
      */
-    suspend fun cleanUpAfterCancel(client: FtpCommandClient, cleanup: () -> Boolean): CancelCleanup {
-        if (!session.isReady()) return CancelCleanup.SessionEnded
-        return try {
+    suspend fun cleanUpAfterCancel(client: FtpCommandClient, cleanup: () -> Boolean): CancelCleanup = withContext(NonCancellable) {
+        if (!session.isReady()) return@withContext CancelCleanup.SessionEnded
+        try {
             if (cleanup()) CancelCleanup.Done else CancelCleanup.Refused(client.getReplyString())
         } catch (_: IOException) {
             session.endUnusableSession()
