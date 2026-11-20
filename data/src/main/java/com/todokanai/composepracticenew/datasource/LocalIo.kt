@@ -45,6 +45,23 @@ internal inline fun <T> deletingOnCancel(file: File, block: () -> T): T =
     }
 
 /**
+ * [file]을 쓰는 [block]을 실행하고, 끝까지 성공하지 못하면(취소·입출력 실패·구현 오류) [file]을 지운 뒤 그 예외를 그대로 전파한다.
+ * 닫을 때 목차를 써서 멈춘 곳까지만 담고도 온전하게 열리는 형식(ZIP — 압축, #427)에 쓴다. 지우지 못해도 원래 실패를 알린다.
+ * [file]은 이 작업이 새로 만든 파일이어야 한다 — 기존 파일을 지우지 않도록.
+ * [block]은 예외로 끝날 때도 [file]의 출력을 닫아야 한다 — 열린 채로는 Windows에서 지우지 못하고, Android에서는 지운 뒤에도 열린 fd가 남는다.
+ * @param file [block]이 쓰는 파일
+ * @param block [file]을 쓰는 작업
+ * @return [block]의 결과
+ */
+internal inline fun <T> deletingUnlessCompleted(file: File, block: () -> T): T =
+    try {
+        block()
+    } catch (e: Throwable) {
+        file.delete()
+        throw e
+    }
+
+/**
  * 입출력 실패를 원인으로 바꾼다. [localIo]의 기본값이며, 문맥을 붙이는 describe도 예외 메시지 대신 이것을 쓴다.
  * java.nio는 권한 없음·없음·이미 있음 등을 전용 예외로 바꾸며 이유를 비워 두므로 메시지가 경로뿐이다. 그런 예외는 종류로 원인을 정한다.
  * @param e 입출력 실패

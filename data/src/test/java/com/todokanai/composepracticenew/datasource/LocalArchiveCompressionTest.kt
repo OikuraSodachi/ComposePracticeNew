@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -179,7 +180,6 @@ class LocalArchiveCompressionTest {
         assertEquals(100, progress.last().progress)
     }
 
-    // 실패 시 반쯤 쓴 출력 파일이 남는 문제는 #319에서 다룬다 — 여기서는 실패가 결과로 돌아오는 것만 확인한다
     @Test
     fun `형식별 구현이 쓰는 도중 실패하면 예외를 던지지 않고 실패를 돌려준다`() = runBlocking {
         val src = folderWith("a.txt", "hello")
@@ -188,6 +188,38 @@ class LocalArchiveCompressionTest {
         val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertEquals(IoResult.ItemFailed(FailureReason.IoFailed("쓰기 실패")), result)
+    }
+
+    @Test
+    fun `ZIP을 쓰다 원본을 읽지 못하면 앞 항목까지만 담겨 정상으로 열리는 아카이브를 남기지 않는다(#427)`() = runBlocking {
+        val src = folderWith("a.txt", "hello")
+        val gone = File(src, "b.txt").apply { writeText("world") }
+        // 항목을 모은 뒤 쓰기 직전에 원본 하나를 없애고 그 항목을 맨 뒤로 보내, a.txt를 쓴 다음 항목에서 읽기가 실패하게 한다.
+        // 폴더 안 형제 순서(listFiles)는 정해져 있지 않아 테스트가 순서를 정한다 — 안정 정렬이라 폴더 항목은 맨 앞에 남는다
+        val vanishing = object : ArchiveCompressor {
+            override fun write(entries: List<ArchiveSource>, output: File, password: String?, tracker: ByteProgressTracker) {
+                gone.delete()
+                ZipArchiveCompressor().write(entries.sortedBy { it is ArchiveSource.Regular && it.file == gone }, output, password, tracker)
+            }
+        }
+
+        val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to vanishing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
+
+        assertTrue("$result", result is IoResult.ItemFailed)
+        assertFalse(File(dir, "out.zip").exists())
+    }
+
+    @Test
+    fun `번호를 붙인 이름으로 만들다 실패하면 이 압축이 만든 아카이브만 지우고 기존 파일은 그대로 둔다(#427)`() = runBlocking {
+        val existing = File(dir, "out.zip").apply { writeText("original") }
+        val src = folderWith("a.txt", "hello")
+        val failing = RecordingCompressor { throw IOException("쓰기 실패") }
+
+        LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
+
+        assertEquals(File(dir, "out (1).zip"), failing.output)
+        assertFalse(File(dir, "out (1).zip").exists())
+        assertEquals("original", existing.readText())
     }
 
     /**
