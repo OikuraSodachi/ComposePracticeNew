@@ -48,7 +48,7 @@ class RemoteFileListViewModel @Inject constructor(
 
     /**
      * 이 화면이 보여 줄 연결된 원격 세션이 없으면 true. 세션이 끊긴 경우(서버 측 종료·idle timeout 등)와,
-     * 연결 없이 이 화면이 만들어진 경우(프로세스가 종료된 뒤 복원된 원격 화면, 탐색 연결이 없을 때 누른 원격 작업 진행 알림)가 해당한다.
+     * 연결 없이 이 화면이 만들어진 경우(프로세스가 종료된 뒤 복원된 원격 화면)가 해당한다.
      * 상태로 보므로, 이 화면을 떠나 있는 동안 끊긴 경우에도 돌아왔을 때 true다.
      */
     val noSession: StateFlow<Boolean> = connectionStateUseCase.connectionState

@@ -2,8 +2,10 @@ package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
+import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import com.todokanai.composepracticenew.viewmodel.ProgressDialogViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,6 +34,8 @@ class ProgressDialogVisibilityTest {
 
     /** 테스트가 작업의 진행 상태를 직접 넣는 진행 저장소. */
     private val progressRepo = MutableProgressRepository()
+    /** 연결 상태를 테스트가 바꾸는 연결 저장소. 연결된 상태로 시작한다. */
+    private val connection = FakeConnectionRepository()
 
     /** 검증 대상 ViewModel. 테스트마다 새로 만든다. */
     private lateinit var viewModel: ProgressDialogViewModel
@@ -81,7 +85,7 @@ class ProgressDialogVisibilityTest {
     }
 
     @Test
-    fun `알림 클릭으로 그 작업의 다이얼로그를 띄우고 원격 작업이면 이동을 요청한다`() = runTest {
+    fun `알림 클릭으로 그 작업의 다이얼로그를 띄우고 연결된 원격 세션이 있는 원격 작업이면 이동을 요청한다`() = runTest {
         backgroundScope.launch { viewModel.shownProgress.collect {} }
         progressRepo.setProgressState(1, uploadAt(30))
         progressRepo.setProgressState(2, copyAt(10))
@@ -93,6 +97,21 @@ class ProgressDialogVisibilityTest {
 
         awaitShownId(1)
         assertEquals(Unit, viewModel.remoteProgressNavigation.first())
+    }
+
+    @Test
+    fun `연결된 원격 세션이 없으면 원격 작업 알림 클릭은 다이얼로그만 띄우고 이동을 요청하지 않는다`() = runTest {
+        backgroundScope.launch { viewModel.shownProgress.collect {} }
+        progressRepo.setProgressState(1, uploadAt(30))
+        awaitShownId(1)
+        viewModel.dismissProgressDialog(1)
+        awaitShownId(null)
+        connection.connectionState.value = RemoteConnectionState.Lost
+
+        viewModel.requestShowProgressDialog(FileOperationType.UPLOAD.id, instanceId = 1)
+
+        awaitShownId(1)
+        assertNull(withTimeoutOrNull(1_000) { viewModel.remoteProgressNavigation.first() })
     }
 
     @Test
@@ -141,7 +160,8 @@ class ProgressDialogVisibilityTest {
     /** [progressRepo]의 지금 상태로 ViewModel을 만든다. 앱을 여는 시점에 해당한다. */
     private fun createViewModel() = ProgressDialogViewModel(
         progressUseCase = ProgressUseCase(progressRepo),
-        cancelOperationUseCase = idleCancelOperationUseCase()
+        cancelOperationUseCase = idleCancelOperationUseCase(),
+        remoteSessionCheckUseCase = RemoteSessionCheckUseCase(connection, RecordingOperationNotices())
     )
 
     /** 띄울 작업의 ID가 [expected]가 될 때까지 기다린다. 끝내 되지 않으면 runTest 시간 제한으로 실패한다. */

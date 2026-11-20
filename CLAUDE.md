@@ -48,6 +48,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 탭 전환(`popUpTo(FILE_BROWSER_GRAPH)`)·저장소에서 원격 연결로 들어온 원격 화면은 그래프에 혼자 있어, 루트에서 뒤로가면 저장소로 나간다.
 - 업로드 진입·원격 진행 알림으로 들어온 원격 화면은 `FILE_LIST` 위에 쌓여, 루트에서 뒤로가면 로컬 목록으로 돌아온다(업로드 대기 상태 유지).
 - 다운로드 진입은 원격 화면을 꺼내고 로컬 목록으로 간다.
+- 연결된 원격 세션이 없어 원격 화면이 나갈 때도 루트 뒤로가기와 같이 원격 화면만 닫는다(#492) — 나가는 곳은 위 백스택 모양이 정한다.
 
 ### UI Modes (`ui/model/SelectMode`)
 

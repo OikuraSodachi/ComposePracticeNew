@@ -64,7 +64,7 @@ fun AppNavHost(
         mainViewModel.exitEvent.collect { onExitApp() }
     }
 
-    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시 현재 화면이 REMOTE_FILE_LIST가 아니면 이동한다
+    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 현재 화면이 REMOTE_FILE_LIST가 아니면 이동한다
     LaunchedEffect(Unit) {
         progressDialogViewModel.remoteProgressNavigation.collect {
             if (navController.currentDestination?.route != NavDestinations.REMOTE_FILE_LIST) {
@@ -259,7 +259,9 @@ private fun RemoteFileListDestination(
             }
         },
         onConfirmUpload = coordinator::confirmUpload,
-        onNoSession = { navController.popBackStack(NavDestinations.STORAGE, false) },
+        // 원격 화면만 닫는다(루트 뒤로가기와 같은 결과) — 저장소까지 거슬러 나가면 아래에 쌓인 로컬 목록과 그래프의 로컬 선택까지 사라진다(#492).
+        // 혼자 있던 원격 화면이면 남은 그래프 항목도 함께 꺼져 저장소로 간다
+        onNoSession = { navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, true) },
         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
         onExit = mainViewModel::exit,
         viewModel = remoteViewModel
