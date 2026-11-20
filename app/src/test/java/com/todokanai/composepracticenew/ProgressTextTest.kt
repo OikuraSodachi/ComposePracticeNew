@@ -53,6 +53,7 @@ class ProgressTextTest {
             FileOperationType.COPY to R.string.progress_unknown_files_processed,
             FileOperationType.MOVE to R.string.progress_unknown_files_processed,
             FileOperationType.DELETE to R.string.progress_unknown_files_processed,
+            FileOperationType.REMOTE_DELETE to R.string.progress_unknown_files_processed,
             FileOperationType.COMPRESS to R.string.progress_unknown_files_processed,
             FileOperationType.UNZIP to R.string.progress_unknown_files_processed,
             null to R.string.progress_unknown_files_processed

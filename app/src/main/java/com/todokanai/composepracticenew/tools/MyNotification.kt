@@ -55,7 +55,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         val model = state.toModel()
         model.indeterminate?.let { return showIndeterminateProgress(type, it, instanceId) }
         when (type) {
-            FileOperationType.DELETE -> showCountProgress(type, model, instanceId)
+            FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> showCountProgress(type, model, instanceId)
             FileOperationType.COPY,
             FileOperationType.MOVE,
             FileOperationType.COMPRESS,
