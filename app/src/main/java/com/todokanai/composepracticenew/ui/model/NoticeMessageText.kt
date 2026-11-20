@@ -45,7 +45,7 @@ fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
 fun completionTextRes(kind: OperationKind): Int = when (kind) {
     is OperationKind.Tracked -> when (kind.type) {
         FileOperationType.MOVE -> R.string.noti_move_complete
-        FileOperationType.DELETE -> R.string.noti_delete_complete
+        FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.noti_delete_complete
         FileOperationType.DOWNLOAD -> R.string.noti_download_complete
         FileOperationType.UPLOAD -> R.string.noti_upload_complete
         FileOperationType.COPY, FileOperationType.COMPRESS, FileOperationType.UNZIP -> R.string.noti_complete
@@ -73,7 +73,7 @@ private fun cancelledTextOf(kind: OperationKind): UiText = when (kind) {
 private fun operationNameRes(operationType: FileOperationType): Int = when (operationType) {
     FileOperationType.COPY -> R.string.op_name_copy
     FileOperationType.MOVE -> R.string.op_name_move
-    FileOperationType.DELETE -> R.string.op_name_delete
+    FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.op_name_delete
     FileOperationType.COMPRESS -> R.string.op_name_compress
     FileOperationType.UNZIP -> R.string.op_name_unzip
     FileOperationType.DOWNLOAD -> R.string.op_name_download
@@ -89,7 +89,7 @@ private fun operationNameRes(operationType: FileOperationType): Int = when (oper
 private fun cancelRemainderRes(operationType: FileOperationType): Int = when (operationType) {
     FileOperationType.COPY -> R.string.notice_cancel_remainder_copy
     FileOperationType.MOVE -> R.string.notice_cancel_remainder_move
-    FileOperationType.DELETE -> R.string.notice_cancel_remainder_delete
+    FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.notice_cancel_remainder_delete
     FileOperationType.COMPRESS -> R.string.notice_cancel_remainder_compress
     FileOperationType.UNZIP -> R.string.notice_cancel_remainder_unzip
     FileOperationType.DOWNLOAD -> R.string.notice_cancel_remainder_download

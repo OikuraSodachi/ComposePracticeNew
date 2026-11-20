@@ -16,6 +16,7 @@ class OperationLabelTest {
         FileOperationType.COPY to R.string.progress_copying,
         FileOperationType.MOVE to R.string.progress_moving,
         FileOperationType.DELETE to R.string.progress_deleting,
+        FileOperationType.REMOTE_DELETE to R.string.progress_deleting,
         FileOperationType.COMPRESS to R.string.progress_compressing,
         FileOperationType.UNZIP to R.string.progress_unzipping,
         FileOperationType.DOWNLOAD to R.string.progress_downloading,

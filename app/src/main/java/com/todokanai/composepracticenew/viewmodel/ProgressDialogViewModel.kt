@@ -87,7 +87,10 @@ class ProgressDialogViewModel @Inject constructor(
         }
     }
 
-    /** [operationTypeId] 작업의 알림 클릭이 원격 화면으로 가야 하는지 — 원격 작업이고 갈 원격 화면에 연결된 세션이 있을 때만. */
+    /**
+     * [operationTypeId] 작업의 알림 클릭이 원격 화면으로 가야 하는지 — 원격 스토리지를 다루는 작업(`FileOperationType.isRemote`: 전송·원격 삭제, #466)이고
+     * 갈 원격 화면에 연결된 세션이 있을 때만.
+     */
     private fun shouldNavigateToRemote(operationTypeId: Int): Boolean =
         FileOperationType.fromId(operationTypeId)?.isRemote == true && remoteSessionCheckUseCase.hasSession()
 

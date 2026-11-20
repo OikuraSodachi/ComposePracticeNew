@@ -107,7 +107,7 @@ class RemoteFileOperationUseCase(
      */
     fun deleteRemote(targets: List<FileHolderItem>, onRefresh: suspend () -> Unit) {
         val session = sessions.current()
-        orchestrator.launch(FileOperationType.DELETE, onRefresh) { onProgress -> onSession(session) { mutationRepo.delete(it, targets, onProgress) } }
+        orchestrator.launch(FileOperationType.REMOTE_DELETE, onRefresh) { onProgress -> onSession(session) { mutationRepo.delete(it, targets, onProgress) } }
     }
 
     /**

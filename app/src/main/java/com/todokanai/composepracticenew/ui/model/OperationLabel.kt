@@ -14,7 +14,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 fun operationLabelRes(type: FileOperationType?): Int = when (type) {
     FileOperationType.COPY -> R.string.progress_copying
     FileOperationType.MOVE -> R.string.progress_moving
-    FileOperationType.DELETE -> R.string.progress_deleting
+    FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.progress_deleting
     FileOperationType.COMPRESS -> R.string.progress_compressing
     FileOperationType.UNZIP -> R.string.progress_unzipping
     FileOperationType.DOWNLOAD -> R.string.progress_downloading

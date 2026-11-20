@@ -313,7 +313,7 @@ private fun listedPathsOf(failures: List<FailedItem>): UiText {
 private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = when (operationType) {
     FileOperationType.COPY -> R.string.failure_partial_heading_copy
     FileOperationType.MOVE -> R.string.failure_partial_heading_move
-    FileOperationType.DELETE -> R.string.failure_partial_heading_delete
+    FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.failure_partial_heading_delete
     FileOperationType.COMPRESS -> R.string.failure_partial_heading_compress
     FileOperationType.UNZIP -> R.string.failure_partial_heading_unzip
     FileOperationType.DOWNLOAD -> R.string.failure_partial_heading_download
@@ -329,5 +329,5 @@ private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = w
 private fun headingStepOf(operationType: FileOperationType?): RemoteStep? = when (operationType) {
     FileOperationType.DOWNLOAD -> RemoteStep.DOWNLOAD
     FileOperationType.UPLOAD -> RemoteStep.UPLOAD
-    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> null
+    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.REMOTE_DELETE, FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> null
 }
