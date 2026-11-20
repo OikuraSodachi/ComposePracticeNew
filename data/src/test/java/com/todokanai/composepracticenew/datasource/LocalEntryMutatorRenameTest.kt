@@ -17,6 +17,8 @@ class LocalEntryMutatorRenameTest {
 
     private val dir: File = Files.createTempDirectory("rename-test").toFile()
     private val mutator = LocalEntryMutator()
+    /** 열어 둔 파일을 옮길 수 없는 OS(Windows)에서 실행 중인지 여부. */
+    private val isWindows = System.getProperty("os.name").startsWith("Windows")
 
     @After
     fun tearDown() {
@@ -120,6 +122,9 @@ class LocalEntryMutatorRenameTest {
         assertEquals("A", File(dir, "dst/a.txt").readText())
         assertEquals("S", stuck.readText())
         assertFalse(File(dir, "dst/sub/stuck.txt").exists())
+        assertTrue(File(dir, "src/sub").isDirectory)
+        // 열어 둔 파일만 막히는 Windows에서는 같은 폴더의 다른 항목이 옮겨져야 한다 — 첫 실패에서 멈추지 않았다는 직접 증거
+        if (isWindows) assertEquals("Z", File(dir, "dst/sub/z.txt").readText())
     }
 
     @Test
@@ -137,10 +142,9 @@ class LocalEntryMutatorRenameTest {
      * 그 밖의 OS는 [intoDir]의 쓰기 권한을 빼서 막는다. 막을 수 없는 환경(root 계정 등)에서는 테스트를 건너뛴다.
      */
     private suspend fun <T> blockingMoveOf(file: File, intoDir: File, block: suspend () -> T): T {
-        val windows = System.getProperty("os.name").startsWith("Windows")
-        if (!windows) assumeTrue(intoDir.setWritable(false) && !Files.isWritable(intoDir.toPath()))
         try {
-            return if (windows) FileInputStream(file).use { block() } else block()
+            if (!isWindows) assumeTrue(intoDir.setWritable(false) && !Files.isWritable(intoDir.toPath()))
+            return if (isWindows) FileInputStream(file).use { block() } else block()
         } finally {
             intoDir.setWritable(true)
         }
