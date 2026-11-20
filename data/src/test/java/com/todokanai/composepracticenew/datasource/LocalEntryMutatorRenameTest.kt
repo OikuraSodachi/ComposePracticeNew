@@ -6,8 +6,10 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import java.io.File
+import java.io.FileInputStream
 import java.nio.file.Files
 
 /** [LocalEntryMutator.rename]가 같은 이름의 항목을 덮어쓰기 확인 여부와 종류에 따라 거부·교체·합치기로 처리하는지 검증하는 단위 테스트. */
@@ -15,6 +17,8 @@ class LocalEntryMutatorRenameTest {
 
     private val dir: File = Files.createTempDirectory("rename-test").toFile()
     private val mutator = LocalEntryMutator()
+    /** 열어 둔 파일을 옮길 수 없는 OS(Windows)에서 실행 중인지 여부. */
+    private val isWindows = System.getProperty("os.name").startsWith("Windows")
 
     @After
     fun tearDown() {
@@ -104,6 +108,26 @@ class LocalEntryMutatorRenameTest {
     }
 
     @Test
+    fun `폴더를 합치다 옮기지 못한 항목이 있으면 나머지를 끝까지 합치고 옮기지 못한 항목만 원래 폴더 이름부터의 경로로 알린다(#426)`() = runBlocking {
+        file("src/a.txt", "A")
+        val stuck = file("src/sub/stuck.txt", "S")
+        file("src/sub/z.txt", "Z")
+        val destSub = File(dir, "dst/sub").apply { mkdirs() }
+
+        val result = blockingMoveOf(stuck, destSub) { mutator.rename(File(dir, "src").path, "dst", overwrite = true) }
+
+        // 쓰기 권한으로 막는 OS에서는 같은 폴더로 가는 z.txt도 막혀 함께 실패한다 — 그래도 남은 항목을 시도했다는 증거다
+        val failedPaths = (result as IoResult.PartiallyFailed).failures.map { it.path }
+        assertTrue("$failedPaths", "src/sub/stuck.txt" in failedPaths && failedPaths.all { it.startsWith("src/sub/") && it.endsWith(".txt") })
+        assertEquals("A", File(dir, "dst/a.txt").readText())
+        assertEquals("S", stuck.readText())
+        assertFalse(File(dir, "dst/sub/stuck.txt").exists())
+        assertTrue(File(dir, "src/sub").isDirectory)
+        // 열어 둔 파일만 막히는 Windows에서는 같은 폴더의 다른 항목이 옮겨져야 한다 — 첫 실패에서 멈추지 않았다는 직접 증거
+        if (isWindows) assertEquals("Z", File(dir, "dst/sub/z.txt").readText())
+    }
+
+    @Test
     fun `대소문자만 바꾸는 이름 변경은 충돌로 보지 않는다`() = runBlocking {
         val a = file("a.txt", "A")
 
@@ -111,6 +135,19 @@ class LocalEntryMutatorRenameTest {
 
         assertEquals(listOf("A.txt"), dir.list()!!.toList())
         assertEquals("A", File(dir, "A.txt").readText())
+    }
+
+    /**
+     * [file]을 [intoDir]로 옮길 수 없게 막은 채 [block]을 실행한다. Windows는 [file]을 열어 두어(공유 삭제 없이 열린 파일은 옮길 수 없다),
+     * 그 밖의 OS는 [intoDir]의 쓰기 권한을 빼서 막는다. 막을 수 없는 환경(root 계정 등)에서는 테스트를 건너뛴다.
+     */
+    private suspend fun <T> blockingMoveOf(file: File, intoDir: File, block: suspend () -> T): T {
+        try {
+            if (!isWindows) assumeTrue(intoDir.setWritable(false) && !Files.isWritable(intoDir.toPath()))
+            return if (isWindows) FileInputStream(file).use { block() } else block()
+        } finally {
+            intoDir.setWritable(true)
+        }
     }
 
     /** [dir] 아래 [relative] 경로에 [content] 내용의 파일을 만든다. 상위 폴더도 함께 만든다. */
