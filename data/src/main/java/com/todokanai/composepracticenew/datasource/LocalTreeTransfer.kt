@@ -248,9 +248,9 @@ class LocalTreeTransfer internal constructor(
         addBytes(total.bytes, name, fileBytes = null)
     }
 
-    /** [root] 트리의 파일 수와 바이트 합. 링크는 옮기지 않으므로 세지 않는다. */
+    /** [root] 트리의 파일 수와 바이트 합. 링크는 옮기지 않으므로, 나열하지 못한 폴더의 안쪽은 순회에 나오지 않으므로 세지 않는다. */
     private fun treeTotalOf(root: File): TreeTotal {
-        val files = root.localTreeTopDown().filter { it.kind == LocalEntryKind.FILE }.map { it.file }.toList()
+        val files = root.localTreeTopDown().filter { it.kind == LocalTreeEntryKind.FILE }.map { it.file }.toList()
         return TreeTotal(files.size, files.sumOf { it.length() })
     }
 

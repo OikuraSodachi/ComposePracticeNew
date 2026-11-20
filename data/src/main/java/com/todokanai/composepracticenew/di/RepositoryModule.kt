@@ -19,6 +19,7 @@ import com.todokanai.composepracticenew.repository.FileSystemPathRules
 import com.todokanai.composepracticenew.repository.FileInfoRepository
 import com.todokanai.composepracticenew.repository.FolderEntryNamesRepository
 import com.todokanai.composepracticenew.repository.LocalFileInfoRepositoryImpl
+import com.todokanai.composepracticenew.repository.UploadEntryNamesRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.LocalFileSearchRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
@@ -95,7 +96,7 @@ abstract class RepositoryModule {
 
     /** 업로드 원본은 로컬 항목뿐이므로 로컬 구현만 바인딩한다. */
     @Binds
-    abstract fun bindFolderEntryNamesRepository(impl: LocalFileInfoRepositoryImpl): FolderEntryNamesRepository
+    abstract fun bindFolderEntryNamesRepository(impl: UploadEntryNamesRepositoryImpl): FolderEntryNamesRepository
 
     /** 파일 검색은 로컬 목록 화면에만 있으므로 로컬 구현만 바인딩한다. 원격(FTP)은 폴더마다 LIST를 보내 하나뿐인 연결을 나눠 써야 해 범위 밖이다. */
     @Binds

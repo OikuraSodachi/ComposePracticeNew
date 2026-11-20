@@ -109,10 +109,10 @@ class FtpUploader internal constructor(
          * 링크를 따라가지 않고 수집한 로컬 디렉터리 트리.
          * @param localFile 올릴 로컬 디렉터리
          * @param ftpPath 저장될 원격 디렉터리의 FTP 경로
-         * @param entries 디렉터리 자신부터 위에서 아래로 수집한 모든 항목(폴더·링크 포함)
+         * @param entries 디렉터리 자신부터 위에서 아래로 수집한 모든 항목(폴더·링크·나열하지 못한 폴더 포함)
          */
         class Tree(override val localFile: File, val ftpPath: String, val entries: List<LocalTreeEntry>) : UploadPlan {
-            override val files: List<File> get() = entries.filter { it.kind == LocalEntryKind.FILE && it.file.isFile }.map { it.file }
+            override val files: List<File> get() = entries.filter { uploadActionOf(it.kind) == UploadAction.UploadFile && it.file.isFile }.map { it.file }
         }
     }
 
@@ -141,6 +141,7 @@ class FtpUploader internal constructor(
     /**
      * 로컬 디렉터리 트리를 [plan]의 원격 폴더 아래로 업로드한다. 실패한 파일은 모아서 마지막에 알린다. 진행률은 묶음 전체의 [progress]에 보고한다.
      * 원격 폴더는 이미 있어도 되며, 만들 수도 없고 있지도 않으면 그 폴더의 실패로 집계된다([FtpCommandExecutor.ensureDirectory]).
+     * 항목마다 할 일은 [uploadActionOf]가 정한다 — 링크와 안을 나열하지 못한 로컬 폴더는 원격에 만들지 않고 실패로 집계한다(#422).
      */
     private suspend fun uploadDirectory(plan: UploadPlan.Tree, progress: ByteProgressTracker): IoResult<Unit> {
         val localDir = plan.localFile
@@ -150,10 +151,10 @@ class FtpUploader internal constructor(
             val entry = treeEntry.file
             val relativePath = localDir.slashRelativePathOf(entry)
             val entryFtpPath = if (relativePath.isEmpty()) ftpPath else "$ftpPath/$relativePath"
-            when (treeEntry.kind) {
-                LocalEntryKind.LINK -> IoResult.ItemFailed(FailureReason.UnsupportedLink())
-                LocalEntryKind.DIRECTORY -> cmd.ensureDirectory(entryFtpPath)
-                LocalEntryKind.FILE -> uploadFile(entry, entryFtpPath, progress)
+            when (val action = uploadActionOf(treeEntry.kind)) {
+                is UploadAction.Skip -> IoResult.ItemFailed(action.reason)
+                UploadAction.CreateDirectory -> cmd.ensureDirectory(entryFtpPath)
+                UploadAction.UploadFile -> uploadFile(entry, entryFtpPath, progress)
             }
         }
     }

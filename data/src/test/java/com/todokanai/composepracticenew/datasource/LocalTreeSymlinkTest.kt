@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
+import com.todokanai.composepracticenew.repository.UploadEntryNamesRepositoryImpl
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
@@ -50,7 +51,7 @@ class LocalTreeSymlinkTest {
 
         val entries = source.localTreeTopDown().associate { source.slashRelativePathOf(it.file) to it.kind }
 
-        assertEquals(mapOf("" to LocalEntryKind.DIRECTORY, "a.txt" to LocalEntryKind.FILE, "loop" to LocalEntryKind.LINK), entries)
+        assertEquals(mapOf("" to LocalTreeEntryKind.DIRECTORY, "a.txt" to LocalTreeEntryKind.FILE, "loop" to LocalTreeEntryKind.LINK), entries)
     }
 
     @Test
@@ -197,7 +198,7 @@ class LocalTreeSymlinkTest {
     fun `업로드 전 이름 읽기는 업로드가 올리지 않는 링크를 넣지 않는다`() = runBlocking {
         assumeSymlink(File(source, "loop"), source)
 
-        val result = LocalFileInfoDataSource().folderEntryNames(listOf(source.path))
+        val result = UploadEntryNamesRepositoryImpl().folderEntryNames(listOf(source.path))
 
         assertEquals(mapOf("src" to listOf("a.txt")), result.associate { it.folderLabel to it.names })
     }

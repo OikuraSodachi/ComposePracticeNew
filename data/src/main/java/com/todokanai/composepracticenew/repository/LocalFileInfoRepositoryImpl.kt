@@ -1,25 +1,22 @@
 package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.datasource.LocalFileInfoDataSource
-import com.todokanai.composepracticenew.model.FolderEntryNames
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ItemAttributes
 import com.todokanai.composepracticenew.model.SizeMeasurement
 import javax.inject.Inject
 
 /**
- * 로컬 파일 시스템 항목의 정보와 업로드할 폴더 안쪽 이름을 읽는 FileInfoRepository·FolderEntryNamesRepository 구현체.
- * @param dataSource 로컬 항목의 속성·크기·하위 항목 수·폴더 안 항목 이름을 읽는 LocalFileInfoDataSource
+ * 로컬 파일 시스템 항목의 정보를 읽는 FileInfoRepository 구현체.
+ * @param dataSource 로컬 항목의 속성·크기·하위 항목 수를 읽는 LocalFileInfoDataSource
  */
 class LocalFileInfoRepositoryImpl @Inject constructor(
     private val dataSource: LocalFileInfoDataSource
-) : FileInfoRepository, FolderEntryNamesRepository {
+) : FileInfoRepository {
 
     override suspend fun readAttributes(path: String): IoResult<ItemAttributes> = dataSource.readAttributes(path)
 
     override suspend fun measureSize(paths: List<String>): IoResult<SizeMeasurement> = dataSource.measureSize(paths)
 
     override suspend fun countChildren(path: String): IoResult<Int> = dataSource.countChildren(path)
-
-    override suspend fun folderEntryNames(paths: List<String>): List<FolderEntryNames> = dataSource.folderEntryNames(paths)
 }
