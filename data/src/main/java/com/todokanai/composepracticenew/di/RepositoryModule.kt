@@ -25,7 +25,6 @@ import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.FtpFileSystem
 import com.todokanai.composepracticenew.repository.FtpRepositoryImpl
 import com.todokanai.composepracticenew.repository.FtpRootNavigator
-import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.LocalFileSystem
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
@@ -77,9 +76,6 @@ import javax.inject.Singleton
 abstract class RepositoryModule {
     @Binds
     abstract fun bindSortPreferenceRepository(impl: DataStoreRepository): SortPreferenceRepository
-
-    @Binds
-    abstract fun bindLastConnectionRepository(impl: DataStoreRepository): LastConnectionRepository
 
     @Binds
     abstract fun bindPreferenceFailureRepository(impl: PreferenceFailureNotices): PreferenceFailureRepository

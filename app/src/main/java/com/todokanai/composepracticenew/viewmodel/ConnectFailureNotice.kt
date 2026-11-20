@@ -38,13 +38,8 @@ class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCas
     }
 
     /** 다시 시도하면 될 수 있는 연결 실패를 알린다. */
-    fun notifyConnectionFailed() {
+    private fun notifyConnectionFailed() {
         reportUseCase.report(ConnectFailureAlert.CONNECTION_FAILED)
-    }
-
-    /** 설정을 읽지 못해 재연결할 서버를 알 수 없음을 알린다. */
-    fun notifyReconnectSettingsUnreadable() {
-        reportUseCase.report(ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE)
     }
 
     /** 사용자가 서버를 읽을 수 없다는 다이얼로그를 닫았다. */

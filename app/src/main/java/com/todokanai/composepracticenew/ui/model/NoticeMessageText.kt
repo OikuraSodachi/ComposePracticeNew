@@ -31,6 +31,7 @@ fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
     is NoticeMessage.UnsupportedArchiveFormat -> UiText.Resource(R.string.notice_unsupported_archive_format, listOf(message.extension))
     is NoticeMessage.OpenFailed -> UiText.Resource(openFailureRes(message.reason), listOf(message.name))
     NoticeMessage.DestinationUnverified -> UiText.Resource(R.string.error_destination_unverified)
+    NoticeMessage.NoRemoteSession -> UiText.Resource(R.string.notice_no_remote_session)
     is NoticeMessage.FolderUnreadable -> UiText.Resource(R.string.notice_folder_unreadable, listOf(message.name))
     is NoticeMessage.UploadLeftover -> UiText.Resource(R.string.notice_upload_leftover, listOf(message.path, leftoverCauseTextOf(message.cause)))
 }

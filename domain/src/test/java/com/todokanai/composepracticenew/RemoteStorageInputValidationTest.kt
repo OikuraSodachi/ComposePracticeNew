@@ -5,8 +5,6 @@ import com.todokanai.composepracticenew.model.RemoteStorageInput
 import com.todokanai.composepracticenew.model.RemoteStorageInputCheck
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.model.RemoteStorageItem
-import com.todokanai.composepracticenew.model.SavedRemoteId
-import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteStorageRepository
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +20,7 @@ class RemoteStorageInputValidationTest {
     /** 저장 요청을 기록하는 가짜 저장소. */
     private val repo = RecordingRemoteStorageRepository()
     /** 검증 대상. */
-    private val useCase = RemoteStorageUseCase(repo, NoOpLastConnectionRepository)
+    private val useCase = RemoteStorageUseCase(repo)
 
     @Test
     fun `이름·주소가 있고 포트가 범위 안이면 유효하다`() {
@@ -100,12 +98,5 @@ class RemoteStorageInputValidationTest {
         override suspend fun insert(item: RemoteStorageItem) { inserted += item }
         override suspend fun delete(item: RemoteStorageItem) {}
         override suspend fun getById(id: Long): RemoteStorageItem? = null
-    }
-
-    /** 검증과 저장이 마지막 연결 정보를 쓰지 않음을 전제로 한, 아무 동작도 하지 않는 테스트용 저장소. */
-    private object NoOpLastConnectionRepository : LastConnectionRepository {
-        override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
-        override fun setLastRemoteId(id: Long?) {}
-        override fun clearLastRemoteIdIf(id: Long) {}
     }
 }

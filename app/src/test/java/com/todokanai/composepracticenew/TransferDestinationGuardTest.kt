@@ -20,6 +20,7 @@ import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
+import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import kotlinx.coroutines.CompletableDeferred
@@ -89,7 +90,8 @@ class TransferDestinationGuardTest {
             FileNavigatorUseCase(remoteNav, remoteNav),
             remoteOps,
             UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), folderEntries, ExactNameMatching),
-            RemoteConnectionStateUseCase(connection)
+            RemoteConnectionStateUseCase(connection),
+            RemoteSessionCheckUseCase(connection, notices)
         )
         localRequest = localNav.moveTo("/local")
         remoteRequest = remoteNav.moveTo("ftp://h/r")

@@ -24,25 +24,3 @@ enum class ConnectFailureReason {
     /** 저장된 접속 정보의 포트가 [RemoteStorageItem.PORT_RANGE]를 벗어나 연결을 시도하지 않았다. 다시 시도해도 되지 않으며, 포트를 고쳐야 한다(#367). */
     INVALID_PORT,
 }
-
-/** 마지막으로 접속한 서버에 자동으로 다시 연결한 결과. */
-sealed interface ReconnectResult {
-
-    /**
-     * 다시 연결했다.
-     * @param item 연결한 서버의 접속 정보
-     */
-    data class Connected(val item: RemoteStorageItem) : ReconnectResult
-
-    /** 다시 연결할 서버가 저장돼 있지 않다. */
-    data object NoSavedServer : ReconnectResult
-
-    /** 설정을 읽지 못해 다시 연결할 서버를 알 수 없다. 저장된 서버가 없는 것과 구별한다. */
-    data object SettingsUnreadable : ReconnectResult
-
-    /**
-     * 저장된 서버에 연결하지 못했다.
-     * @param reason 실패한 이유
-     */
-    data class Failed(val reason: ConnectFailureReason) : ReconnectResult
-}

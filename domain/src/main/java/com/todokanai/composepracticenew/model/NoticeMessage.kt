@@ -70,6 +70,9 @@ sealed interface NoticeMessage {
     /** 목적지 폴더의 목록을 확인하지 못해 이름 충돌을 판정할 수 없어 작업(업로드·이름 변경)을 실행하지 않았다. */
     data object DestinationUnverified : NoticeMessage
 
+    /** 연결된 원격 세션이 없어 업로드를 시작하지 않았다. 원격 연결은 저장소 화면에서 서버를 골라야 시작된다. */
+    data object NoRemoteSession : NoticeMessage
+
     /**
      * 읽을 수 없는 폴더라 이동하지 않았다.
      * @param name 열지 못한 폴더의 표시 이름
@@ -99,6 +102,7 @@ val NoticeMessage.kind: OperationNoticeKind
         is NoticeMessage.UnsupportedArchiveFormat,
         is NoticeMessage.OpenFailed,
         NoticeMessage.DestinationUnverified,
+        NoticeMessage.NoRemoteSession,
         is NoticeMessage.FolderUnreadable,
         is NoticeMessage.UploadLeftover -> OperationNoticeKind.FAILURE
     }

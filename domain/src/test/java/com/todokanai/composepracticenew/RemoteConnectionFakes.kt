@@ -15,15 +15,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 연결 요청에 언제나 [result]로 답하고, 요청받은 접속 정보를 기록하는 가짜 연결 저장소. 연결 상태는 쓰지 않는다.
+ * 연결 요청에 언제나 [result]로 답하고, 요청받은 접속 정보를 기록하는 가짜 연결 저장소. 연결 상태는 [state]에 머물며 연결 요청으로 바뀌지 않는다.
  * @param result 연결 요청에 돌려줄 결과
+ * @param state 연결 상태로 보일 값
  */
-internal class FakeRemoteConnection(private val result: ConnectResult = ConnectResult.Connected) : RemoteConnectionRepository {
+internal class FakeRemoteConnection(
+    private val result: ConnectResult = ConnectResult.Connected,
+    state: RemoteConnectionState = RemoteConnectionState.Disconnected,
+) : RemoteConnectionRepository {
     /** 연결을 요청받은 접속 정보. 받은 순서대로 쌓는다. */
     val connected = mutableListOf<RemoteStorageItem>()
 
     override val isConnecting: StateFlow<Boolean> = MutableStateFlow(false)
-    override val connectionState: StateFlow<RemoteConnectionState> = MutableStateFlow<RemoteConnectionState>(RemoteConnectionState.Disconnected)
+    override val connectionState: StateFlow<RemoteConnectionState> = MutableStateFlow(state)
 
     override suspend fun connect(item: RemoteStorageItem): ConnectResult {
         connected += item

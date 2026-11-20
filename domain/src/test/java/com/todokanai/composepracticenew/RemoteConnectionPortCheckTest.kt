@@ -4,8 +4,6 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
-import com.todokanai.composepracticenew.model.SavedRemoteId
-import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -17,7 +15,7 @@ class RemoteConnectionPortCheckTest {
     /** 연결 요청을 기록하는 가짜 연결 저장소. */
     private val connection = FakeRemoteConnection()
     /** 검증 대상. */
-    private val useCase = RemoteConnectionUseCase(connection, FakeRootNavigator(), NoOpLastConnectionRepository, RecordingConnectFailureAlerts())
+    private val useCase = RemoteConnectionUseCase(connection, FakeRootNavigator(), RecordingConnectFailureAlerts())
 
     @Test
     fun `포트가 범위를 벗어나면 연결을 시도하지 않고 포트 오류로 알린다`() {
@@ -45,11 +43,4 @@ class RemoteConnectionPortCheckTest {
 
     /** 연결을 요청받은 포트. 받은 순서대로다. */
     private fun connectedPorts(): List<Int> = connection.connected.map { it.port }
-
-    /** 포트 검사가 마지막 연결 기록과 무관함을 전제로 한, 아무 동작도 하지 않는 테스트용 저장소. */
-    private object NoOpLastConnectionRepository : LastConnectionRepository {
-        override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
-        override fun setLastRemoteId(id: Long?) {}
-        override fun clearLastRemoteIdIf(id: Long) {}
-    }
 }

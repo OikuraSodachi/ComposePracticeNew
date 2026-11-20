@@ -5,8 +5,6 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
-import com.todokanai.composepracticenew.model.SavedRemoteId
-import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -45,7 +43,7 @@ class ConnectAttemptDiscardsFailuresTest {
      * @return 검증 대상
      */
     private fun useCaseAnswering(result: ConnectResult) =
-        RemoteConnectionUseCase(FakeRemoteConnection(result), FakeRootNavigator(), NoOpLastConnection, alerts)
+        RemoteConnectionUseCase(FakeRemoteConnection(result), FakeRootNavigator(), alerts)
 
     /**
      * [port]만 다른 접속 정보를 만든다.
@@ -53,11 +51,4 @@ class ConnectAttemptDiscardsFailuresTest {
      * @return 접속 정보
      */
     private fun itemWithPort(port: Int) = RemoteStorageItem(name = "nas", address = "192.168.0.1", port = port, userId = "", password = "", settings = RemoteProtocolSettings.Ftp("UTF-8"))
-
-    /** 이 테스트는 마지막 연결 기록을 쓰지 않으므로 아무 동작도 하지 않는 테스트용 저장소. */
-    private object NoOpLastConnection : LastConnectionRepository {
-        override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
-        override fun setLastRemoteId(id: Long?) {}
-        override fun clearLastRemoteIdIf(id: Long) {}
-    }
 }
