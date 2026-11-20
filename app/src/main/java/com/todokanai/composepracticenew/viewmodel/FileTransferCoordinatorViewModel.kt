@@ -12,6 +12,7 @@ import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
+import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +29,7 @@ import javax.inject.Inject
  * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
  * @param uploadConflictCheckUseCase 업로드 전에 확인할 겹침(목적지에 이미 있는 이름, 함께 올리는 항목끼리)을 모으는 UseCase
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
+ * @param remoteSessionCheckUseCase 원격 화면으로 가는 진입(하단 전환·업로드) 전에 연결된 원격 세션이 있는지 확인하는 UseCase
  */
 @HiltViewModel
 class FileTransferCoordinatorViewModel @Inject constructor(
@@ -36,6 +38,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private val remoteFileOperationUseCase: RemoteFileOperationUseCase,
     uploadConflictCheckUseCase: UploadConflictCheckUseCase,
     connectionStateUseCase: RemoteConnectionStateUseCase,
+    private val remoteSessionCheckUseCase: RemoteSessionCheckUseCase,
 ) : ViewModel() {
 
     /** 로컬 화면의 선택 상태 — 다운로드 대기 목록도 이 상태(다운로드 목적지 확인)에만 있다. */
@@ -124,9 +127,11 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /**
      * 로컬 선택을 꺼내 업로드 대기 목록으로 원격 화면에 넘긴다. 로컬 화면은 꺼낼 때 기본 모드로 돌아간다.
      * 원격 화면에 다중 선택이 남아 있어도 묻지 않고 버린다 — 의도된 동작이다(새로 시작한 전송이 받는 화면의 이전 선택보다 우선한다).
-     * @return 업로드 확인 단계로 들어갔는지. 로컬 화면에 꺼낼 선택이 없으면 아무것도 바꾸지 않고 false
+     * 연결된 원격 세션이 없으면 업로드할 곳이 없으므로 거부를 알리고, 로컬 선택은 꺼내지 않고 그대로 둔다.
+     * @return 업로드 확인 단계로 들어갔는지. 로컬 화면에 꺼낼 선택이 없거나 연결된 원격 세션이 없으면 아무것도 바꾸지 않고 false
      */
     fun enterUploadMode(): Boolean {
+        if (!remoteSessionCheckUseCase.checkUploadEntry()) return false
         val submitted = local.submit() ?: return false
         remote.receive(SelectMode.Upload, submitted.items)
         return true
@@ -168,6 +173,12 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** 가장 먼저 시작한 진행 중인 업로드 전 확인을 멈추고 그 대기 목록을 돌려놓는다([UploadConfirmation.cancelFrontCheck]). */
     fun cancelUploadCheck() = uploadConfirmation.cancelFrontCheck()
+
+    /**
+     * 연결된 원격 세션이 있는지 판별한다. 원격 화면은 연결된 세션이 있을 때만 들어가므로, 하단 전환은 이것으로 갈 곳(원격 화면 / 저장소 화면)을 정한다.
+     * @return 연결된 원격 세션이 있으면 true
+     */
+    fun hasRemoteSession(): Boolean = remoteSessionCheckUseCase.hasSession()
 
     /** 로컬 화면을 기본 모드로 되돌린다(취소·뒤로가기). 선택 목록·다운로드 대기 목록도 함께 사라진다. */
     fun resetLocalSelection() = local.reset()

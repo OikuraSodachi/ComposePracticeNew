@@ -30,20 +30,6 @@ class ConnectFailureNoticeTest {
     }
 
     @Test
-    fun `재연결할 서버가 없으면 접속 실패로 알림함에 맡긴다`() {
-        notice.notifyConnectionFailed()
-
-        assertEquals(listOf(ConnectFailureAlert.CONNECTION_FAILED), reporter.reported)
-    }
-
-    @Test
-    fun `설정을 읽지 못한 재연결 실패는 그 이유로 알림함에 맡긴다`() {
-        notice.notifyReconnectSettingsUnreadable()
-
-        assertEquals(listOf(ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE), reporter.reported)
-    }
-
-    @Test
     fun `목록을 읽을 수 없는 서버는 알림함에 맡기지 않고 닫을 때까지 다이얼로그 상태로 남는다`() {
         notice.report(ConnectFailureReason.LISTING_FORMAT_UNKNOWN)
 

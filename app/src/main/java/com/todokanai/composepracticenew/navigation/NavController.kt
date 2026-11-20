@@ -162,7 +162,7 @@ private fun FileListDestination(
         LocalTransferActions(
             onConfirmDownload = coordinator::confirmDownload,
             onEnterUploadMode = onEnterUploadMode@{
-                // 넘길 선택이 없으면 업로드 확인 단계가 아니므로 원격 화면으로 가지 않는다
+                // 넘길 선택이 없거나 연결된 원격 세션이 없으면(거부를 알림) 업로드 확인 단계가 아니므로 원격 화면으로 가지 않는다
                 if (!coordinator.enterUploadMode()) return@onEnterUploadMode
                 // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다 —
                 // 원격 화면에서 뒤로가면 로컬 목록으로 돌아온다(그래프 항목이 남아 coordinator의 업로드 대기 상태도 유지)
@@ -192,7 +192,12 @@ private fun FileListDestination(
         removeFromList = coordinator::removeFromLocalList,
         onRangeSelect = coordinator::setLocalSelectedList,
         childCountsFor = childCountViewModel::countsFor,
-        onSwitchToRemote = {
+        onSwitchToRemote = onSwitchToRemote@{
+            // 연결된 원격 세션이 없으면 원격 화면 대신 저장소 화면으로 가 서버를 고르게 한다 — 원격 연결은 저장소 화면에서만 시작한다
+            if (!coordinator.hasRemoteSession()) {
+                navController.popBackStack(NavDestinations.STORAGE, false)
+                return@onSwitchToRemote
+            }
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                 // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
                 popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
@@ -254,7 +259,7 @@ private fun RemoteFileListDestination(
             }
         },
         onConfirmUpload = coordinator::confirmUpload,
-        onConnectionLost = { navController.popBackStack(NavDestinations.STORAGE, false) },
+        onNoSession = { navController.popBackStack(NavDestinations.STORAGE, false) },
         navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
         onExit = mainViewModel::exit,
         viewModel = remoteViewModel

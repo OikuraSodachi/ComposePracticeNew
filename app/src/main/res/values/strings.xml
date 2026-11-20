@@ -109,6 +109,7 @@
     <!-- 폴더 행과 정보 다이얼로그가 함께 쓴다 -->
     <string name="child_count">%d 개 항목</string>
     <string name="read_failed">읽지 못함</string>
+    <string name="notice_no_remote_session">연결된 원격 저장소가 없어 업로드하지 않았습니다. 저장소 화면에서 서버에 연결한 뒤 시도하세요.</string>
     <string name="error_destination_unverified">폴더 목록을 확인하지 못해 작업을 실행하지 않았습니다. 목록을 다시 불러온 뒤 시도하세요.</string>
     <string name="error_protection_refused">시스템이 백그라운드 실행을 허락하지 않아 작업을 시작하지 않았습니다. 앱을 연 상태에서 다시 시도하세요.</string>
     <string name="tab_local">로컬</string>
@@ -283,7 +284,6 @@
     <!-- Toast / Errors -->
     <string name="toast_cannot_open_file">Cannot open the file</string>
     <string name="toast_connection_failed">원격 스토리지 연결에 실패했습니다</string>
-    <string name="toast_reconnect_settings_unreadable">설정을 읽지 못해 마지막 서버에 다시 연결하지 못했습니다</string>
     <string name="notice_connection_lost">서버 연결이 끊어졌습니다</string>
     <string name="toast_preference_read_failed">설정을 읽지 못해 기본 설정으로 동작합니다</string>
     <string name="toast_preference_save_failed">설정을 저장하지 못했습니다</string>

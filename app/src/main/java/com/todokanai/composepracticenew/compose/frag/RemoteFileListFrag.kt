@@ -9,8 +9,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.todokanai.composepracticenew.compose.dialog.InvalidPortDialog
-import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
@@ -27,22 +25,22 @@ import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 원격 세션 끊김 상태를 관찰해 콜백을 실행한다.
- * 끊김과 재연결 실패는 화면 호스트가 앱 전역에서 알리므로 여기서는 화면을 떠나는 콜백만 실행한다.
+ * 연결된 원격 세션이 없는 상태를 관찰해 콜백을 실행한다.
+ * 끊김은 화면 호스트가 앱 전역에서 알리므로 여기서는 화면을 떠나는 콜백만 실행한다.
  *
- * @param sessionLost 원격 세션이 끊긴 상태인지 나타내는 StateFlow. 이 helper 안에서 읽어 값이 바뀌어도 화면 전체를 다시 그리지 않는다
- * @param onConnectionLost 세션이 끊긴 상태일 때(이 화면에 들어왔을 때 이미 끊겨 있던 경우 포함) 실행할 콜백
+ * @param noSession 연결된 원격 세션이 없는지 나타내는 StateFlow. 이 helper 안에서 읽어 값이 바뀌어도 화면 전체를 다시 그리지 않는다
+ * @param onNoSession 세션이 없는 상태일 때(끊겼거나, 세션 없이 이 화면이 만들어진 경우) 실행할 콜백
  */
 @Composable
 private fun RemoteFileListConnectionEffects(
-    sessionLost: StateFlow<Boolean>,
-    onConnectionLost: () -> Unit,
+    noSession: StateFlow<Boolean>,
+    onNoSession: () -> Unit,
 ) {
-    val isSessionLost by sessionLost.collectAsStateWithLifecycle()
+    val isWithoutSession by noSession.collectAsStateWithLifecycle()
 
-    // isSessionLost를 키로 — 끊긴 상태가 되거나 끊긴 상태로 들어왔을 때 한 번 화면을 떠난다
-    LaunchedEffect(isSessionLost) {
-        if (isSessionLost) onConnectionLost()
+    // isWithoutSession을 키로 — 세션이 없어지거나 세션 없이 들어왔을 때 한 번 화면을 떠난다
+    LaunchedEffect(isWithoutSession) {
+        if (isWithoutSession) onNoSession()
     }
 }
 
@@ -70,7 +68,7 @@ fun RemoteFileListFrag(
     onSwitchToLocal: () -> Unit,
     onEnterDownloadMode: () -> Unit,
     onConfirmUpload: () -> Unit,
-    onConnectionLost: () -> Unit,
+    onNoSession: () -> Unit,
     navigateToStorage: () -> Unit,
     onExit: () -> Unit,
     viewModel: RemoteFileListViewModel
@@ -82,8 +80,6 @@ fun RemoteFileListFrag(
     /** 원격 새 폴더를 만들 현재 폴더. 없으면 새 폴더 메뉴를 두지 않는다. */
     val newFolderTarget by viewModel.entryNaming.newFolderTarget.collectAsStateWithLifecycle()
     val pendingRename by viewModel.entryNaming.pendingRename.collectAsStateWithLifecycle()
-    val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
-    val invalidPort by viewModel.invalidPort.collectAsStateWithLifecycle()
     /** 목록 스크롤 상태. 목록(FileListView)을 화면에서 빼는 분기보다 위에서 만든다 — 위치가 남는 기간을 목록의 컴포지션 여부가 아니라 경로로 정한다 */
     val listState = rememberListingScrollState(uiState.value.listing)
     /** 이름 변경 다이얼로그의 콜백 묶음. */
@@ -100,16 +96,9 @@ fun RemoteFileListFrag(
     }
 
     RemoteFileListConnectionEffects(
-        sessionLost = viewModel.sessionLost,
-        onConnectionLost = onConnectionLost,
+        noSession = viewModel.noSession,
+        onNoSession = onNoSession,
     )
-
-    if (unreadableServer) {
-        UnreadableServerDialog(onDismiss = viewModel::dismissUnreadableServer)
-    }
-    if (invalidPort) {
-        InvalidPortDialog(onDismiss = viewModel::dismissInvalidPort)
-    }
 
     BackHandler(enabled = selectMode == SelectMode.MultiSelect, onBack = onResetSelection)
 

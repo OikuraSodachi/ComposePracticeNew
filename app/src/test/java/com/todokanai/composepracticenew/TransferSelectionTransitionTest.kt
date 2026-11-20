@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -10,6 +11,7 @@ import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
+import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import com.todokanai.composepracticenew.viewmodel.FileTransferCoordinatorViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -24,12 +26,13 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
 /**
  * 다운로드·업로드로 화면 사이를 오갈 때 목적지 화면에 이전 선택이 남지 않고, 넘겨준 화면은 기본 모드로 돌아가는지 검증하는 단위 테스트(#252 리뷰).
- * 원격 세션이 끊기면 끊긴 세션에 기대는 전송 상태만 사라지는지도 검증한다.
+ * 원격 세션이 끊기면 끊긴 세션에 기대는 전송 상태만 사라지는지, 연결된 원격 세션이 없으면 업로드 진입을 거부하는지도 검증한다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class TransferSelectionTransitionTest {
@@ -37,6 +40,8 @@ class TransferSelectionTransitionTest {
     private val operationScope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 원격 세션 끊김을 테스트가 일으키는 연결 저장소. 연결된 상태로 시작한다. */
     private val connection = FakeConnectionRepository()
+    /** 작업·업로드 진입 거부 알림을 기록하는 알림함. */
+    private val notices = RecordingOperationNotices()
     /** 업로드 전 겹침 확인이 읽을 폴더 안 항목 이름. */
     private val folderEntries = FakeFolderEntryNamesRepository()
     private lateinit var viewModel: FileTransferCoordinatorViewModel
@@ -171,6 +176,29 @@ class TransferSelectionTransitionTest {
     }
 
     @Test
+    fun `연결한 적이 없으면 업로드 진입을 거부하고 알리며 로컬 선택은 그대로 둔다`() {
+        connection.connectionState.value = RemoteConnectionState.Disconnected
+        viewModel.startLocalMultiSelect(localA)
+
+        assertFalse(viewModel.enterUploadMode())
+
+        assertEquals(SelectionState.MultiSelect(listOf(localA)), viewModel.localSelection.value)
+        assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
+        assertEquals(listOf(NoticeMessage.NoRemoteSession), notices.failures)
+    }
+
+    @Test
+    fun `연결된 원격 세션이 있을 때만 원격 화면으로 갈 수 있다`() {
+        assertTrue(viewModel.hasRemoteSession())
+
+        connection.connectionState.value = RemoteConnectionState.Disconnected
+        assertFalse(viewModel.hasRemoteSession())
+
+        connection.connectionState.value = RemoteConnectionState.Lost
+        assertFalse(viewModel.hasRemoteSession())
+    }
+
+    @Test
     fun `원격 선택을 모두 해제했으면 다운로드 확인 단계로 들어가지 않는다`() {
         viewModel.startRemoteMultiSelect(remoteX)
         viewModel.removeFromRemoteList(remoteX)
@@ -271,14 +299,14 @@ class TransferSelectionTransitionTest {
      * @return 새 ViewModel
      */
     private fun createViewModel(): FileTransferCoordinatorViewModel {
-        val notices = RecordingOperationNotices()
         val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), notices, GrantedProtection, UnexpectedQuestions, operationScope)
         return FileTransferCoordinatorViewModel(
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules)),
             UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), folderEntries, ExactNameMatching),
-            RemoteConnectionStateUseCase(connection)
+            RemoteConnectionStateUseCase(connection),
+            RemoteSessionCheckUseCase(connection, notices)
         )
     }
 

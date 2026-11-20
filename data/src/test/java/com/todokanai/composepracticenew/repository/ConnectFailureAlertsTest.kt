@@ -15,15 +15,15 @@ class ConnectFailureAlertsTest {
     private val alerts = ConnectFailureAlerts()
 
     @Test
-    fun `꺼낼 화면이 없을 때 맡긴 실패는 나중에 꺼내기 시작하면 맡긴 순서대로 넘긴다`() = runTest {
+    fun `꺼낼 화면이 없을 때 맡긴 실패는 나중에 꺼내기 시작하면 맡긴 수만큼 넘긴다`() = runTest {
         alerts.report(ConnectFailureAlert.CONNECTION_FAILED)
-        alerts.report(ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE)
+        alerts.report(ConnectFailureAlert.CONNECTION_FAILED)
         val shown = mutableListOf<ConnectFailureAlert>()
 
         backgroundScope.launch { ConnectFailureAlertUseCase(alerts).deliver { shown += it } }
         runCurrent()
 
-        assertEquals(listOf(ConnectFailureAlert.CONNECTION_FAILED, ConnectFailureAlert.RECONNECT_SETTINGS_UNREADABLE), shown)
+        assertEquals(listOf(ConnectFailureAlert.CONNECTION_FAILED, ConnectFailureAlert.CONNECTION_FAILED), shown)
         assertEquals(0, alerts.pending.value.size)
     }
 

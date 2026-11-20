@@ -1,10 +1,7 @@
 package com.todokanai.composepracticenew.data.datastore
 
-import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import com.todokanai.composepracticenew.model.SavedRemoteId
 import com.todokanai.composepracticenew.model.SortMode
-import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.SortPreferenceRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -13,17 +10,16 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Preferences DataStore 기반으로 정렬 기준과 마지막 접속 서버 id를 저장하는 구현체. 키·값 매핑만 담당하고 실행 위치·실패 정책은 [PreferencesStore]에 위임한다.
- * 소비자는 [SortPreferenceRepository] / [LastConnectionRepository] 인터페이스로만 의존한다.
+ * Preferences DataStore 기반으로 정렬 기준을 저장하는 구현체. 키·값 매핑만 담당하고 실행 위치·실패 정책은 [PreferencesStore]에 위임한다.
+ * 소비자는 [SortPreferenceRepository] 인터페이스로만 의존한다.
  * @param store 재시도·실패 정책이 적용된 Preferences DataStore 접근 래퍼
  */
 @Singleton
 class DataStoreRepository @Inject constructor(
     private val store: PreferencesStore
-) : SortPreferenceRepository, LastConnectionRepository {
+) : SortPreferenceRepository {
     companion object {
         val DATASTORE_SORT_BY = stringPreferencesKey("datastore_sort_by")
-        val DATASTORE_LAST_REMOTE_ID = longPreferencesKey("datastore_last_remote_id")
     }
 
     override fun saveSortBy(value: SortMode) = store.launchEdit {
@@ -32,21 +28,5 @@ class DataStoreRepository @Inject constructor(
 
     override val sortBy: Flow<SortMode> = store.data.map {
         SortMode.fromId(it[DATASTORE_SORT_BY])
-    }.distinctUntilChanged() // lastRemoteId 등 다른 키 저장 시에도 data가 재방출되므로, 정렬 모드가 같으면 하류(목록 재조회)로 전달하지 않음
-
-    override fun setLastRemoteId(id: Long?) = store.launchEdit {
-        if (id != null) it[DATASTORE_LAST_REMOTE_ID] = id
-        else it.remove(DATASTORE_LAST_REMOTE_ID)
-    }
-
-    override fun clearLastRemoteIdIf(id: Long) = store.launchEdit {
-        // 현재 값 확인을 편집 안에서 해, 앞선 setLastRemoteId가 반영된 값을 기준으로 판단한다
-        if (it[DATASTORE_LAST_REMOTE_ID] == id) it.remove(DATASTORE_LAST_REMOTE_ID)
-    }
-
-    override suspend fun lastRemoteId(): SavedRemoteId {
-        // 기본값으로 대신하는 data가 아니라 한 번 읽기를 쓴다 — 읽지 못한 것이 "저장된 서버 없음"으로 보이지 않도록
-        val prefs = store.readOnce() ?: return SavedRemoteId.Unreadable
-        return prefs[DATASTORE_LAST_REMOTE_ID]?.let(SavedRemoteId::Saved) ?: SavedRemoteId.None
-    }
+    }.distinctUntilChanged() // 다른 키 저장 시에도 data가 재방출되므로, 정렬 모드가 같으면 하류(목록 재조회)로 전달하지 않음
 }

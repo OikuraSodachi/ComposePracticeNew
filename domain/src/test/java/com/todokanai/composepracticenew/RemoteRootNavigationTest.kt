@@ -4,8 +4,6 @@ import com.todokanai.composepracticenew.model.ConnectFailureReason
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.RemoteProtocolSettings
 import com.todokanai.composepracticenew.model.RemoteStorageItem
-import com.todokanai.composepracticenew.model.SavedRemoteId
-import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -23,7 +21,7 @@ class RemoteRootNavigationTest {
     fun `연결에 성공하면 연결한 서버의 루트로 이동한다`() {
         val rootNavigator = FakeRootNavigator()
 
-        val result = runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(), rootNavigator, NoOpLastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
+        val result = runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(), rootNavigator, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
 
         assertEquals(ConnectResult.Connected, result)
         assertEquals(listOf(nas), rootNavigator.navigated)
@@ -34,15 +32,8 @@ class RemoteRootNavigationTest {
         val rootNavigator = FakeRootNavigator()
         val failed = ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED)
 
-        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(failed), rootNavigator, NoOpLastConnection, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
+        runBlocking { RemoteConnectionUseCase(FakeRemoteConnection(failed), rootNavigator, RecordingConnectFailureAlerts()).connectAndNavigate(nas) }
 
         assertEquals(emptyList<RemoteStorageItem>(), rootNavigator.navigated)
-    }
-
-    /** 이동 검증이 마지막 연결 기록과 무관함을 전제로 한, 아무 동작도 하지 않는 테스트용 저장소. */
-    private object NoOpLastConnection : LastConnectionRepository {
-        override suspend fun lastRemoteId(): SavedRemoteId = SavedRemoteId.None
-        override fun setLastRemoteId(id: Long?) {}
-        override fun clearLastRemoteIdIf(id: Long) {}
     }
 }

@@ -14,7 +14,6 @@ import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.repository.FileSearchRepository
 import com.todokanai.composepracticenew.repository.FileNavigatorRepository
 import com.todokanai.composepracticenew.repository.FolderEntryNamesRepository
-import com.todokanai.composepracticenew.repository.LastConnectionRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
@@ -48,7 +47,7 @@ import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionDropUseCase
-import com.todokanai.composepracticenew.usecase.RemoteConnectionResilienceUseCase
+import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.RemoteDisconnectUseCase
@@ -94,8 +93,7 @@ object UseCaseModule {
         FileNavigatorUseCase(nav, paths)
 
     @Provides @Singleton
-    fun provideRemoteStorageUseCase(repo: RemoteStorageRepository, lastConnectionRepo: LastConnectionRepository) =
-        RemoteStorageUseCase(repo, lastConnectionRepo)
+    fun provideRemoteStorageUseCase(repo: RemoteStorageRepository) = RemoteStorageUseCase(repo)
 
     @Provides @Singleton
     fun provideStorageVolumeUseCase(repo: StorageVolumeRepository) =
@@ -145,16 +143,12 @@ object UseCaseModule {
     fun provideRemoteConnectionUseCase(
         connection: RemoteConnectionRepository,
         rootNavigator: RemoteRootNavigator,
-        lastConnectionRepo: LastConnectionRepository,
         failureAlerts: ConnectFailureAlertReporter
-    ) = RemoteConnectionUseCase(connection, rootNavigator, lastConnectionRepo, failureAlerts)
+    ) = RemoteConnectionUseCase(connection, rootNavigator, failureAlerts)
 
     @Provides @Singleton
-    fun provideRemoteConnectionResilienceUseCase(
-        lastConnectionRepo: LastConnectionRepository,
-        remoteStorageRepo: RemoteStorageRepository,
-        remoteConnectionUseCase: RemoteConnectionUseCase
-    ) = RemoteConnectionResilienceUseCase(lastConnectionRepo, remoteStorageRepo, remoteConnectionUseCase)
+    fun provideRemoteSessionCheckUseCase(connection: RemoteConnectionRepository, notices: OperationNoticeReporter) =
+        RemoteSessionCheckUseCase(connection, notices)
 
     @Provides @Singleton
     fun provideConflictCheckUseCase(notices: OperationNoticeReporter, nameMatching: StorageNameMatching) =
