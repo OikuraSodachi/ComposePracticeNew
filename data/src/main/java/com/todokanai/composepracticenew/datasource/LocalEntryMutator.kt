@@ -12,7 +12,6 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.NoSuchFileException
-import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 
 /**
@@ -66,7 +65,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
             sourceKind == LocalEntryKind.LINK || destKind == LocalEntryKind.LINK -> IoResult.ItemFailed(FailureReason.UnsupportedLink(newName))
             sourceKind == LocalEntryKind.DIRECTORY && destKind == LocalEntryKind.DIRECTORY -> mergeDirectory(source, dest)
             sourceKind == LocalEntryKind.FILE && destKind == LocalEntryKind.FILE -> {
-                Files.move(source.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING)
+                replaceFileAtomically(source, dest)
                 IoResult.Done
             }
             else -> IoResult.ItemFailed(FailureReason.KindConflict(newName))
@@ -148,7 +147,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
     private suspend fun mergeEntry(child: File, target: File): IoResult<Unit> = when {
         !target.exists() -> { Files.move(child.toPath(), target.toPath()); IoResult.Done }
         child.entryKind == LocalEntryKind.DIRECTORY -> mergeInto(child, target)
-        else -> { Files.move(child.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING); IoResult.Done }
+        else -> { replaceFileAtomically(child, target); IoResult.Done }
     }
 
     /**
