@@ -3,11 +3,9 @@ package com.todokanai.composepracticenew.di
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.OperationProtection
 import com.todokanai.composepracticenew.repository.FileLauncher
-import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.service.FileOperationProtection
 import com.todokanai.composepracticenew.service.FileOperationServiceController
 import com.todokanai.composepracticenew.service.FileOperationServiceControllerImpl
-import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.tools.AndroidFileLauncher
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.tools.AppExitHandlerImpl
@@ -23,9 +21,6 @@ import dagger.hilt.components.SingletonComponent
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AppBindingModule {
-    @Binds
-    abstract fun bindConnectionServiceController(impl: FtpServiceController): ConnectionServiceController
-
     @Binds
     abstract fun bindFileOperationServiceController(impl: FileOperationServiceControllerImpl): FileOperationServiceController
 

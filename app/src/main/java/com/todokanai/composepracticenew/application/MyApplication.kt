@@ -8,10 +8,10 @@ import coil.ImageLoaderFactory
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.myobjects.OperationConstants
-import com.todokanai.composepracticenew.service.ConnectionServiceController
 import com.todokanai.composepracticenew.service.ConnectionServicePolicy
 import com.todokanai.composepracticenew.service.FileOperationForegroundService
 import com.todokanai.composepracticenew.service.FtpForegroundService
+import com.todokanai.composepracticenew.service.FtpServiceController
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.ui.thumbnail.addThumbnailComponents
 import dagger.hilt.android.HiltAndroidApp
@@ -25,7 +25,7 @@ class MyApplication : Application(), ImageLoaderFactory {
     /** 연결 유지 서비스를 언제 시작할지 원격 연결 상태에서 정하는 규칙. */
     @Inject lateinit var connectionServicePolicy: ConnectionServicePolicy
     /** 연결 유지 서비스를 시작하는 컨트롤러. */
-    @Inject lateinit var connectionServiceController: ConnectionServiceController
+    @Inject lateinit var connectionServiceController: FtpServiceController
     @Inject @ApplicationScope lateinit var appScope: CoroutineScope
     /** 파일 작업 알림. 이전 프로세스가 남긴 진행 알림을 정리하는 데 쓴다. */
     @Inject lateinit var operationNotification: MyNotification
