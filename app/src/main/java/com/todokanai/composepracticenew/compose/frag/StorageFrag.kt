@@ -16,12 +16,14 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
+import com.todokanai.composepracticenew.compose.dialog.BinaryTypeRefusedDialog
 import com.todokanai.composepracticenew.compose.dialog.DeleteDialog
 import com.todokanai.composepracticenew.compose.dialog.InvalidPortDialog
 import com.todokanai.composepracticenew.compose.dialog.UnreadableServerDialog
 import com.todokanai.composepracticenew.compose.holder.RemoteStorageHolder
 import com.todokanai.composepracticenew.compose.holder.StorageHolder
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
+import com.todokanai.composepracticenew.ui.model.ConnectFailureDialog
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
@@ -115,8 +117,7 @@ fun StorageFrag(
 ) {
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
-    val unreadableServer by viewModel.unreadableServer.collectAsStateWithLifecycle()
-    val invalidPort by viewModel.invalidPort.collectAsStateWithLifecycle()
+    val connectFailureDialog by viewModel.connectFailureDialog.collectAsStateWithLifecycle()
     val dialogState = rememberStorageDialogState()
 
     StorageConnectionEffects(
@@ -133,11 +134,11 @@ fun StorageFrag(
         onDelete = { viewModel.deleteRemoteStorage(it) },
         violations = viewModel::remoteStorageInputViolations,
     )
-    if (unreadableServer) {
-        UnreadableServerDialog(onDismiss = viewModel::dismissUnreadableServer)
-    }
-    if (invalidPort) {
-        InvalidPortDialog(onDismiss = viewModel::dismissInvalidPort)
+    when (connectFailureDialog) {
+        ConnectFailureDialog.UNREADABLE_SERVER -> UnreadableServerDialog(onDismiss = viewModel::dismissConnectFailureDialog)
+        ConnectFailureDialog.BINARY_TYPE_REFUSED -> BinaryTypeRefusedDialog(onDismiss = viewModel::dismissConnectFailureDialog)
+        ConnectFailureDialog.INVALID_PORT -> InvalidPortDialog(onDismiss = viewModel::dismissConnectFailureDialog)
+        null -> Unit
     }
 
     Box(modifier = Modifier.fillMaxSize()) {

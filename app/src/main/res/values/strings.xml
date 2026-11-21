@@ -79,6 +79,8 @@
     <string name="dialog_upload_checking_message">업로드할 항목을 확인하는 중…</string>
     <string name="dialog_unreadable_server_title">서버 목록을 읽을 수 없음</string>
     <string name="dialog_unreadable_server_message">이 서버는 파일 목록 형식을 알려주지 않거나, 앱이 해석할 수 없는 형식을 사용합니다. 폴더 내용을 볼 수 없어 연결을 종료했습니다.</string>
+    <string name="dialog_binary_type_refused_title">서버가 바이너리 전송을 지원하지 않음</string>
+    <string name="dialog_binary_type_refused_message">이 서버가 바이너리 전송 방식(TYPE I)을 거부했습니다. 파일을 손상 없이 주고받을 수 없어 연결을 종료했습니다.</string>
     <string name="dialog_invalid_port_title">서버 포트가 잘못됨</string>
     <string name="dialog_invalid_port_message">저장된 서버 설정의 포트가 1~65535 범위를 벗어나 연결할 수 없습니다. 서버 설정을 편집해 포트를 고쳐 주세요.</string>
 

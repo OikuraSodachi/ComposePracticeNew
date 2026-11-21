@@ -24,6 +24,13 @@ internal sealed interface SessionOpening {
      */
     data class Refused(val reply: String) : SessionOpening
 
+    /**
+     * 로그인했지만 서버가 바이너리 전송 방식(TYPE I)을 거부했다. RFC 1123 §4.1.2.2가 모든 서버에 요구하는 방식이라 지원 범위 밖의 서버다 —
+     * 거부를 무시하면 ASCII 방식에 남아 전송이 줄바꿈을 바꿔 파일이 손상된 채 성공으로 끝난다(#423).
+     * @param reply 서버가 보낸 거부 응답 원문
+     */
+    data class BinaryTypeRefused(val reply: String) : SessionOpening
+
     /** 로그인했지만 이 서버의 목록을 해석할 수 없다([FtpListingFormat.isReadable]). */
     data object ListingFormatUnknown : SessionOpening
 

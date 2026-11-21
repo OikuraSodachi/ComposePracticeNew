@@ -154,6 +154,21 @@ class FtpOperationSessionTest {
     }
 
     @Test
+    fun `서버가 작업용 연결의 바이너리 전송 방식을 거부하면 그 작업만 거부 응답을 담아 실패한다`() {
+        val refusingSecondType = mapOf<String, (ScriptedFtpServer.Exchange) -> Unit>(
+            "TYPE" to { if (it.connectionIndex == 0) it.send("200 Type set to I") else it.send("504 Command not implemented for that parameter") }
+        )
+        val server = fixture.server(storing() + refusingSecondType)
+        val token = connectedToken(server)
+
+        val result = upload(token, "a.txt")
+
+        assertEquals(IoResult.ConnectionLost(FailureReason.ServerRefused(RemoteStep.OPEN_SESSION, "504 Command not implemented for that parameter")), result)
+        assertFalse("STOR" in server.received)
+        assertEquals(RemoteConnectionState.Connected("server"), manager.connectionState.value)
+    }
+
+    @Test
     fun `작업용 연결에서 목록 형식을 알 수 없으면 그 작업만 그 원인으로 실패한다`() {
         val server = fixture.server(mapOf("SYST" to { if (it.connectionIndex == 0) it.send("215 UNIX Type: L8") else it.send("215 PLAN9") }))
         val token = connectedToken(server)
