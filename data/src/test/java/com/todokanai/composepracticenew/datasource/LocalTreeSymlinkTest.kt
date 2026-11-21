@@ -16,6 +16,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.util.zip.ZipEntry
@@ -83,6 +84,21 @@ class LocalTreeSymlinkTest {
 
         assertEquals(IoResult.PartiallyFailed(listOf(FailedItem("src/loop", FailureReason.UnsupportedLink()))), result)
         assertEquals(listOf("a.txt"), File(target, "src").list()!!.toList())
+    }
+
+    @Test
+    fun `여러 항목 복사에서 뒤 항목이 입출력 실패로 멈춰도 앞 항목에서 건너뛴 링크를 함께 알린다(#502)`() = runBlocking {
+        assumeSymlink(File(source, "link"), outside)
+        // 대상의 같은 이름 파일이 bad 폴더의 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던져 링크를 모은 뒤에 실패를 만든다
+        val bad = File(dir, "bad").apply { mkdirs() }
+        File(target, "bad").writeText("file")
+        val failingResolver = WriteConflictResolver { throw IOException("만들 수 없음") }
+
+        val result = transfer(samePartition = false).copy(linkedSetOf(source.path, bad.path), target.path, failingResolver) {}
+
+        val failures = (result as IoResult.PartiallyFailed).failures
+        assertEquals(listOf("src/link", "bad"), failures.map { it.path })
+        assertEquals(FailureReason.UnsupportedLink(), failures.first().reason)
     }
 
     @Test

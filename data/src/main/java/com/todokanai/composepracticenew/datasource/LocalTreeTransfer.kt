@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
+import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,7 +42,7 @@ class LocalTreeTransfer internal constructor(
      * @param targetPath 복사 대상 디렉터리 경로
      * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 복사 결과
+     * @return 복사 결과. 한 항목이 입출력 실패로 멈춰도 나머지 항목은 복사하고, 실패와 건너뛴 링크를 모아 알린다
      */
     suspend fun copy(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo copy@{
@@ -52,15 +53,25 @@ class LocalTreeTransfer internal constructor(
             val tracker = ByteProgressTracker(totalBytes, totals.sumOf { it.fileCount }, onProgress)
             tracker.reportStart()
 
-            val skippedLinks = mutableListOf<FailedItem>()
-            roots.forEach { root ->
-                val links = mutableListOf<File>()
-                copyEntry(root, File(targetPath, root.name), tracker, resolveConflict, deleteSource = false, links)
-                skippedLinks += links.map { unsupportedLinkUnder(root, it) }
-            }
-            tracker.reportComplete()
-            resultSkipping(skippedLinks)
+            // 선택 항목마다 입출력 실패를 결과로 바꾼다 — 한 항목의 실패가 서로 무관한 다른 항목의 복사와 모은 링크 실패를 버리지 않도록(#502)
+            forEachCollectingFailures(roots, nameOf = { it.name }) { root ->
+                localIo { copyRoot(root, File(targetPath, root.name), tracker, resolveConflict) }
+            }.also { tracker.reportComplete() }
         }
+    }
+
+    /**
+     * 선택 항목 [root]를 [target] 자리로 복사한다. 그 안쪽의 입출력 실패는 IOException으로 전파해 호출부의 [localIo]가 이 항목의 실패로 바꾼다.
+     * @param root 사용자가 선택한 복사 대상
+     * @param target [root]가 놓일 자리
+     * @param tracker 작업 전체의 진행률
+     * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로
+     * @return 건너뛴 링크가 있으면 [root] 기준 상대 경로로 그 목록을 담은 실패, 없으면 성공
+     */
+    private suspend fun copyRoot(root: File, target: File, tracker: ByteProgressTracker, resolveConflict: WriteConflictResolver): IoResult<Unit> {
+        val links = mutableListOf<File>()
+        copyEntry(root, target, tracker, resolveConflict, deleteSource = false, links)
+        return resultSkipping(links.map { FailedItem(root.slashRelativePathOf(it), FailureReason.UnsupportedLink()) })
     }
 
     /**
@@ -110,7 +121,7 @@ class LocalTreeTransfer internal constructor(
 
     /**
      * 건너뛴 링크가 있으면 그 목록을 실패로, 없으면 성공을 돌려준다.
-     * 끝까지 처리했을 때만 불린다 — 도중에 입출력 실패로 멈추면 그 실패만 알리고 그때까지 모은 링크는 알리지 않는다
+     * 복사는 선택 항목마다 부른다. 이동은 끝까지 처리했을 때만 부른다 — 도중에 입출력 실패로 멈추면 그 실패만 알리고 그때까지 모은 링크는 알리지 않는다
      * (링크는 원래 자리에 남아 잃는 데이터는 없다. PR #336 리뷰 2번, 고치지 않기로 함).
      * @param skippedLinks 건너뛴 링크의 실패 항목
      * @return 작업 결과

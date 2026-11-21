@@ -134,6 +134,20 @@ class LocalTreeTransferTest {
         assertEquals(IoResult.Done, result)
     }
 
-    /** 묻는 순간 입출력 실패를 던지는 resolver. 이동 중간의 입출력 실패를 만든다. */
+    @Test
+    fun `여러 항목 복사에서 한 항목이 입출력 실패로 멈춰도 나머지 항목을 복사하고 실패한 항목을 알린다(#502)`() {
+        // 대상의 같은 이름 파일이 src 폴더의 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던져 첫 항목만 실패시킨다
+        File(target, "src").writeText("file")
+        val other = File(dir, "b.txt").apply { writeText("B") }
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
+
+        val result = runBlocking { transfer.copy(linkedSetOf(source.path, other.path), target.path, failingResolver) {} }
+
+        val failures = (result as IoResult.PartiallyFailed).failures
+        assertEquals(listOf("src"), failures.map { it.path })
+        assertEquals("B", File(target, "b.txt").readText())
+    }
+
+    /** 묻는 순간 입출력 실패를 던지는 resolver. 이동·복사 중간의 입출력 실패를 만든다. */
     private val failingResolver = WriteConflictResolver { throw IOException("만들 수 없음") }
 }
