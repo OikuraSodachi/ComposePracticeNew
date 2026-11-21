@@ -83,10 +83,10 @@ class FtpSessionListingFormatTest {
     }
 
     @Test
-    fun `로그인이 거부되면 목록 형식을 확인하지 않고 연결 실패로 알리며 연결을 남기지 않는다`() {
+    fun `로그인이 거부되면 목록 형식을 확인하지 않고 로그인 거부로 알리며 연결을 남기지 않는다`() {
         val result = connectTo(mapOf("PASS" to { it.send("530 Login incorrect") }))
 
-        assertEquals(ConnectResult.Failed(ConnectFailureReason.CONNECTION_FAILED), result)
+        assertEquals(ConnectResult.Failed(ConnectFailureReason.LOGIN_REFUSED), result)
         assertFalse(server.received.toString(), "SYST" in server.received)
         assertConnectionClosed()
     }

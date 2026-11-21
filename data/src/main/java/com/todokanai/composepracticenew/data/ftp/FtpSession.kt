@@ -197,12 +197,12 @@ internal class FtpSession(
      * 접속한 [client]로 로그인하고 전송 방식을 정한 뒤, 이 서버의 목록을 해석할 수 있는지 확인한다.
      * @param client 서버에 접속한 FTPClient
      * @param endpoint 로그인 정보를 담은 서버 정보
-     * @return 쓸 수 있으면 [SessionOpening.Opened]. 로그인이 거부됐으면 그 응답을 담은 거부, 바이너리 전송 방식이 거부됐으면 [SessionOpening.BinaryTypeRefused],
+     * @return 쓸 수 있으면 [SessionOpening.Opened]. 로그인이 거부됐으면 [SessionOpening.LoginRefused], 바이너리 전송 방식이 거부됐으면 [SessionOpening.BinaryTypeRefused],
      * 목록을 해석할 수 없으면 [SessionOpening.ListingFormatUnknown]
      * @throws IOException 응답을 읽지 못한 경우
      */
     private fun loginAndCheck(client: SessionFtpClient, endpoint: FtpEndpoint): SessionOpening {
-        if (!client.login(endpoint.userId, endpoint.password)) return SessionOpening.Refused(client.replyString.trim())
+        if (!client.login(endpoint.userId, endpoint.password)) return SessionOpening.LoginRefused(client.replyString.trim())
         client.enterLocalPassiveMode()
         if (!client.setFileType(FTP.BINARY_FILE_TYPE)) return SessionOpening.BinaryTypeRefused(client.replyString.trim())
         if (!FtpListingFormat.isReadable(client)) return SessionOpening.ListingFormatUnknown

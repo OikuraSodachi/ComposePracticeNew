@@ -29,6 +29,18 @@ class ConnectFailureNoticeTest {
     }
 
     @Test
+    fun `원인을 아는 접속 실패는 그 원인의 알림으로 알림함에 맡긴다`() {
+        notice.report(ConnectFailureReason.TIMED_OUT)
+        notice.report(ConnectFailureReason.HOST_NOT_FOUND)
+        notice.report(ConnectFailureReason.UNREACHABLE)
+        notice.report(ConnectFailureReason.LOGIN_REFUSED)
+
+        val expected = listOf(ConnectFailureAlert.TIMED_OUT, ConnectFailureAlert.HOST_NOT_FOUND, ConnectFailureAlert.UNREACHABLE, ConnectFailureAlert.LOGIN_REFUSED)
+        assertEquals(expected, reporter.reported)
+        assertNull(notice.dialog.value)
+    }
+
+    @Test
     fun `목록을 읽을 수 없는 서버는 알림함에 맡기지 않고 닫을 때까지 다이얼로그 상태로 남는다`() {
         assertDialogUntilDismissed(ConnectFailureReason.LISTING_FORMAT_UNKNOWN, ConnectFailureDialog.UNREADABLE_SERVER)
     }
