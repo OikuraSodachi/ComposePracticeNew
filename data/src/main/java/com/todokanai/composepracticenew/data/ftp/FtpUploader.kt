@@ -179,6 +179,8 @@ class FtpUploader internal constructor(
     /**
      * 세션 잠금 안에서 열어 둔 로컬 파일 하나를 원격으로 올린다. 단일 파일·디렉터리 업로드가 공유하며,
      * 진행률 보고 규칙은 호출부가 [onChunk]·[onAcked]로 결정한다.
+     * 취소로 멈추면 받다 만 파일을 지우기를 시도하지만([discardCancelledUpload]), 취소가 아닌 실패로 멈추면 남은 파일을 지우지 않는다 —
+     * 실패는 결과로 알리며 남은 파일의 정리는 지원 범위 밖이다(로컬 쓰기의 #319와 같은 범위, #428).
      * @param client 잠금을 확보한 FTP 클라이언트
      * @param ftpPath 저장될 원격 파일의 FTP 경로
      * @param input 업로드할 로컬 파일의 스트림([uploadingFrom])
