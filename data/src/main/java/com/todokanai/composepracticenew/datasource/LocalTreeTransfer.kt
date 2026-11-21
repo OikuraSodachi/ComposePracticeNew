@@ -14,6 +14,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import javax.inject.Inject
@@ -51,13 +53,12 @@ class LocalTreeTransfer internal constructor(
             val totals = treeTotalsOf(roots)
             val totalBytes = roots.sumOf { totals.of(it).bytes }
             checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(it) }
-            val tracker = ByteProgressTracker(totalBytes, roots.sumOf { totals.of(it).fileCount }, onProgress)
-            val progress = TreeProgress(tracker, totals)
-            tracker.reportStart()
+            val progress = TreeProgress(ByteProgressTracker(totalBytes, roots.sumOf { totals.of(it).fileCount }, onProgress), totals)
+            progress.reportStart()
 
             forEachCollectingFailures(roots, nameOf = { it.name }) { root ->
                 transferRoot(root) { failures -> copyEntry(root, File(targetPath, root.name), progress, resolveConflict, deleteSource = false, failures) }
-            }.also { tracker.reportComplete() }
+            }.also { progress.reportComplete() }
         }
     }
 
@@ -86,9 +87,8 @@ class LocalTreeTransfer internal constructor(
                 if (free == 0L) return@move IoResult.ItemFailed(FailureReason.NoFreeSpace)
                 checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(it) }
             }
-            val tracker = ByteProgressTracker(roots.sumOf { totals.of(it).bytes }, roots.sumOf { totals.of(it).fileCount }, onProgress)
-            val progress = TreeProgress(tracker, totals)
-            tracker.reportStart()
+            val progress = TreeProgress(ByteProgressTracker(roots.sumOf { totals.of(it).bytes }, roots.sumOf { totals.of(it).fileCount }, onProgress), totals)
+            progress.reportStart()
 
             forEachCollectingFailures(roots.zip(samePartition), nameOf = { (root, _) -> root.name }) { (root, samePartitionAsDest) ->
                 val dest = File(targetPath, root.name)
@@ -96,7 +96,7 @@ class LocalTreeTransfer internal constructor(
                     if (samePartitionAsDest) renameEntry(root, dest, progress, resolveConflict, failures)
                     else copyEntry(root, dest, progress, resolveConflict, deleteSource = true, failures)
                 }
-            }.also { tracker.reportComplete() }
+            }.also { progress.reportComplete() }
         }
     }
 
@@ -124,7 +124,7 @@ class LocalTreeTransfer internal constructor(
      * @return [step]의 결과. 실패했으면 false — [src]가 원래 자리에 남으므로 그것을 품은 폴더를 지우지 않도록
      */
     private inline fun attempting(src: File, progress: TreeProgress, failures: MutableList<EntryFailure>, step: () -> Boolean): Boolean {
-        val mark = progress.tracker.mark()
+        val mark = progress.mark()
         return localIo { IoResult.Success(step()) }.valueOr { failure ->
             failures += EntryFailure(src, failure)
             progress.passOverRest(src, mark)
@@ -184,14 +184,14 @@ class LocalTreeTransfer internal constructor(
                 is WriteSlot.Ready -> slot.value
                 WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, progress, failures)
             }
-            progress.tracker.startFile()
+            progress.startFile()
             deletingOnCancel(target) {
-                output.use { progress.tracker.pump(input, it, src.name, src.length()) }
+                output.use { progress.pump(input, it, src) }
             }
         }
         // 기록을 마친 뒤에 끝난 파일로 센다 — 큰 파일을 기록하는 동안 진행 표시가 끝난 것처럼 보이지 않도록
         if (deleteSource) persistCopy(target)
-        progress.tracker.onFileCompleted(src.name, src.length())
+        progress.onFileCompleted(src)
         if (deleteSource && !src.delete()) throw IOException("원본 삭제 실패: ${src.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다")
         return true
     }
@@ -350,10 +350,40 @@ class LocalTreeTransfer internal constructor(
 
     /**
      * 작업 전체의 진행률과 작업 전에 센 항목별 몫. 바이트를 복사하지 않고 처리한 항목(rename·건너뛰기·실패)의 몫을 미리 센 값으로 넘긴다.
+     * 복사한 바이트와 넘긴 몫이 같은 진행률에 쌓여야 기준점 뒤의 모자란 몫이 맞으므로, 진행 보고는 모두 이 클래스를 거친다.
      * @param tracker 작업 전체의 진행률
      * @param totals 작업 전에 센 항목별 몫
      */
-    private class TreeProgress(val tracker: ByteProgressTracker, private val totals: TreeTotals) {
+    private class TreeProgress(private val tracker: ByteProgressTracker, private val totals: TreeTotals) {
+        /** 작업 시작 상태를 보고한다. */
+        fun reportStart() = tracker.reportStart()
+
+        /** 작업 완료를 보고한다. */
+        fun reportComplete() = tracker.reportComplete()
+
+        /**
+         * 지금까지 센 몫을 기준점으로 돌려준다. 한 항목을 처리하기 전에 받아 두고 [passOverRest]에 넘긴다.
+         * @return 지금의 기준점
+         */
+        fun mark(): ProgressMark = tracker.mark()
+
+        /** 다음 파일 복사를 시작한다. */
+        fun startFile() = tracker.startFile()
+
+        /**
+         * [input]을 [output]에 쓰면서 쓴 바이트를 진행률에 쌓는다.
+         * @param input 원본 파일의 스트림
+         * @param output 복사본의 스트림
+         * @param src 복사 중인 원본 파일
+         */
+        fun pump(input: InputStream, output: OutputStream, src: File) = tracker.pump(input, output, src.name, src.length())
+
+        /**
+         * 파일 [src]의 복사를 마친 것으로 센다.
+         * @param src 복사를 마친 원본 파일
+         */
+        fun onFileCompleted(src: File) = tracker.onFileCompleted(src.name, src.length())
+
         /**
          * [src] 트리 전체를 복사 없이 처리한 것으로 넘긴다(rename·건너뛰기).
          * @param src 처리한 원본 항목
