@@ -6,14 +6,6 @@ package com.todokanai.composepracticenew.model
  */
 sealed interface FailureReason {
 
-    /**
-     * 항목을 옮기는 도중 멈췄다.
-     * @param name 옮기던 항목 이름
-     * @param movedCount 멈추기 전에 이미 옮긴 항목 수
-     * @param cause 멈춘 원인. 모르면 null
-     */
-    data class MoveInterrupted(val name: String, val movedCount: Int, val cause: FailureReason?) : FailureReason
-
     /** 시스템이 프로세스 보호를 거부해 작업을 시작하지 않았다. */
     data object ProtectionRefused : FailureReason
 

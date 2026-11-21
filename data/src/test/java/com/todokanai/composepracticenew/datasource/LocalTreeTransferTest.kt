@@ -1,7 +1,9 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
+import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -14,7 +16,7 @@ import java.io.IOException
 import java.nio.file.Files
 
 /**
- * [LocalTreeTransfer]가 여유 공간 부족과 이동 실패를 결과로 알리고, 실패하면 아무것도 쓰지 않거나 원본을 남기는지 검증하는 단위 테스트.
+ * [LocalTreeTransfer]가 여유 공간 부족과 항목별 입출력 실패를 결과로 알리고, 실패한 항목만 쓰지 않거나 원본에 남기며 나머지는 처리하는지 검증하는 단위 테스트.
  * 파티션 판별과 여유 공간은 OS에 따라 달라 테스트가 정한다.
  */
 class LocalTreeTransferTest {
@@ -64,30 +66,61 @@ class LocalTreeTransferTest {
     }
 
     @Test
-    fun `다른 파티션으로 복사해 옮기다 실패하면 어느 항목인지와 함께 실패를 알리고 원본을 남긴다`() {
-        // 같은 이름의 파일이 대상에 있어 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던져 항목 중간의 실패를 만든다
+    fun `다른 파티션 이동에서 한 항목이 입출력 실패로 멈추면 그 항목을 알리고 원본을 남기며 나머지 항목은 옮긴다(#504)`() {
+        // 같은 이름의 파일이 대상에 있어 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던져 첫 항목만 실패시킨다
         File(target, "src").writeText("file")
+        val other = File(dir, "b.txt").apply { writeText("B") }
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
 
-        val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
+        val result = runBlocking { transfer.move(linkedSetOf(source.path, other.path), target.path, failingResolver) {} }
 
-        val reason = (result as IoResult.ItemFailed).reason as FailureReason.MoveInterrupted
-        assertEquals("src", reason.name)
-        assertEquals(0, reason.movedCount)
+        assertEquals(listOf("src"), (result as IoResult.PartiallyFailed).failures.map { it.path })
         assertTrue("원본이 남아야 함", File(source, "a.txt").exists())
+        assertEquals("B", File(target, "b.txt").readText())
+        assertFalse(other.exists())
     }
 
     @Test
-    fun `같은 파티션 이동이 입출력 실패로 멈추면 어느 항목인지와 함께 실패를 알리고 원본을 남긴다`() {
+    fun `같은 파티션 이동이 입출력 실패로 멈추면 그 항목을 알리고 원본을 남긴다`() {
         File(target, "src").apply { mkdirs(); File(this, "b.txt").writeText("B") }
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, failingResolver) {} }
 
-        val reason = (result as IoResult.ItemFailed).reason as FailureReason.MoveInterrupted
-        assertEquals("src", reason.name)
-        assertEquals(0, reason.movedCount)
+        assertEquals(listOf("src"), (result as IoResult.PartiallyFailed).failures.map { it.path })
         assertTrue("원본이 남아야 함", File(source, "a.txt").exists())
+    }
+
+    @Test
+    fun `복사에서 폴더 안 한 파일이 입출력 실패로 멈춰도 형제 파일을 복사하고 실패한 파일을 알린다(#504)`() {
+        mergeScenarioFailingAtB()
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
+
+        val result = runBlocking { transfer.copy(setOf(source.path), target.path, mergingFailingResolver) {} }
+
+        assertEquals(listOf("src/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
+        assertEquals("AAAA", File(target, "src/a.txt").readText())
+        assertEquals("C", File(target, "src/c.txt").readText())
+    }
+
+    @Test
+    fun `다른 파티션 이동에서 폴더 안 한 파일이 실패해도 형제 파일을 옮기고 실패한 파일과 그 폴더만 원본에 남긴다(#504)`() {
+        mergeScenarioFailingAtB()
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
+
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, mergingFailingResolver) {} }
+
+        assertMovedExceptB(result)
+    }
+
+    @Test
+    fun `같은 파티션 이동에서 폴더 안 한 파일이 실패해도 형제 파일을 옮기고 실패한 파일과 그 폴더만 원본에 남긴다(#504)`() {
+        mergeScenarioFailingAtB()
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
+
+        val result = runBlocking { transfer.move(setOf(source.path), target.path, mergingFailingResolver) {} }
+
+        assertMovedExceptB(result)
     }
 
     @Test
@@ -121,7 +154,7 @@ class LocalTreeTransferTest {
 
         val result = runBlocking { transfer.move(setOf(source.path), target.path, UnexpectedConflictResolver) {} }
 
-        assertEquals("src", ((result as IoResult.ItemFailed).reason as FailureReason.MoveInterrupted).name)
+        assertEquals(listOf("src/a.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
         assertEquals("AAAA", File(source, "a.txt").readText())
     }
 
@@ -148,6 +181,30 @@ class LocalTreeTransferTest {
         assertEquals("B", File(target, "b.txt").readText())
     }
 
+    /**
+     * 원본 src에 b.txt·c.txt를 더하고, 대상에 같은 이름의 src 폴더와 그 안의 b.txt를 만든다.
+     * [mergingFailingResolver]와 함께 쓰면 폴더는 합치고 b.txt에서만 입출력 실패가 난다.
+     */
+    private fun mergeScenarioFailingAtB() {
+        File(source, "b.txt").writeText("new")
+        File(source, "c.txt").writeText("C")
+        File(target, "src").apply { mkdirs(); File(this, "b.txt").writeText("old") }
+    }
+
+    /** [mergeScenarioFailingAtB]를 이동한 [result]가 b.txt만 실패로 알리고, b.txt와 그 폴더만 원본에 남겼는지 확인한다. */
+    private fun assertMovedExceptB(result: IoResult<Unit>) {
+        assertEquals(listOf("src/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path })
+        assertEquals(listOf("b.txt"), source.list()!!.toList())
+        assertEquals("AAAA", File(target, "src/a.txt").readText())
+        assertEquals("C", File(target, "src/c.txt").readText())
+        assertEquals("old", File(target, "src/b.txt").readText())
+    }
+
     /** 묻는 순간 입출력 실패를 던지는 resolver. 이동·복사 중간의 입출력 실패를 만든다. */
     private val failingResolver = WriteConflictResolver { throw IOException("만들 수 없음") }
+
+    /** 폴더 겹침은 합치고, 파일 겹침을 묻는 순간 입출력 실패를 던지는 resolver. 폴더 안 한 항목의 입출력 실패를 만든다. */
+    private val mergingFailingResolver = WriteConflictResolver {
+        if (it.kind == WriteConflictKind.FOLDER) ConflictChoice.PROCEED else throw IOException("만들 수 없음")
+    }
 }

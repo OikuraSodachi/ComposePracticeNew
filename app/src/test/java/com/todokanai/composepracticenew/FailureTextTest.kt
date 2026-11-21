@@ -215,13 +215,6 @@ class FailureTextTest {
     }
 
     @Test
-    fun `이동 중단은 원인을 모르면 원인 모름으로 보인다`() {
-        val expected = UiText.Resource(R.string.failure_move_interrupted, listOf("dir", UiText.Resource(R.string.failure_reason_unknown), 3))
-
-        assertEquals(expected, failureTextOf(IoResult.ItemFailed(FailureReason.MoveInterrupted("dir", 3, null)), OperationKind.Tracked(FileOperationType.MOVE)))
-    }
-
-    @Test
     fun `이름 변경을 끝내지 못한 원인은 이름 변경 실패와 새 이름 뒤에 보인다`() {
         val expected = UiText.Resource(
             R.string.failure_with_cause,

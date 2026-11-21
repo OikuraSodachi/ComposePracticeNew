@@ -36,9 +36,9 @@ class LocalIoTest {
 
     @Test
     fun `메시지 함수를 주면 입출력 실패를 그 메시지로 바꾼다`() {
-        val result = localIo<Unit>(describe = { e -> FailureReason.MoveInterrupted("b.txt", 0, e.message?.let(FailureReason::IoFailed)) }) { throw IOException("디스크 오류") }
+        val result = localIo<Unit>(describe = { e -> FailureReason.TransferFailed(e.message) }) { throw IOException("디스크 오류") }
 
-        assertEquals(IoResult.ItemFailed(FailureReason.MoveInterrupted("b.txt", 0, FailureReason.IoFailed("디스크 오류"))), result)
+        assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed("디스크 오류")), result)
     }
 
     @Test
