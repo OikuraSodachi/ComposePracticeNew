@@ -80,11 +80,11 @@ sealed interface NoticeMessage {
     data class FolderUnreadable(val name: String) : NoticeMessage
 
     /**
-     * 취소한 업로드의 받다 만 파일을 서버에서 지우지 못해 남았을 수 있다.
-     * @param path 받다 만 파일의 원격 경로
+     * 결과로 돌려줄 수 없게 멈춘(취소 등) 쓰기의 쓰다 만 파일을 지우지 못해 남았을 수 있다(#431).
+     * @param path 쓰다 만 파일의 경로(로컬 파일 경로 또는 원격 경로)
      * @param cause 지우지 못한 이유
      */
-    data class UploadLeftover(val path: String, val cause: LeftoverCause) : NoticeMessage
+    data class Leftover(val path: String, val cause: LeftoverCause) : NoticeMessage
 }
 
 /**
@@ -104,7 +104,7 @@ val NoticeMessage.kind: OperationNoticeKind
         NoticeMessage.DestinationUnverified,
         NoticeMessage.NoRemoteSession,
         is NoticeMessage.FolderUnreadable,
-        is NoticeMessage.UploadLeftover -> OperationNoticeKind.FAILURE
+        is NoticeMessage.Leftover -> OperationNoticeKind.FAILURE
     }
 
 /** 사용자가 정한 이름을 쓰는 작업. 이름 거부 메시지의 머리말을 정한다. */
@@ -140,8 +140,14 @@ enum class OpenFailure {
     REFUSED,
 }
 
-/** 취소한 업로드의 받다 만 파일을 지우지 못한 이유. */
+/** 멈춘 쓰기의 쓰다 만 파일을 지우지 못한 이유. */
 sealed interface LeftoverCause {
+
+    /**
+     * 로컬 파일을 지우지 못했다.
+     * @param reason 지우지 못한 원인. 모르면 null
+     */
+    data class LocalRemovalFailed(val reason: FailureReason?) : LeftoverCause
 
     /**
      * 서버가 삭제(DELE)를 거부했다.

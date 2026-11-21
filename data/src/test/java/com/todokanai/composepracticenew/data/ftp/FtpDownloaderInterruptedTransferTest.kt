@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -26,7 +27,7 @@ class FtpDownloaderInterruptedTransferTest {
     /** 검증 대상 세션. */
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
     /** 검증 대상 다운로더. */
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
     /** 다운로드 대상 로컬 파일. */
     private val localFile = File(dir, "a.txt")
 

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
@@ -114,7 +115,7 @@ class FtpListingInterpretationTest {
         client.streamContent = "abc".toByteArray()
 
         val result = runBlocking {
-            commands.downloader
+            commands.downloader(UnexpectedLeftoverDiscarder)
                 .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), UnexpectedConflictResolver)
         }
 
@@ -163,7 +164,7 @@ class FtpListingInterpretationTest {
         client.streamContent = "abc".toByteArray()
 
         val result = runBlocking {
-            commands.downloader
+            commands.downloader(UnexpectedLeftoverDiscarder)
                 .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), UnexpectedConflictResolver)
         }
 
@@ -216,7 +217,7 @@ class FtpListingInterpretationTest {
         client.mlsdListings = mapOf("/r" to listOf("type=dir; sub"), "/r/sub" to listOf(UNPARSEABLE_SIZE))
 
         val result = runBlocking {
-            commands.downloader
+            commands.downloader(UnexpectedLeftoverDiscarder)
                 .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), WriteConflictResolver { conflict ->
                     // 받을 폴더 r은 합치고, 그 안의 sub만 건너뛴다
                     if (conflict.name == "sub") ConflictChoice.SKIP else ConflictChoice.PROCEED

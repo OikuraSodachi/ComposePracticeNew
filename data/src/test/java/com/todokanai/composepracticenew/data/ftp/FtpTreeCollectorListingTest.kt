@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
@@ -212,7 +213,7 @@ class FtpTreeCollectorListingTest {
         try {
             val target = File(dir, "r")
 
-            val result = runBlocking { commands.downloader.download(sources = listOf(DownloadSource("ftp://host/r", target.path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+            val result = runBlocking { commands.downloader(UnexpectedLeftoverDiscarder).download(sources = listOf(DownloadSource("ftp://host/r", target.path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
             assertEquals(IoResult.ItemFailed(FailureReason.FolderCycle("/r/a/loop")), result)
             assertTrue("전송을 시작하지 않아야 함", client.retrieveRequests.isEmpty())

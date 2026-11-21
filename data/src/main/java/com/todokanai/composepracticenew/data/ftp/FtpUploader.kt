@@ -217,7 +217,7 @@ class FtpUploader internal constructor(
             is CancelCleanup.Refused -> LeftoverCause.Refused(cleanup.reply.trim())
             CancelCleanup.SessionEnded -> LeftoverCause.SessionEnded
         }
-        notices.report(NoticeMessage.UploadLeftover(ftpPath, cause))
+        notices.report(NoticeMessage.Leftover(ftpPath, cause))
     }
 }
 

@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.valueOr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -16,9 +17,11 @@ import javax.inject.Inject
 /**
  * 로컬 파일·디렉터리를 하나의 아카이브로 압축하는 흐름을 조율한다. 형식별 쓰기는 주입된 [ArchiveCompressor]에 위임한다.
  * @param compressors 형식을 키로 등록한 아카이브 쓰기 구현 — 한 형식에 구현 하나(같은 키의 중복 등록은 Dagger가 컴파일 오류로 막는다)
+ * @param leftovers 끝까지 쓰지 못한 아카이브를 지우고, 지우지 못하면 알리는 LeftoverDiscarder
  */
 class LocalArchiveCompression @Inject constructor(
-    private val compressors: Map<ArchiveFormat, @JvmSuppressWildcards ArchiveCompressor>
+    private val compressors: Map<ArchiveFormat, @JvmSuppressWildcards ArchiveCompressor>,
+    private val leftovers: LeftoverDiscarder
 ) {
 
     /**
@@ -52,7 +55,7 @@ class LocalArchiveCompression @Inject constructor(
     }
 
     /**
-     * [compress]의 본체. 입출력 실패는 IOException으로 전파해 [compress]의 [localIo]가 결과로 바꾼다.
+     * [compress]의 본체. 아카이브를 쓰기 전의 입출력 실패는 IOException으로 전파해 [compress]의 [localIo]가 결과로 바꾼다.
      * 링크는 따라가지 않고 아카이브에 넣지 않으며, 안을 나열하지 못한 폴더도 빈 폴더로 넣지 않는다(#422).
      * 나머지 항목으로 아카이브를 만든 뒤 넣지 못한 항목을 실패로 알린다.
      * @param compressor 아카이브를 쓸 형식별 구현
@@ -90,11 +93,11 @@ class LocalArchiveCompression @Inject constructor(
         val output = createUniqueFile(desired)
         // 끝까지 쓰지 못한 아카이브는 통째로 지운다 — 이 호출이 새로 만든 파일이라 기존 파일을 건드리지 않는다.
         // 입출력 실패도 지운다: zip4j는 닫을 때 목차를 써서, 멈춘 곳까지만 담은 아카이브가 다른 앱에서 정상으로 열린다(#427).
-        // 완료 보고도 취소를 확인하므로 함께 감싼다 — 다 쓴 직후의 취소도 아카이브를 남기지 않아, 실패·취소된 압축은 언제나 파일이 없다
-        deletingUnlessCompleted(output) {
+        // 완료 보고도 취소를 확인하므로 함께 감싼다 — 다 쓴 직후의 취소도 아카이브를 남기지 않아, 실패·취소된 압축은 파일이 없거나 지우지 못했다고 알린다
+        leftovers.deletingUnlessCompleted(output) {
             compressor.write(entries, output, password, tracker)
             tracker.reportComplete()
-        }
+        }.valueOr { return it }
         return if (skipped.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skipped)
     }
 

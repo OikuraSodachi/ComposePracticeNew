@@ -87,6 +87,13 @@ sealed interface FailureReason {
      */
     data class MergedSourceNotRemoved(val name: String) : FailureReason
 
+    /**
+     * 실패한 쓰기가 남긴 파일을 지우지 못해, 그 항목의 자리에 쓰다 만 파일이 남았다(#431).
+     * @param cause 쓰기가 실패한 원인. 모르면 null
+     * @param removal 남은 파일을 지우지 못한 원인. 모르면 null
+     */
+    data class LeftoverNotRemoved(val cause: FailureReason?, val removal: FailureReason?) : FailureReason
+
     /** 이 저장소가 다루지 않는 경로다. */
     data object UnsupportedPath : FailureReason
 

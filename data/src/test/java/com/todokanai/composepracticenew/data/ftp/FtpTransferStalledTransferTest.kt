@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.OperationNotices
@@ -54,7 +55,7 @@ class FtpTransferStalledTransferTest {
             exchange.send("426 Transfer aborted")
         })
 
-        val result = runBlocking { FtpOperationParts(session).downloader.download(sources = listOf(DownloadSource("ftp://host/a.bin", File(dir, "a.bin").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+        val result = runBlocking { FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder).download(sources = listOf(DownloadSource("ftp://host/a.bin", File(dir, "a.bin").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.TransferFailed("Read timed out")), result)
         assertEquals(DataEnd.RESET, serverEnd.get())

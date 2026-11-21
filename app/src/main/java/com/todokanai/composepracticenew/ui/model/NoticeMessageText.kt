@@ -33,7 +33,7 @@ fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
     NoticeMessage.DestinationUnverified -> UiText.Resource(R.string.error_destination_unverified)
     NoticeMessage.NoRemoteSession -> UiText.Resource(R.string.notice_no_remote_session)
     is NoticeMessage.FolderUnreadable -> UiText.Resource(R.string.notice_folder_unreadable, listOf(message.name))
-    is NoticeMessage.UploadLeftover -> UiText.Resource(R.string.notice_upload_leftover, listOf(message.path, leftoverCauseTextOf(message.cause)))
+    is NoticeMessage.Leftover -> UiText.Resource(R.string.notice_leftover, listOf(message.path, leftoverCauseTextOf(message.cause)))
 }
 
 /**
@@ -132,11 +132,12 @@ private fun openFailureRes(reason: OpenFailure): Int = when (reason) {
 }
 
 /**
- * 받다 만 파일을 지우지 못한 이유의 문구를 만든다.
+ * 쓰다 만 파일을 지우지 못한 이유의 문구를 만든다.
  * @param cause 지우지 못한 이유
  * @return 이유 문구
  */
 private fun leftoverCauseTextOf(cause: LeftoverCause): UiText = when (cause) {
+    is LeftoverCause.LocalRemovalFailed -> failureReasonTextOf(cause.reason)
     is LeftoverCause.Refused -> UiText.Resource(R.string.notice_leftover_refused, listOf(cause.reply))
     LeftoverCause.SessionEnded -> UiText.Resource(R.string.notice_leftover_session_ended)
 }

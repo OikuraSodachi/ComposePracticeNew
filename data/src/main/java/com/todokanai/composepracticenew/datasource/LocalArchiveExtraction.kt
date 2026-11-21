@@ -26,9 +26,11 @@ import javax.inject.Inject
 /**
  * 아카이브 하나(단일 아카이브 또는 분할 압축 한 세트)의 압축 해제를 조율한다. 형식별 처리는 주입된 [ArchiveExtractor] 집합에 위임한다.
  * @param extractors 형식별 아카이브 추출기 집합 — 각 nameRoleOf()가 역할을 주는 이름은 서로 배타적이다
+ * @param leftovers 취소로 멈춘 항목의 쓰다 만 파일을 지우고, 지우지 못하면 알리는 LeftoverDiscarder
  */
 class LocalArchiveExtraction @Inject constructor(
-    private val extractors: Set<@JvmSuppressWildcards ArchiveExtractor>
+    private val extractors: Set<@JvmSuppressWildcards ArchiveExtractor>,
+    private val leftovers: LeftoverDiscarder
 ) {
 
     /**
@@ -77,7 +79,7 @@ class LocalArchiveExtraction @Inject constructor(
                 tracker.reportComplete()
                 return@localIo if (slot == WriteSlot.Link) IoResult.PartiallyFailed(listOf(FailedItem(root.name, FailureReason.UnsupportedLink()))) else IoResult.Done
             }
-            val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker)
+            val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker, leftovers)
             archive.extractor.extract(archive.path, writer, passwords, tracker)
             tracker.reportComplete()
             val failures = writer.failures.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }

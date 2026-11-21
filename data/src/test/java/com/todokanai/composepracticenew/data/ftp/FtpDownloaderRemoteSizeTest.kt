@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -26,7 +27,7 @@ class FtpDownloaderRemoteSizeTest {
     /** 검증 대상 세션. */
     private val session = FtpSession(client).also { runBlocking { it.markLoggedIn(home = null) } }
     /** 검증 대상 다운로더. */
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {

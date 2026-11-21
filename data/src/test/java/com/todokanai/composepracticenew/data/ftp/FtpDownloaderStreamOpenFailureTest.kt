@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.runBlocking
@@ -20,7 +21,7 @@ class FtpDownloaderStreamOpenFailureTest {
     private val dir: File = Files.createTempDirectory("ftp-transfer-test").toFile()
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer
 import com.todokanai.composepracticenew.data.ftp.SessionManagerFixture
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
@@ -52,7 +53,7 @@ class FtpRepositoryPathTest {
         )
     )
     /** 검증 대상. */
-    private val repo = FtpRepositoryImpl(fixture.manager, OperationNotices())
+    private val repo = FtpRepositoryImpl(fixture.manager, OperationNotices(), UnexpectedLeftoverDiscarder)
     /** 연결한 탐색 세션의 표지. */
     private val session: RemoteSession = run {
         assertEquals(ConnectResult.Connected, fixture.connect(server))

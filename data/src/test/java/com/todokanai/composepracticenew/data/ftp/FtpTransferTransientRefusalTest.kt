@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
@@ -35,7 +36,7 @@ class FtpTransferTransientRefusalTest {
         ).forEach { refusal ->
             val (client, session, parts) = connectedParts(refusal)
 
-            val result = runBlocking { parts.downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+            val result = runBlocking { parts.downloader(UnexpectedLeftoverDiscarder).download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
             assertEquals("${refusal.code}", IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.DOWNLOAD, refusal.text)), result)
             assertTrue("${refusal.code}: 세션이 유지돼야 함", runBlocking { session.isReady() })
@@ -60,7 +61,7 @@ class FtpTransferTransientRefusalTest {
         val (client, session, parts) = connectedParts(ServerBehavior.Refuse(425, "425 Can't open data connection"))
         client.remoteFiles = listOf("a.txt", "b.txt")
 
-        val result = runBlocking { parts.downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
+        val result = runBlocking { parts.downloader(UnexpectedLeftoverDiscarder).download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver) }
 
         assertEquals(setOf("r/a.txt", "r/b.txt"), (result as IoResult.PartiallyFailed).failures.map { it.path }.toSet())
         assertEquals(listOf("/r/a.txt", "/r/b.txt"), client.retrieveRequests)
@@ -74,7 +75,7 @@ class FtpTransferTransientRefusalTest {
         client.streamContent = "data".toByteArray()
         client.serverBehaviors = mapOf("LIST" to ServerBehavior.Refuse(450, "450 File busy"))
 
-        val result = runBlocking { parts.downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
+        val result = runBlocking { parts.downloader(UnexpectedLeftoverDiscarder).download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver).singleItemResult() }
 
         assertEquals(IoResult.ItemFailed(FailureReason.ServerRefused(RemoteStep.LIST_FOLDER, "450 File busy")), result)
         assertTrue(runBlocking { session.isReady() })

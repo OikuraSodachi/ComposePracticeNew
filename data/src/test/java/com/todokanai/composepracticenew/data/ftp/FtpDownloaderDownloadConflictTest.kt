@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.WriteConflict
@@ -25,7 +26,7 @@ class FtpDownloaderDownloadConflictTest {
     private val dir: File = Files.createTempDirectory("ftp-download-conflict-test").toFile()
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
     private val local = File(dir, "a.txt")
 
     /** 받은 겹침(받은 순서). */

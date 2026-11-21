@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.OperationNotices
@@ -24,7 +25,7 @@ class FtpTransferConnectionLostTest {
     private val client = FakeFtpClient().apply { streamContent = "data".toByteArray() }
     private val session = FtpSession(client)
     /** 검증 대상 다운로더. */
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
     /** 검증 대상 업로더. */
     private val uploader = FtpOperationParts(session).uploader(OperationNotices())
 

@@ -18,11 +18,13 @@ import java.nio.file.Files
  * @param root 항목의 위치를 정하는 추출 루트
  * @param ask 겹침의 처리 방법을 묻는 함수. 추출 라이브러리의 콜백 안에서 부르므로 일시 중단하지 않고 답을 기다린다
  * @param tracker 쓰지 않은 파일 항목을 넘길 누적 진행률 보고기
+ * @param leftovers 취소로 멈춘 파일 항목을 지우고, 지우지 못하면 알리는 LeftoverDiscarder
  */
 class ArchiveEntryWriter(
     private val root: ExtractionRoot,
     private val ask: (WriteConflict) -> ConflictChoice,
     private val tracker: ByteProgressTracker,
+    private val leftovers: LeftoverDiscarder,
 ) {
 
     /**
@@ -75,11 +77,11 @@ class ArchiveEntryWriter(
     }
 
     /**
-     * 취소로 멈춘 파일 항목을 지운다 — 쓰다 만 파일이 온전한 파일처럼 남지 않도록. 그 항목의 출력 스트림을 닫은 뒤에 호출한다.
+     * 취소로 멈춘 파일 항목을 지운다 — 쓰다 만 파일이 온전한 파일처럼 남지 않도록. 지우지 못하면 알림함에 넣는다(#431). 그 항목의 출력 스트림을 닫은 뒤에 호출한다.
      * @param entryName [openFile]로 연 항목의 '/' 구분 경로
      */
     fun discardFile(entryName: String) {
-        root.targetOf(entryName)?.delete()
+        root.targetOf(entryName)?.let(leftovers::discardReporting)
     }
 
     /**

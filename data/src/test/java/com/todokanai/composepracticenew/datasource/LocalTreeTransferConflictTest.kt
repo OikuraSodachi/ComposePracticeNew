@@ -213,7 +213,7 @@ class LocalTreeTransferConflictTest {
     }
 
     /** 이동 경로를 [samePartition]으로 고르는 transfer. */
-    private fun transfer(samePartition: Boolean) = LocalTreeTransfer(isSamePartition = { _, _ -> samePartition }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {})
+    private fun transfer(samePartition: Boolean) = LocalTreeTransfer(isSamePartition = { _, _ -> samePartition }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {}, leftovers = UnexpectedLeftoverDiscarder)
 
     /**
      * 받은 겹침을 기록하고 [answer]로 답하는 resolver.

@@ -13,6 +13,7 @@ class LocalArchiveExtractionTargetsTest {
     /** 앱에 등록되는 것과 같은 추출기 집합을 쓰는 압축 해제 조율기. */
     private val extraction = LocalArchiveExtraction(
         setOf(ZipArchiveExtractor(), SevenZipArchiveExtractor.rar(), SevenZipArchiveExtractor.sevenZip(), SevenZipArchiveExtractor.iso()),
+        UnexpectedLeftoverDiscarder,
     )
 
     @Test

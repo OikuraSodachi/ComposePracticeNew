@@ -93,5 +93,5 @@ class ArchiveEntryWriterConflictTest {
 
     /** [answer]로 답하며 받은 겹침을 [asked]에 기록하는 writer. */
     private fun writer(answer: (WriteConflict) -> ConflictChoice) =
-        ArchiveEntryWriter(ExtractionRoot(root), { conflict -> asked += conflict; answer(conflict) }, tracker)
+        ArchiveEntryWriter(ExtractionRoot(root), { conflict -> asked += conflict; answer(conflict) }, tracker, UnexpectedLeftoverDiscarder)
 }

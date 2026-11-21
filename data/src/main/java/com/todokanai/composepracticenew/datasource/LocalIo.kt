@@ -3,8 +3,6 @@ package com.todokanai.composepracticenew.datasource
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileSystemRefusal
 import com.todokanai.composepracticenew.model.IoResult
-import kotlinx.coroutines.CancellationException
-import java.io.File
 import java.io.IOException
 import java.nio.file.AccessDeniedException
 import java.nio.file.DirectoryNotEmptyException
@@ -27,38 +25,6 @@ internal inline fun <T> localIo(describe: (IOException) -> FailureReason? = ::io
         block()
     } catch (e: IOException) {
         IoResult.ItemFailed(describe(e))
-    }
-
-/**
- * [file]을 쓰는 [block]을 실행하고, 취소로 멈추면 [file]을 지운 뒤 취소를 전파한다 — 쓰다 만 파일이 온전한 파일처럼 남지 않도록.
- * 입출력 실패로 멈춘 파일은 지우지 않는다(실패는 결과로 알린다). [block]은 [file]의 출력을 닫고 끝나야 한다.
- * @param file [block]이 쓰는 파일
- * @param block [file]을 쓰는 작업
- * @return [block]의 결과
- */
-internal inline fun <T> deletingOnCancel(file: File, block: () -> T): T =
-    try {
-        block()
-    } catch (e: CancellationException) {
-        file.delete()
-        throw e
-    }
-
-/**
- * [file]을 쓰는 [block]을 실행하고, 끝까지 성공하지 못하면(취소·입출력 실패·구현 오류) [file]을 지운 뒤 그 예외를 그대로 전파한다.
- * 닫을 때 목차를 써서 멈춘 곳까지만 담고도 온전하게 열리는 형식(ZIP — 압축, #427)에 쓴다. 지우지 못해도 원래 실패를 알린다.
- * [file]은 이 작업이 새로 만든 파일이어야 한다 — 기존 파일을 지우지 않도록.
- * [block]은 예외로 끝날 때도 [file]의 출력을 닫아야 한다 — 열린 채로는 Windows에서 지우지 못하고, Android에서는 지운 뒤에도 열린 fd가 남는다.
- * @param file [block]이 쓰는 파일
- * @param block [file]을 쓰는 작업
- * @return [block]의 결과
- */
-internal inline fun <T> deletingUnlessCompleted(file: File, block: () -> T): T =
-    try {
-        block()
-    } catch (e: Throwable) {
-        file.delete()
-        throw e
     }
 
 /**

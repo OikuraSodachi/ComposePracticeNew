@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.LeftoverDiscarder
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 
 /**
@@ -26,8 +27,13 @@ internal class FtpOperationParts<S>(private val session: S, treeMemoryLimitBytes
     /** 고른 원격 항목을 지우는 부품. */
     val deletion = FtpRemoteDeletion(trees, runner)
 
-    /** 원격 항목을 로컬로 받는 부품. */
-    val downloader = FtpDownloader(session, trees, DataCommandRunner(session))
+    /**
+     * 이 부품들로 다운로드 부품을 만든다.
+     * @param leftovers 받지 못한 로컬 파일을 지우고, 지우지 못하면 알리는 정리 부품
+     * @return 이 부품들의 트리 수집을 쓰는 다운로드 부품
+     */
+    fun downloader(leftovers: LeftoverDiscarder): FtpDownloader =
+        FtpDownloader(session, trees, DataCommandRunner(session), leftovers)
 
     /**
      * 이 부품들로 업로드 부품을 만든다.
