@@ -69,6 +69,25 @@ class ByteProgressTracker internal constructor(
     fun skipFiles(count: Int) { fileIndex += count }
 
     /**
+     * 지금까지 센 파일 순번과 누적 바이트를 기준점으로 돌려준다. 한 항목을 처리하기 전에 받아 두고 [catchUp]에 넘긴다.
+     * @return 지금의 기준점
+     */
+    fun mark(): ProgressMark = ProgressMark(fileIndex, writtenBytes)
+
+    /**
+     * [mark] 뒤로 센 몫이 [fileCount]개·[bytes]바이트에 못 미치면, 모자란 만큼을 바이트 복사 없이 처리한 것으로 넘긴다.
+     * 처리하지 않은 항목(건너뛰기, 도중에 실패한 항목의 남은 부분)의 몫을 넘겨 진행이 멈춘 채 남지 않도록 쓴다. 이미 센 몫은 다시 세지 않는다.
+     * @param mark 항목을 처리하기 전에 받은 기준점
+     * @param fileCount 그 항목의 파일 수
+     * @param bytes 그 항목의 바이트 수
+     * @param fileName 그 항목 이름
+     */
+    fun catchUp(mark: ProgressMark, fileCount: Int, bytes: Long, fileName: String) {
+        skipFiles((fileCount - (fileIndex - mark.fileIndex)).coerceAtLeast(0))
+        addBytes((bytes - (writtenBytes - mark.writtenBytes)).coerceAtLeast(0), fileName, fileBytes = null)
+    }
+
+    /**
      * 처리된 바이트를 누적하고, 계산 방식이 보고할 때라고 하면 보고한다.
      * @param bytes 이번에 처리된 바이트 수
      * @param fileName 현재 파일명
@@ -144,3 +163,10 @@ class ByteProgressTracker internal constructor(
         knownSize = reading.knownSize
     )
 }
+
+/**
+ * [ByteProgressTracker]가 어느 순간까지 센 몫. 그 뒤로 센 몫을 알아내는 기준점이다.
+ * @param fileIndex 그 순간의 파일 순번
+ * @param writtenBytes 그 순간의 누적 바이트 수
+ */
+class ProgressMark internal constructor(internal val fileIndex: Int, internal val writtenBytes: Long)
