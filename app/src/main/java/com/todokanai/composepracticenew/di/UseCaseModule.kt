@@ -1,9 +1,6 @@
 package com.todokanai.composepracticenew.di
 
-import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.operation.OperationProtection
-import com.todokanai.composepracticenew.repository.OperationQuestionAsker
 import com.todokanai.composepracticenew.repository.OperationQuestionRepository
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
@@ -17,7 +14,6 @@ import com.todokanai.composepracticenew.repository.FolderEntryNamesRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
-import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -60,124 +56,112 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
-import javax.inject.Singleton
 
-/** Provides domain-layer UseCase instances as singletons. */
+/** Provides domain-layer UseCase instances, unscoped so each one lives as long as the class that receives it. */
 @Module
 @InstallIn(SingletonComponent::class)
 object UseCaseModule {
 
-    @Provides @Singleton
+    @Provides
     fun provideOpenFileUseCase(nav: FileNavigatorRepository, launcher: FileLauncher, notices: OperationNoticeReporter) =
         OpenFileUseCase(nav, launcher, notices)
 
-    @Provides @Singleton
+    @Provides
     fun provideFileInfoUseCase(repo: FileInfoRepository, paths: StoragePathRules) =
         FileInfoUseCase(repo, paths)
 
-    @Provides @Singleton
+    @Provides
     fun provideFileSearchUseCase(repo: FileSearchRepository, storage: StorageVolumeRepository, nav: FileNavigatorRepository, paths: StoragePathRules) =
         FileSearchUseCase(repo, storage, nav, paths)
 
-    @Provides @Singleton
+    @Provides
     fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
         GetStorageListUseCase(storageRepo)
 
-    @Provides @Singleton
+    @Provides
     fun provideFileNavigatorUseCase(nav: FileNavigatorRepository, paths: StoragePathRules) =
         FileNavigatorUseCase(nav, paths)
 
-    @Provides @Singleton @RemoteNavigator
+    @Provides @RemoteNavigator
     fun provideRemoteFileNavigatorUseCase(@RemoteNavigator nav: FileNavigatorRepository, @RemoteNavigator paths: StoragePathRules) =
         FileNavigatorUseCase(nav, paths)
 
-    @Provides @Singleton
+    @Provides
     fun provideRemoteStorageUseCase(repo: RemoteStorageRepository) = RemoteStorageUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideStorageVolumeUseCase(repo: StorageVolumeRepository) =
         StorageVolumeUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideSortModeUseCase(repo: SortPreferenceRepository) =
         SortModeUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun providePreferenceFailureUseCase(repo: PreferenceFailureRepository) =
         PreferenceFailureUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideConnectionLossNoticeUseCase(repo: ConnectionLossNoticeRepository) =
         ConnectionLossNoticeUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideConnectFailureAlertUseCase(repo: ConnectFailureAlertRepository) =
         ConnectFailureAlertUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideConnectFailureReportUseCase(reporter: ConnectFailureAlertReporter) =
         ConnectFailureReportUseCase(reporter)
 
-    @Provides @Singleton
+    @Provides
     fun provideProgressUseCase(repo: ProgressRepository) =
         ProgressUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideOperationNoticeUseCase(repo: OperationNoticeRepository) =
         OperationNoticeUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideRemoteConnectionStateUseCase(repo: RemoteConnectionRepository) =
         RemoteConnectionStateUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideRemoteDisconnectUseCase(repo: RemoteConnectionRepository) =
         RemoteDisconnectUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideRemoteConnectionDropUseCase(repo: RemoteConnectionRepository) =
         RemoteConnectionDropUseCase(repo)
 
-    @Provides @Singleton
+    @Provides
     fun provideRemoteConnectionUseCase(
         connection: RemoteConnectionRepository,
         rootNavigator: RemoteRootNavigator,
         failureAlerts: ConnectFailureAlertReporter
     ) = RemoteConnectionUseCase(connection, rootNavigator, failureAlerts)
 
-    @Provides @Singleton
+    @Provides
     fun provideRemoteSessionCheckUseCase(connection: RemoteConnectionRepository, notices: OperationNoticeReporter) =
         RemoteSessionCheckUseCase(connection, notices)
 
-    @Provides @Singleton
+    @Provides
     fun provideConflictCheckUseCase(notices: OperationNoticeReporter, nameMatching: StorageNameMatching) =
         ConflictCheckUseCase(notices, nameMatching)
 
-    @Provides @Singleton
+    @Provides
     fun provideUploadConflictCheckUseCase(conflictCheck: ConflictCheckUseCase, sourceInfo: FolderEntryNamesRepository, nameMatching: StorageNameMatching) =
         UploadConflictCheckUseCase(conflictCheck, sourceInfo, nameMatching)
 
-    @Provides @Singleton
-    fun provideFileOperationOrchestrator(
-        notifier: FileOperationNotifier,
-        progressReporter: ProgressReporter,
-        notices: OperationNoticeReporter,
-        protection: OperationProtection,
-        questions: OperationQuestionAsker,
-        @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressReporter, notices, protection, questions, appScope)
-
-    @Provides @Singleton
+    @Provides
     fun provideOperationQuestionUseCase(questions: OperationQuestionRepository) =
         OperationQuestionUseCase(questions)
 
-    @Provides @Singleton
+    @Provides
     fun provideCancelOperationUseCase(orchestrator: FileOperationOrchestrator) =
         CancelOperationUseCase(orchestrator)
 
     /** 이름 규칙은 로컬 화면이 다루는 저장소의 제약으로 판정한다. */
-    @Provides @Singleton
+    @Provides
     fun provideLocalFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
         notices: OperationNoticeReporter,
@@ -187,7 +171,7 @@ object UseCaseModule {
     ) = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(nameRules), paths)
 
     /** 이름 규칙은 원격 화면이 다루는 저장소의 제약으로 판정한다. */
-    @Provides @Singleton
+    @Provides
     fun provideRemoteFileOperationUseCase(
         orchestrator: FileOperationOrchestrator,
         notices: OperationNoticeReporter,
