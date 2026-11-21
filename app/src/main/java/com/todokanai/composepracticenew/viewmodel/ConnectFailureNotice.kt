@@ -29,16 +29,23 @@ class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCas
      */
     fun report(reason: ConnectFailureReason) {
         when (reason) {
-            ConnectFailureReason.CONNECTION_FAILED -> notifyConnectionFailed()
+            ConnectFailureReason.CONNECTION_FAILED -> notifyRetryable(ConnectFailureAlert.CONNECTION_FAILED)
+            ConnectFailureReason.TIMED_OUT -> notifyRetryable(ConnectFailureAlert.TIMED_OUT)
+            ConnectFailureReason.HOST_NOT_FOUND -> notifyRetryable(ConnectFailureAlert.HOST_NOT_FOUND)
+            ConnectFailureReason.UNREACHABLE -> notifyRetryable(ConnectFailureAlert.UNREACHABLE)
+            ConnectFailureReason.LOGIN_REFUSED -> notifyRetryable(ConnectFailureAlert.LOGIN_REFUSED)
             ConnectFailureReason.LISTING_FORMAT_UNKNOWN -> _dialog.value = ConnectFailureDialog.UNREADABLE_SERVER
             ConnectFailureReason.BINARY_TYPE_REFUSED -> _dialog.value = ConnectFailureDialog.BINARY_TYPE_REFUSED
             ConnectFailureReason.INVALID_PORT -> _dialog.value = ConnectFailureDialog.INVALID_PORT
         }
     }
 
-    /** 다시 시도하면 될 수 있는 연결 실패를 알린다. */
-    private fun notifyConnectionFailed() {
-        reportUseCase.report(ConnectFailureAlert.CONNECTION_FAILED)
+    /**
+     * 접속 정보·네트워크를 확인하고 다시 시도할 연결 실패를 알림함에 넣는다.
+     * @param alert 알릴 연결 실패
+     */
+    private fun notifyRetryable(alert: ConnectFailureAlert) {
+        reportUseCase.report(alert)
     }
 
     /** 사용자가 연결 실패 다이얼로그를 닫았다. */

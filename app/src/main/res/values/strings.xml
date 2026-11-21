@@ -285,6 +285,10 @@
     <!-- Toast / Errors -->
     <string name="toast_cannot_open_file">Cannot open the file</string>
     <string name="toast_connection_failed">원격 스토리지 연결에 실패했습니다</string>
+    <string name="toast_connection_timed_out">서버가 제한 시간 안에 응답하지 않아 연결하지 못했습니다</string>
+    <string name="toast_connection_host_not_found">서버 주소를 찾지 못했습니다. 주소와 네트워크를 확인하세요</string>
+    <string name="toast_connection_unreachable">서버에 접속할 수 없습니다. 포트와 네트워크를 확인하세요</string>
+    <string name="toast_connection_login_refused">서버가 로그인을 거부했습니다. 아이디와 비밀번호를 확인하세요</string>
     <string name="notice_connection_lost">서버 연결이 끊어졌습니다</string>
     <string name="toast_preference_read_failed">설정을 읽지 못해 기본 설정으로 동작합니다</string>
     <string name="toast_preference_save_failed">설정을 저장하지 못했습니다</string>

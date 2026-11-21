@@ -19,10 +19,16 @@ internal sealed interface SessionOpening {
     data object Opened : SessionOpening
 
     /**
-     * 서버가 세션을 거부했다 — 접속 인사의 421(RFC 959 §5.4)이나 로그인 거부(530 등).
+     * 서버가 세션을 거부했다 — 접속 인사·응답의 421(RFC 959 §5.4).
      * @param reply 서버가 보낸 거부 응답 원문
      */
     data class Refused(val reply: String) : SessionOpening
+
+    /**
+     * 서버가 로그인을 거부했다(530 등).
+     * @param reply 서버가 보낸 거부 응답 원문
+     */
+    data class LoginRefused(val reply: String) : SessionOpening
 
     /**
      * 로그인했지만 서버가 바이너리 전송 방식(TYPE I)을 거부했다. RFC 1123 §4.1.2.2가 모든 서버에 요구하는 방식이라 지원 범위 밖의 서버다 —

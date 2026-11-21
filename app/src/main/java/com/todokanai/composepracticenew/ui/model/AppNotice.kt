@@ -66,4 +66,8 @@ private fun preferenceFailureMessage(failure: PreferenceFailure): Int = when (fa
 @StringRes
 private fun connectFailureMessage(alert: ConnectFailureAlert): Int = when (alert) {
     ConnectFailureAlert.CONNECTION_FAILED -> R.string.toast_connection_failed
+    ConnectFailureAlert.TIMED_OUT -> R.string.toast_connection_timed_out
+    ConnectFailureAlert.HOST_NOT_FOUND -> R.string.toast_connection_host_not_found
+    ConnectFailureAlert.UNREACHABLE -> R.string.toast_connection_unreachable
+    ConnectFailureAlert.LOGIN_REFUSED -> R.string.toast_connection_login_refused
 }

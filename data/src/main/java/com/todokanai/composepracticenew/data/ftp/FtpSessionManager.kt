@@ -22,6 +22,11 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -163,7 +168,31 @@ internal class FtpSessionManager(
     private fun connectFailureReasonOf(opening: SessionOpening): ConnectFailureReason = when (opening) {
         SessionOpening.ListingFormatUnknown -> ConnectFailureReason.LISTING_FORMAT_UNKNOWN
         is SessionOpening.BinaryTypeRefused -> ConnectFailureReason.BINARY_TYPE_REFUSED
-        SessionOpening.Opened, is SessionOpening.Refused, is SessionOpening.Unreachable, SessionOpening.Closed -> ConnectFailureReason.CONNECTION_FAILED
+        is SessionOpening.LoginRefused -> ConnectFailureReason.LOGIN_REFUSED
+        is SessionOpening.Unreachable -> unreachableReasonOf(opening.cause)
+        SessionOpening.Opened, is SessionOpening.Refused, SessionOpening.Closed -> ConnectFailureReason.CONNECTION_FAILED
+    }
+
+    /**
+     * 접속·응답 읽기에서 난 예외를 연결 실패 이유로 바꾼다. 예외와 그 원인을 차례로 보고 처음 알아본 것으로 정한다 —
+     * commons-net은 접속 인사를 기다리다 난 시간 초과를 원인으로 담은 IOException으로 감싸 던진다.
+     * @param cause 접속·응답 읽기에서 난 예외
+     * @return 연결 실패 이유
+     */
+    private fun unreachableReasonOf(cause: IOException): ConnectFailureReason =
+        generateSequence<Throwable>(cause) { it.cause }.firstNotNullOfOrNull(::knownConnectFailureOf) ?: ConnectFailureReason.CONNECTION_FAILED
+
+    /**
+     * 접속 실패 원인을 알 수 있는 예외면 그 이유를 돌려준다.
+     * Android는 소켓 연결 실패를 errno와 관계없이 대부분 [ConnectException]으로 던지므로, 서버의 거부와 네트워크 문제를 나누지 않고 접속할 수 없음으로 본다.
+     * @param error 볼 예외
+     * @return 연결 실패 이유, 알아볼 수 없으면 null
+     */
+    private fun knownConnectFailureOf(error: Throwable): ConnectFailureReason? = when (error) {
+        is SocketTimeoutException -> ConnectFailureReason.TIMED_OUT
+        is UnknownHostException -> ConnectFailureReason.HOST_NOT_FOUND
+        is ConnectException, is NoRouteToHostException -> ConnectFailureReason.UNREACHABLE
+        else -> null
     }
 
     /**
@@ -236,6 +265,7 @@ internal class FtpSessionManager(
             return when (val opening = session.open(endpointOf(token.server))) {
                 SessionOpening.Opened -> runKeepingAlive(session, block)
                 is SessionOpening.Refused -> openFailure(FailureReason.ServerRefused(RemoteStep.OPEN_SESSION, opening.reply))
+                is SessionOpening.LoginRefused -> openFailure(FailureReason.ServerRefused(RemoteStep.OPEN_SESSION, opening.reply))
                 is SessionOpening.BinaryTypeRefused -> openFailure(FailureReason.ServerRefused(RemoteStep.OPEN_SESSION, opening.reply))
                 SessionOpening.ListingFormatUnknown -> openFailure(FailureReason.RemoteStepFailed(RemoteStep.OPEN_SESSION, FailureReason.ListingFormatUnknown))
                 is SessionOpening.Unreachable -> openFailure(FailureReason.RemoteStepFailed(RemoteStep.OPEN_SESSION, connectionFailureReason(opening.cause)))
