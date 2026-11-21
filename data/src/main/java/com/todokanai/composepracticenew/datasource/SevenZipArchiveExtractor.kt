@@ -378,7 +378,7 @@ private fun isLinkTarget(target: Any?): Boolean = (target as? String)?.isNotEmpt
  * @return 링크 모드를 담았으면 true
  */
 private fun isUnixExtendedSymlink(attributes: Int): Boolean =
-    (attributes and FILE_ATTRIBUTE_UNIX_EXTENSION) != 0 &&isSymlinkMode(attributes ushr 16)
+    (attributes and FILE_ATTRIBUTE_UNIX_EXTENSION) != 0 && isSymlinkMode(attributes ushr 16)
 
 /** 7-Zip이 Windows 속성의 위쪽 16비트에 Unix 모드를 담았음을 나타내는 표시. */
 private const val FILE_ATTRIBUTE_UNIX_EXTENSION = 0x8000

@@ -18,8 +18,10 @@ class ArchiveEntryWriterTest {
     private val dir: File = Files.createTempDirectory("archive-entry-writer-test").toFile()
     /** 추출 루트. */
     private val root = File(dir, "out").also { it.mkdirs() }
+    /** 검증 대상이 쓰지 않은 파일 항목을 넘기는 진행률 보고기. */
+    private val tracker = ByteProgressTracker(1, 1, onProgress = {})
     /** 검증 대상. */
-    private val writer = ArchiveEntryWriter(ExtractionRoot(root), UnexpectedConflictAsk, ByteProgressTracker(1, 1, onProgress = {}), UnexpectedLeftoverDiscarder)
+    private val writer = ArchiveEntryWriter(ExtractionRoot(root), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {
@@ -58,5 +60,14 @@ class ArchiveEntryWriterTest {
 
         assertEquals(listOf(FailedItem("d/link", FailureReason.UnsupportedLink())), writer.failures)
         assertTrue(root.list()!!.isEmpty())
+    }
+
+    @Test
+    fun `링크 항목은 진행률에서 처리한 파일 하나와 그 크기로 넘긴다`() {
+        writer.skipLink("d/link", 6)
+
+        val mark = tracker.mark()
+        assertEquals(1, mark.fileIndex)
+        assertEquals(6L, mark.writtenBytes)
     }
 }
