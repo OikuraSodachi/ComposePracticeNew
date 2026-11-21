@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.ConflictChoice
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
@@ -200,6 +201,25 @@ class LocalTreeTransferConflictTest {
         assertEquals("new", File(src, "dir/same.txt").readText())
         assertEquals("old", File(dest, "dir/same.txt").readText())
         assertEquals("fresh", File(dest, "dir/fresh.txt").readText())
+    }
+
+    @Test
+    fun `같은 파티션 이동이 자리 확보용 빈 파일을 지우지 못하면 옮기지 못한 파일의 실패 원인에 그 사실을 담는다`() {
+        File(src, "dir").mkdir()
+        File(src, "dir/a.txt").writeText("a")
+        File(src, "dir/b.txt").writeText("b")
+        File(dest, "dir").mkdir()
+        val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {}, leftovers = UndeletableLeftoverDiscarder)
+
+        // 먼저 옮긴 파일이 목적지에 생기면 남은 원본을 지운다 — 그 원본은 자리를 확보한 뒤 rename에서 실패한다
+        val result = runBlocking {
+            transfer.move(setOf(File(src, "dir").path), dest.path, AnsweringResolver { ConflictChoice.PROCEED }) {
+                if (File(dest, "dir").listFiles().orEmpty().any { it.length() > 0 }) File(src, "dir").listFiles()?.forEach { it.delete() }
+            }
+        }
+
+        val reason = (result as IoResult.PartiallyFailed).failures.single().reason
+        assertTrue("남은 빈 파일을 원인에 담아야 함: $result", reason is FailureReason.LeftoverNotRemoved && reason.removal == FailureReason.IoFailed(UNDELETABLE_MESSAGE))
     }
 
     /** src의 [names] 항목을 dest로 복사한다. */

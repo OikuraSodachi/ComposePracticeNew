@@ -33,7 +33,7 @@ fun noticeTextOf(message: NoticeMessage): UiText = when (message) {
     NoticeMessage.DestinationUnverified -> UiText.Resource(R.string.error_destination_unverified)
     NoticeMessage.NoRemoteSession -> UiText.Resource(R.string.notice_no_remote_session)
     is NoticeMessage.FolderUnreadable -> UiText.Resource(R.string.notice_folder_unreadable, listOf(message.name))
-    is NoticeMessage.Leftover -> UiText.Resource(R.string.notice_leftover, listOf(message.path, leftoverCauseTextOf(message.cause)))
+    is NoticeMessage.Leftover -> leftoverTextOf(message.path, message.cause)
 }
 
 /**
@@ -132,14 +132,17 @@ private fun openFailureRes(reason: OpenFailure): Int = when (reason) {
 }
 
 /**
- * 쓰다 만 파일을 지우지 못한 이유의 문구를 만든다.
+ * 쓰다 만 파일을 지우지 못한 알림의 문구를 이유로 고른다. 로컬 파일은 지우지 못한 것이 확실하고,
+ * 원격 파일(취소한 업로드)은 중단된 STOR의 파일을 남길지가 서버마다 달라 남았을 수 있다고만 말한다.
+ * @param path 쓰다 만 파일의 경로
  * @param cause 지우지 못한 이유
- * @return 이유 문구
+ * @return 표시 문구
  */
-private fun leftoverCauseTextOf(cause: LeftoverCause): UiText = when (cause) {
-    is LeftoverCause.LocalRemovalFailed -> failureReasonTextOf(cause.reason)
-    is LeftoverCause.Refused -> UiText.Resource(R.string.notice_leftover_refused, listOf(cause.reply))
-    LeftoverCause.SessionEnded -> UiText.Resource(R.string.notice_leftover_session_ended)
+private fun leftoverTextOf(path: String, cause: LeftoverCause): UiText = when (cause) {
+    is LeftoverCause.LocalRemovalFailed -> UiText.Resource(R.string.notice_leftover_local, listOf(path, failureReasonTextOf(cause.reason)))
+    is LeftoverCause.Refused ->
+        UiText.Resource(R.string.notice_leftover_upload, listOf(path, UiText.Resource(R.string.notice_leftover_refused, listOf(cause.reply))))
+    LeftoverCause.SessionEnded -> UiText.Resource(R.string.notice_leftover_upload, listOf(path, UiText.Resource(R.string.notice_leftover_session_ended)))
 }
 
 /**

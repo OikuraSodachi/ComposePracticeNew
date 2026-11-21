@@ -140,7 +140,7 @@ enum class OpenFailure {
     REFUSED,
 }
 
-/** 멈춘 쓰기의 쓰다 만 파일을 지우지 못한 이유. */
+/** 멈춘 쓰기의 쓰다 만 파일을 지우지 못한 이유. 로컬 파일은 [LocalRemovalFailed], 원격 이유([Refused], [SessionEnded])는 취소한 업로드의 받다 만 파일을 지우지 못한 것이다. */
 sealed interface LeftoverCause {
 
     /**

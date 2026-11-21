@@ -16,8 +16,16 @@ import javax.inject.Inject
  * 멈춘 쓰기가 남긴 로컬 파일을 지우고, 지우지 못하면 그 사실을 알린다(#431) — 쓰다 만 파일이 말없이 온전한 파일처럼 남지 않도록.
  * 남은 로컬 파일의 정리는 이 클래스로만 한다. 결과를 돌려주는 경로는 실패 원인에 담고, 결과로 돌려줄 수 없는 경로(취소·구현 오류)는 작업 메시지 알림함에 넣는다.
  * @param notices 결과로 돌려줄 수 없는 정리 실패를 넣는 작업 메시지 알림함
+ * @param delete 파일을 지우는 함수. 이미 없으면 아무것도 하지 않고, 지우지 못하면 IOException을 던진다.
+ * 테스트에서는 지우지 못하는 경우를 재현하도록 넘긴다
  */
-class LeftoverDiscarder @Inject constructor(private val notices: OperationNoticeReporter) {
+class LeftoverDiscarder internal constructor(
+    private val notices: OperationNoticeReporter,
+    private val delete: (File) -> Unit
+) {
+
+    /** 실제 파일 시스템에서 지우는 정리 부품을 만든다. Hilt가 사용하는 생성자다. */
+    @Inject constructor(notices: OperationNoticeReporter) : this(notices, { Files.deleteIfExists(it.toPath()) })
 
     /**
      * 결과로 돌려줄 수 없게 멈춘(취소·구현 오류) 쓰기의 [file]을 지운다. 지우지 못하면 알림함에 넣는다. 이미 없으면 아무것도 하지 않는다.
@@ -85,7 +93,7 @@ class LeftoverDiscarder @Inject constructor(private val notices: OperationNotice
      */
     private fun removalErrorOf(file: File): IOException? =
         try {
-            Files.deleteIfExists(file.toPath())
+            delete(file)
             null
         } catch (e: IOException) {
             e
