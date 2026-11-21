@@ -92,6 +92,15 @@ class FtpSessionListingFormatTest {
     }
 
     @Test
+    fun `서버가 바이너리 전송 방식을 거부하면 목록 형식을 확인하지 않고 연결을 종료한다`() {
+        val result = connectTo(mapOf("TYPE" to { it.send("504 Command not implemented for that parameter") }))
+
+        assertEquals(ConnectResult.Failed(ConnectFailureReason.BINARY_TYPE_REFUSED), result)
+        assertFalse(server.received.toString(), "SYST" in server.received)
+        assertConnectionClosed()
+    }
+
+    @Test
     fun `서버가 접속 인사로 421을 보내면 연결 실패로 알린다`() {
         server = fixture.server(greeting = { "421 Too many connections" })
 

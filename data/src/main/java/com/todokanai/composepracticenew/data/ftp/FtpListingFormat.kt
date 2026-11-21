@@ -83,6 +83,15 @@ internal object FtpListingFormat {
     }
 
     /**
+     * 디렉터리 안의 항목 이름으로 쓸 수 있는지 판별한다. 비었거나, 경로 구분자 `/`가 있거나, `.`·`..`이면 항목 이름이 아니다 —
+     * 이름은 항목 경로·다운로드할 로컬 위치를 만드는 데 그대로 쓰여, 받아들이면 고른 폴더 밖을 가리킨다(#423).
+     * 자신·상위 항목(LIST의 `.`·`..`, MLSD의 cdir·pdir)은 이 판별 전에 거른다.
+     * @param name 목록 줄에서 해석한 이름
+     * @return 항목 이름으로 쓸 수 있으면 true
+     */
+    fun isEntryName(name: String): Boolean = name.isNotEmpty() && '/' !in name && name != "." && name != ".."
+
+    /**
      * MLSD 항목이 나열한 디렉터리 자신(type=cdir)이나 상위 디렉터리(type=pdir)인지 판별한다. 종류 값은 대소문자를 구분하지 않는다(RFC 3659 §7.5.1).
      * commons-net은 두 종류를 일반 디렉터리로 파싱하고, 서버에 따라 이름이 "."이 아닌 전체 경로로 오므로 원본 줄의 type 사실로 판별한다.
      * @param facts [mlsdFacts]로 읽은 사실

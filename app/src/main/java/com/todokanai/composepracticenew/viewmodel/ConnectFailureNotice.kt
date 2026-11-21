@@ -21,6 +21,10 @@ class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCas
     /** 서버의 파일 목록을 읽을 수 없어 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
     val unreadableServer: StateFlow<Boolean> = _unreadableServer.asStateFlow()
 
+    private val _binaryTypeRefused = MutableStateFlow(false)
+    /** 서버가 바이너리 전송 방식을 거부해 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
+    val binaryTypeRefused: StateFlow<Boolean> = _binaryTypeRefused.asStateFlow()
+
     private val _invalidPort = MutableStateFlow(false)
     /** 저장된 포트가 범위를 벗어나 연결을 시도하지 않았음을 알리는 다이얼로그를 보여야 하면 true. */
     val invalidPort: StateFlow<Boolean> = _invalidPort.asStateFlow()
@@ -33,6 +37,7 @@ class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCas
         when (reason) {
             ConnectFailureReason.CONNECTION_FAILED -> notifyConnectionFailed()
             ConnectFailureReason.LISTING_FORMAT_UNKNOWN -> _unreadableServer.value = true
+            ConnectFailureReason.BINARY_TYPE_REFUSED -> _binaryTypeRefused.value = true
             ConnectFailureReason.INVALID_PORT -> _invalidPort.value = true
         }
     }
@@ -45,6 +50,11 @@ class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCas
     /** 사용자가 서버를 읽을 수 없다는 다이얼로그를 닫았다. */
     fun dismissUnreadableServer() {
         _unreadableServer.value = false
+    }
+
+    /** 사용자가 서버가 바이너리 전송 방식을 거부했다는 다이얼로그를 닫았다. */
+    fun dismissBinaryTypeRefused() {
+        _binaryTypeRefused.value = false
     }
 
     /** 사용자가 포트가 범위를 벗어났다는 다이얼로그를 닫았다. */

@@ -42,6 +42,19 @@ class ConnectFailureNoticeTest {
     }
 
     @Test
+    fun `바이너리 전송을 거부한 서버는 알림함에 맡기지 않고 닫을 때까지 다이얼로그 상태로 남는다`() {
+        notice.report(ConnectFailureReason.BINARY_TYPE_REFUSED)
+
+        assertTrue(notice.binaryTypeRefused.value)
+        assertFalse(notice.unreadableServer.value)
+        assertEquals(emptyList<ConnectFailureAlert>(), reporter.reported)
+
+        notice.dismissBinaryTypeRefused()
+
+        assertFalse(notice.binaryTypeRefused.value)
+    }
+
+    @Test
     fun `범위 밖 포트는 알림함에 맡기지 않고 닫을 때까지 다이얼로그 상태로 남는다`() {
         notice.report(ConnectFailureReason.INVALID_PORT)
 

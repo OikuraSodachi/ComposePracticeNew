@@ -82,6 +82,51 @@ class FtpListingInterpretationTest {
     }
 
     @Test
+    fun `MLSD 항목 이름에 경로 구분자나 상위 폴더가 있으면 해석하지 못한 줄로 남긴다`() {
+        client.mlsdListings = mapOf("/r" to listOf(MLSD_PARENT_ESCAPE, MLSD_SLASH, MLSD_DOT_DOT, "type=file;size=3; a.txt"))
+
+        val items = (runBlocking { commands.listing.listFiles("ftp://host/r") } as IoResult.Success).value
+
+        assertEquals(listOf(MLSD_PARENT_ESCAPE, MLSD_SLASH, MLSD_DOT_DOT), items.filterIsInstance<ListedItem.Unreadable>().map { it.line })
+        assertEquals(listOf("a.txt"), items.filterIsInstance<ListedItem.Entry>().map { it.entry.name })
+    }
+
+    @Test
+    fun `LIST 항목 이름에 경로 구분자나 상위 폴더가 있으면 해석하지 못한 줄로 남긴다`() {
+        val escape = "-rw-r--r-- 1 user group 3 Jan  1 00:00 ../x"
+        val slash = "-rw-r--r-- 1 user group 3 Jan  1 00:00 a/b"
+        val listClient = FakeFtpClient().apply {
+            listHeaderLines = listOf(escape, slash)
+            remoteFiles = listOf("a.txt")
+        }
+        val listSession = FtpSession(listClient)
+        runBlocking { listSession.markLoggedIn(home = null) }
+
+        val items = (runBlocking { FtpBrowsingParts(listSession).listing.listFiles("ftp://host/r") } as IoResult.Success).value
+
+        assertEquals(listOf(escape, slash), items.filterIsInstance<ListedItem.Unreadable>().map { it.line })
+        assertEquals(listOf("a.txt"), items.filterIsInstance<ListedItem.Entry>().map { it.entry.name })
+    }
+
+    @Test
+    fun `폴더 다운로드는 상위 폴더를 가리키는 이름을 고른 폴더 밖에 쓰지 않고 실패로 알린다`() {
+        client.mlsdListings = mapOf("/r" to listOf(MLSD_PARENT_ESCAPE, "type=file;size=3; a.txt"))
+        client.streamContent = "abc".toByteArray()
+
+        val result = runBlocking {
+            commands.downloader
+                .download(listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), UnexpectedConflictResolver)
+        }
+
+        assertEquals(
+            IoResult.PartiallyFailed(listOf(FailedItem("r/$MLSD_PARENT_ESCAPE", FailureReason.UnreadableListingEntry(MLSD_PARENT_ESCAPE)))),
+            result
+        )
+        assertEquals(listOf("/r/a.txt"), client.retrieveRequests)
+        assertTrue("고른 폴더 밖에 쓰지 않아야 함", dir.listFiles()!!.map { it.name } == listOf("r"))
+    }
+
+    @Test
     fun `해석하지 못한 줄이 없으면 화면 목록의 뺀 줄 수는 0이다`() {
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=3; a.txt"))
 
@@ -188,5 +233,11 @@ class FtpListingInterpretationTest {
         const val PURE_FTPD_LINK = "type=OS.unix=slink:/home/u;modify=20240101000000; ln2"
         /** commons-net 해석기가 예외를 던지는(숫자가 아닌 size) 줄. */
         const val UNPARSEABLE_SIZE = "type=file;size=abc; bad.txt"
+        /** 이름이 상위 폴더를 거쳐 나열한 폴더 밖을 가리키는 MLSD 줄. */
+        const val MLSD_PARENT_ESCAPE = "type=file;size=3; ../escape.txt"
+        /** 이름에 경로 구분자가 든 MLSD 줄. */
+        const val MLSD_SLASH = "type=file;size=3; sub/b.txt"
+        /** 상위 폴더 이름을 cdir·pdir이 아닌 종류로 보낸 MLSD 줄. */
+        const val MLSD_DOT_DOT = "type=dir; .."
     }
 }

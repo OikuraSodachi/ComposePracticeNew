@@ -162,6 +162,7 @@ internal class FtpSessionManager(
      */
     private fun connectFailureReasonOf(opening: SessionOpening): ConnectFailureReason = when (opening) {
         SessionOpening.ListingFormatUnknown -> ConnectFailureReason.LISTING_FORMAT_UNKNOWN
+        is SessionOpening.BinaryTypeRefused -> ConnectFailureReason.BINARY_TYPE_REFUSED
         SessionOpening.Opened, is SessionOpening.Refused, is SessionOpening.Unreachable, SessionOpening.Closed -> ConnectFailureReason.CONNECTION_FAILED
     }
 
@@ -235,6 +236,7 @@ internal class FtpSessionManager(
             return when (val opening = session.open(endpointOf(token.server))) {
                 SessionOpening.Opened -> runKeepingAlive(session, block)
                 is SessionOpening.Refused -> openFailure(FailureReason.ServerRefused(RemoteStep.OPEN_SESSION, opening.reply))
+                is SessionOpening.BinaryTypeRefused -> openFailure(FailureReason.ServerRefused(RemoteStep.OPEN_SESSION, opening.reply))
                 SessionOpening.ListingFormatUnknown -> openFailure(FailureReason.RemoteStepFailed(RemoteStep.OPEN_SESSION, FailureReason.ListingFormatUnknown))
                 is SessionOpening.Unreachable -> openFailure(FailureReason.RemoteStepFailed(RemoteStep.OPEN_SESSION, connectionFailureReason(opening.cause)))
                 SessionOpening.Closed -> openFailure(FailureReason.RemoteStepFailed(RemoteStep.OPEN_SESSION, FailureReason.ConnectionClosed))

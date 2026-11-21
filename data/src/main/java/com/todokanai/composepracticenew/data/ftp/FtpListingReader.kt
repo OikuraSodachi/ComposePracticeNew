@@ -242,6 +242,8 @@ class FtpListingReader internal constructor(
     /**
      * 끝까지 받은 목록의 줄을 받은 순서대로 해석해 항목으로 바꾸고, 서버가 알려준 식별값을 항목 경로에 묶는다.
      * 해석하지 못한 줄은 버리지 않고 [ListedItem.Unreadable]로 남긴다 — 버리면 목록에서 항목이 말없이 빠진다(#255).
+     * 이름이 항목 이름이 아닌 줄([FtpListingFormat.isEntryName] — `/`·`..` 등이 든 이름)도 해석하지 못한 줄이다 — 표준을 따르지 않는 서버의 이름을 받아들이면
+     * 다운로드가 고른 폴더 밖에 쓰고 삭제가 엉뚱한 경로에 명령을 보낸다(#423).
      *
      * 알려진 문제(방치하기로 결정): 목록은 서버가 드러내는 항목뿐이라(RFC 3659 §7.1, 유닉스 계열 LIST의 `.` 항목·ProFTPD `HideFiles` 등)
      * 서버가 숨긴 항목이 빠질 수 있지만 폴더의 목록으로 보고한다. 그래서 업로드·이름 변경의 충돌 검사가 숨긴 같은 이름 항목을 보지 못해
@@ -262,6 +264,7 @@ class FtpListingReader internal constructor(
         val items = lines.mapNotNull { line ->
             val file = FtpListingFormat.parsedEntry(parser, line) ?: return@mapNotNull ListedItem.Unreadable(path, line)
             val entry = received(file) ?: return@mapNotNull null
+            if (!FtpListingFormat.isEntryName(entry.file.name)) return@mapNotNull ListedItem.Unreadable(path, line)
             val converted = toFileEntry(entry.file, path)
             entry.identity?.let { identities[converted.path] = it }
             ListedItem.Entry(converted)
