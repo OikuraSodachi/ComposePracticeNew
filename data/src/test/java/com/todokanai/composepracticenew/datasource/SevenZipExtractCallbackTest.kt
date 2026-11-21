@@ -18,7 +18,7 @@ import java.io.IOException
 import java.nio.file.Files
 
 /**
- * [SevenZipExtractCallback]이 폴더 항목을 만들고(#317), 쓰기 실패·풀 수 없는 항목에서 건너뛰지 않고 멈추며, 처음 던진 예외를 보관하는지 검증하는 단위 테스트(#235).
+ * [SevenZipExtractCallback]이 폴더 항목을 만들고(#317), 링크 항목은 만들지 않고 실패로 남기며(#424), 쓰기 실패·풀 수 없는 항목에서 건너뛰지 않고 멈추며, 처음 던진 예외를 보관하는지 검증하는 단위 테스트(#235).
  * RAR 라이브러리는 JVM에서 열 수 없으므로, 라이브러리가 부르는 순서(getStream → 기록 → setOperationResult)대로 콜백을 직접 부른다.
  */
 class SevenZipExtractCallbackTest {
@@ -101,6 +101,18 @@ class SevenZipExtractCallbackTest {
         callback.setOperationResult(ExtractOperationResult.OK)
 
         assertEquals(listOf(FailedItem("../evil.txt", FailureReason.UnsafeArchiveEntryPath)), writer.failures)
+        assertNull(callback.failure)
+    }
+
+    @Test
+    fun `링크 항목은 만들지 않고 링크 실패 항목으로만 남긴다`() {
+        val callback = callbackOf(SevenZipEntryKind.Link("d/link"))
+
+        assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
+        callback.setOperationResult(ExtractOperationResult.OK)
+
+        assertEquals(listOf(FailedItem("d/link", FailureReason.UnsupportedLink())), writer.failures)
+        assertTrue(root.list()!!.isEmpty())
         assertNull(callback.failure)
     }
 

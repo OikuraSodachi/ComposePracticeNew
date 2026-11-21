@@ -16,6 +16,7 @@ import javax.inject.Inject
  * 항목 내용은 zip4j가 끝에서 검증한다(CRC, AES는 HMAC) — 손상된 항목을 성공으로 풀지 않는다.
  * 암호화된 항목(AES, ZipCrypto)은 출력을 만들기 전에 비밀번호를 확인한다. 확인은 내용이 있는 가장 작은 암호화 항목([passwordCheckEntryOf])을 끝까지 풀어 보는 것이다 —
  * 비밀번호 검증값(AES 2바이트, ZipCrypto 1바이트)만으로는 틀린 비밀번호가 통과할 수 있고, 그때는 내용 검증에서야 드러나기 때문이다.
+ * 심볼릭 링크 항목([isZipSymlink])은 풀지 않고 실패로 알린다(지원 범위 밖, #424).
  * 항목 이름은 UTF-8로만 읽는다. UTF-8이 아닌 이름은 풀지 않고 실패로 알린다(지원 범위 밖). 이름에 원래 U+FFFD가 든 항목도 같은 실패가 된다.
  * 분할 압축(이름 규칙은 [zipNameRoleOf])은 zip4j가 시작 파일에서 다른 볼륨을 찾아 읽는다: PKWARE 분할(`.z01` …)은 내용 목록이 있는 `.zip`에서, 번호 분할은 `.zip.001`에서.
  * 빠진 볼륨은 열 때 확인해 아무것도 풀기 전에 알린다. 번호 분할의 마지막 볼륨이 빠진 것은 이름으로 알 수 없어 손상된 아카이브로 알린다.
@@ -34,10 +35,14 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
         openZip(path).use { zf ->
             val headers = headersOf(zf)
-            val checkEntry = passwordCheckEntryOf(headers.filter { !it.isDirectory && it.isEncrypted }, ::knownSizeOf)
+            val checkEntry = passwordCheckEntryOf(headers.filter { !it.isDirectory && !isLink(it) && it.isEncrypted }, ::knownSizeOf)
             headers.forEach { header ->
                 if (header.isDirectory) {
                     writer.createFolder(header.fileName)
+                    return@forEach
+                }
+                if (isLink(header)) {
+                    writer.skipLink(header.fileName, knownSizeOf(header))
                     return@forEach
                 }
                 // 비밀번호는 출력을 열기 전에 받는다 — 묻는 동안이나 취소한 뒤에 빈 파일이 남지 않도록
@@ -114,6 +119,13 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     private fun knownSizeOf(header: FileHeader): Long? = header.uncompressedSize.takeIf { it >= 0 }
 
     /**
+     * 항목이 심볼릭 링크인지 판별한다. ZIP은 링크를 링크 대상 경로를 내용으로 한 파일 항목으로 담고, 링크임은 외부 속성의 Unix 모드로만 알린다.
+     * @param header 아카이브 항목
+     * @return 링크 항목이면 true
+     */
+    private fun isLink(header: FileHeader): Boolean = isZipSymlink(header.externalFileAttributes)
+
+    /**
      * 항목의 내용 스트림을 연다. 암호화된 항목은 확인된 비밀번호로 열고, 아직 없으면 [checkEntry]를 끝까지 풀어 보아 확인받는다.
      * 한 아카이브 안에서 항목마다 다른 비밀번호를 쓴 경우는 지원 범위 밖이므로, 확인한 비밀번호가 이 항목의 검증값과 맞지 않으면
      * 다시 묻지 않고 풀 수 없는 항목으로 실패한다(RAR과 같은 범위).
@@ -177,6 +189,19 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
         while (input.read(buffer) != -1) reportChecking()
     }
+}
+
+/**
+ * ZIP 항목의 외부 속성(리틀 엔디언 4바이트)이 심볼릭 링크를 나타내는지 판별한다. 위쪽 16비트가 Unix 모드다(Info-ZIP 등 Unix에서 만든 ZIP).
+ * 만든 시스템(version made by)은 보지 않는다 — Unix가 아닌 시스템으로 표시하고 Unix 모드를 담는 도구도 있고, Windows에서 만든 ZIP은 위쪽 16비트가 0이라 링크로 보이지 않는다.
+ * 라이브러리 없이 검증할 수 있도록 속성 바이트만 받는다.
+ * @param externalAttributes zip4j가 읽은 항목의 외부 속성. 없으면 null
+ * @return 링크 항목이면 true
+ */
+internal fun isZipSymlink(externalAttributes: ByteArray?): Boolean {
+    if (externalAttributes == null || externalAttributes.size < 4) return false
+    val unixMode = ((externalAttributes[3].toInt() and 0xFF) shl 8) or (externalAttributes[2].toInt() and 0xFF)
+    return isSymlinkMode(unixMode)
 }
 
 /** zip4j가 UTF-8로 해석하지 못한 바이트를 바꿔 넣는 문자. */
