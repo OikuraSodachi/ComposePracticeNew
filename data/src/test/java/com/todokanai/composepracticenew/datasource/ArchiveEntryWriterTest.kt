@@ -11,7 +11,7 @@ import org.junit.Test
 import java.io.File
 import java.nio.file.Files
 
-/** [ArchiveEntryWriter]가 폴더·파일 항목을 루트 아래에 만들고, 만들지 못하면 알리며, 루트 밖 항목만 실패 항목으로 남기는지 검증하는 단위 테스트(#235, #317). */
+/** [ArchiveEntryWriter]가 폴더·파일 항목을 루트 아래에 만들고, 만들지 못하면 알리며, 루트 밖 항목과 링크 항목만 실패 항목으로 남기는지 검증하는 단위 테스트(#235, #317, #424). */
 class ArchiveEntryWriterTest {
 
     /** 추출 루트를 둘 임시 디렉터리. */
@@ -50,5 +50,13 @@ class ArchiveEntryWriterTest {
 
         assertEquals(listOf("../evil.txt", "../evil/", "./").map { FailedItem(it, FailureReason.UnsafeArchiveEntryPath) }, writer.failures)
         assertEquals(listOf("out"), dir.list()!!.toList())
+    }
+
+    @Test
+    fun `링크 항목은 만들지 않고 그 이름으로 링크 실패 항목에 남긴다`() {
+        writer.skipLink("d/link", 6)
+
+        assertEquals(listOf(FailedItem("d/link", FailureReason.UnsupportedLink())), writer.failures)
+        assertTrue(root.list()!!.isEmpty())
     }
 }

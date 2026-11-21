@@ -12,7 +12,7 @@ import java.nio.file.Files
 /**
  * 아카이브 항목을 추출 루트 아래에 만드는 쓰기 도우미. 형식과 무관한 규칙(위치 검증, 폴더 생성, 파일 생성, 겹침 처리, 건너뜀 집계)을 한 곳에 두어 [ArchiveExtractor] 구현체마다 같은 항목을 다르게 다루지 않도록 한다.
  * 폴더는 이미 있으면 묻지 않고 합친다. 파일 자리에 같은 이름의 항목이 있거나 폴더 자리에 파일이 있으면 [ask]에 묻는다(`LocalConflictWrites.kt`).
- * 실패로 알리는 항목([failures])은 루트 밖이나 루트 자신을 가리키는 항목과, 자리에 심볼릭 링크가 있어 묻지 않고 건너뛴 항목(폴더면 그 아래 항목 전체)이다.
+ * 실패로 알리는 항목([failures])은 루트 밖이나 루트 자신을 가리키는 항목, 자리에 심볼릭 링크가 있어 묻지 않고 건너뛴 항목(폴더면 그 아래 항목 전체), 그리고 링크 항목([skipLink])이다.
  * 묻고 건너뛴 항목은 실패가 아니다. 만들지 못한 폴더·파일은 IOException으로 알린다.
  * 쓰지 않은 파일 항목은 이유와 무관하게 진행률에서 처리한 것으로 넘긴다 — 진행률이 멈춰 있다가 완료 때 건너뛰지 않도록.
  * @param root 항목의 위치를 정하는 추출 루트
@@ -29,7 +29,7 @@ class ArchiveEntryWriter(
 
     /**
      * 풀지 않고 실패로 알릴 항목. 경로 검증 실패는 아카이브 안의 항목 경로와 [FailureReason.UnsafeArchiveEntryPath]을,
-     * 링크 자리는 루트 기준 '/' 구분 경로와 [FailureReason.UnsupportedLink]을 담는다.
+     * 링크 자리는 루트 기준 '/' 구분 경로와 [FailureReason.UnsupportedLink]을, 링크 항목은 아카이브 안의 항목 경로와 [FailureReason.UnsupportedLink]을 담는다.
      */
     val failures: List<FailedItem>
         get() = failureList
@@ -59,6 +59,17 @@ class ArchiveEntryWriter(
      */
     fun openFile(entryName: String, fileBytes: Long?): OutputStream? =
         openOrSkip(entryName) ?: null.also { passOver(entryName, fileBytes) }
+
+    /**
+     * 링크 항목(심볼릭·하드 링크)을 만들지 않고 [failures]에 넣는다 — 링크는 지원 범위 밖이며, 링크 대상 경로를 내용으로 한 파일이나 빈 파일을 성공으로 남기지 않도록(#424).
+     * 진행률에서는 처리한 파일로 넘긴다.
+     * @param entryName 아카이브 안의 '/' 구분 항목 경로
+     * @param fileBytes 항목의 압축 해제 후 크기. 모르면 null
+     */
+    fun skipLink(entryName: String, fileBytes: Long?) {
+        failureList += FailedItem(entryName, FailureReason.UnsupportedLink())
+        passOver(entryName, fileBytes)
+    }
 
     /**
      * [openFile]의 본문. 건너뛴 항목이면 null을 돌려줄 뿐 진행률은 건드리지 않는다.

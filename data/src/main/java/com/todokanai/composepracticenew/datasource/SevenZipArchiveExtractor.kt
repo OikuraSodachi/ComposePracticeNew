@@ -29,6 +29,7 @@ import java.io.OutputStream
  * 암호화는 두 가지를 다룬다(RAR). 항목 목록까지 암호화한 아카이브는 열 때 비밀번호를 받아 열리는지로 확인하고, 내용만 암호화한 아카이브는 추출 전에 암호화된 항목 하나를
  * 출력 없이 풀어 보아 확인한다. RAR4는 비밀번호 검증값이 없어 틀린 비밀번호가 데이터·CRC 오류로만 드러나므로 손상과 구분하지 않는다(다시 물을 때 '틀렸거나 손상').
  * 한 아카이브 안에서 항목마다 다른 비밀번호를 쓴 경우는 지원 범위 밖이다 — 확인한 비밀번호가 맞지 않는 항목은 풀 수 없는 항목으로 실패한다.
+ * 링크 항목([isSevenZipLink])은 풀지 않고 실패로 알린다(지원 범위 밖, #424).
  * @param names 파일 이름의 역할을 정하는 이름 규칙. 아카이브 이름이 아니면 null
  * @param formats 이 순서대로 지정해 열어 보는 7-Zip 형식. 여러 형식으로 읽히는 파일은 앞의 형식으로 다룬다
  * @param label 열지 못했을 때 실패 메시지에 쓰는 형식 이름
@@ -248,6 +249,7 @@ internal class SevenZipExtractCallback(
         when (entry) {
             is SevenZipEntryKind.Folder -> { currentItemSize = null; writer.createFolder(entry.path); null }
             is SevenZipEntryKind.File -> openFile(entry.path, sizeOf(index))
+            is SevenZipEntryKind.Link -> { currentItemSize = null; writer.skipLink(entry.path, sizeOf(index)); null }
         }
     }
 
@@ -310,22 +312,76 @@ private fun knownSizeOf(archive: IInArchive, index: Int): Long? = (archive.getPr
  * @throws IOException 경로가 없는 항목일 때
  */
 private fun entryKindOf(archive: IInArchive, index: Int): SevenZipEntryKind =
-    sevenZipEntryKindOf(archive.getProperty(index, PropID.IS_FOLDER), archive.getProperty(index, PropID.PATH))
+    sevenZipEntryKindOf(archive.getProperty(index, PropID.IS_FOLDER), archive.getProperty(index, PropID.PATH), isLinkEntry(archive, index))
+
+/**
+ * 열린 아카이브의 항목이 링크인지 판별한다.
+ * @param archive 열린 아카이브
+ * @param index 항목 번호
+ * @return 링크 항목이면 true
+ */
+private fun isLinkEntry(archive: IInArchive, index: Int): Boolean =
+    isSevenZipLink(
+        symLink = archive.getProperty(index, PropID.SYM_LINK),
+        hardLink = archive.getProperty(index, PropID.HARD_LINK),
+        posixAttrib = archive.getProperty(index, PropID.POSIX_ATTRIB),
+        attributes = archive.getProperty(index, PropID.ATTRIBUTES),
+    )
 
 /**
  * 항목 속성으로 추출이 그 항목을 어떻게 다루는지 판별한다. 산정·나열·추출이 같은 규칙으로 항목을 고르도록 한 곳에 둔다.
- * 경로가 없는 항목은 놓을 위치를 정할 수 없으므로 읽지 못하는 아카이브로 알린다.
+ * 경로가 없는 항목은 놓을 위치를 정할 수 없으므로 읽지 못하는 아카이브로 알린다. 링크는 폴더로 표시돼 있어도(디렉터리 링크·정션) 링크로 판별한다.
  * 라이브러리 없이 검증할 수 있도록 속성 값만 받는다.
  * @param isFolder 항목의 IS_FOLDER 속성 값
  * @param path 항목의 PATH 속성 값
- * @return '/' 구분으로 정규화한 경로의 [SevenZipEntryKind.Folder] 또는 [SevenZipEntryKind.File]
+ * @param isLink 항목이 링크인지([isSevenZipLink])
+ * @return '/' 구분으로 정규화한 경로의 [SevenZipEntryKind]
  * @throws IOException 경로가 없는 항목일 때
  */
-internal fun sevenZipEntryKindOf(isFolder: Any?, path: Any?): SevenZipEntryKind {
+internal fun sevenZipEntryKindOf(isFolder: Any?, path: Any?, isLink: Boolean): SevenZipEntryKind {
     if (path !is String) throw IOException(UNNAMED_ENTRY_MESSAGE)
     val normalized = path.replace('\\', '/')
-    return if (isFolder as? Boolean == true) SevenZipEntryKind.Folder(normalized) else SevenZipEntryKind.File(normalized)
+    return when {
+        isLink -> SevenZipEntryKind.Link(normalized)
+        isFolder as? Boolean == true -> SevenZipEntryKind.Folder(normalized)
+        else -> SevenZipEntryKind.File(normalized)
+    }
 }
+
+/**
+ * 항목 속성이 링크(심볼릭·하드 링크)를 나타내는지 판별한다. 형식마다 링크를 알리는 속성이 달라 알 수 있는 속성을 모두 본다:
+ * RAR5는 SYM_LINK(Windows 링크·정션 포함)·HARD_LINK, ISO Rock Ridge는 SYM_LINK·POSIX_ATTRIB, p7zip이 만든 7z는 ATTRIBUTES의 위쪽 16비트에 담은 Unix 모드(0x8000 표시).
+ * 형식이 알리지 않는 속성은 null이라 링크로 보지 않는다. 링크 정보를 알리지 않는 형식(RAR4의 Unix 링크, UDF)의 링크는 판별할 수 없다(지원 범위 밖).
+ * RAR5의 복사 링크(COPY_LINK)는 라이브러리가 가리키는 파일의 내용으로 풀므로 링크로 보지 않는다.
+ * 라이브러리 없이 검증할 수 있도록 속성 값만 받는다.
+ * @param symLink 항목의 SYM_LINK 속성 값(링크 대상 경로)
+ * @param hardLink 항목의 HARD_LINK 속성 값(링크 대상 경로)
+ * @param posixAttrib 항목의 POSIX_ATTRIB 속성 값(Unix 모드)
+ * @param attributes 항목의 ATTRIBUTES 속성 값(Windows 속성, 0x8000이면 위쪽 16비트가 Unix 모드)
+ * @return 링크 항목이면 true
+ */
+internal fun isSevenZipLink(symLink: Any?, hardLink: Any?, posixAttrib: Any?, attributes: Any?): Boolean =
+    isLinkTarget(symLink) || isLinkTarget(hardLink) ||
+        (posixAttrib as? Int)?.let(::isSymlinkMode) == true ||
+        (attributes as? Int)?.let(::isUnixExtendedSymlink) == true
+
+/**
+ * 링크 대상 속성 값이 링크를 나타내는지 판별한다. 링크가 아닌 항목은 형식에 따라 null이나 빈 문자열이다.
+ * @param target SYM_LINK·HARD_LINK 속성 값
+ * @return 비어 있지 않은 대상 경로면 true
+ */
+private fun isLinkTarget(target: Any?): Boolean = (target as? String)?.isNotEmpty() == true
+
+/**
+ * Windows 속성 값이 Unix 확장 표시(0x8000)와 함께 위쪽 16비트에 심볼릭 링크 모드를 담았는지 판별한다.
+ * @param attributes ATTRIBUTES 속성 값
+ * @return 링크 모드를 담았으면 true
+ */
+private fun isUnixExtendedSymlink(attributes: Int): Boolean =
+    (attributes and FILE_ATTRIBUTE_UNIX_EXTENSION) != 0 &&isSymlinkMode(attributes ushr 16)
+
+/** 7-Zip이 Windows 속성의 위쪽 16비트에 Unix 모드를 담았음을 나타내는 표시. */
+private const val FILE_ATTRIBUTE_UNIX_EXTENSION = 0x8000
 
 /** 경로가 없는 항목이 있는 아카이브의 실패 메시지. */
 private const val UNNAMED_ENTRY_MESSAGE = "이름 없는 항목이 있는 압축 파일입니다"
@@ -347,4 +403,10 @@ internal sealed interface SevenZipEntryKind {
      * @param path 아카이브 안의 '/' 구분 경로
      */
     data class File(override val path: String) : SevenZipEntryKind
+
+    /**
+     * 추출이 만들지 않고 실패로 알리는 링크 항목(심볼릭·하드 링크, 지원 범위 밖).
+     * @param path 아카이브 안의 '/' 구분 경로
+     */
+    data class Link(override val path: String) : SevenZipEntryKind
 }
