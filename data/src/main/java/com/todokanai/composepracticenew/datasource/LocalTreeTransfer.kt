@@ -1,11 +1,12 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.data.progress.ProgressMark
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
-import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.failedItemsAt
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
@@ -13,6 +14,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.file.FileAlreadyExistsException
 import java.nio.file.Files
 import javax.inject.Inject
@@ -42,36 +45,21 @@ class LocalTreeTransfer internal constructor(
      * @param targetPath 복사 대상 디렉터리 경로
      * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 복사 결과. 한 항목이 입출력 실패로 멈춰도 나머지 항목은 복사하고, 실패와 건너뛴 링크를 모아 알린다
+     * @return 복사 결과. 한 항목(폴더 안쪽 항목 포함)이 입출력 실패로 멈춰도 나머지 항목은 복사하고, 실패와 건너뛴 링크를 모아 알린다
      */
     suspend fun copy(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo copy@{
             val roots = targetFiles.map(::File)
-            val totals = roots.map(::treeTotalOf)
-            val totalBytes = totals.sumOf { it.bytes }
+            val totals = treeTotalsOf(roots)
+            val totalBytes = roots.sumOf { totals.of(it).bytes }
             checkDiskSpace(totalBytes, freeSpaceOf(File(targetPath)))?.let { return@copy IoResult.ItemFailed(it) }
-            val tracker = ByteProgressTracker(totalBytes, totals.sumOf { it.fileCount }, onProgress)
-            tracker.reportStart()
+            val progress = TreeProgress(ByteProgressTracker(totalBytes, roots.sumOf { totals.of(it).fileCount }, onProgress), totals)
+            progress.reportStart()
 
-            // 선택 항목마다 입출력 실패를 결과로 바꾼다 — 한 항목의 실패가 서로 무관한 다른 항목의 복사와 모은 링크 실패를 버리지 않도록(#502)
             forEachCollectingFailures(roots, nameOf = { it.name }) { root ->
-                localIo { copyRoot(root, File(targetPath, root.name), tracker, resolveConflict) }
-            }.also { tracker.reportComplete() }
+                transferRoot(root) { failures -> copyEntry(root, File(targetPath, root.name), progress, resolveConflict, deleteSource = false, failures) }
+            }.also { progress.reportComplete() }
         }
-    }
-
-    /**
-     * 선택 항목 [root]를 [target] 자리로 복사한다. 그 안쪽의 입출력 실패는 IOException으로 전파해 호출부의 [localIo]가 이 항목의 실패로 바꾼다.
-     * @param root 사용자가 선택한 복사 대상
-     * @param target [root]가 놓일 자리
-     * @param tracker 작업 전체의 진행률
-     * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로
-     * @return 건너뛴 링크가 있으면 [root] 기준 상대 경로로 그 목록을 담은 실패, 없으면 성공
-     */
-    private suspend fun copyRoot(root: File, target: File, tracker: ByteProgressTracker, resolveConflict: WriteConflictResolver): IoResult<Unit> {
-        val links = mutableListOf<File>()
-        copyEntry(root, target, tracker, resolveConflict, deleteSource = false, links)
-        return resultSkipping(links.map { FailedItem(root.slashRelativePathOf(it), FailureReason.UnsupportedLink()) })
     }
 
     /**
@@ -80,7 +68,7 @@ class LocalTreeTransfer internal constructor(
      * @param targetPath 이동 대상 디렉터리 경로
      * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로
      * @param onProgress 진행 상태를 수신하는 콜백
-     * @return 이동 결과. 중간에 실패하면 앞선 항목은 이미 이동된 상태다
+     * @return 이동 결과. 한 항목(폴더 안쪽 항목 포함)이 입출력 실패로 멈춰도 나머지 항목은 옮기고, 실패와 건너뛴 링크를 모아 알린다. 실패한 항목과 그것을 품은 폴더는 원래 자리에 남는다
      */
     suspend fun move(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo move@{
@@ -88,73 +76,102 @@ class LocalTreeTransfer internal constructor(
             val destDir = File(targetPath)
 
             // 이동 전에 모든 트리를 미리 탐색해 크기를 확보 (rename 후에는 원본이 사라지므로)
-            val totals = roots.map(::treeTotalOf)
+            val totals = treeTotalsOf(roots)
             val samePartition = roots.map { isSamePartition(it, destDir) }
 
             val crossBytes = roots.indices
                 .filter { !samePartition[it] }
-                .sumOf { totals[it].bytes }
+                .sumOf { totals.of(roots[it]).bytes }
             if (crossBytes > 0) {
                 val free = freeSpaceOf(destDir)
                 if (free == 0L) return@move IoResult.ItemFailed(FailureReason.NoFreeSpace)
                 checkDiskSpace(crossBytes, free)?.let { return@move IoResult.ItemFailed(it) }
             }
-            val tracker = ByteProgressTracker(totals.sumOf { it.bytes }, totals.sumOf { it.fileCount }, onProgress)
-            tracker.reportStart()
+            val progress = TreeProgress(ByteProgressTracker(roots.sumOf { totals.of(it).bytes }, roots.sumOf { totals.of(it).fileCount }, onProgress), totals)
+            progress.reportStart()
 
-            val skippedLinks = mutableListOf<FailedItem>()
-            roots.forEachIndexed { i, root ->
+            forEachCollectingFailures(roots.zip(samePartition), nameOf = { (root, _) -> root.name }) { (root, samePartitionAsDest) ->
                 val dest = File(targetPath, root.name)
-                val links = mutableListOf<File>()
-                // 입출력 실패에 어느 항목에서 멈췄는지와 이미 옮긴 항목 수를 붙인다 — 두 이동 경로가 같은 문맥을 알린다
-                localIo(describe = { e -> FailureReason.MoveInterrupted(root.name, i, ioFailureReasonOf(e)) }) step@{
-                    if (samePartition[i]) renameEntry(root, dest, tracker, resolveConflict, links)
-                    else copyEntry(root, dest, tracker, resolveConflict, deleteSource = true, links)
-                    IoResult.Done
-                }.valueOr { return@move it }
-                skippedLinks += links.map { unsupportedLinkUnder(root, it) }
-            }
-            tracker.reportComplete()
-            resultSkipping(skippedLinks)
+                transferRoot(root) { failures ->
+                    if (samePartitionAsDest) renameEntry(root, dest, progress, resolveConflict, failures)
+                    else copyEntry(root, dest, progress, resolveConflict, deleteSource = true, failures)
+                }
+            }.also { progress.reportComplete() }
         }
     }
 
     /**
-     * 건너뛴 링크가 있으면 그 목록을 실패로, 없으면 성공을 돌려준다.
-     * 복사는 선택 항목마다 부른다. 이동은 끝까지 처리했을 때만 부른다 — 도중에 입출력 실패로 멈추면 그 실패만 알리고 그때까지 모은 링크는 알리지 않는다
-     * (링크는 원래 자리에 남아 잃는 데이터는 없다. PR #336 리뷰 2번, 고치지 않기로 함).
-     * @param skippedLinks 건너뛴 링크의 실패 항목
-     * @return 작업 결과
+     * 선택 항목 [root]를 [transfer]로 옮기고, 옮기지 못한 항목을 [root] 기준 상대 경로의 실패로 모아 돌려준다(대상 자신은 빈 경로).
+     * @param root 사용자가 선택한 대상
+     * @param transfer 옮기지 못한 항목을 받은 목록에 넣으며 [root]를 옮기는 작업
+     * @return 옮기지 못한 항목이 있으면 그 목록을 담은 실패, 없으면 성공
      */
-    private fun resultSkipping(skippedLinks: List<FailedItem>): IoResult<Unit> =
-        if (skippedLinks.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(skippedLinks)
+    private inline fun transferRoot(root: File, transfer: (MutableList<EntryFailure>) -> Unit): IoResult<Unit> {
+        val failures = mutableListOf<EntryFailure>()
+        transfer(failures)
+        return if (failures.isEmpty()) IoResult.Done
+        else IoResult.PartiallyFailed(failures.flatMap { it.failure.failedItemsAt(root.slashRelativePathOf(it.file)) })
+    }
+
+    /**
+     * 항목 [src] 하나를 옮기는 [step]을 실행하고, 입출력 실패면 [src]의 실패로 [failures]에 넣는다 —
+     * 한 항목의 실패가 형제 항목과 다른 선택 항목을 멈추지 않도록, 실패를 항목마다 결과로 바꾼다(#502, #504).
+     * 실패하면 [src]에서 아직 세지 않은 몫을 진행률에 넘긴다 — 건너뛴 항목처럼 처리한 것으로 세어, 진행이 멈춰 있다가 끝에 뛰지 않도록.
+     * @param src 옮길 항목
+     * @param progress 작업 전체의 진행률
+     * @param failures 옮기지 못한 항목을 모으는 목록
+     * @param step [src]를 옮기는 작업. 입출력 실패는 IOException으로 던진다
+     * @return [step]의 결과. 실패했으면 false — [src]가 원래 자리에 남으므로 그것을 품은 폴더를 지우지 않도록
+     */
+    private inline fun attempting(src: File, progress: TreeProgress, failures: MutableList<EntryFailure>, step: () -> Boolean): Boolean {
+        val mark = progress.mark()
+        return localIo { IoResult.Success(step()) }.valueOr { failure ->
+            failures += EntryFailure(src, failure)
+            progress.passOverRest(src, mark)
+            return false
+        }
+    }
 
     /**
      * [src]를 [target] 자리로 복사한다. 폴더는 안쪽 항목을 하나씩 복사하고, [deleteSource]면 다 옮긴 항목의 원본을 복사본과 그 이름을 장치에 기록한 뒤 지운다(교차 파티션 이동, #430).
      * 같은 이름의 항목이 있으면 [resolveConflict]에 묻는다. 건너뛴 항목(폴더면 그 안쪽 전체)은 진행률에서 처리한 것으로 넘기고 원본을 남긴다.
-     * 링크는 따라가지 않고 건너뛰어 [skippedLinks]에 넣으며, 원본에 남는다. 목적지 자리에 링크가 있는 원본도 같이 건너뛴다.
-     * 입출력 실패는 IOException으로 전파해 호출부의 [localIo]가 결과로 바꾼다. 취소되면 쓰던 파일만 지우고, 이미 다 쓴 파일은 남긴다.
-     * @return [src]의 모든 항목을 옮겼으면 true. 건너뛴 항목이 있으면 false
+     * 링크는 따라가지 않고 건너뛰어 [failures]에 넣으며, 원본에 남는다. 목적지 자리에 링크가 있는 원본도 같이 건너뛴다.
+     * 항목 하나가 입출력 실패로 멈추면 그 항목을 [failures]에 넣고 형제 항목을 계속 복사한다. 실패한 항목과 그것을 품은 폴더의 원본은 남는다.
+     * 취소되면 쓰던 파일만 지우고, 이미 다 쓴 파일은 남긴다.
+     * @return [src]의 모든 항목을 옮겼으면 true. 건너뛰거나 실패한 항목이 있으면 false
      */
     private suspend fun copyEntry(
         src: File,
         target: File,
-        tracker: ByteProgressTracker,
+        progress: TreeProgress,
         resolveConflict: WriteConflictResolver,
         deleteSource: Boolean,
-        skippedLinks: MutableList<File>
+        failures: MutableList<EntryFailure>
+    ): Boolean = attempting(src, progress, failures) { copyEntryOrThrow(src, target, progress, resolveConflict, deleteSource, failures) }
+
+    /**
+     * [copyEntry]의 본문. [src] 자신의 입출력 실패는 IOException으로 던져 [copyEntry]가 [src]의 실패로 바꾼다.
+     * @return [src]의 모든 항목을 옮겼으면 true. 건너뛰거나 실패한 항목이 있으면 false
+     */
+    private suspend fun copyEntryOrThrow(
+        src: File,
+        target: File,
+        progress: TreeProgress,
+        resolveConflict: WriteConflictResolver,
+        deleteSource: Boolean,
+        failures: MutableList<EntryFailure>
     ): Boolean {
         when (src.entryKind) {
-            LocalEntryKind.LINK -> return false.also { skippedLinks += src }
+            LocalEntryKind.LINK -> return false.also { failures += unsupportedLink(src) }
             LocalEntryKind.DIRECTORY -> {
                 when (val slot = createDirectoryResolving(target) { resolveConflict.resolve(it) }) {
                     is WriteSlot.Ready -> Unit
-                    WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, tracker, skippedLinks)
+                    WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, progress, failures)
                 }
                 // 안쪽 원본을 지우기 전에 이 폴더의 이름을 장치에 남긴다 — 남기지 않으면 안쪽 파일을 기록해도 찾아갈 길이 없다
                 if (deleteSource) syncToDisk(target.parentFile!!)
                 val complete = childrenOf(src).fold(true) { complete, child ->
-                    copyEntry(child, File(target, child.name), tracker, resolveConflict, deleteSource, skippedLinks) && complete
+                    copyEntry(child, File(target, child.name), progress, resolveConflict, deleteSource, failures) && complete
                 }
                 if (complete && deleteSource) Files.delete(src.toPath())
                 return complete
@@ -165,16 +182,16 @@ class LocalTreeTransfer internal constructor(
         src.inputStream().use { input ->
             val output = when (val slot = openNewFileResolving(target) { resolveConflict.resolve(it) }) {
                 is WriteSlot.Ready -> slot.value
-                WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, tracker, skippedLinks)
+                WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, progress, failures)
             }
-            tracker.startFile()
+            progress.startFile()
             deletingOnCancel(target) {
-                output.use { tracker.pump(input, it, src.name, src.length()) }
+                output.use { progress.pump(input, it, src) }
             }
         }
         // 기록을 마친 뒤에 끝난 파일로 센다 — 큰 파일을 기록하는 동안 진행 표시가 끝난 것처럼 보이지 않도록
         if (deleteSource) persistCopy(target)
-        tracker.onFileCompleted(src.name, src.length())
+        progress.onFileCompleted(src)
         if (deleteSource && !src.delete()) throw IOException("원본 삭제 실패: ${src.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다")
         return true
     }
@@ -193,33 +210,46 @@ class LocalTreeTransfer internal constructor(
     /**
      * 같은 파티션 안에서 [src]를 [target] 자리로 rename한다. 같은 이름의 항목이 있으면 [resolveConflict]에 묻는다.
      * 폴더끼리 겹쳐 합치면 안쪽 항목을 하나씩 옮기고, 다 옮긴 원본 폴더만 지운다. 건너뛴 항목은 원래 자리에 남는다.
-     * 항목을 하나씩 다룰 때 만난 링크(목적지 자리의 링크 포함)는 건너뛰어 [skippedLinks]에 넣는다. 폴더를 통째로 rename하면 안쪽은 훑지 않으므로 안쪽 링크도 링크 그대로 함께 옮겨진다.
-     * @return [src]의 모든 항목을 옮겼으면 true. 건너뛴 항목이 있으면 false
+     * 항목을 하나씩 다룰 때 만난 링크(목적지 자리의 링크 포함)는 건너뛰어 [failures]에 넣는다. 폴더를 통째로 rename하면 안쪽은 훑지 않으므로 안쪽 링크도 링크 그대로 함께 옮겨진다.
+     * 항목 하나가 입출력 실패로 멈추면 그 항목을 [failures]에 넣고 형제 항목을 계속 옮긴다. 실패한 항목과 그것을 품은 폴더는 원래 자리에 남는다.
+     * @return [src]의 모든 항목을 옮겼으면 true. 건너뛰거나 실패한 항목이 있으면 false
      */
     private suspend fun renameEntry(
         src: File,
         target: File,
-        tracker: ByteProgressTracker,
+        progress: TreeProgress,
         resolveConflict: WriteConflictResolver,
-        skippedLinks: MutableList<File>
+        failures: MutableList<EntryFailure>
+    ): Boolean = attempting(src, progress, failures) { renameEntryOrThrow(src, target, progress, resolveConflict, failures) }
+
+    /**
+     * [renameEntry]의 본문. [src] 자신의 입출력 실패는 IOException으로 던져 [renameEntry]가 [src]의 실패로 바꾼다.
+     * @return [src]의 모든 항목을 옮겼으면 true. 건너뛰거나 실패한 항목이 있으면 false
+     */
+    private suspend fun renameEntryOrThrow(
+        src: File,
+        target: File,
+        progress: TreeProgress,
+        resolveConflict: WriteConflictResolver,
+        failures: MutableList<EntryFailure>
     ): Boolean {
         val kind = src.entryKind
-        if (kind == LocalEntryKind.LINK) return false.also { skippedLinks += src }
+        if (kind == LocalEntryKind.LINK) return false.also { failures += unsupportedLink(src) }
         if (kind == LocalEntryKind.DIRECTORY) {
             try {
                 // 덮어쓰지 않는 rename — 확인 뒤에 같은 이름의 빈 폴더가 생겼으면 그 빈 폴더를 대신하고, 비어 있지 않은 폴더나 파일이면 실패한다
                 Files.move(src.toPath(), target.toPath())
-                // 옮긴 트리를 그 자리에서 센다 — 합치기로 내려가는 경로는 안쪽 항목이 스스로 세므로 미리 세지 않는다
-                tracker.passOver(target)
+                // 옮긴 트리를 작업 전에 센 몫으로 넘긴다 — 합치기로 내려가는 경로는 안쪽 항목이 스스로 센다
+                progress.passOver(src)
                 return true
             } catch (e: FileAlreadyExistsException) {
                 when (val slot = resolveExisting(target, sourceIsDirectory = true) { resolveConflict.resolve(it) }) {
                     is WriteSlot.Ready -> Unit
-                    WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, tracker, skippedLinks)
+                    WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, progress, failures)
                 }
             }
             val complete = childrenOf(src).fold(true) { complete, child ->
-                renameEntry(child, File(target, child.name), tracker, resolveConflict, skippedLinks) && complete
+                renameEntry(child, File(target, child.name), progress, resolveConflict, failures) && complete
             }
             if (complete) Files.delete(src.toPath())
             return complete
@@ -233,25 +263,32 @@ class LocalTreeTransfer internal constructor(
                 if (slot.value == FileReservation.CREATED) target.delete()
                 throw e
             }
-            WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, tracker, skippedLinks)
+            WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, progress, failures)
         }
-        tracker.passOver(src)
+        progress.passOver(src)
         return true
     }
 
     /**
-     * 목적지 자리를 확보하지 못해 옮기지 않은 [src]를 진행률에서 처리한 것으로 넘긴다. 자리에 링크가 있었으면 [src]를 [skippedLinks]에 넣어 실패로 알린다.
+     * 목적지 자리를 확보하지 못해 옮기지 않은 [src]를 진행률에서 처리한 것으로 넘긴다. 자리에 링크가 있었으면 [src]를 [failures]에 넣어 실패로 알린다.
      * @param src 옮기지 않은 원본(폴더면 그 안쪽 전체)
      * @param slot 확보하지 못한 결과([WriteSlot.Skipped] 또는 [WriteSlot.Link])
-     * @param tracker 진행률 보고기
-     * @param skippedLinks 링크 때문에 건너뛴 항목을 모으는 목록
+     * @param progress 작업 전체의 진행률
+     * @param failures 옮기지 못한 항목을 모으는 목록
      * @return 언제나 false — [src]를 다 옮기지 못했다
      */
-    private fun passedOver(src: File, slot: WriteSlot<*>, tracker: ByteProgressTracker, skippedLinks: MutableList<File>): Boolean {
-        tracker.passOver(src)
-        if (slot == WriteSlot.Link) skippedLinks += src
+    private fun passedOver(src: File, slot: WriteSlot<*>, progress: TreeProgress, failures: MutableList<EntryFailure>): Boolean {
+        progress.passOver(src)
+        if (slot == WriteSlot.Link) failures += unsupportedLink(src)
         return false
     }
+
+    /**
+     * 링크라서 건너뛴 [src]의 실패를 만든다.
+     * @param src 건너뛴 항목
+     * @return [src]의 링크 실패
+     */
+    private fun unsupportedLink(src: File) = EntryFailure(src, IoResult.ItemFailed(FailureReason.UnsupportedLink()))
 
     /**
      * 폴더 [dir] 바로 아래 항목을 돌려준다.
@@ -259,19 +296,28 @@ class LocalTreeTransfer internal constructor(
      */
     private fun childrenOf(dir: File): List<File> = dir.listFiles()?.toList() ?: throw IOException("폴더를 읽지 못함: ${dir.name}")
 
-    /** [src] 트리 전체를 쓰지 않고 처리한 것으로 진행률에 넘긴다(건너뛰기). */
-    private fun ByteProgressTracker.passOver(src: File) = passOver(treeTotalOf(src), src.name)
-
-    /** [total]만큼의 파일과 바이트를 복사 없이 처리한 것으로 진행률에 넘긴다(rename·건너뛰기). */
-    private fun ByteProgressTracker.passOver(total: TreeTotal, name: String) {
-        skipFiles(total.fileCount)
-        addBytes(total.bytes, name, fileBytes = null)
-    }
-
-    /** [root] 트리의 파일 수와 바이트 합. 링크는 옮기지 않으므로, 나열하지 못한 폴더의 안쪽은 순회에 나오지 않으므로 세지 않는다. */
-    private fun treeTotalOf(root: File): TreeTotal {
-        val files = root.localTreeTopDown().filter { it.kind == LocalTreeEntryKind.FILE }.map { it.file }.toList()
-        return TreeTotal(files.size, files.sumOf { it.length() })
+    /**
+     * [roots] 트리를 한 번 훑어 항목(파일·폴더)마다 파일 수와 바이트 합을 센다. 폴더의 몫은 그 안쪽 전체의 합이다.
+     * 링크는 옮기지 않으므로, 나열하지 못한 폴더의 안쪽은 순회에 나오지 않으므로 세지 않는다.
+     * @param roots 사용자가 선택한 대상
+     * @return 항목별 몫
+     */
+    private fun treeTotalsOf(roots: List<File>): TreeTotals {
+        val byEntry = HashMap<File, TreeTotal>()
+        for (root in roots) for (entry in root.localTreeTopDown()) {
+            when (entry.kind) {
+                LocalTreeEntryKind.LINK -> Unit
+                LocalTreeEntryKind.DIRECTORY, LocalTreeEntryKind.UNLISTED_DIRECTORY -> byEntry[entry.file] = TreeTotal.NONE
+                LocalTreeEntryKind.FILE -> {
+                    val file = TreeTotal(1, entry.file.length())
+                    byEntry[entry.file] = file
+                    // 선택 항목까지의 상위 폴더마다 이 파일의 몫을 더한다 — 위에서 아래로 훑으므로 상위 폴더는 이미 들어 있다
+                    generateSequence(entry.file) { if (it == root) null else it.parentFile }.drop(1)
+                        .forEach { dir -> byEntry[dir] = byEntry.getValue(dir) + file }
+                }
+            }
+        }
+        return TreeTotals(byEntry)
     }
 
     /**
@@ -279,5 +325,86 @@ class LocalTreeTransfer internal constructor(
      * @param fileCount 폴더를 뺀 파일 수
      * @param bytes 파일 크기의 합
      */
-    private class TreeTotal(val fileCount: Int, val bytes: Long)
+    private class TreeTotal(val fileCount: Int, val bytes: Long) {
+        /** 두 몫을 더한다. */
+        operator fun plus(other: TreeTotal) = TreeTotal(fileCount + other.fileCount, bytes + other.bytes)
+
+        companion object {
+            /** 파일이 없는 몫(빈 폴더, 링크). */
+            val NONE = TreeTotal(0, 0L)
+        }
+    }
+
+    /**
+     * 작업 전에 센 항목별 몫. 처리하는 동안 원본이 옮겨지거나 지워져 다시 훑을 수 없으므로, 처리하지 않은 항목의 몫은 여기서 찾는다.
+     * @param byEntry 항목별 몫. 링크는 옮기지 않으므로 없다
+     */
+    private class TreeTotals(private val byEntry: Map<File, TreeTotal>) {
+        /**
+         * [entry]의 몫을 돌려준다.
+         * @param entry 작업 전에 훑은 트리의 항목
+         * @return [entry]의 몫. 링크면 [TreeTotal.NONE]
+         */
+        fun of(entry: File): TreeTotal = byEntry[entry] ?: TreeTotal.NONE
+    }
+
+    /**
+     * 작업 전체의 진행률과 작업 전에 센 항목별 몫. 바이트를 복사하지 않고 처리한 항목(rename·건너뛰기·실패)의 몫을 미리 센 값으로 넘긴다.
+     * 복사한 바이트와 넘긴 몫이 같은 진행률에 쌓여야 기준점 뒤의 모자란 몫이 맞으므로, 진행 보고는 모두 이 클래스를 거친다.
+     * @param tracker 작업 전체의 진행률
+     * @param totals 작업 전에 센 항목별 몫
+     */
+    private class TreeProgress(private val tracker: ByteProgressTracker, private val totals: TreeTotals) {
+        /** 작업 시작 상태를 보고한다. */
+        fun reportStart() = tracker.reportStart()
+
+        /** 작업 완료를 보고한다. */
+        fun reportComplete() = tracker.reportComplete()
+
+        /**
+         * 지금까지 센 몫을 기준점으로 돌려준다. 한 항목을 처리하기 전에 받아 두고 [passOverRest]에 넘긴다.
+         * @return 지금의 기준점
+         */
+        fun mark(): ProgressMark = tracker.mark()
+
+        /** 다음 파일 복사를 시작한다. */
+        fun startFile() = tracker.startFile()
+
+        /**
+         * [input]을 [output]에 쓰면서 쓴 바이트를 진행률에 쌓는다.
+         * @param input 원본 파일의 스트림
+         * @param output 복사본의 스트림
+         * @param src 복사 중인 원본 파일
+         */
+        fun pump(input: InputStream, output: OutputStream, src: File) = tracker.pump(input, output, src.name, src.length())
+
+        /**
+         * 파일 [src]의 복사를 마친 것으로 센다.
+         * @param src 복사를 마친 원본 파일
+         */
+        fun onFileCompleted(src: File) = tracker.onFileCompleted(src.name, src.length())
+
+        /**
+         * [src] 트리 전체를 복사 없이 처리한 것으로 넘긴다(rename·건너뛰기).
+         * @param src 처리한 원본 항목
+         */
+        fun passOver(src: File) = passOverRest(src, tracker.mark())
+
+        /**
+         * [mark] 뒤로 [src]에서 센 몫을 뺀 나머지를 처리한 것으로 넘긴다 — 도중에 실패한 항목의 남은 몫이 진행에서 빠지지 않도록.
+         * @param src 처리를 마친 원본 항목
+         * @param mark [src]를 처리하기 전에 받은 기준점
+         */
+        fun passOverRest(src: File, mark: ProgressMark) {
+            val total = totals.of(src)
+            tracker.catchUp(mark, total.fileCount, total.bytes, src.name)
+        }
+    }
 }
+
+/**
+ * 옮기지 못한 항목과 그 실패.
+ * @param file 옮기지 못한 원본 항목
+ * @param failure 그 항목의 실패
+ */
+private class EntryFailure(val file: File, val failure: IoResult.Failure)

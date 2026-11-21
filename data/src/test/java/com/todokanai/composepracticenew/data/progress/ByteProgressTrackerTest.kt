@@ -254,6 +254,20 @@ class ByteProgressTrackerTest {
         assertEquals(240L, reports.last().writtenBytes)
     }
 
+    @Test
+    fun `기준점 뒤로 모자란 몫만 넘기고 이미 센 파일과 바이트는 다시 세지 않는다`() {
+        val tracker = ByteProgressTracker(totalBytes = 400, totalFileCount = 4, onProgress = { reports += it })
+        val mark = tracker.mark()
+        tracker.startFile()
+        tracker.addBytes(50, "a", 200)
+
+        tracker.catchUp(mark, fileCount = 2, bytes = 300, fileName = "dir")
+
+        assertEquals(75, reports.last().progress)
+        assertEquals(300L, reports.last().writtenBytes)
+        assertEquals(2, reports.last().currentIndex)
+    }
+
     private fun unknownTotalTracker(totalFileCount: Int, knownBytes: Long = 0, unknownFileCount: Int = totalFileCount) = ByteProgressTracker(
         total = TransferTotal.Partial(knownBytes, unknownFileCount),
         totalFileCount = totalFileCount,

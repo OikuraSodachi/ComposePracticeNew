@@ -87,8 +87,6 @@ private fun instantStepOf(operation: InstantOperation): RemoteStep = when (opera
  * @return 표시 문구
  */
 private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
-    is FailureReason.MoveInterrupted ->
-        UiText.Resource(R.string.failure_move_interrupted, listOf(reason.name, reasonOrUnknownTextOf(reason.cause, null), reason.movedCount))
     FailureReason.ProtectionRefused -> UiText.Resource(R.string.error_protection_refused)
     is FailureReason.IoFailed -> UiText.Raw(reason.detail)
     is FailureReason.FileSystemRefused -> fileSystemRefusedTextOf(reason)
