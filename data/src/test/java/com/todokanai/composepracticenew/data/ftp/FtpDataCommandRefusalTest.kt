@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
@@ -73,7 +74,7 @@ class FtpDataCommandRefusalTest {
      */
     private fun downloadFailureReason(scripted: ScriptedFtpServer): FailureReason? {
         val session = connectedSession(scripted)
-        val downloader = FtpOperationParts(session).downloader
+        val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
         val result = runBlocking {
             downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver)
         }

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.data.ftp.ScriptedFtpServer.Companion.TIMEOUT_MILLIS
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
@@ -79,7 +80,7 @@ class FtpDataConnectFailureTest {
             mapOf("PASV" to { exchange -> exchange.send("227 Entering Passive Mode (127,0,0,1,${refusedPort / 256},${refusedPort % 256})") })
         ).also { server = it }
         val session = connectedSession(scripted)
-        val downloader = FtpOperationParts(session).downloader
+        val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
         val localFile = File(dir, "a.txt")
 
         val result = runBlocking {

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
@@ -28,7 +29,7 @@ class FtpControlChannelFailureTest {
     private val session = FtpSession(client)
     private val commands = FtpOperationParts(session)
     /** 검증 대상 다운로더. */
-    private val downloader = commands.downloader
+    private val downloader = commands.downloader(UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {

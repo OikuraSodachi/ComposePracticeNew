@@ -251,6 +251,23 @@ class FailureTextTest {
         assertEquals(UiText.Raw("reset"), failureTextOf(IoResult.ItemFailed(FailureReason.TransferFailed("reset")), null))
     }
 
+    @Test
+    fun `남은 파일을 지우지 못한 실패는 원래 원인 뒤에 지우지 못한 원인을 보이고 머리말과 겹치는 단계 이름은 뺀다`() {
+        val refused = FailureReason.ServerRefused(RemoteStep.DOWNLOAD, "550 gone")
+        val leftover = FailureReason.LeftoverNotRemoved(refused, denied)
+        val heading = UiText.Resource(R.string.failure_partial_heading_download)
+        val leftoverText = UiText.Resource(R.string.failure_leftover_not_removed, listOf(UiText.Raw("550 gone"), denied.asText()))
+
+        assertEquals(
+            UiText.Resource(R.string.failure_with_cause, listOf(UiText.Resource(R.string.failure_at, listOf(heading, "a.txt")), leftoverText)),
+            failureTextOf(IoResult.PartiallyFailed(listOf(FailedItem("a.txt", leftover))), OperationKind.Tracked(FileOperationType.DOWNLOAD))
+        )
+        assertEquals(
+            UiText.Resource(R.string.failure_leftover_not_removed, listOf(UiText.Resource(R.string.failure_reason_unknown), UiText.Resource(R.string.failure_reason_unknown))),
+            failureTextOf(IoResult.ItemFailed(FailureReason.LeftoverNotRemoved(null, null)), null)
+        )
+    }
+
     /** 시스템 메시지 원인의 표시 문구. */
     private fun FailureReason.IoFailed.asText(): UiText = UiText.Raw(detail)
 }

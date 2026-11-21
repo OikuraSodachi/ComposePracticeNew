@@ -29,15 +29,17 @@ import javax.inject.Inject
  * @param freeSpaceOf 경로가 속한 파티션의 여유 공간(bytes)을 돌려주는 함수. 테스트에서는 공간 부족을 재현하도록 넘긴다
  * @param syncToDisk 파일이나 폴더에 쓰인 내용을 장치에 기록하는 함수. 교차 파티션 이동이 원본을 지우기 전에 부른다.
  * 테스트에서는 폴더를 열 수 없는 OS(Windows)에서도 돌고 기록 순서를 확인하도록 넘긴다
+ * @param leftovers 취소·실패로 멈춘 쓰기가 남긴 파일을 지우고, 지우지 못하면 알리는 LeftoverDiscarder
  */
 class LocalTreeTransfer internal constructor(
     private val isSamePartition: (File, File) -> Boolean,
     private val freeSpaceOf: (File) -> Long,
-    private val syncToDisk: (File) -> Unit
+    private val syncToDisk: (File) -> Unit,
+    private val leftovers: LeftoverDiscarder
 ) {
 
     /** 실제 파일시스템을 판별하는 transfer를 만든다. Hilt가 사용하는 생성자다. */
-    @Inject constructor() : this(LocalFileChecks::isSamePartition, File::getFreeSpace, ::forceToDisk)
+    @Inject constructor(leftovers: LeftoverDiscarder) : this(LocalFileChecks::isSamePartition, File::getFreeSpace, ::forceToDisk, leftovers)
 
     /**
      * [targetFiles]를 [targetPath] 디렉터리 아래로 복사한다.
@@ -185,7 +187,7 @@ class LocalTreeTransfer internal constructor(
                 WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, progress, failures)
             }
             progress.startFile()
-            deletingOnCancel(target) {
+            leftovers.deletingOnCancel(target) {
                 output.use { progress.pump(input, it, src) }
             }
         }
@@ -260,13 +262,29 @@ class LocalTreeTransfer internal constructor(
             is WriteSlot.Ready -> try {
                 replaceFileAtomically(src, target)
             } catch (e: IOException) {
-                if (slot.value == FileReservation.CREATED) target.delete()
-                throw e
+                if (slot.value != FileReservation.CREATED) throw e
+                return abandonedReservation(src, target, e, progress, failures)
             }
             WriteSlot.Skipped, WriteSlot.Link -> return passedOver(src, slot, progress, failures)
         }
         progress.passOver(src)
         return true
+    }
+
+    /**
+     * 파일 [src]를 확보한 빈 파일 [reservation] 자리로 rename하지 못했을 때, 이 이동이 만든 그 빈 파일을 지우고 [src]를 [failures]에 넣는다.
+     * 빈 파일을 지우지 못하면 그 사실을 [src]의 실패 원인에 담는다 — 빈 파일이 옮긴 파일처럼 남지 않도록(#431). [src]는 원래 자리에 남는다.
+     * @param src 옮기지 못한 파일
+     * @param reservation 이 이동이 만든 빈 파일
+     * @param error rename의 입출력 실패
+     * @param progress 작업 전체의 진행률
+     * @param failures 옮기지 못한 항목을 모으는 목록
+     * @return 언제나 false — [src]를 옮기지 못했다
+     */
+    private fun abandonedReservation(src: File, reservation: File, error: IOException, progress: TreeProgress, failures: MutableList<EntryFailure>): Boolean {
+        failures += EntryFailure(src, leftovers.discardInto(reservation, IoResult.ItemFailed(ioFailureReasonOf(error))))
+        progress.passOver(src)
+        return false
     }
 
     /**

@@ -47,7 +47,7 @@ class LocalTreeUnlistedFolderTest {
     @Test
     fun `압축은 나열하지 못한 폴더를 빈 폴더로 넣지 않고 나머지로 만든 뒤 실패로 알린다`() = runBlocking {
         assumeUnlistable(locked)
-        val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()))
+        val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()), UnexpectedLeftoverDiscarder)
 
         val result = compression.compress(setOf(source.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 

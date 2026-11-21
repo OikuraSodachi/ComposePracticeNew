@@ -19,7 +19,7 @@ class ArchiveEntryWriterTest {
     /** 추출 루트. */
     private val root = File(dir, "out").also { it.mkdirs() }
     /** 검증 대상. */
-    private val writer = ArchiveEntryWriter(ExtractionRoot(root), UnexpectedConflictAsk, ByteProgressTracker(1, 1, onProgress = {}))
+    private val writer = ArchiveEntryWriter(ExtractionRoot(root), UnexpectedConflictAsk, ByteProgressTracker(1, 1, onProgress = {}), UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {

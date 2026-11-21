@@ -22,7 +22,7 @@ class ZipUndecodableEntryTest {
     /** 압축 해제 목적지. */
     private val dest: File = File(dir, "dest").apply { mkdirs() }
     /** 검증 대상. ZIP 추출기만 둔다. */
-    private val extraction = LocalArchiveExtraction(setOf(ZipArchiveExtractor()))
+    private val extraction = LocalArchiveExtraction(setOf(ZipArchiveExtractor()), UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {

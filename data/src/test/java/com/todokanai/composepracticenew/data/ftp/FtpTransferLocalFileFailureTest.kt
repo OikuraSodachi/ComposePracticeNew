@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
@@ -31,7 +32,7 @@ class FtpTransferLocalFileFailureTest {
     private val session = FtpSession(client)
 
     /** 검증 대상 다운로더. */
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
     /** 검증 대상 업로더. */
     private val uploader = FtpOperationParts(session).uploader(OperationNotices())
 
@@ -86,7 +87,7 @@ class FtpTransferLocalFileFailureTest {
             }
         }
         val dataCommands = DataCommandRunner(session)
-        val observed = FtpOperationParts(session).let { parts -> FtpDownloader(observing, parts.trees, DataCommandRunner(session)) }
+        val observed = FtpOperationParts(session).let { parts -> FtpDownloader(observing, parts.trees, DataCommandRunner(session), UnexpectedLeftoverDiscarder) }
 
         val result = runBlocking { observed.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", target.path, false)), resolveConflict = UnexpectedConflictResolver) }
 

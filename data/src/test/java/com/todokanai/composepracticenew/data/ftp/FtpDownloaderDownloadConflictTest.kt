@@ -1,6 +1,10 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UNDELETABLE_MESSAGE
+import com.todokanai.composepracticenew.datasource.UndeletableLeftoverDiscarder
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.model.ConflictChoice
+import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
@@ -25,7 +29,7 @@ class FtpDownloaderDownloadConflictTest {
     private val dir: File = Files.createTempDirectory("ftp-download-conflict-test").toFile()
     private val client = FakeFtpClient()
     private val session = FtpSession(client)
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
     private val local = File(dir, "a.txt")
 
     /** 받은 겹침(받은 순서). */
@@ -77,6 +81,20 @@ class FtpDownloaderDownloadConflictTest {
         assertTrue(download(answering { throw AssertionError("예상하지 못한 충돌: $it") }) is IoResult.ItemFailed)
 
         assertFalse(local.exists())
+    }
+
+    @Test
+    fun `새로 만든 자리를 지우지 못하면 전송 실패의 원인에 그 사실을 담는다`() {
+        loggedIn()
+        val undeletable = FtpOperationParts(session).downloader(UndeletableLeftoverDiscarder)
+
+        val result = runBlocking {
+            undeletable.download(listOf(DownloadSource("ftp://host/r/a.txt", local.path, isDirectory = false)), answering { throw AssertionError("예상하지 못한 충돌: $it") }).singleItemResult()
+        }
+
+        val reason = (result as IoResult.ItemFailed).reason
+        assertTrue("남은 빈 파일을 원인에 담아야 함: $result", reason is FailureReason.LeftoverNotRemoved && reason.removal == FailureReason.IoFailed(UNDELETABLE_MESSAGE))
+        assertTrue("지우지 못한 빈 파일은 남는다", local.exists())
     }
 
     @Test

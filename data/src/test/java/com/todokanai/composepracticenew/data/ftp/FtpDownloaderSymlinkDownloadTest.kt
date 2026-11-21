@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.datasource.assumeSymlink
 import com.todokanai.composepracticenew.datasource.localTreeBottomUp
@@ -36,7 +37,7 @@ class FtpDownloaderSymlinkDownloadTest {
     private val session = FtpSession(client)
 
     /** 검증 대상. */
-    private val downloader = FtpOperationParts(session).downloader
+    private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
 
     @Before
     fun setUp() {

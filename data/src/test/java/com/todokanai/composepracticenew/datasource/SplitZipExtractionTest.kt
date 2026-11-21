@@ -27,7 +27,7 @@ class SplitZipExtractionTest {
     /** 압축할 내용. 볼륨 여러 개에 걸치도록 분할 최소 크기(64KB)의 세 배를 넘게 둔다. */
     private val content: ByteArray = Random(1).nextBytes(SPLIT_SIZE * 3 + 1000)
     /** 검증 대상. ZIP 추출기만 둔다. */
-    private val extraction = LocalArchiveExtraction(setOf(ZipArchiveExtractor()))
+    private val extraction = LocalArchiveExtraction(setOf(ZipArchiveExtractor()), UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {

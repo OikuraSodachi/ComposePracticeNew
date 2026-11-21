@@ -264,7 +264,7 @@ class ZipPasswordTest {
 
     /** [zip]을 [out]에 [passwords] 세션으로 푼다. */
     private fun extract(zip: File, passwords: ArchivePasswordSession) = ByteProgressTracker(1, 2, onProgress = {}).let { tracker ->
-        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker), passwords, tracker)
+        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), passwords, tracker)
     }
 
     private companion object {

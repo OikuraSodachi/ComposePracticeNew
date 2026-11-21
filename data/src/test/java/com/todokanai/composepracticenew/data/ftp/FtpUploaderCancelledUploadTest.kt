@@ -61,7 +61,7 @@ class FtpUploaderCancelledUploadTest {
         assertThrows(CancellationException::class.java) { runBlocking { uploadCancelledMidway() } }
 
         assertEquals(
-            listOf(NoticeMessage.UploadLeftover(client.storeRequests.single(), LeftoverCause.Refused("550 Permission denied"))),
+            listOf(NoticeMessage.Leftover(client.storeRequests.single(), LeftoverCause.Refused("550 Permission denied"))),
             notices.failures
         )
         assertTrue(runBlocking { session.isReady() })
@@ -75,7 +75,7 @@ class FtpUploaderCancelledUploadTest {
 
         assertTrue(client.deleteRequests.isEmpty())
         assertEquals(
-            listOf(NoticeMessage.UploadLeftover(client.storeRequests.single(), LeftoverCause.SessionEnded)),
+            listOf(NoticeMessage.Leftover(client.storeRequests.single(), LeftoverCause.SessionEnded)),
             notices.failures
         )
         assertFalse(runBlocking { session.isReady() })
@@ -88,7 +88,7 @@ class FtpUploaderCancelledUploadTest {
         assertThrows(CancellationException::class.java) { runBlocking { uploadCancelledMidway() } }
 
         assertEquals(
-            listOf(NoticeMessage.UploadLeftover(client.storeRequests.single(), LeftoverCause.SessionEnded)),
+            listOf(NoticeMessage.Leftover(client.storeRequests.single(), LeftoverCause.SessionEnded)),
             notices.failures
         )
         assertFalse(runBlocking { session.isReady() })

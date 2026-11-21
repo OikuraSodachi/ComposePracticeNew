@@ -25,7 +25,7 @@ import java.util.zip.ZipFile
 class LocalArchiveCompressionTest {
 
     private val dir: File = Files.createTempDirectory("zip-test").toFile()
-    private val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()))
+    private val compression = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()), UnexpectedLeftoverDiscarder)
 
     @After
     fun tearDown() {
@@ -76,7 +76,7 @@ class LocalArchiveCompressionTest {
         assertEquals(listOf("empty/", "src/", "src/a.txt", "src/blank/", "src/blank/deeper/"), entriesOf(out))
         val restored = File(dir, "restored").apply { mkdirs() }
         val tracker = ByteProgressTracker(1, 1, onProgress = {})
-        ZipArchiveExtractor().extract(out.path, ArchiveEntryWriter(ExtractionRoot(restored), UnexpectedConflictAsk, tracker), unexpectedPasswordSession(), tracker)
+        ZipArchiveExtractor().extract(out.path, ArchiveEntryWriter(ExtractionRoot(restored), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker)
         assertTrue(File(restored, "empty").isDirectory)
         assertTrue(File(restored, "src/blank/deeper").isDirectory)
         assertEquals("hello", File(restored, "src/a.txt").readText())
@@ -122,7 +122,7 @@ class LocalArchiveCompressionTest {
     fun `형식을 쓰는 구현이 없으면 아무것도 만들지 않고 실패한다`() = runBlocking {
         val src = folderWith("a.txt", "hello")
 
-        val result = LocalArchiveCompression(emptyMap()).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
+        val result = LocalArchiveCompression(emptyMap(), UnexpectedLeftoverDiscarder).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertTrue(result.toString(), result is IoResult.ItemFailed)
         assertTrue(!File(dir, "out.zip").exists())
@@ -131,7 +131,7 @@ class LocalArchiveCompressionTest {
     @Test
     fun `지원 형식은 구현을 등록한 형식이다`() {
         assertEquals(setOf(ArchiveFormat.ZIP), compression.supportedFormats())
-        assertEquals(emptySet<ArchiveFormat>(), LocalArchiveCompression(emptyMap()).supportedFormats())
+        assertEquals(emptySet<ArchiveFormat>(), LocalArchiveCompression(emptyMap(), UnexpectedLeftoverDiscarder).supportedFormats())
     }
 
     @Test
@@ -139,7 +139,7 @@ class LocalArchiveCompressionTest {
         val src = folderWith("a.txt", "hello")
         val recorder = RecordingCompressor()
 
-        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {})
+        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder), UnexpectedLeftoverDiscarder).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {})
 
         assertEquals(listOf(ArchiveSource.Folder("src"), ArchiveSource.Regular("src/a.txt", File(src, "a.txt"), 5L)), recorder.entries)
         assertEquals(File(dir, "out.zip"), recorder.output)
@@ -153,7 +153,7 @@ class LocalArchiveCompressionTest {
         File(src, "sub/deeper/d.txt").writeText("d")
         val recorder = RecordingCompressor()
 
-        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {})
+        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder), UnexpectedLeftoverDiscarder).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {})
 
         val names = recorder.entries.map { it.name }
         assertEquals(setOf("src", "src/a.txt", "src/sub", "src/sub/c.txt", "src/sub/deeper", "src/sub/deeper/d.txt"), names.toSet())
@@ -170,7 +170,7 @@ class LocalArchiveCompressionTest {
         var reportedBeforeWrite = -1
         val recorder = RecordingCompressor { reportedBeforeWrite = progress.size }
 
-        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) { progress += it })
+        assertEquals(IoResult.Done, LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to recorder), UnexpectedLeftoverDiscarder).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) { progress += it })
 
         assertEquals(1, reportedBeforeWrite)
         assertEquals(2, progress.size)
@@ -185,7 +185,7 @@ class LocalArchiveCompressionTest {
         val src = folderWith("a.txt", "hello")
         val failing = RecordingCompressor { throw IOException("쓰기 실패") }
 
-        val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
+        val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing), UnexpectedLeftoverDiscarder).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertEquals(IoResult.ItemFailed(FailureReason.IoFailed("쓰기 실패")), result)
     }
@@ -203,7 +203,7 @@ class LocalArchiveCompressionTest {
             }
         }
 
-        val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to vanishing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
+        val result = LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to vanishing), UnexpectedLeftoverDiscarder).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertTrue("$result", result is IoResult.ItemFailed)
         assertFalse(File(dir, "out.zip").exists())
@@ -215,7 +215,7 @@ class LocalArchiveCompressionTest {
         val src = folderWith("a.txt", "hello")
         val failing = RecordingCompressor { throw IOException("쓰기 실패") }
 
-        LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing)).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
+        LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to failing), UnexpectedLeftoverDiscarder).compress(setOf(src.path), dir.path, "out", ArchiveFormat.ZIP, password = null) {}
 
         assertEquals(File(dir, "out (1).zip"), failing.output)
         assertFalse(File(dir, "out (1).zip").exists())

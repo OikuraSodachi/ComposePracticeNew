@@ -103,6 +103,7 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     is FailureReason.NameTaken -> UiText.Resource(R.string.failure_name_taken, listOf(reason.name))
     is FailureReason.KindConflict -> UiText.Resource(R.string.failure_kind_conflict, listOf(reason.location))
     is FailureReason.MergedSourceNotRemoved -> UiText.Resource(R.string.failure_merged_source_not_removed, listOf(reason.name))
+    is FailureReason.LeftoverNotRemoved -> leftoverNotRemovedTextOf(reason, headingStep = null)
     FailureReason.UnsupportedPath -> UiText.Resource(R.string.failure_unsupported_path)
     is FailureReason.ServerRefused -> serverRefusedTextOf(reason)
     is FailureReason.RemoteStepFailed -> remoteStepTextOf(reason.step, reasonTextOf(reason.cause))
@@ -176,8 +177,29 @@ private fun serverReplyTextOf(reason: FailureReason.ServerRefused): UiText =
 private fun causeTextOf(cause: FailureReason, headingStep: RemoteStep?): UiText = when {
     cause is FailureReason.ServerRefused && cause.step == headingStep -> serverReplyTextOf(cause)
     cause is FailureReason.RemoteStepFailed && cause.step == headingStep -> reasonTextOf(cause.cause)
+    cause is FailureReason.LeftoverNotRemoved -> leftoverNotRemovedTextOf(cause, headingStep)
     else -> reasonTextOf(cause)
 }
+
+/**
+ * 남은 파일을 지우지 못한 실패의 문구("원래 원인 — 쓰다 만 파일을 지우지 못했습니다 (지우지 못한 원인)")를 만든다.
+ * 원래 원인은 머리말 아래의 원인과 같은 규칙으로 만든다 — 머리말과 같은 원격 단계의 이름이 겹치지 않도록.
+ * @param reason 남은 파일을 지우지 못한 실패
+ * @param headingStep 머리말이 말하는 원격 단계. 없으면 null
+ * @return 표시 문구
+ */
+private fun leftoverNotRemovedTextOf(reason: FailureReason.LeftoverNotRemoved, headingStep: RemoteStep?): UiText =
+    UiText.Resource(
+        R.string.failure_leftover_not_removed,
+        listOf(reasonOrUnknownTextOf(reason.cause, headingStep), reasonOrUnknownTextOf(reason.removal, headingStep = null))
+    )
+
+/**
+ * 머리말 없이 쓰는 실패 원인의 문구를 만든다. 원인을 모르면 "원인 모름"이다.
+ * @param reason 실패 원인. 모르면 null
+ * @return 원인 문구
+ */
+internal fun failureReasonTextOf(reason: FailureReason?): UiText = reasonOrUnknownTextOf(reason, headingStep = null)
 
 /**
  * 원격 단계 실패의 문구("단계 실패: 원인")를 만든다.

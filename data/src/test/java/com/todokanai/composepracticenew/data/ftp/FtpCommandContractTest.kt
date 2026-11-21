@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.model.FailureReason
@@ -38,7 +39,7 @@ class FtpCommandContractTest internal constructor(private val command: CommandRo
     /** 검증 대상 파일 명령 실행기. */
     private val parts = FtpOperationParts(session)
     /** 검증 대상 다운로더. */
-    private val downloader = parts.downloader
+    private val downloader = parts.downloader(UnexpectedLeftoverDiscarder)
     /** 검증 대상 업로더. */
     private val uploader = parts.uploader(OperationNotices())
 

@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.FileReservation
+import com.todokanai.composepracticenew.datasource.LeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.WriteSlot
 import com.todokanai.composepracticenew.datasource.createDirectoryResolving
 import com.todokanai.composepracticenew.datasource.localIo
@@ -33,11 +34,13 @@ import kotlinx.coroutines.withContext
  * @param session 전송에 사용할 FTPClient와 잠금을 소유한 FTP 세션
  * @param treeCollector 디렉터리 다운로드 시 원격 트리를 수집하는 FtpTreeCollector
  * @param dataCommands 전송 명령(RETR)을 목록 조회와 같은 규칙으로 실행하는 실행기
+ * @param leftovers 받지 못한 로컬 파일을 지우고, 지우지 못하면 알리는 LeftoverDiscarder
  */
 class FtpDownloader internal constructor(
     private val session: FtpCommandSession,
     private val treeCollector: FtpTreeCollector,
-    private val dataCommands: DataCommandRunner
+    private val dataCommands: DataCommandRunner,
+    private val leftovers: LeftoverDiscarder
 ) {
 
     /**
@@ -193,16 +196,22 @@ class FtpDownloader internal constructor(
 
     /**
      * [claimed] 자리로 받는 [receive]를 실행한다. 이 다운로드가 만든 빈 파일은 받기 시작하지 못하고 끝나면(거부·연결 끊김·취소) 지운다 —
-     * 받지 않은 빈 파일이 받은 파일처럼 남지 않도록.
+     * 받지 않은 빈 파일이 받은 파일처럼 남지 않도록. 지우지 못하면 실패 결과에 담고, 결과로 돌려줄 수 없게 멈췄으면(취소·구현 오류) 알림함에 넣는다(#431).
      * @param receive 받는 동작. 로컬 파일을 열 때 받은 함수를 부른다
-     * @return [receive]의 결과
+     * @return [receive]의 결과. 빈 파일을 지우지 못했으면 그 사실을 담은 같은 종류의 실패
      */
     private suspend fun receivingInto(claimed: ClaimedFile, receive: suspend (onOpened: () -> Unit) -> IoResult<Unit>): IoResult<Unit> {
         var opened = false
-        try {
-            return receive { opened = true }
-        } finally {
-            if (claimed.createdHere && !opened) runCatching { claimed.file.delete() }
+        val result = try {
+            receive { opened = true }
+        } catch (e: Throwable) {
+            if (claimed.createdHere && !opened) leftovers.discardReporting(claimed.file)
+            throw e
+        }
+        if (!claimed.createdHere || opened) return result
+        return when (result) {
+            is IoResult.Failure -> leftovers.discardInto(claimed.file, result)
+            is IoResult.Success -> result.also { leftovers.discardReporting(claimed.file) }
         }
     }
 
@@ -264,7 +273,7 @@ class FtpDownloader internal constructor(
         val outcome = dataCommands.run(
             client,
             DataStreamRequest.Retrieve(ftpPath),
-            onCancel = { runCatching { localFile.delete() } }
+            onCancel = { leftovers.discardReporting(localFile) }
         ) { stream ->
             onOpened()
             localFile.outputStream().use { output -> pump(stream, output, onChunk) }

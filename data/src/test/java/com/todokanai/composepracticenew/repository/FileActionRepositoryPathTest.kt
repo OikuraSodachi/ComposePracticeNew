@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
+import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.LocalArchiveCompression
 import com.todokanai.composepracticenew.datasource.LocalArchiveExtraction
 import com.todokanai.composepracticenew.datasource.LocalEntryMutator
@@ -21,7 +22,12 @@ class FileActionRepositoryPathTest {
     /** 압축할 파일과 압축 파일을 두는 로컬 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("file-action-path-test").toFile()
     /** 검증 대상. */
-    private val repo = FileActionRepositoryImpl(LocalTreeTransfer(), LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor())), LocalArchiveExtraction(emptySet()), LocalEntryMutator())
+    private val repo = FileActionRepositoryImpl(
+        LocalTreeTransfer(UnexpectedLeftoverDiscarder),
+        LocalArchiveCompression(mapOf(ArchiveFormat.ZIP to ZipArchiveCompressor()), UnexpectedLeftoverDiscarder),
+        LocalArchiveExtraction(emptySet(), UnexpectedLeftoverDiscarder),
+        LocalEntryMutator()
+    )
 
     @After
     fun tearDown() {
