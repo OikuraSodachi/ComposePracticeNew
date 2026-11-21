@@ -1,9 +1,6 @@
 package com.todokanai.composepracticenew.di
 
-import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
-import com.todokanai.composepracticenew.operation.OperationProtection
-import com.todokanai.composepracticenew.repository.OperationQuestionAsker
 import com.todokanai.composepracticenew.repository.OperationQuestionRepository
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertReporter
 import com.todokanai.composepracticenew.repository.ConnectFailureAlertRepository
@@ -17,7 +14,6 @@ import com.todokanai.composepracticenew.repository.FolderEntryNamesRepository
 import com.todokanai.composepracticenew.repository.PreferenceFailureRepository
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationNoticeRepository
-import com.todokanai.composepracticenew.repository.ProgressReporter
 import com.todokanai.composepracticenew.repository.ProgressRepository
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
 import com.todokanai.composepracticenew.repository.RemoteFileMutationRepository
@@ -60,7 +56,6 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import kotlinx.coroutines.CoroutineScope
 
 /** Provides domain-layer UseCase instances, unscoped so each one lives as long as the class that receives it. */
 @Module
@@ -156,16 +151,6 @@ object UseCaseModule {
     @Provides
     fun provideUploadConflictCheckUseCase(conflictCheck: ConflictCheckUseCase, sourceInfo: FolderEntryNamesRepository, nameMatching: StorageNameMatching) =
         UploadConflictCheckUseCase(conflictCheck, sourceInfo, nameMatching)
-
-    @Provides
-    fun provideFileOperationOrchestrator(
-        notifier: FileOperationNotifier,
-        progressReporter: ProgressReporter,
-        notices: OperationNoticeReporter,
-        protection: OperationProtection,
-        questions: OperationQuestionAsker,
-        @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressReporter, notices, protection, questions, appScope)
 
     @Provides
     fun provideOperationQuestionUseCase(questions: OperationQuestionRepository) =
