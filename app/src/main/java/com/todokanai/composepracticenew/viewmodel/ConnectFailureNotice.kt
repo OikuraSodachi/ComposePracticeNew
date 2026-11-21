@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.viewmodel
 
 import com.todokanai.composepracticenew.model.ConnectFailureAlert
 import com.todokanai.composepracticenew.model.ConnectFailureReason
+import com.todokanai.composepracticenew.ui.model.ConnectFailureDialog
 import com.todokanai.composepracticenew.usecase.ConnectFailureReportUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -11,23 +12,16 @@ import kotlinx.coroutines.flow.asStateFlow
  * 원격 연결 실패를 이유에 맞는 알림으로 바꾼다.
  * 다시 시도하면 될 수 있는 실패는 화면 호스트가 잠깐 보이는 알림함으로(#371 — 받을 화면이 없을 때 실패해도 잃지 않도록),
  * 서버나 포트를 쓸 수 없는 실패는 사용자가 닫을 때까지 남는 다이얼로그 상태로 알린다.
+ * 다이얼로그는 한 번에 하나이며, 닫기 전에 다시 실패하면 마지막 실패의 다이얼로그로 바뀐다.
  * ViewModel이 구성(composition)으로 보유해 다이얼로그 상태가 구성 변경 후에도 유지된다.
  *
  * @param reportUseCase 다시 시도하면 될 수 있는 실패를 알림함에 맡기는 UseCase
  */
 class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCase) {
 
-    private val _unreadableServer = MutableStateFlow(false)
-    /** 서버의 파일 목록을 읽을 수 없어 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
-    val unreadableServer: StateFlow<Boolean> = _unreadableServer.asStateFlow()
-
-    private val _binaryTypeRefused = MutableStateFlow(false)
-    /** 서버가 바이너리 전송 방식을 거부해 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
-    val binaryTypeRefused: StateFlow<Boolean> = _binaryTypeRefused.asStateFlow()
-
-    private val _invalidPort = MutableStateFlow(false)
-    /** 저장된 포트가 범위를 벗어나 연결을 시도하지 않았음을 알리는 다이얼로그를 보여야 하면 true. */
-    val invalidPort: StateFlow<Boolean> = _invalidPort.asStateFlow()
+    private val _dialog = MutableStateFlow<ConnectFailureDialog?>(null)
+    /** 보여야 할 연결 실패 다이얼로그. 없으면 null. */
+    val dialog: StateFlow<ConnectFailureDialog?> = _dialog.asStateFlow()
 
     /**
      * 연결 실패를 [reason]에 맞는 알림으로 알린다.
@@ -36,9 +30,9 @@ class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCas
     fun report(reason: ConnectFailureReason) {
         when (reason) {
             ConnectFailureReason.CONNECTION_FAILED -> notifyConnectionFailed()
-            ConnectFailureReason.LISTING_FORMAT_UNKNOWN -> _unreadableServer.value = true
-            ConnectFailureReason.BINARY_TYPE_REFUSED -> _binaryTypeRefused.value = true
-            ConnectFailureReason.INVALID_PORT -> _invalidPort.value = true
+            ConnectFailureReason.LISTING_FORMAT_UNKNOWN -> _dialog.value = ConnectFailureDialog.UNREADABLE_SERVER
+            ConnectFailureReason.BINARY_TYPE_REFUSED -> _dialog.value = ConnectFailureDialog.BINARY_TYPE_REFUSED
+            ConnectFailureReason.INVALID_PORT -> _dialog.value = ConnectFailureDialog.INVALID_PORT
         }
     }
 
@@ -47,18 +41,8 @@ class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCas
         reportUseCase.report(ConnectFailureAlert.CONNECTION_FAILED)
     }
 
-    /** 사용자가 서버를 읽을 수 없다는 다이얼로그를 닫았다. */
-    fun dismissUnreadableServer() {
-        _unreadableServer.value = false
-    }
-
-    /** 사용자가 서버가 바이너리 전송 방식을 거부했다는 다이얼로그를 닫았다. */
-    fun dismissBinaryTypeRefused() {
-        _binaryTypeRefused.value = false
-    }
-
-    /** 사용자가 포트가 범위를 벗어났다는 다이얼로그를 닫았다. */
-    fun dismissInvalidPort() {
-        _invalidPort.value = false
+    /** 사용자가 연결 실패 다이얼로그를 닫았다. */
+    fun dismissDialog() {
+        _dialog.value = null
     }
 }

@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.NavigateResult
 import com.todokanai.composepracticenew.model.RemoteStorageInputCheck
 import com.todokanai.composepracticenew.model.RemoteStorageInputError
+import com.todokanai.composepracticenew.ui.model.ConnectFailureDialog
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
@@ -72,23 +73,11 @@ class StorageViewModel @Inject constructor(
     /** 연결 실패를 이유에 맞는 알림(알림함·다이얼로그)으로 바꾼다. */
     private val connectFailureNotice = ConnectFailureNotice(connectFailureReportUseCase)
 
-    /** 서버의 파일 목록을 읽을 수 없어 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
-    val unreadableServer: StateFlow<Boolean> = connectFailureNotice.unreadableServer
+    /** 보여야 할 연결 실패 다이얼로그. 없으면 null. */
+    val connectFailureDialog: StateFlow<ConnectFailureDialog?> = connectFailureNotice.dialog
 
-    /** 서버의 파일 목록을 읽을 수 없다는 다이얼로그를 닫는다. */
-    fun dismissUnreadableServer() = connectFailureNotice.dismissUnreadableServer()
-
-    /** 서버가 바이너리 전송 방식을 거부해 연결을 종료했음을 알리는 다이얼로그를 보여야 하면 true. */
-    val binaryTypeRefused: StateFlow<Boolean> = connectFailureNotice.binaryTypeRefused
-
-    /** 서버가 바이너리 전송 방식을 거부했다는 다이얼로그를 닫는다. */
-    fun dismissBinaryTypeRefused() = connectFailureNotice.dismissBinaryTypeRefused()
-
-    /** 저장된 포트가 범위를 벗어나 연결을 시도하지 않았음을 알리는 다이얼로그를 보여야 하면 true. */
-    val invalidPort: StateFlow<Boolean> = connectFailureNotice.invalidPort
-
-    /** 포트가 범위를 벗어났다는 다이얼로그를 닫는다. */
-    fun dismissInvalidPort() = connectFailureNotice.dismissInvalidPort()
+    /** 연결 실패 다이얼로그를 닫는다. */
+    fun dismissConnectFailureDialog() = connectFailureNotice.dismissDialog()
 
     private val _connectionSucceeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 원격 연결 성공 이벤트. */
@@ -168,7 +157,7 @@ class StorageViewModel @Inject constructor(
 
     /**
      * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 connectionSucceeded를 emit한다.
-     * 실패하면 이유에 맞게 알림함에 맡기거나 [unreadableServer]·[binaryTypeRefused]·[invalidPort]를 true로 만든다.
+     * 실패하면 이유에 맞게 알림함에 맡기거나 [connectFailureDialog]를 띄운다.
      * 이미 연결 작업이 진행 중이면 무시한다. 작업이 끝날 때까지 [isConnecting]이 true로 유지된다.
      */
     fun setPath(item: RemoteStorageItem) {
