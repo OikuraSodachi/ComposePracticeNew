@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.compose.listview
 
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.foundation.lazy.LazyListItemInfo
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -113,12 +115,14 @@ fun Modifier.dragSelectGesture(
         isDragSelecting = false
     }
 
-    // 손가락 위치의 항목까지 범위를 선택한다 — 같은 목록에서 같은 항목이면 보고하지 않는다
+    // 손가락 위치의 항목까지 범위를 선택한다 — 같은 목록에서 같은 항목이면 보고하지 않는다.
+    // 손가락이 행 위에 없어도(목록 밖, 빈 곳) 가장 가까운 행까지 선택해, 자동 스크롤 중에도 범위가 따라오고 빠르게 쓸어 건너뛴 행도 빠지지 않는다(#521)
     fun selectRangeAt(y: Float) {
         if (progress.rangeStopped) return
         val list = latestFileList
         val anchorKey = progress.anchorKey ?: return
-        val fingerKey = listState.itemKeyAtOffset(y) ?: return
+        val layout = listState.layoutInfo
+        val fingerKey = dragTargetKeyIn(layout.visibleItemsInfo, layout.viewportStartOffset, y) ?: return
         if (fingerKey == progress.lastReportedKey && list === progress.lastReportedList) return
         when (val range = dragRangeIn(list, anchorKey, fingerKey)) {
             is DragRange.Found -> {
@@ -131,9 +135,13 @@ fun Modifier.dragSelectGesture(
         }
     }
 
-    // isDragSelecting이 true인 동안 실행 — 스크롤 후 currentFingerY 기준으로 범위 재계산
+    // isDragSelecting이 true인 동안 실행 — 스크롤 후 currentFingerY 기준으로 범위 재계산.
+    // false가 되면(손을 뗌) 범위 끝 행이 겹친 하단 버튼에 가려 있을 때 버튼 위로 올린다
     LaunchedEffect(isDragSelecting) {
-        if (!isDragSelecting) return@LaunchedEffect
+        if (!isDragSelecting) {
+            revealRangeEnd(listState, progress)
+            return@LaunchedEffect
+        }
         while (isActive) {
             if (progress.scrollSpeed != 0f && latestFileList.isNotEmpty()) {
                 listState.scrollBy(progress.scrollSpeed)
@@ -170,12 +178,7 @@ fun Modifier.dragSelectGesture(
                 val viewportH = listState.layoutInfo.viewportSize.height.toFloat()
                 progress.currentFingerY = y
 
-                // 경계 근접도에 비례한 스크롤 속도 (선형 보간)
-                progress.scrollSpeed = when {
-                    y < edgePx             -> -maxSpeedPx * (1f - y / edgePx)
-                    y > viewportH - edgePx ->  maxSpeedPx * (1f - (viewportH - y) / edgePx)
-                    else                   -> 0f
-                }
+                progress.scrollSpeed = edgeScrollSpeed(y, viewportH, edgePx, maxSpeedPx)
 
                 // 엣지 외 영역: 즉시 선택 범위 갱신 (엣지 영역은 LaunchedEffect가 담당)
                 if (progress.scrollSpeed == 0f) selectRangeAt(y)
@@ -237,7 +240,63 @@ private fun startDragSelection(
     is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> null
 }
 
+/**
+ * 드래그 중 손가락 위치에 따른 자동 스크롤 속도를 정한다. 가장자리 영역 안에서는 끝에 가까울수록 빨라지고, 영역 끝과 목록 밖에서는 최대 속도다(#521).
+ * 드래그는 손을 뗄 때까지 입력을 독점해 손가락이 목록 밖으로 나가도 위치가 계속 오므로, 배율을 0~1로 제한해야 목록에서 멀어질수록 끝없이 빨라지지 않는다.
+ * @param y 목록 위쪽 끝 기준 손가락 Y 좌표. 목록 밖이면 음수이거나 [viewportHeight]보다 크다
+ * @param viewportHeight 목록 높이
+ * @param edgePx 자동 스크롤이 시작되는 가장자리 영역의 높이
+ * @param maxSpeedPx 프레임마다 스크롤할 최대 거리
+ * @return 프레임마다 스크롤할 거리. 0이면 멈춤, 음수면 위로, 양수면 아래로
+ */
+internal fun edgeScrollSpeed(y: Float, viewportHeight: Float, edgePx: Float, maxSpeedPx: Float): Float = when {
+    y < edgePx                  -> -maxSpeedPx * edgeProximity(edgePx - y, edgePx)
+    y > viewportHeight - edgePx ->  maxSpeedPx * edgeProximity(y - (viewportHeight - edgePx), edgePx)
+    else                        -> 0f
+}
+
+/**
+ * 드래그를 끝낸 뒤 범위 끝 행(마지막으로 보고한 손가락 아래 행)이 겹친 하단 버튼에 가려 있으면, 버튼 위로 보이도록 목록을 그만큼 스크롤한다.
+ * 드래그 중의 판정은 목록 전체를 기준으로 해 버튼 뒤의 행도 범위 끝이 되므로, 보이지 않는 행이 선택된 채 남지 않게 한다(#521).
+ * 손을 뗀 뒤에 하므로 드래그가 재는 기준(목록 위치·크기)을 바꾸지 않는다(#520). 시작한 항목이 사라져 범위 갱신을 멈춘 드래그는 건드리지 않는다.
+ * @param listState 대상 목록의 스크롤 상태
+ * @param progress 끝난 드래그의 진행 값
+ */
+private suspend fun revealRangeEnd(listState: LazyListState, progress: DragSelectProgress) {
+    if (progress.rangeStopped) return
+    val endKey = progress.lastReportedKey ?: return
+    val layout = listState.layoutInfo
+    val endRow = layout.visibleItemsInfo.firstOrNull { it.key == endKey } ?: return
+    val hidden = hiddenBelowVisibleEnd(endRow, layout.viewportEndOffset, layout.afterContentPadding)
+    if (hidden > 0) listState.animateScrollBy(hidden.toFloat())
+}
+
+/**
+ * 행이 목록 아래쪽 안쪽 여백(겹친 하단 버튼 자리)에 가려진 높이를 구한다.
+ * @param row 행의 배치 정보
+ * @param viewportEndOffset 목록 아래쪽 끝의 배치 좌표
+ * @param afterContentPadding 아래쪽 안쪽 여백
+ * @return 가려진 높이(px). 가려지지 않았으면 0
+ */
+internal fun hiddenBelowVisibleEnd(row: LazyListItemInfo, viewportEndOffset: Int, afterContentPadding: Int): Int =
+    (row.offset + row.size - (viewportEndOffset - afterContentPadding)).coerceAtLeast(0)
+
+// 가장자리 영역에 들어간 깊이를 0~1 배율로 바꾼다 — 영역을 지나 목록 밖까지 가도 1을 넘지 않는다
+private fun edgeProximity(depth: Float, edgePx: Float): Float = (depth / edgePx).coerceIn(0f, 1f)
+
+/**
+ * 드래그 범위의 끝점으로 삼을, 손가락 위치에 가장 가까운 행의 목록 키를 찾는다.
+ * 손가락보다 위에서 시작하는 마지막 행을 고르고, 모든 행보다 위면 첫 행을 고른다 — 손가락이 목록 밖이나 행이 없는 빈 곳에 있어도 범위가 그 방향 끝에 보이는 행까지 따라오게 한다(#521).
+ * @param visibleItems 화면에 배치된 행. 위에서 아래 순서다
+ * @param viewportStartOffset 목록 위쪽 끝의 배치 좌표(위쪽 안쪽 여백만큼 음수)
+ * @param y 목록 위쪽 끝 기준 손가락 Y 좌표
+ * @return 행의 목록 키. 배치된 행이 없으면 null
+ */
+internal fun dragTargetKeyIn(visibleItems: List<LazyListItemInfo>, viewportStartOffset: Int, y: Float): Any? =
+    (visibleItems.lastOrNull { it.offset - viewportStartOffset <= y } ?: visibleItems.firstOrNull())?.key
+
 // 픽셀 Y 좌표에 있는 항목의 목록 키 반환 — 위치 번호는 마지막 배치 때의 목록 기준이라 지금 목록과 어긋날 수 있으므로 키로 돌려준다.
+// 길게 누른 행을 찾는 데 쓰며, 행 위가 아니면 드래그를 시작하지 않도록 null을 돌려준다.
 // viewportStartOffset 보정으로 contentPadding과 무관하게 동작
 private fun LazyListState.itemKeyAtOffset(y: Float): Any? {
     val start = layoutInfo.viewportStartOffset
