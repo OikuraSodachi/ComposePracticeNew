@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.di
 
 import android.os.Environment
-import com.todokanai.composepracticenew.data.DataConverter
+import com.todokanai.composepracticenew.repository.FileListFlowProducer
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.datastore.PreferenceFailureNotices
 import com.todokanai.composepracticenew.datasource.ArchiveCompressor
@@ -221,14 +221,13 @@ abstract class RepositoryModule {
         /** 로컬 화면의 탐색. */
         @Provides @Singleton
         fun provideLocalFileNavigatorRepository(
-            converter: DataConverter,
-            sortPreference: SortPreferenceRepository,
+            listingProducer: FileListFlowProducer,
             @ApplicationScope appScope: CoroutineScope,
             @LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards NavigableFileSystem>,
             pathRules: StoragePathRules,
             notices: OperationNoticeReporter
         ): FileNavigatorRepository = FileExplorerRepositoryImpl(
-            converter, sortPreference, appScope, SharingStarted.WhileSubscribed(5_000),
+            listingProducer, appScope, SharingStarted.WhileSubscribed(5_000),
             fileSystems = fileSystems,
             pathRules = pathRules,
             notices = notices,
@@ -238,13 +237,12 @@ abstract class RepositoryModule {
         /** 원격 화면의 탐색. */
         @Provides @Singleton @RemoteNavigator
         fun provideRemoteFileNavigatorRepository(
-            converter: DataConverter,
-            sortPreference: SortPreferenceRepository,
+            listingProducer: FileListFlowProducer,
             @ApplicationScope appScope: CoroutineScope,
             @RemoteScreenFileSystems fileSystems: Set<@JvmSuppressWildcards NavigableFileSystem>,
             @RemoteNavigator pathRules: StoragePathRules,
             notices: OperationNoticeReporter
-        ): FileNavigatorRepository = FileExplorerRepositoryImpl(converter, sortPreference, appScope, SharingStarted.Lazily, fileSystems, pathRules, notices)
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(listingProducer, appScope, SharingStarted.Lazily, fileSystems, pathRules, notices)
 
         /** 연결한 원격 서버의 루트로 원격 화면의 탐색 위치를 옮기는 이동. */
         @Provides @Singleton

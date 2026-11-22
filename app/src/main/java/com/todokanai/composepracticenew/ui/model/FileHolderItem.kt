@@ -59,7 +59,7 @@ data class FileHolderItem(
          * @param domains 변환할 domain 모델 목록
          * @param isLocalFile 로컬 파일이면 true — 항목을 로컬로 표시해 썸네일을 불러온다
          */
-        fun fromList(domains: List<DomainFileHolderItem>, isLocalFile: Boolean = true): List<FileHolderItem> {
+        fun fromList(domains: List<DomainFileHolderItem>, isLocalFile: Boolean): List<FileHolderItem> {
             // DateFormat은 스레드 안전하지 않으므로 공유하지 않고 변환 1회 범위에서만 재사용
             val dateFormat = DateFormat.getDateTimeInstance()
             return domains.map { from(it, isLocalFile, dateFormat) }

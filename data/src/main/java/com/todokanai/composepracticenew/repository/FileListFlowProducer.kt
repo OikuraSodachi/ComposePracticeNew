@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.stateIn
 import java.util.concurrent.atomic.AtomicReference
+import javax.inject.Inject
 
 /**
  * 목록 조회 요청 Flow로 목록 조회 상태([DirectoryListing]) StateFlow를 생성하는 팩토리.
@@ -29,7 +30,7 @@ import java.util.concurrent.atomic.AtomicReference
  * @param converter 파일 목록을 정렬·도메인 모델로 변환하는 DataConverter
  * @param sortPreference 정렬 기준 Flow를 제공하는 SortPreferenceRepository
  */
-class FileListFlowProducer(
+class FileListFlowProducer @Inject constructor(
     private val converter: DataConverter,
     private val sortPreference: SortPreferenceRepository
 ) {

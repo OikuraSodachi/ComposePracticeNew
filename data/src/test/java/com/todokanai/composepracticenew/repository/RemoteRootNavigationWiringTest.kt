@@ -33,11 +33,10 @@ class RemoteRootNavigationWiringTest {
     private val localFileSystem = LocalFileSystem(LocalFileDataSource(), FakeStorageVolumes())
     /** DI 공급 함수로 만든 원격 탐색 저장소. */
     private val nav = RepositoryModule.provideRemoteFileNavigatorRepository(
-        DataConverter(),
-        sortPreference = object : SortPreferenceRepository {
+        FileListFlowProducer(DataConverter(), object : SortPreferenceRepository {
             override val sortBy = MutableStateFlow(SortMode.BY_DEFAULT)
             override fun saveSortBy(value: SortMode) { sortBy.value = value }
-        },
+        }),
         appScope = TestScope(),
         fileSystems = setOf(ftpFileSystem, localFileSystem),
         pathRules = FileSystemPathRules(setOf(ftpFileSystem, localFileSystem)),

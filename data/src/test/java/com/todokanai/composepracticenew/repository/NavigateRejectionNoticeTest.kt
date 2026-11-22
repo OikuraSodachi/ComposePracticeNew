@@ -33,11 +33,10 @@ class NavigateRejectionNoticeTest {
 
     /** 로컬 경로만 다루는 탐색 저장소. */
     private val nav = FileExplorerRepositoryImpl(
-        DataConverter(),
-        sortPreference = object : SortPreferenceRepository {
+        FileListFlowProducer(DataConverter(), object : SortPreferenceRepository {
             override val sortBy = MutableStateFlow(SortMode.BY_DEFAULT)
             override fun saveSortBy(value: SortMode) { sortBy.value = value }
-        },
+        }),
         appScope = TestScope(),
         started = SharingStarted.Lazily,
         fileSystems = setOf(localFileSystem),

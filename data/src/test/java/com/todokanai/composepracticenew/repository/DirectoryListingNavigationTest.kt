@@ -35,6 +35,8 @@ class DirectoryListingNavigationTest {
         override val sortBy = MutableStateFlow(SortMode.BY_DEFAULT)
         override fun saveSortBy(value: SortMode) { sortBy.value = value }
     }
+    /** 탐색 상태가 목록 조회 상태를 만들 때 쓰는 생성기. */
+    private val listingProducer = FileListFlowProducer(DataConverter(), sortPreference)
     /** 다음 조회가 연결 끊김으로 실패해야 하면 true. */
     private var disconnected = false
     /** 조회 횟수. */
@@ -102,7 +104,7 @@ class DirectoryListingNavigationTest {
 
         // Eagerly + Unconfined — 생성자 안에서 공유가 시작돼 초기 경로를 곧바로 조회한다
         val navigation = DirectoryListingNavigation(
-            DataConverter(), sortPreference, scope, SharingStarted.Eagerly, initialPath = "/start",
+            listingProducer, scope, SharingStarted.Eagerly, initialPath = "/start",
             listFiles = { path -> listed += path; IoResult.Success(ListedDirectory(emptyList(), unreadableCount = 0)) }
         )
 
@@ -115,7 +117,7 @@ class DirectoryListingNavigationTest {
     private fun navigationIn(testScope: TestScope, started: SharingStarted = SharingStarted.Eagerly): DirectoryListingNavigation {
         val scope = CoroutineScope(StandardTestDispatcher(testScope.testScheduler))
         sharingScopes += scope
-        return DirectoryListingNavigation(DataConverter(), sortPreference, scope, started, initialPath = null) { _ ->
+        return DirectoryListingNavigation(listingProducer, scope, started, initialPath = null) { _ ->
             fetchCount++
             if (disconnected) IoResult.ConnectionLost(FailureReason.IoFailed("끊김")) else IoResult.Success(ListedDirectory(emptyList(), unreadableCount = 0))
         }
