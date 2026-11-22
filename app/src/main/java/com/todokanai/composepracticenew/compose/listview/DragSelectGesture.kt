@@ -28,16 +28,50 @@ import kotlinx.coroutines.isActive
  * 드래그 선택 진행 중 값 — composition에서 읽지 않으므로 State가 아닌 일반 필드로 둬 포인터 이벤트마다 snapshot write가 생기지 않게 한다.
  */
 private class DragSelectProgress {
-    /** 드래그를 시작한 항목 인덱스 — 범위 선택의 고정 끝점 */
-    var anchorIndex = 0
+    /** 드래그를 시작한 항목의 목록 키 — 범위 선택의 고정 끝점. 위치가 아니라 항목으로 기억해, 드래그 중 목록이 바뀌어도 같은 항목을 가리킨다 */
+    var anchorKey: Any? = null
     /** 가장 최근 드래그 Y 좌표 — 엣지 스크롤 후 항목 재평가에 사용 */
     var currentFingerY = 0f
     /** 0f=정지, 음수=위, 양수=아래 — 경계 근접도에 비례 */
     var scrollSpeed = 0f
-    /** 마지막으로 범위를 보고한 인덱스 — 같은 인덱스의 중복 보고를 막는다. -1은 "보고 없음" */
-    var lastReportedIndex = -1
+    /** 마지막으로 범위를 보고한 손가락 아래 항목의 키 — 같은 목록에서 같은 항목의 중복 보고를 막는다 */
+    var lastReportedKey: Any? = null
+    /** 마지막으로 범위를 보고한 목록 — 목록이 바뀌면 손가락이 같은 항목에 있어도 범위가 달라지므로 다시 보고한다 */
+    var lastReportedList: List<FileHolderItem>? = null
     /** 이번 드래그의 범위 선택 규칙 — 드래그를 시작할 때 정한다 */
     var selection = DragSelection.Fresh
+    /** 시작한 항목이 목록에서 사라져 이번 드래그의 범위 갱신을 멈췄는지 — 손을 뗄 때까지 입력은 계속 독점한다 */
+    var rangeStopped = false
+}
+
+/** 드래그 범위를 지금 목록에서 찾은 결과. */
+internal sealed interface DragRange {
+    /**
+     * 시작한 항목부터 손가락 아래 항목까지의 범위.
+     * @param items 지금 목록에서 두 항목 사이(양 끝 포함)의 항목
+     */
+    data class Found(val items: List<FileHolderItem>) : DragRange
+
+    /** 시작한 항목이 지금 목록에 없다 — 범위를 정할 끝점이 없으므로 이번 드래그의 범위 갱신을 멈춘다. */
+    data object AnchorGone : DragRange
+
+    /** 손가락 아래 항목이 지금 목록에 없다(화면 배치가 목록보다 한 프레임 늦음) — 이번 보고만 건너뛴다. */
+    data object FingerUnresolved : DragRange
+}
+
+/**
+ * 시작한 항목과 손가락 아래 항목을 키로 지금 목록에서 찾아 그 사이를 범위로 정한다.
+ * @param list 지금 목록
+ * @param anchorKey 드래그를 시작한 항목의 키([fileListKeyOf])
+ * @param fingerKey 손가락 아래 항목의 키
+ * @return 범위, 또는 끝점을 지금 목록에서 찾지 못한 이유
+ */
+internal fun dragRangeIn(list: List<FileHolderItem>, anchorKey: Any, fingerKey: Any): DragRange {
+    val anchor = list.indexOfFirst { fileListKeyOf(it) == anchorKey }
+    if (anchor < 0) return DragRange.AnchorGone
+    val finger = list.indexOfFirst { fileListKeyOf(it) == fingerKey }
+    if (finger < 0) return DragRange.FingerUnresolved
+    return DragRange.Found(list.subList(minOf(anchor, finger), maxOf(anchor, finger) + 1))
 }
 
 /**
@@ -72,15 +106,29 @@ fun Modifier.dragSelectGesture(
     val latestOnStartMultiSelect by rememberUpdatedState(onStartMultiSelect)
     val latestOnReplaceSelection by rememberUpdatedState(onReplaceSelection)
 
-    // 손가락 위치의 항목까지 범위를 선택한다 — 인덱스가 바뀌지 않았으면 보고하지 않는다
+    // 시작한 항목이 사라졌을 때 이번 드래그의 범위 갱신을 멈춘다 — 자동 스크롤도 멈추고, 그때까지의 선택은 그대로 둔다
+    fun stopRange() {
+        progress.rangeStopped = true
+        progress.scrollSpeed = 0f
+        isDragSelecting = false
+    }
+
+    // 손가락 위치의 항목까지 범위를 선택한다 — 같은 목록에서 같은 항목이면 보고하지 않는다
     fun selectRangeAt(y: Float) {
+        if (progress.rangeStopped) return
         val list = latestFileList
-        if (list.isEmpty()) return
-        val idx = listState.itemIndexAtOffset(y)?.coerceIn(0, list.lastIndex) ?: return
-        if (idx == progress.lastReportedIndex) return
-        progress.lastReportedIndex = idx
-        val anchor = progress.anchorIndex
-        latestOnReplaceSelection(progress.selection.selectionWith(list.subList(minOf(anchor, idx), maxOf(anchor, idx) + 1)))
+        val anchorKey = progress.anchorKey ?: return
+        val fingerKey = listState.itemKeyAtOffset(y) ?: return
+        if (fingerKey == progress.lastReportedKey && list === progress.lastReportedList) return
+        when (val range = dragRangeIn(list, anchorKey, fingerKey)) {
+            is DragRange.Found -> {
+                progress.lastReportedKey = fingerKey
+                progress.lastReportedList = list
+                latestOnReplaceSelection(progress.selection.selectionWith(range.items))
+            }
+            DragRange.AnchorGone -> stopRange()
+            DragRange.FingerUnresolved -> Unit
+        }
     }
 
     // isDragSelecting이 true인 동안 실행 — 스크롤 후 currentFingerY 기준으로 범위 재계산
@@ -102,21 +150,22 @@ fun Modifier.dragSelectGesture(
         detectOwnedDragAfterLongPress(
             onLongPress = { offset ->
                 val list = latestFileList
-                val idx = listState.itemIndexAtOffset(offset.y)
-                    ?.coerceIn(0, list.lastIndex)
-                    ?: return@detectOwnedDragAfterLongPress false
-                val anchorItem = list[idx]
+                val anchorKey = listState.itemKeyAtOffset(offset.y) ?: return@detectOwnedDragAfterLongPress false
+                val anchorItem = list.firstOrNull { fileListKeyOf(it) == anchorKey } ?: return@detectOwnedDragAfterLongPress false
                 val selection = startDragSelection(latestSelectMode, anchorItem, latestSelectedList, latestOnStartMultiSelect)
                     ?: return@detectOwnedDragAfterLongPress false
-                progress.anchorIndex       = idx
-                progress.lastReportedIndex = idx
-                progress.currentFingerY    = offset.y
-                progress.selection         = selection
+                progress.anchorKey        = anchorKey
+                progress.lastReportedKey  = anchorKey
+                progress.lastReportedList = list
+                progress.currentFingerY   = offset.y
+                progress.selection        = selection
+                progress.rangeStopped     = false
                 isDragSelecting = true
                 latestOnReplaceSelection(selection.selectionWith(listOf(anchorItem)))
                 true
             },
             onDrag = { position ->
+                if (progress.rangeStopped) return@detectOwnedDragAfterLongPress
                 val y         = position.y
                 val viewportH = listState.layoutInfo.viewportSize.height.toFloat()
                 progress.currentFingerY = y
@@ -188,10 +237,11 @@ private fun startDragSelection(
     is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> null
 }
 
-// 픽셀 Y 좌표에 해당하는 실제 리스트 인덱스 반환 — viewportStartOffset 보정으로 contentPadding과 무관하게 동작
-private fun LazyListState.itemIndexAtOffset(y: Float): Int? {
+// 픽셀 Y 좌표에 있는 항목의 목록 키 반환 — 위치 번호는 마지막 배치 때의 목록 기준이라 지금 목록과 어긋날 수 있으므로 키로 돌려준다.
+// viewportStartOffset 보정으로 contentPadding과 무관하게 동작
+private fun LazyListState.itemKeyAtOffset(y: Float): Any? {
     val start = layoutInfo.viewportStartOffset
     return layoutInfo.visibleItemsInfo
         .firstOrNull { (it.offset - start) <= y && y < (it.offset - start) + it.size }
-        ?.index
+        ?.key
 }

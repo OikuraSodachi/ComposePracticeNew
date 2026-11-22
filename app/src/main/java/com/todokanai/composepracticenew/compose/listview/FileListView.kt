@@ -31,6 +31,13 @@ import com.todokanai.composepracticenew.viewmodel.ChildCountSource
 private val ScrollbarTouchTargetWidth = 48.dp
 
 /**
+ * 파일 목록 행의 LazyColumn 키. 드래그 선택(dragSelectGesture)이 손가락 아래 행을 이 키로 찾으므로 목록과 제스처가 함께 쓴다.
+ * @param item 행의 항목
+ * @return 항목의 경로 — 목록 안에서 항목마다 하나다
+ */
+internal fun fileListKeyOf(item: FileHolderItem): Any = item.path
+
+/**
  * 보이는 목록의 경로마다 스크롤 위치를 하나씩 만든다. 목록(FileListView)을 화면에서 빼는 분기(검색, 조회 중 표시 등)보다 위인 화면 단위에서 불러야 한다 —
  * 그래야 목록이 잠시 빠졌다 돌아와도 같은 경로면 위치가 남는다.
  * @param listing 지금 목록 상태. 항목을 보여 주는 상태가 아니면(조회 중·실패) 위치를 버린다
@@ -94,7 +101,7 @@ fun FileListView(
             state = listState,
             modifier = Modifier.fillMaxWidth()
         ) {
-            items(fileHolderItemList, key = { it.path }) { fileHolderItem ->
+            items(fileHolderItemList, key = ::fileListKeyOf) { fileHolderItem ->
 
                 // path·selectedPathsState를 키로 — 행 재사용 또는 출처 교체 시 재생성. selectedPathsState를 추적하되 이 행의 선택 여부가 실제로 바뀔 때만 item 스코프를 무효화한다
                 val isSelected by remember(fileHolderItem.path, selectedPathsState) {
