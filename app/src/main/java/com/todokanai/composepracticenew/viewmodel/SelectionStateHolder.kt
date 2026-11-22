@@ -34,6 +34,20 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
     /** 다중 선택 중이면 선택 목록을 items로 바꾼다(같은 경로는 처음 것 하나만 남긴다). 드래그 범위 선택과 모두 선택/해제에 사용한다. */
     fun replaceSelection(items: List<FileHolderItem>) = editSelection { items.distinctBy { it.path } }
 
+    /**
+     * 다중 선택 중이면 선택을 새로 조회한 목록 [listed]에 맞춘다(#524). 각 항목은 같은 경로의 [listed] 항목으로 바꾸고(크기·날짜도 새 값),
+     * [listed]에 없는 항목은 뺀다 — 화면에 없는 항목이 선택 수와 하단 작업의 대상에 남지 않도록. 모두 빠져도 모두 해제와 같이 다중 선택은 유지한다.
+     */
+    fun retainListed(listed: List<FileHolderItem>) {
+        val listedByPath = listed.associateBy { it.path }
+        editSelection { selected -> selected.mapNotNull { listedByPath[it.path] } }
+    }
+
+    /** 다중 선택 중이면 기본 모드로 되돌린다. 작업 목적지 확인·전송 대기는 그대로 둔다. */
+    fun endMultiSelect() {
+        _state.update { current -> if (current is SelectionState.MultiSelect) SelectionState.Default else current }
+    }
+
     /** 다중 선택 중이면 선택을 유지한 채 operation의 목적지 확인 단계로 전환한다. */
     fun enterOperation(operation: Op) {
         _state.update { current ->

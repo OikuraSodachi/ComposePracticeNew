@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
+import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -24,8 +25,8 @@ import javax.inject.Inject
 /**
  * 로컬·원격 파일 탐색기의 선택 상태([SelectionState] — 전송 대기 목록 포함)를 조율하고, 대기 목록의 다운로드·업로드(업로드는 확인할 때의 충돌 확인 포함)를 실행하는 ViewModel.
  * FILE_BROWSER_GRAPH에 scoped된다.
- * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 완료 후 새로고침을 제공하는 UseCase
- * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록을 제공하는 UseCase
+ * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 완료 후 새로고침, 로컬 다중 선택을 맞출 로컬 목록을 제공하는 UseCase
+ * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록(원격 다중 선택도 이 목록에 맞춘다)을 제공하는 UseCase
  * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
  * @param uploadConflictCheckUseCase 업로드 전에 확인할 겹침(목적지에 이미 있는 이름, 함께 올리는 항목끼리)을 모으는 UseCase
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
@@ -74,6 +75,13 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         connectionStateUseCase.connectionState
             .filter { it == RemoteConnectionState.Lost }
             .onEach { discardRemoteSessionState() }
+            .launchIn(viewModelScope)
+        // 다중 선택은 그 선택을 고른 목록에 묶인다(#524) — 같은 폴더를 다시 조회해 목록이 바뀌어도 화면에 없는 항목이 선택에 남지 않도록
+        localNavigator.listing
+            .onEach { local.followListing(it, isLocalFile = true) }
+            .launchIn(viewModelScope)
+        remoteNavigator.listing
+            .onEach { remote.followListing(it, isLocalFile = false) }
             .launchIn(viewModelScope)
     }
 
@@ -194,6 +202,21 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         local.discardReceiving()
         uploadConfirmation.discardAll()
         remote.reset()
+    }
+
+    /**
+     * 다중 선택을 새 목록 조회 상태에 맞춘다. 조회 결과가 오면 선택을 그 목록에 맞추고, 조회에 실패했거나 목록이 없으면 고를 항목이 없으므로 다중 선택을 끝낸다.
+     * 다시 조회하는 중에는 결과를 기다리며 선택을 그대로 둔다. 작업 목적지 확인·전송 대기는 다른 폴더로 옮겨 다니는 상태이므로 맞추지 않는다.
+     * @param listing 이 화면의 새 목록 조회 상태
+     * @param isLocalFile 로컬 파일 목록이면 true — 선택 항목을 목록 화면과 같은 앱 레이어 항목으로 만든다
+     */
+    private fun SelectionStateHolder<*, *>.followListing(listing: DirectoryListing, isLocalFile: Boolean) {
+        when (listing) {
+            // 다중 선택이 아니면 맞출 선택이 없으므로 목록 전체를 앱 레이어 항목으로 바꾸지 않는다
+            is DirectoryListing.Loaded -> if (state.value is SelectionState.MultiSelect) retainListed(FileHolderItem.fromList(listing.items, isLocalFile))
+            is DirectoryListing.Loading -> Unit
+            DirectoryListing.NoPath, is DirectoryListing.Failed -> endMultiSelect()
+        }
     }
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */
