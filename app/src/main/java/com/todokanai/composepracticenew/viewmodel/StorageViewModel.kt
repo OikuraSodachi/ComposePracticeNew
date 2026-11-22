@@ -79,10 +79,12 @@ class StorageViewModel @Inject constructor(
     /** 연결 실패 다이얼로그를 닫는다. */
     fun dismissConnectFailureDialog() = connectFailureNotice.dismissDialog()
 
+    /** [connectionSucceeded]의 변경 가능한 원본. */
     private val _connectionSucceeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     /** 원격 연결 성공 이벤트. */
     val connectionSucceeded: SharedFlow<Unit> = _connectionSucceeded.asSharedFlow()
 
+    /** 로컬 저장소 볼륨 목록과 저장된 원격 서버 목록을 합친 UI 상태. */
     val uiState: StateFlow<UiState> = combine(
         storageVolumeUseCase.storageList,
         remoteStorageUseCase.getAll()

@@ -51,7 +51,9 @@ class FileOperationForegroundService : SelfStoppingForegroundService() {
             .build()
 
     companion object {
+        /** 파일 작업 보호 Foreground 알림의 id. */
         const val NOTIFICATION_ID = 1002
+        /** 파일 작업 보호 알림 채널의 id. */
         const val CHANNEL_ID = "file_operation"
         /** 시작 요청의 id를 담는 Intent extra. */
         const val EXTRA_REQUEST_ID = "extra_request_id"

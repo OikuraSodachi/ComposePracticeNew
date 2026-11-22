@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.update
  */
 class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
 
+    /** [state]의 변경 가능한 원본. */
     private val _state = MutableStateFlow<SelectionState<Op, T>>(SelectionState.Default)
     /** 현재 선택 상태. */
     val state: StateFlow<SelectionState<Op, T>> = _state.asStateFlow()

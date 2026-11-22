@@ -23,8 +23,11 @@ class StorageDialogState(
     editingId: Long? = null,
     deletingId: Long? = null
 ) {
+    /** 추가 다이얼로그가 열려 있는지. */
     var showAddDialog by mutableStateOf(showAddDialog); private set
+    /** 편집 다이얼로그의 대상 id. null이면 닫혀 있다. */
     var editingId     by mutableStateOf(editingId); private set
+    /** 삭제 확인 다이얼로그의 대상 id. null이면 닫혀 있다. */
     var deletingId    by mutableStateOf(deletingId); private set
 
     fun openAdd()    { showAddDialog = true }

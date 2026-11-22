@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/** 앱 프로세스의 시작점. 알림 채널을 만들고, 이전 프로세스의 진행 알림을 정리하며, 원격 연결 상태에 맞춰 연결 유지 서비스를 시작한다. */
 @HiltAndroidApp
 class MyApplication : Application(), ImageLoaderFactory {
 
@@ -26,6 +27,7 @@ class MyApplication : Application(), ImageLoaderFactory {
     @Inject lateinit var connectionServicePolicy: ConnectionServicePolicy
     /** 연결 유지 서비스를 시작하는 컨트롤러. */
     @Inject lateinit var connectionServiceController: FtpServiceController
+    /** 연결 상태 관찰처럼 프로세스 수명 동안 이어지는 작업을 실행하는 앱 수명 스코프. */
     @Inject @ApplicationScope lateinit var appScope: CoroutineScope
     /** 이전 프로세스가 남긴 진행 알림을 정리한다. */
     @Inject lateinit var leftoverProgressNotifications: LeftoverProgressNotifications

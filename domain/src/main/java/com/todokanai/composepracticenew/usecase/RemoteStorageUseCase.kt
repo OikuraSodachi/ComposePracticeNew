@@ -59,7 +59,11 @@ class RemoteStorageUseCase(private val repo: RemoteStorageRepository) {
         if (!isValidPort(input.port)) add(RemoteStorageInputError.PORT_OUT_OF_RANGE)
     }
 
-    /** [port]가 [RemoteStorageItem.PORT_RANGE] 안의 정수인지 판별한다. */
+    /**
+     * [port]가 [RemoteStorageItem.PORT_RANGE] 안의 정수인지 판별한다.
+     * @param port 사용자가 입력한 포트 문자열
+     * @return 정수이고 범위 안이면 true
+     */
     private fun isValidPort(port: String): Boolean = port.toIntOrNull()?.let { it in RemoteStorageItem.PORT_RANGE } ?: false
 
     /**

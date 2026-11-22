@@ -11,6 +11,7 @@ import javax.inject.Singleton
 /** 동시에 진행 중인 파일 작업들의 progress 상태를 instanceId별로 관리한다. */
 @Singleton
 class ProgressTracker @Inject constructor() : ProgressRepository, ProgressReporter {
+    /** [progressMap]의 변경 가능한 원본. */
     private val _progressMap = MutableStateFlow<Map<Int, ProgressState>>(emptyMap())
     override val progressMap: StateFlow<Map<Int, ProgressState>> = _progressMap.asStateFlow()
 

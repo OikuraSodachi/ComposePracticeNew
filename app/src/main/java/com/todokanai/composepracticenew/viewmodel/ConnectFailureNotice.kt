@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class ConnectFailureNotice(private val reportUseCase: ConnectFailureReportUseCase) {
 
+    /** [dialog]의 변경 가능한 원본. */
     private val _dialog = MutableStateFlow<ConnectFailureDialog?>(null)
     /** 보여야 할 연결 실패 다이얼로그. 없으면 null. */
     val dialog: StateFlow<ConnectFailureDialog?> = _dialog.asStateFlow()

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class ConflictGate {
 
+    /** [pending]의 변경 가능한 원본. */
     private val _pending = MutableStateFlow<PendingConflict?>(null)
     /** 지금 사용자 확인을 기다리는 충돌(줄의 맨 앞). null이면 대기 중인 충돌 없음. */
     val pending: StateFlow<PendingConflict?> = _pending.asStateFlow()

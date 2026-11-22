@@ -21,6 +21,7 @@ class FileNavigatorUseCase(
     val listing: StateFlow<DirectoryListing> = nav.directoryListing
     /** 루트부터 현재 디렉터리까지의 경로 단계. 현재 경로가 바뀔 때마다 다시 계산하며, 경로가 없으면 빈 목록이다. */
     val dirTree: Flow<List<PathSegment>> = nav.currentPath.map { path -> path?.let(::ancestorsOf).orEmpty() }
+    /** 현재 디렉터리의 경로. 아직 정해지지 않았으면 null이다. */
     val currentPath: StateFlow<String?> = nav.currentPath
 
     /**

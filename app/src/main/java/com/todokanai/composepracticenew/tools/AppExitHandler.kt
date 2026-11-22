@@ -32,6 +32,7 @@ class AppExitHandlerImpl @Inject constructor(
     private val disconnectUseCase: RemoteDisconnectUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : AppExitHandler {
+    /** [exitEvent]의 원본. 수집 전에 여러 번 요청해도 한 번의 종료로 합친다. */
     private val _exitChannel = Channel<Unit>(Channel.CONFLATED)
 
     override val exitEvent: Flow<Unit> = _exitChannel.receiveAsFlow()

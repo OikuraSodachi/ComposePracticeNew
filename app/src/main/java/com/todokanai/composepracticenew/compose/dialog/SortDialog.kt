@@ -106,6 +106,7 @@ private fun sortModeLabel(mode: SortMode): String = when (mode) {
     SortMode.BY_DATE_DESCENDING -> stringResource(R.string.sort_by_date_descending)
 }
 
+/** SortDialog 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun SortDialogPreview(){

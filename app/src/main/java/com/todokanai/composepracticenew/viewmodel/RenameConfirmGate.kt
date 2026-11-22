@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 class RenameConfirmGate {
 
+    /** [pending]의 변경 가능한 원본. */
     private val _pending = MutableStateFlow<PendingRename?>(null)
     /** 덮어쓰기 확인을 기다리는 이름 변경. null이면 대기 중인 확인 없음. */
     val pending: StateFlow<PendingRename?> = _pending.asStateFlow()

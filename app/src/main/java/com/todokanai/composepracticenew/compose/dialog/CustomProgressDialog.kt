@@ -73,6 +73,7 @@ fun CustomProgressDialog(
     )
 }
 
+/** 작업 하나의 종류와 진행 단계(퍼센트·현재 항목·개수, 또는 단계 문구)를 보여 주는 항목. */
 @Composable
 private fun ProgressItem(state: ProgressStateModel) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -269,6 +270,7 @@ private fun ProgressLinearIndicator(
     )
 }
 
+/** CustomProgressDialog의 전체 크기를 아는 바이트 진행 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun CustomProgressDialogPreview() {
@@ -288,6 +290,7 @@ private fun CustomProgressDialogPreview() {
     }
 }
 
+/** CustomProgressDialog의 준비 단계(찾은 항목 수) 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun CustomProgressDialogPreparingPreview() {
@@ -315,6 +318,7 @@ private fun CustomProgressDialogCheckingPasswordPreview() {
     }
 }
 
+/** CustomProgressDialog의 크기를 모르는 파일이 섞인 바이트 진행 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun CustomProgressDialogKnownSizePreview() {

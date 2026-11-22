@@ -58,6 +58,7 @@ fun BottomButtons(
                 .weight(1f)
                 .wrapContentSize()
         ) {
+            // 키 없이 remember — 더보기 메뉴 열림 여부는 이 컴포지션 동안만 유지한다(구성 변경 시 닫힌다)
             val expanded = remember { mutableStateOf(false) }
             TextButton(
                 modifier = Modifier,
