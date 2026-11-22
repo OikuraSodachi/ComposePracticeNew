@@ -78,14 +78,15 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
             return streamOf(first)
         }
 
-        override fun open(name: String): IInStream? {
+        // 라이브러리가 부르는 입구라 볼륨을 열다 난 실패도 기록한다 — 라이브러리가 감싸면 "이 형식이 아님"과 구분할 수 없으므로
+        override fun open(name: String): IInStream? = failures.record {
             val volume = File(name).let { if (it.isAbsolute) it else File(first.parentFile, name) }
             if (!volume.isFile) {
                 if (missingVolume == null) missingVolume = volume.name
-                return null
+                return@record null
             }
             currentVolumeName = volume.path
-            return streamOf(volume)
+            streamOf(volume)
         }
 
         override fun close() = closeAll(opened.values)
