@@ -1,11 +1,14 @@
 package com.todokanai.composepracticenew.compose.listview
 
 import androidx.compose.ui.state.ToggleableState
+import com.todokanai.composepracticenew.model.ListingFailureReason
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ListingKey
+import com.todokanai.composepracticenew.ui.model.ListingUiState
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-/** 모두 선택 체크박스가 지금 목록의 선택 정도를 나타내고, 누르면 목록 전체 선택과 모두 해제를 오가는지 검증하는 단위 테스트. */
+/** 모두 선택 체크박스가 지금 목록의 선택 정도를 나타내고, 누르면 목록 전체 선택과 모두 해제를 오가며, 보이는 목록의 항목만 대상으로 하는지 검증하는 단위 테스트. */
 class SelectAllToggleTest {
 
     private val a = item("/a")
@@ -38,6 +41,24 @@ class SelectAllToggleTest {
     @Test
     fun `모두 선택돼 있으면 모두 해제한다`() {
         assertEquals(emptyList<FileHolderItem>(), selectionAfterSelectAllToggle(items, listOf(a, b)))
+    }
+
+    @Test
+    fun `모두 선택의 대상은 항목을 보여 주는 목록의 항목이다`() {
+        val loaded = ListingUiState.Loaded(items = items, key = ListingKey(path = "/", generation = 1), unreadableCount = 0)
+
+        assertEquals(items, selectAllTargetsOf(loaded))
+    }
+
+    @Test
+    fun `항목을 보여 주지 않는 목록에서는 모두 선택의 대상이 없다`() {
+        val states = listOf(
+            ListingUiState.NoPath,
+            ListingUiState.Loading,
+            ListingUiState.Failed(reason = ListingFailureReason.UNREADABLE, detail = null)
+        )
+
+        states.forEach { assertEquals("$it", emptyList<FileHolderItem>(), selectAllTargetsOf(it)) }
     }
 
     private fun item(path: String) =

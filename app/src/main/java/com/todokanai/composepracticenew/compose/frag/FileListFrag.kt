@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.compose.frag
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -13,12 +14,14 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.compose.listview.ListWithBottomButtons
 import com.todokanai.composepracticenew.compose.listview.LocalTransferActions
 import com.todokanai.composepracticenew.compose.listview.RenameActions
 import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
 import com.todokanai.composepracticenew.compose.listview.CompressActions
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
+import com.todokanai.composepracticenew.compose.listview.selectAllTargetsOf
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -127,26 +130,50 @@ fun FileListFrag(
             suggestFolderName = viewModel.entryNaming::suggestNewFolderName,
             validateFolderName = viewModel.entryNaming::validateNewFolderName,
             onExit = onExit,
-            // 다중 선택 중에는 검색을 열지 않는다 — 검색 결과의 선택·작업은 범위 밖이다
-            onSearchClick = searchViewModel::open.takeIf { selectMode != SelectMode.MultiSelect }
-        )
-        DirectoryListingContent(
-            modifier = Modifier.weight(1f),
-            listing = uiState.value.listing,
-            onRetry = viewModel::retryListing
-        ) { loaded ->
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (selectMode == SelectMode.MultiSelect) {
+            // 다중 선택 중에는 상단 버튼 바 자리를 모두 선택 바로 바꿔 쓴다 — 목록 위에 새 줄을 더하면 목록이 밀린다(#520)
+            selectionBar = if (selectMode == SelectMode.MultiSelect) {
+                {
                     SelectAllBar(
-                        modifier = Modifier,
-                        items = loaded.items,
+                        modifier = Modifier.fillMaxHeight(),
+                        items = selectAllTargetsOf(uiState.value.listing),
                         selectedList = selectedList,
                         onReplaceSelection = onReplaceSelection
                     )
                 }
+            } else null,
+            // 다중 선택 중에는 검색을 열지 않는다 — 검색 결과의 선택·작업은 범위 밖이다
+            onSearchClick = searchViewModel::open.takeIf { selectMode != SelectMode.MultiSelect }
+        )
+        ListWithBottomButtons(
+            modifier = Modifier.weight(1f),
+            buttons = {
+                BottomButtonListView(
+                    modifier = Modifier,
+                    selectMode = selectMode,
+                    onSelectOperation = onSelectOperation,
+                    onResetSelection = onResetSelection,
+                    onSubmitSelection = onSubmitSelection,
+                    selectedList = selectedList,
+                    info = info,
+                    transfer = transfer,
+                    onRequestConfirm = viewModel::requestConfirm,
+                    compress = compressActions,
+                    canUnzip = viewModel::canUnzip,
+                    rename = renameActions,
+                    pendingRename = pendingRename,
+                    onDelete = viewModel::delete
+                )
+            }
+        ) { buttonsPadding ->
+            DirectoryListingContent(
+                modifier = Modifier.fillMaxSize(),
+                listing = uiState.value.listing,
+                onRetry = viewModel::retryListing
+            ) { loaded ->
                 FileListView(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                     listState = listState,
+                    contentPadding = buttonsPadding,
                     fileHolderItemList = loaded.items,
                     childCounts = childCountsFor(loaded.key),
                     selectedList = selectedList,
@@ -160,23 +187,6 @@ fun FileListFrag(
                 )
             }
         }
-
-        BottomButtonListView(
-            modifier = Modifier,
-            selectMode = selectMode,
-            onSelectOperation = onSelectOperation,
-            onResetSelection = onResetSelection,
-            onSubmitSelection = onSubmitSelection,
-            selectedList = selectedList,
-            info = info,
-            transfer = transfer,
-            onRequestConfirm = viewModel::requestConfirm,
-            compress = compressActions,
-            canUnzip = viewModel::canUnzip,
-            rename = renameActions,
-            pendingRename = pendingRename,
-            onDelete = viewModel::delete
-        )
 
         StorageSwitchBar(
             isRemote = false,

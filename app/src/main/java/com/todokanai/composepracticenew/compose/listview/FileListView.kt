@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.compose.listview
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -55,6 +57,7 @@ fun rememberListingScrollState(listing: ListingUiState): LazyListState {
 /**
  * 파일 목록을 스크롤바와 함께 표시하고, longPress 드래그 다중 선택을 지원한다. 길게 누르기는 행이 아니라 목록(dragSelectGesture)만 받는다.
  * @param listState 목록과 스크롤바가 함께 쓰는 스크롤 상태. 목록이 화면에서 빠져도 위치가 남도록 호출부가 [rememberListingScrollState]로 만들어 넘긴다
+ * @param contentPadding 목록 안쪽 여백. 목록 위에 겹친 하단 버튼의 높이를 받아, 마지막 행과 스크롤바 끝이 버튼에 가리지 않게 한다
  * @param selectedList 선택 목록을 반환하는 함수 — 항목별 선택 여부를 derivedStateOf로 구독해, 선택이 바뀐 행만 리컴포지션한다
  * @param childCounts [fileHolderItemList]의 폴더별 하위 항목 수. 폴더 행이 화면에 있는 동안에만 센다. null이면 세지 않는다(원격 목록)
  * @param clickActionOf 누른 항목에 할 일을 정하는 함수 — 화면의 선택 모드 규칙
@@ -65,6 +68,7 @@ fun rememberListingScrollState(listing: ListingUiState): LazyListState {
 fun FileListView(
     modifier: Modifier,
     listState: LazyListState,
+    contentPadding: PaddingValues,
     fileHolderItemList: List<FileHolderItem>,
     childCounts: ChildCountSource?,
     selectedList: () -> List<FileHolderItem>,
@@ -99,7 +103,8 @@ fun FileListView(
     ) {
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = contentPadding
         ) {
             items(fileHolderItemList, key = ::fileListKeyOf) { fileHolderItem ->
 
@@ -125,10 +130,11 @@ fun FileListView(
                 )
             }
         }
-        // 스크롤바 전용 strip — 오른쪽 끝만 커버하여 목록 터치 이벤트와 hit-testing 충돌 없음
+        // 스크롤바 전용 strip — 오른쪽 끝만 커버하여 목록 터치 이벤트와 hit-testing 충돌 없음. 목록 안쪽 여백만큼 줄여 끝까지 스크롤했을 때 thumb가 겹친 버튼 뒤로 가지 않게 한다
         Spacer(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
+                .padding(top = contentPadding.calculateTopPadding(), bottom = contentPadding.calculateBottomPadding())
                 .fillMaxHeight()
                 .width(ScrollbarTouchTargetWidth)
                 .verticalScrollbar(listState)
