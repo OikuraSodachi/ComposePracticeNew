@@ -4,8 +4,13 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -26,6 +31,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Android 15+는 targetSdk 35 앱을 강제로 edge-to-edge로 그리므로, 모든 버전을 같게 맞추고 시스템 막대는 HomeScreen이 비켜 둔다
+        enableEdgeToEdge()
         setContent {
             HomeScreen(viewModelStoreOwner = this, onExitApp = ::finishAndRemoveTask)
         }
@@ -58,7 +65,10 @@ private fun HomeScreen(viewModelStoreOwner: ViewModelStoreOwner, onExitApp: () -
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background,
         ) {
-            AppNavHost(viewModelStoreOwner = viewModelStoreOwner, onExitApp = onExitApp)
+            // 상태바·내비게이션바·컷아웃·키보드를 여기 한 곳에서 비켜 둔다. 막대 뒤는 Surface 배경색으로 칠해진다
+            Box(modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing)) {
+                AppNavHost(viewModelStoreOwner = viewModelStoreOwner, onExitApp = onExitApp)
+            }
         }
     }
 }

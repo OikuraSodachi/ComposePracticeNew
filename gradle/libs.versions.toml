@@ -9,7 +9,7 @@ coreKtx = "1.12.0"
 lifecycleRuntimeKtx = "2.3.1"
 lifecycleRuntimeCompose = "2.6.1"
 
-activityCompose = "1.5.1"
+activityCompose = "1.8.0"
 composeBom = "2022.10.00"
 composeUi = "1.5.0-alpha04"
 composeMaterial3 = "1.1.0"
