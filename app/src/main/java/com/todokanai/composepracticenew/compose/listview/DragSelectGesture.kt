@@ -13,8 +13,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.DragSelection
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
@@ -30,24 +31,29 @@ private class DragSelectProgress {
     var scrollSpeed = 0f
     /** 마지막으로 범위를 보고한 인덱스 — 같은 인덱스의 중복 보고를 막는다. -1은 "보고 없음" */
     var lastReportedIndex = -1
+    /** 이번 드래그의 범위 선택 규칙 — 드래그를 시작할 때 정한다 */
+    var selection = DragSelection.Fresh
 }
 
 /**
  * longPress 후 드래그로 항목 범위를 선택하고, 상·하단 경계 근접 시 자동 스크롤한다.
+ * 기본 모드에서 시작하면 다중 선택으로 들어가 범위를 선택하고, 다중 선택 중에 시작하면 시작 항목의 선택 여부에 따라 범위를 선택하거나 해제한다([DragSelection]).
  *
  * @param listState 대상 LazyColumn의 스크롤 상태
  * @param fileList 현재 표시 중인 파일 항목 목록
- * @param selectMode 현재 선택 모드 — SelectMode.Default일 때만 드래그 선택이 시작된다
- * @param onStartMultiSelect 드래그 시작 시 anchor 항목을 선택한 채로 다중 선택 모드로 전환을 요청하는 콜백
- * @param onRangeSelect anchor~현재 인덱스 범위의 항목 목록을 전달
+ * @param selectMode 현재 선택 모드 — 기본·다중 선택 모드에서만 드래그 선택이 시작된다
+ * @param selectedList 선택 목록을 반환하는 함수 — 다중 선택 중 드래그를 시작할 때의 선택을 읽는다
+ * @param onStartMultiSelect 기본 모드에서 드래그 시작 시 anchor 항목을 선택한 채로 다중 선택 모드로 전환을 요청하는 콜백
+ * @param onReplaceSelection 드래그 범위를 반영한 선택 목록을 전달
  */
 @Composable
 fun Modifier.dragSelectGesture(
     listState: LazyListState,
     fileList: List<FileHolderItem>,
     selectMode: SelectMode,
+    selectedList: () -> List<FileHolderItem>,
     onStartMultiSelect: (FileHolderItem) -> Unit,
-    onRangeSelect: (List<FileHolderItem>) -> Unit
+    onReplaceSelection: (List<FileHolderItem>) -> Unit
 ): Modifier {
     // isDragSelecting만 LaunchedEffect 키로 쓰이므로 State로 유지 — 키 없이 1회 생성해 리컴포지션 간 드래그 상태 보존
     var isDragSelecting by remember { mutableStateOf(false) }
@@ -57,8 +63,9 @@ fun Modifier.dragSelectGesture(
     // pointerInput(Unit) 클로저 내 stale 캡처 방지 — Composable 파라미터는 재호출 시 새 값이 오므로 State로 감쌈
     val latestFileList           by rememberUpdatedState(fileList)
     val latestSelectMode         by rememberUpdatedState(selectMode)
+    val latestSelectedList       by rememberUpdatedState(selectedList)
     val latestOnStartMultiSelect by rememberUpdatedState(onStartMultiSelect)
-    val latestOnRangeSelect      by rememberUpdatedState(onRangeSelect)
+    val latestOnReplaceSelection by rememberUpdatedState(onReplaceSelection)
 
     // 손가락 위치의 항목까지 범위를 선택한다 — 인덱스가 바뀌지 않았으면 보고하지 않는다
     fun selectRangeAt(y: Float) {
@@ -68,7 +75,7 @@ fun Modifier.dragSelectGesture(
         if (idx == progress.lastReportedIndex) return
         progress.lastReportedIndex = idx
         val anchor = progress.anchorIndex
-        latestOnRangeSelect(list.subList(minOf(anchor, idx), maxOf(anchor, idx) + 1))
+        latestOnReplaceSelection(progress.selection.selectionWith(list.subList(minOf(anchor, idx), maxOf(anchor, idx) + 1)))
     }
 
     // isDragSelecting이 true인 동안 실행 — 스크롤 후 currentFingerY 기준으로 범위 재계산
@@ -91,16 +98,19 @@ fun Modifier.dragSelectGesture(
 
         detectDragGesturesAfterLongPress(
             onDragStart = { offset ->
-                if (latestSelectMode != SelectMode.Default) return@detectDragGesturesAfterLongPress
                 val list = latestFileList
                 val idx = listState.itemIndexAtOffset(offset.y)
                     ?.coerceIn(0, list.lastIndex)
                     ?: return@detectDragGesturesAfterLongPress
+                val anchorItem = list[idx]
+                val selection = startDragSelection(latestSelectMode, anchorItem, latestSelectedList, latestOnStartMultiSelect)
+                    ?: return@detectDragGesturesAfterLongPress
                 progress.anchorIndex       = idx
                 progress.lastReportedIndex = idx
                 progress.currentFingerY    = offset.y
+                progress.selection         = selection
                 isDragSelecting = true
-                latestOnStartMultiSelect(list[idx])
+                latestOnReplaceSelection(selection.selectionWith(listOf(anchorItem)))
             },
             onDrag = { change, _ ->
                 if (isDragSelecting) {
@@ -124,6 +134,25 @@ fun Modifier.dragSelectGesture(
             onDragCancel = onDragReset
         )
     }
+}
+
+/**
+ * 선택 모드에 맞춰 드래그 선택을 시작하고 이번 드래그의 범위 선택 규칙을 정한다.
+ * @param selectMode 드래그를 시작할 때의 선택 모드
+ * @param anchor 드래그를 시작한 항목
+ * @param selectedList 선택 목록을 반환하는 함수
+ * @param onStartMultiSelect anchor를 선택한 채로 다중 선택 모드로 전환을 요청하는 콜백 — 기본 모드에서만 부른다
+ * @return 범위 선택 규칙. 목적지 확인 단계처럼 선택을 편집하지 않는 모드면 null이며 드래그 선택을 시작하지 않는다
+ */
+private fun startDragSelection(
+    selectMode: SelectMode,
+    anchor: FileHolderItem,
+    selectedList: () -> List<FileHolderItem>,
+    onStartMultiSelect: (FileHolderItem) -> Unit
+): DragSelection? = when (selectMode) {
+    SelectMode.Default -> DragSelection.Fresh.also { onStartMultiSelect(anchor) }
+    SelectMode.MultiSelect -> DragSelection.startingAt(anchor, selectedList())
+    is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> null
 }
 
 // 픽셀 Y 좌표에 해당하는 실제 리스트 인덱스 반환 — viewportStartOffset 보정으로 contentPadding과 무관하게 동작

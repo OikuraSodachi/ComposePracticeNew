@@ -46,12 +46,13 @@ fun rememberListingScrollState(listing: ListingUiState): LazyListState {
 }
 
 /**
- * 파일 목록을 스크롤바와 함께 표시하고, longPress 드래그 다중 선택을 지원한다.
+ * 파일 목록을 스크롤바와 함께 표시하고, longPress 드래그 다중 선택을 지원한다. 길게 누르기는 행이 아니라 목록(dragSelectGesture)만 받는다.
  * @param listState 목록과 스크롤바가 함께 쓰는 스크롤 상태. 목록이 화면에서 빠져도 위치가 남도록 호출부가 [rememberListingScrollState]로 만들어 넘긴다
  * @param selectedList 선택 목록을 반환하는 함수 — 항목별 선택 여부를 derivedStateOf로 구독해, 선택이 바뀐 행만 리컴포지션한다
  * @param childCounts [fileHolderItemList]의 폴더별 하위 항목 수. 폴더 행이 화면에 있는 동안에만 센다. null이면 세지 않는다(원격 목록)
  * @param clickActionOf 누른 항목에 할 일을 정하는 함수 — 화면의 선택 모드 규칙
  * @param onOpen 항목을 여는 콜백. [clickActionOf]가 열기로 정한 항목에만 부른다
+ * @param onReplaceSelection 다중 선택 목록을 바꾸는 콜백 — 드래그 범위 선택에 쓴다
  */
 @Composable
 fun FileListView(
@@ -64,15 +65,12 @@ fun FileListView(
     clickActionOf: (FileHolderItem) -> ItemClickAction,
     onOpen: (FileHolderItem) -> Unit,
     onStartMultiSelect: (FileHolderItem) -> Unit,
-    onRangeSelect: (List<FileHolderItem>) -> Unit,
+    onReplaceSelection: (List<FileHolderItem>) -> Unit,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit
 ) {
     // items{} 밖에서 한 번 만들어 모든 행(FileHolder)이 같은 인스턴스를 공유 — 행이 Strong Skipping의 인스턴스 비교로 생략된다
     val typeIcons = rememberTypeIcons()
-
-    // long-press는 Box 레벨 dragSelectGesture에서 처리 — combinedClickable 이중 발화 방지
-    val noOpLongClick: () -> Unit = remember { {} }
 
     // selectedList 함수를 키로 — 함수가 바뀌면 새 출처를 추적해야 하므로 재생성. derivedStateOf는 selectedList()가 읽는 선택 목록 State를 추적하며,
     // 이 컴포저블 본문에서는 .value를 읽지 않으므로 선택 변경이 목록 전체 리컴포지션을 일으키지 않는다
@@ -87,8 +85,9 @@ fun FileListView(
                 listState = listState,
                 fileList = fileHolderItemList,
                 selectMode = selectMode,
+                selectedList = selectedList,
                 onStartMultiSelect = onStartMultiSelect,
-                onRangeSelect = onRangeSelect
+                onReplaceSelection = onReplaceSelection
             )
     ) {
         LazyColumn(
@@ -115,8 +114,7 @@ fun FileListView(
                             ItemClickAction.OPEN -> onOpen(fileHolderItem)
                             ItemClickAction.IGNORE -> {}
                         }
-                    },
-                    onLongClick = noOpLongClick
+                    }
                 )
             }
         }
