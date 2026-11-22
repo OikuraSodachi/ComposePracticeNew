@@ -7,6 +7,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
+/** `room_user` 테이블의 [User]를 읽고 쓰는 DAO. */
 @Dao
 interface UserDao {
 

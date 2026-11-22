@@ -56,6 +56,7 @@ fun ConfirmCancelDialog(
     )
 }
 
+/** ConfirmCancelDialog 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun ConfirmCancelDialogPreview() {

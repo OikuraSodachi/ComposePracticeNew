@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.ui.model.StorageHolderItem
 
+/** 저장소 볼륨 하나의 경로와 사용량(사용/전체, 막대)을 보여 주는 목록 항목. */
 @Composable
 fun StorageHolder(
     modifier : Modifier,

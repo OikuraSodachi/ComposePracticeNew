@@ -21,6 +21,7 @@ import com.todokanai.composepracticenew.ui.theme.ComposePracticeTheme
 import com.todokanai.composepracticenew.viewmodel.ProgressDialogViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
+/** 앱의 유일한 Activity. Compose 화면을 띄우고, 시작 권한을 요청하며, 진행 알림 클릭으로 받은 intent의 작업 진행률을 띄운다. */
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 

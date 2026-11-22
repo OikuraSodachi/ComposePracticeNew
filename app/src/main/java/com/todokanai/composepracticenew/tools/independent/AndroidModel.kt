@@ -1,8 +1,6 @@
 package com.todokanai.composepracticenew.tools.independent
 
-/**
- * 독립적으로 사용 가능하고, Android 의존성 있는 method 모음
- */
+// 이 파일의 함수들은 독립적으로 쓸 수 있지만 Android 프레임워크에 의존한다.
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.ThumbnailUtils

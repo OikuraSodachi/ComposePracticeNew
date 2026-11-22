@@ -47,8 +47,11 @@ class FtpForegroundService : SelfStoppingForegroundService() {
             .build()
 
     companion object {
+        /** 알림에 보일 연결한 서버 이름을 담는 Intent extra. */
         const val EXTRA_SERVER_LABEL = "extra_server_label"
+        /** 연결 유지 Foreground 알림의 id. */
         const val NOTIFICATION_ID = 1001
+        /** 연결 유지 알림 채널의 id. */
         const val CHANNEL_ID = "ftp_connection"
     }
 }

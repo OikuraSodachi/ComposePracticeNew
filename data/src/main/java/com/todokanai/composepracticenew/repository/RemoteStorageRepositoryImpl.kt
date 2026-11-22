@@ -10,7 +10,10 @@ import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** 원격 스토리지 접속 정보의 Room 기반 구현체. */
+/**
+ * 원격 스토리지 접속 정보의 Room 기반 구현체.
+ * @param dao 원격 서버 접속 정보 테이블을 읽고 쓰는 DAO
+ */
 @Singleton
 class RemoteStorageRepositoryImpl @Inject constructor(
     private val dao: RemoteStorageInfoDao

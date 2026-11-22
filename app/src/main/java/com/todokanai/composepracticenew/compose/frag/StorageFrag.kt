@@ -104,7 +104,7 @@ private fun List<RemoteStorageItem>.findById(id: Long?): RemoteStorageItem? =
  * @param modifier 레이아웃 수정자
  * @param exitStorageFrag 고른 로컬 스토리지 루트로 이동한 뒤 파일 목록 화면으로 넘어가는 콜백
  * @param exitToRemoteFileFrag 원격 스토리지 연결 성공 후 원격 파일 목록 화면으로 이동하는 콜백
- * @param onExit 앱을 완전히 종료한다(FTP 서비스 중단 후 태스크 제거).
+ * @param onExit 앱을 완전히 종료한다(원격 연결 종료를 요청한 뒤 태스크 제거).
  * @param viewModel 스토리지 선택 화면의 ViewModel
  */
 @Composable
@@ -118,6 +118,7 @@ fun StorageFrag(
     val uiState = viewModel.uiState.collectAsStateWithLifecycle()
     val isConnecting by viewModel.isConnecting.collectAsStateWithLifecycle()
     val connectFailureDialog by viewModel.connectFailureDialog.collectAsStateWithLifecycle()
+    // rememberSaveable로 기억 — 다이얼로그의 대상이 저장된 서버 id라 회전·프로세스 종료 뒤에도 열린 다이얼로그를 복원한다(#273)
     val dialogState = rememberStorageDialogState()
 
     StorageConnectionEffects(

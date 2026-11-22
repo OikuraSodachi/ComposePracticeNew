@@ -40,6 +40,7 @@ fun MyDropdownMenu(
     }
 }
 
+/** MyDropdownMenu 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun DropdownMenuPreview(){

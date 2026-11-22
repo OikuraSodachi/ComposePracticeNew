@@ -19,6 +19,7 @@ import javax.inject.Singleton
 class StorageVolumeRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context
 ) : StorageVolumeRepository {
+    /** [storageList]의 변경 가능한 원본. */
     private val _storageList = MutableStateFlow<List<StorageVolumeInfo>>(emptyList())
     override val storageList: StateFlow<List<StorageVolumeInfo>> = _storageList.asStateFlow()
 

@@ -59,7 +59,7 @@ fun AppNavHost(
     // activity-scoped: 작업 질문(충돌·비밀번호)은 화면 이동과 무관하게 하나만 묻는다
     val operationQuestionViewModel: OperationQuestionViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
 
-    // mainViewModel.exit()이 서비스 중단 후 emit — View는 호스트 종료 콜백 호출만 담당
+    // mainViewModel.exit()이 원격 연결 종료를 요청한 뒤 emit — View는 호스트 종료 콜백 호출만 담당
     LaunchedEffect(Unit) {
         mainViewModel.exitEvent.collect { onExitApp() }
     }

@@ -11,55 +11,69 @@ import com.todokanai.composepracticenew.model.ProgressPhase
  */
 interface FileActionRepository {
 
-    // Compresses [targetFiles] into a new [format] archive named [baseName] + [ArchiveFormat.extension] under [parentPath], reporting progress via [onProgress].
-    // Never overwrites: if that name already exists, a numbered name such as "name (1).zip" is used instead.
-    // Fails without creating anything if [format] is not in [supportedArchiveFormats].
-    // A non-null [password] (never empty) encrypts every file entry with AES-256; null creates an unencrypted archive.
+    /**
+     * Compresses [targetFiles] into a new [format] archive named [baseName] + [ArchiveFormat.extension] under [parentPath], reporting progress via [onProgress].
+     * Never overwrites: if that name already exists, a numbered name such as "name (1).zip" is used instead.
+     * Fails without creating anything if [format] is not in [supportedArchiveFormats].
+     * A non-null [password] (never empty) encrypts every file entry with AES-256; null creates an unencrypted archive.
+     */
     suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit>
 
-    // Returns the archive formats [compressAction] can create.
+    /** Returns the archive formats [compressAction] can create. */
     fun supportedArchiveFormats(): Set<ArchiveFormat>
 
-    // Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
-    // Never replaces an existing entry without asking: each entry is first written in a way that fails if the name is taken,
-    // and only when the file system reports the name as taken is [resolveConflict] asked. PROCEED replaces a file, or merges a
-    // folder into a folder (its entries are then judged one by one); a file/folder type mismatch can only be skipped.
-    // SKIP leaves the existing entry (and, for a folder, everything beneath the source folder) untouched.
+    /**
+     * Copies [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
+     * Never replaces an existing entry without asking: each entry is first written in a way that fails if the name is taken,
+     * and only when the file system reports the name as taken is [resolveConflict] asked. PROCEED replaces a file, or merges a
+     * folder into a folder (its entries are then judged one by one); a file/folder type mismatch can only be skipped.
+     * SKIP leaves the existing entry (and, for a folder, everything beneath the source folder) untouched.
+     */
     suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit>
 
-    // Renames the file at [targetFile] to [newName].
-    // If another entry already has [newName]: fails unless [overwrite]. With [overwrite], a file replaces a file and a folder
-    // is merged into a folder (clashing entries replaced, others kept); a file/folder type mismatch always fails.
+    /**
+     * Renames the file at [targetFile] to [newName].
+     * If another entry already has [newName]: fails unless [overwrite]. With [overwrite], a file replaces a file and a folder
+     * is merged into a folder (clashing entries replaced, others kept); a file/folder type mismatch always fails.
+     */
     suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean = false): IoResult<Unit>
 
-    // Deletes the files and directory trees at [targetFiles] as one operation, reporting progress via [onProgress].
-    // Takes every target at once so progress covers the whole operation — only the implementation knows how many entries a folder holds.
-    // Keeps deleting the remaining entries when one fails, then reports once (PartiallyFailed) naming the entries that could not be deleted,
-    // each under its target's name.
+    /**
+     * Deletes the files and directory trees at [targetFiles] as one operation, reporting progress via [onProgress].
+     * Takes every target at once so progress covers the whole operation — only the implementation knows how many entries a folder holds.
+     * Keeps deleting the remaining entries when one fails, then reports once (PartiallyFailed) naming the entries that could not be deleted,
+     * each under its target's name.
+     */
     suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit>
 
-    // Moves [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
-    // Name clashes are resolved through [resolveConflict] exactly as in [copyAction]. Skipped entries stay at their source;
-    // a merged source folder is removed only once everything in it has been moved.
+    /**
+     * Moves [targetFiles] into the directory at [targetPath], reporting progress via [onProgress].
+     * Name clashes are resolved through [resolveConflict] exactly as in [copyAction]. Skipped entries stay at their source;
+     * a merged source folder is removed only once everything in it has been moved.
+     */
     suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit>
 
-    // Extracts [zipFiles] into [destPath], placing the entries as [layout] says, reporting progress via [onProgress].
-    // Folders are merged into existing folders without asking. A file entry whose name is taken is resolved through
-    // [resolveConflict] (PROCEED replaces the file); an entry whose type differs from the existing one can only be skipped.
-    // Encrypted entries get their password from [askPassword], asked once per archive when first needed and asked again
-    // (WRONG / WRONG_OR_DAMAGED) until a password is verified before any output is written for it.
-    // [zipFiles] must group into one archive as in [extractionTargetOf]: the later volumes of a split archive are extracted
-    // once, through its first volume. Paths that group into no archive or several archives are rejected with
-    // IllegalArgumentException before anything is extracted. A missing volume fails the extraction once it is detected;
-    // entries already written stay.
+    /**
+     * Extracts [zipFiles] into [destPath], placing the entries as [layout] says, reporting progress via [onProgress].
+     * Folders are merged into existing folders without asking. A file entry whose name is taken is resolved through
+     * [resolveConflict] (PROCEED replaces the file); an entry whose type differs from the existing one can only be skipped.
+     * Encrypted entries get their password from [askPassword], asked once per archive when first needed and asked again
+     * (WRONG / WRONG_OR_DAMAGED) until a password is verified before any output is written for it.
+     * [zipFiles] must group into one archive as in [extractionTargetOf]: the later volumes of a split archive are extracted
+     * once, through its first volume. Paths that group into no archive or several archives are rejected with
+     * IllegalArgumentException before anything is extracted. A missing volume fails the extraction once it is detected;
+     * entries already written stay.
+     */
     suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit>
 
-    // Returns the path [unzipAction] extracts [paths] through if they group into one archive: a single archive, or the
-    // first volume of a split archive joined by the later volumes of that archive in [paths].
-    // Returns null if [unzipAction] cannot extract some path — an unsupported format, or a later volume whose first
-    // volume is not in [paths] — or if [paths] group into no archive or several archives.
+    /**
+     * Returns the path [unzipAction] extracts [paths] through if they group into one archive: a single archive, or the
+     * first volume of a split archive joined by the later volumes of that archive in [paths].
+     * Returns null if [unzipAction] cannot extract some path — an unsupported format, or a later volume whose first
+     * volume is not in [paths] — or if [paths] group into no archive or several archives.
+     */
     fun extractionTargetOf(paths: Set<String>): String?
 
-    // Creates a new directory named [name] under [parentPath].
+    /** Creates a new directory named [name] under [parentPath]. */
     suspend fun makeDirectory(parentPath: String, name: String): IoResult<Unit>
 }

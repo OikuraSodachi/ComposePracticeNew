@@ -66,6 +66,7 @@ class RemoteFileListViewModel @Inject constructor(
         val listing: ListingUiState = ListingUiState.NoPath
     )
 
+    /** 현재 원격 디렉터리의 목록 상태를 화면 표시용으로 바꾼 UI 상태. */
     val uiState: StateFlow<UiState> = flow {
         // 수집마다 변환기를 새로 만든다 — 변환기는 직전 변환 결과를 기억하므로 하나의 수집 코루틴 안에서만 써야 한다
         val mapper = ListingUiStateMapper(isLocalFile = false)

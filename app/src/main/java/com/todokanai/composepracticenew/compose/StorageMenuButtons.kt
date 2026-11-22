@@ -19,12 +19,14 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 
+/** 저장소 화면 하단의 메뉴(원격 저장소 추가)와 종료 버튼 줄. */
 @Composable
 fun StorageMenuButtons(
     modifier: Modifier,
     onAddRemoteStorage: () -> Unit,
     exit: () -> Unit
 ) {
+    // 키 없이 remember — 메뉴 열림 여부는 이 컴포지션 동안만 유지한다(구성 변경 시 닫힌다)
     var expanded by remember { mutableStateOf(false) }
 
     Row(
@@ -62,6 +64,7 @@ fun StorageMenuButtons(
     }
 }
 
+/** StorageMenuButtons 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun StorageMenuButtonsPreview() {

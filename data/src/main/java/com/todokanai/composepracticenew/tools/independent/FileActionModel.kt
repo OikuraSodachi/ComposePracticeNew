@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.tools.independent
 
-/** 이 method들은 독립적으로 사용 가능함 */
+// 이 파일의 함수들은 프레임워크 의존 없이 독립적으로 쓸 수 있다.
 
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters

@@ -89,6 +89,7 @@ internal class FtpSessionManager(
     /** 마지막으로 발급한 세션 표지 id. */
     private val lastSessionId = AtomicLong()
 
+    /** [connectionState]의 변경 가능한 원본. */
     private val _connectionState = MutableStateFlow<RemoteConnectionState>(RemoteConnectionState.Disconnected)
     /**
      * 탐색 세션의 연결 상태. 예기치 않은 끊김과 앱이 요청한 종료를 구분해, 끊김은 다음 연결 시도([connect])나 종료 요청까지 [RemoteConnectionState.Lost]로 남긴다.
@@ -96,6 +97,7 @@ internal class FtpSessionManager(
      */
     val connectionState: StateFlow<RemoteConnectionState> = _connectionState.asStateFlow()
 
+    /** [isConnecting]의 변경 가능한 원본. */
     private val _isConnecting = MutableStateFlow(false)
     /** 접속·종료 작업이 하나라도 진행 중이면 true를 방출한다. */
     val isConnecting: StateFlow<Boolean> = _isConnecting.asStateFlow()

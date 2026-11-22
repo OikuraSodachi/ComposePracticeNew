@@ -10,12 +10,14 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+/** 동적 색을 쓰지 않을 때의 어두운 테마 색 구성. */
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
     secondary = PurpleGrey80,
     tertiary = Pink80
 )
 
+/** 동적 색을 쓰지 않을 때의 밝은 테마 색 구성. */
 private val LightColorScheme = lightColorScheme(
     primary = Purple40,
     secondary = PurpleGrey40,
@@ -32,6 +34,7 @@ private val LightColorScheme = lightColorScheme(
     */
 )
 
+/** 앱의 Material 테마. Android 12 이상에서 [dynamicColor]면 시스템 동적 색을, 아니면 [darkTheme]에 맞는 고정 색 구성을 쓴다. */
 @Composable
 fun ComposePracticeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),

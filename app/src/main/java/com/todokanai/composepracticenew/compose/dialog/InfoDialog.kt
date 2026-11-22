@@ -195,6 +195,7 @@ private fun childCountText(childCount: ChildCountInfo): String = when (childCoun
 private fun failedText(message: UiText?): String =
     message?.let { stringResource(R.string.dialog_info_failed_reason, it.asString()) } ?: stringResource(R.string.read_failed)
 
+/** InfoDialog 모양을 확인하는 프리뷰. */
 @Preview
 @Composable
 private fun InfoDialogPreview(){

@@ -30,6 +30,6 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) { loadStorageListUseCase.execute() }
     }
 
-    /** 연결 서비스를 중단하고 앱 종료 이벤트를 발행한다. */
+    /** 원격 연결 종료를 요청하고 앱 종료 이벤트를 발행한다. 연결 유지 서비스는 연결이 끊긴 상태를 보고 스스로 멈춘다. */
     fun exit() = exitHandler.execute()
 }

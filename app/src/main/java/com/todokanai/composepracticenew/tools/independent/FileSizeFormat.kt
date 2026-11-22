@@ -17,7 +17,7 @@ private fun currentFileSizeFormat(): DecimalFormat {
     return DecimalFormat("#,##0.#").also { fileSizeFormat.set(locale to it) }
 }
 
-/** Todokanai */
+/** [size] 바이트를 1024 단위로 나눠 "1.5 MB"처럼 단위를 붙인 문자열로 만든다. 0 이하면 "0"이다. */
 fun readableFileSize_td(size: Long): String {
     if (size <= 0) return "0"
     val digitGroups = (log10(size.toDouble()) / log10(1024.0)).toInt()

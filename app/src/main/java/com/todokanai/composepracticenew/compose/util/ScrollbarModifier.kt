@@ -13,7 +13,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-/** 스크롤바 계산에 필요한 레이아웃 지표 — [LazyListState.computeScrollMetrics]가 반환. */
+/**
+ * 스크롤바 계산에 필요한 레이아웃 지표 — [LazyListState.computeScrollMetrics]가 반환.
+ * @param itemHeight 항목 하나의 높이(첫 번째 보이는 항목 기준)
+ * @param scrollableHeight 전체 콘텐츠 높이에서 보이는 영역 높이를 뺀, 스크롤할 수 있는 높이
+ * @param thumbHeightFraction 트랙 높이에 대한 thumb 높이의 비율(최소 비율~1). 1이면 모든 항목이 보이므로 스크롤바를 그리지 않는다
+ */
 private data class ScrollMetrics(
     val itemHeight: Float,
     val scrollableHeight: Float,

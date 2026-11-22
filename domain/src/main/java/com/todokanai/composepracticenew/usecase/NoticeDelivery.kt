@@ -20,7 +20,12 @@ internal suspend fun <T> NoticeInbox<T>.deliverOneByOne(show: suspend (T) -> Uni
         notices.forEach { if (claim(it.id)) showClaimed(it, show) }
     }
 
-/** 꺼낸 [notice]를 [show]로 보여 주고, 다 보여 줬으면 지우고 아니면 돌려놓는다. */
+/**
+ * 꺼낸 [notice]를 [show]로 보여 주고, 다 보여 줬으면 지우고 아니면 돌려놓는다.
+ * @param notice 이 수집이 꺼낸 알림
+ * @param show 알림을 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
+ * @return Unit
+ */
 private suspend fun <T> NoticeInbox<T>.showClaimed(notice: PendingNotice<T>, show: suspend (T) -> Unit) {
     var shown = false
     try {
@@ -32,6 +37,8 @@ private suspend fun <T> NoticeInbox<T>.showClaimed(notice: PendingNotice<T>, sho
 
 /**
  * 꺼낸 [notice]를 [show]로 보여 주되, 그동안 알림함에서 빠지면 [show]를 취소한다.
+ * @param notice 이 수집이 꺼낸 알림
+ * @param show 알림을 보여 주고, 다 보여 줄 때까지 돌아오지 않는 함수
  * @return 다 보여 줬으면 true, 빠져서 멈췄으면 false
  */
 private suspend fun <T> NoticeInbox<T>.showUnlessWithdrawn(notice: PendingNotice<T>, show: suspend (T) -> Unit): Boolean =

@@ -12,6 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 
+/** 경로 표시줄에서 경로 한 단계의 이름을 보여 주는 항목. */
 @Composable
 fun DirectoryHolder(
     modifier: Modifier,
