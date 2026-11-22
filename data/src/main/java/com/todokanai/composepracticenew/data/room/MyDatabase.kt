@@ -7,7 +7,5 @@ import androidx.room.RoomDatabase
 @Database(entities = [User::class, RemoteStorageInfo::class], version = 4, exportSchema = false)
 abstract class MyDatabase : RoomDatabase(){
 
-    abstract fun userDao() : UserDao
-
     abstract fun remoteStorageInfoDao() : RemoteStorageInfoDao
 }

@@ -99,8 +99,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 - **설정 저장소 실패**: DataStore 접근의 실행 위치·재시도·실패 정책은 `PreferencesStore` 한 곳에서 정한다.
   - 결과로 돌려줄 수 없는 실패는 `PreferenceFailureNotices`(domain `PreferenceFailureRepository`)에 알림으로 넣는다. 공유 `data`의 읽기 실패는 기본값으로 대신하고 백오프로 다시 읽으며, 저장 실패는 이전 값을 남기고, 손상 파일 초기화는 `CorruptionReset`이 교체가 쓰인 뒤 알린다.
   - 화면 호스트는 화면이 보이는 동안 `PreferenceFailureUseCase.deliver`로 알림을 꺼내 Snackbar로 알린다. 먼저 꺼낸 한 곳만 알리며, 알리기 전에 회복한 읽기 실패는 목록에서 빠진다.
-  - 결과를 받는 읽기(`readOnce`)의 실패는 알림에 넣지 않고 null로 돌려주며, 받은 쪽이 알린다.
-  - 편집은 대기열 하나로 호출 순서대로 반영하고, `readOnce`는 앞서 호출한 편집이 끝난 뒤 읽는다. IOException이 아닌 편집 예외(구현 오류)는 대기열 처리를 끝내 appScope로 전파하고, 대기열을 그 예외로 닫는다(#211): 닫힌 뒤의 편집·`readOnce`와 대기열에 남은 `readOnce`는 그 예외로 실패한다 — 닫힌 대기열이 받기만 하거나 끝없이 기다리게 하지 않도록. 이미 대기열에 들어간 편집은 반영되지 않으며, 그 실패는 appScope로 전파된 예외로만 드러난다.
+  - 편집은 대기열 하나로 호출 순서대로 반영한다. IOException이 아닌 편집 예외(구현 오류)는 대기열 처리를 끝내 appScope로 전파하고, 대기열을 그 예외로 닫는다(#211): 닫힌 뒤의 편집은 그 예외로 실패한다 — 닫힌 대기열이 받기만 하지 않도록. 이미 대기열에 들어간 편집은 반영되지 않으며, 그 실패는 appScope로 전파된 예외로만 드러난다.
 - **`DataConverter`**: Sorts raw `FileEntry` lists and maps them to domain `FileHolderItem` (원시값만 보유). 크기·날짜 표시 문자열 포맷은 app 레이어 UI 모델(`ui/model/FileHolderItem.from`, `StorageHolderItem.from`)이 담당한다.
 
 ### `MyApplication`
@@ -109,7 +108,7 @@ static `appContext`는 제거됨 — 모든 Context 의존은 Hilt `@Application
 
 ### Independent Utility Functions (`tools/independent/`)
 
-Top-level `_td`-suffixed functions are pure/standalone helpers: 로컬 파일 도우미(`dirTree_td`, `getPhysicalStorage_td` 등)는 data `FileActionModel.kt`, 크기 표시 형식(`readableFileSize_td`)은 app `FileSizeFormat.kt`에 있다. The `_td` suffix marks them as authored by Todokanai and free of framework dependencies.
+Top-level `_td`-suffixed functions are pure/standalone helpers: 크기 표시 형식(`readableFileSize_td`)은 app `FileSizeFormat.kt`에 있다. The `_td` suffix marks them as authored by Todokanai and free of framework dependencies.
 
 ## Domain Module Design Principles
 

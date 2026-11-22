@@ -45,7 +45,7 @@ class CorruptionResetTest {
         val store = PreferencesStore(dataStore, storeScope, failures, corruptionReset)
 
         withTimeout(5_000) {
-            assertEquals(emptyPreferences(), store.readOnce())
+            assertEquals(emptyPreferences(), store.data.first())
             assertEquals(PreferenceFailure.RESET, failures.pending.first { it.isNotEmpty() }.single().content)
         }
     }

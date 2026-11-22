@@ -7,9 +7,7 @@ import androidx.datastore.preferences.core.preferencesOf
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.todokanai.composepracticenew.model.PreferenceFailure
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
@@ -19,7 +17,6 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -83,21 +80,6 @@ class PreferencesStoreTest {
         runCurrent()
 
         assertEquals(listOf(emptyPreferences(), preferencesOf(key to "w")), emitted)
-        job.join()
-    }
-
-    @Test
-    fun `재시도를 기다리는 동안 한 번 읽기가 성공하면 타이머를 기다리지 않고 다시 읽는다`() = runTest {
-        val store = storeOf(FakePreferencesDataStore(stored, failingReads = 2))
-        val emitted = mutableListOf<Preferences>()
-        val job = launch { store.data.take(2).toList(emitted) }
-
-        advanceTimeBy(1_000 + 500) // 두 번째 실패 뒤 2초 대기 중(타이머는 3초 시점)
-        runCurrent()
-        assertEquals(stored, store.readOnce())
-        runCurrent()
-
-        assertEquals(listOf(emptyPreferences(), stored), emitted)
         job.join()
     }
 
@@ -185,8 +167,8 @@ class PreferencesStoreTest {
     }
 
     @Test
-    fun `IOException이 아닌 편집 예외는 소비자를 끝내 스코프로 전파되고, 그 뒤의 편집과 한 번 읽기는 그 예외로 실패한다`() = runTest {
-        // StoreScopeRule의 스코프는 예외 처리기가 있어 소비자가 끝나도 테스트가 계속된다 — 대기열이 열린 채 남던 이전 구현에서는 편집이 말없이 버려지고 한 번 읽기가 끝나지 않는다
+    fun `IOException이 아닌 편집 예외는 소비자를 끝내 스코프로 전파되고, 그 뒤의 편집은 그 예외로 실패한다`() = runTest {
+        // StoreScopeRule의 스코프는 예외 처리기가 있어 소비자가 끝나도 테스트가 계속된다 — 대기열이 열린 채 남던 이전 구현에서는 편집이 말없이 버려진다
         val store = storeOf(FakePreferencesDataStore(stored))
 
         store.launchEdit { throw IllegalStateException("x") }
@@ -194,90 +176,6 @@ class PreferencesStoreTest {
 
         assertTrue(storeScopes.takeUncaught().single() is IllegalStateException)
         assertTrue(runCatching { store.launchEdit { it[key] = "w" } }.exceptionOrNull() is IllegalStateException)
-        assertTrue(runCatching { store.readOnce() }.exceptionOrNull() is IllegalStateException)
-    }
-
-    @Test
-    fun `소비자가 끝날 때 대기열에 남은 한 번 읽기는 기다리지 않고 그 예외로 실패한다`() = runTest {
-        // 편집이 반영 전 100ms를 기다리는 동안 한 번 읽기의 장벽이 그 뒤에 쌓인다
-        val store = storeOf(FakePreferencesDataStore(stored, writeDelays = mutableListOf(100L)))
-        store.launchEdit { throw IllegalStateException("x") }
-        val read = async { runCatching { store.readOnce() } }
-        runCurrent()
-
-        advanceUntilIdle()
-
-        assertTrue(read.await().exceptionOrNull() is IllegalStateException)
-        assertTrue(storeScopes.takeUncaught().single() is IllegalStateException)
-    }
-
-    @Test
-    fun `한 번 읽기는 지금 값을 돌려준다`() = runTest {
-        val store = storeOf(FakePreferencesDataStore(stored))
-        assertEquals(stored, store.readOnce())
-    }
-
-    @Test
-    fun `한 번 읽기가 실패하면 기본값 대신 null을 돌려주고, 결과로 돌려준 실패는 따로 알리지 않는다`() = runTest {
-        val fake = FakePreferencesDataStore(stored)
-        val store = storeOf(fake)
-        val reported = collectFailures()
-        runCurrent() // 공유 수집의 첫 읽기를 마친 뒤 한 번 읽기만 실패시킨다 — 한 번 읽기는 장벽을 기다리는 동안 공유 수집에 차례를 넘긴다
-        fake.failNextReads(1)
-
-        assertNull(store.readOnce())
-        runCurrent()
-
-        assertEquals(emptyList<PreferenceFailure>(), reported)
-    }
-
-    @Test
-    fun `반영을 기다리는 편집이 있으면 한 번 읽기는 그 편집이 반영된 뒤의 값을 돌려준다`() = runTest {
-        // 편집은 반영 전 100ms를 기다린다 — 대기열을 거치지 않고 바로 읽던 이전 구현에서는 반영 전 값 "v"를 돌려준다
-        val store = storeOf(FakePreferencesDataStore(stored, writeDelays = mutableListOf(100L)))
-
-        store.launchEdit { it[key] = "w" }
-
-        assertEquals(preferencesOf(key to "w"), store.readOnce())
-    }
-
-    @Test
-    fun `앞선 편집이 저장에 실패해도 한 번 읽기는 멈추지 않고 저장된 값을 돌려준다`() = runTest {
-        val store = storeOf(FakePreferencesDataStore(stored, failingWrites = 1))
-        val reported = collectFailures()
-
-        store.launchEdit { it[key] = "lost" }
-
-        assertEquals(stored, store.readOnce())
-        runCurrent()
-        assertEquals(listOf(PreferenceFailure.SAVE), reported)
-    }
-
-    @Test
-    fun `한 번 읽기는 그 뒤에 호출한 편집을 기다리지 않는다`() = runTest {
-        // 첫 편집이 반영된 뒤 들어온 두 번째 편집은 반영 전 100ms를 기다린다 — 읽기가 이를 기다리면 "second"를 돌려준다
-        val store = storeOf(FakePreferencesDataStore(stored, writeDelays = mutableListOf(0L, 100L)))
-
-        store.launchEdit { it[key] = "first" }
-        val read = async(start = CoroutineStart.UNDISPATCHED) { store.readOnce() } // 두 번째 편집보다 먼저 장벽을 넣도록 바로 시작한다
-        store.launchEdit { it[key] = "second" }
-
-        assertEquals(preferencesOf(key to "first"), read.await())
-    }
-
-    @Test
-    fun `앞선 한 번 읽기의 실패는 Flow 읽기 실패 알림을 막지 않는다`() = runTest {
-        val fake = FakePreferencesDataStore(stored)
-        val store = storeOf(fake)
-        val reported = collectFailures()
-        runCurrent() // 공유 수집의 첫 읽기를 마친 뒤 한 번 읽기를 먼저 실패시킨다
-        fake.failNextReads(1)
-
-        assertNull(store.readOnce())
-        fake.failActiveCollections(0)
-        runCurrent()
-
-        assertEquals(listOf(PreferenceFailure.READ), reported)
     }
 
     @Test
@@ -340,7 +238,8 @@ class PreferencesStoreTest {
 
     @Test
     fun `손상 파일 교체는 핸들러가 불릴 때가 아니라 그 뒤 읽기가 성공할 때 한 번 알린다`() = runTest {
-        val store = storeOf(FakePreferencesDataStore(stored))
+        val fake = FakePreferencesDataStore(stored)
+        storeOf(fake)
         val reported = collectFailures()
         runCurrent() // 공유 수집이 처음 읽기를 마친 상태 — 값이 바뀌지 않으면 다시 읽지 않는다
 
@@ -348,8 +247,9 @@ class PreferencesStoreTest {
         runCurrent()
         assertEquals(emptyList<PreferenceFailure>(), reported) // 교체 파일을 쓰기 전
 
-        store.readOnce()
-        store.readOnce()
+        fake.state.value = emptyPreferences() // 교체 파일이 쓰여 공유 수집이 빈 설정을 읽은 상황
+        runCurrent()
+        fake.state.value = stored // 그 뒤의 읽기 성공은 다시 알리지 않는다
         runCurrent()
         assertEquals(listOf(PreferenceFailure.RESET), reported)
     }
@@ -358,21 +258,19 @@ class PreferencesStoreTest {
     fun `교체 파일을 쓰지 못해 핸들러가 거듭 불려도 읽기가 실패하는 동안은 초기화를 알리지 않고, 교체 뒤 한 번만 알린다`() = runTest {
         // DataStore는 교체 쓰기가 실패하면 손상 예외(IOException)를 다시 던진다 — 읽기 실패로 보인다
         val fake = FakePreferencesDataStore(stored)
-        val store = storeOf(fake)
+        storeOf(fake)
         val reported = collectFailures()
-        runCurrent() // 공유 수집이 처음 읽기를 마친 상태 — 아래 실패는 한 번 읽기만 겪는다
-        fake.failNextReads(2)
+        runCurrent() // 공유 수집이 처음 읽기를 마친 상태
 
-        repeat(2) {
-            corruptionReset.handler.handleCorruption(CorruptionException("corrupt"))
-            assertNull(store.readOnce())
-        }
+        repeat(2) { corruptionReset.handler.handleCorruption(CorruptionException("corrupt")) }
+        fake.failActiveCollections(1) // 열린 수집과 1초 뒤의 다시 읽기가 실패한다
+        advanceTimeBy(1_000 + 1)
         runCurrent()
-        assertEquals(emptyList<PreferenceFailure>(), reported)
+        assertEquals(listOf(PreferenceFailure.READ), reported)
 
-        store.readOnce() // 세 번째 시도에서 교체 파일 쓰기가 성공한 상황
+        advanceTimeBy(2_000) // 두 번째 다시 읽기에서 교체 파일 쓰기가 성공한 상황
         runCurrent()
-        assertEquals(listOf(PreferenceFailure.RESET), reported)
+        assertEquals(listOf(PreferenceFailure.READ, PreferenceFailure.RESET), reported)
     }
 
     @Test
