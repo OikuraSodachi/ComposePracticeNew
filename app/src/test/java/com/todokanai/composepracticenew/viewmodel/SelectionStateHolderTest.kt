@@ -168,7 +168,58 @@ class SelectionStateHolderTest {
         assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(a)), holder.state.value)
     }
 
+    @Test
+    fun `새 목록에 맞추면 목록에 없는 항목을 빼고 남은 항목을 목록의 항목으로 바꾼다`() {
+        holder.startMultiSelect(a)
+        holder.add(b)
+        val newerB = item("/b", sizeBytes = 10L)
+
+        holder.retainListed(listOf(item("/c"), newerB))
+
+        assertEquals(SelectionState.MultiSelect(listOf(newerB)), holder.state.value)
+    }
+
+    @Test
+    fun `새 목록에 선택한 항목이 하나도 없으면 빈 선택으로 다중 선택을 유지한다`() {
+        holder.startMultiSelect(a)
+
+        holder.retainListed(emptyList())
+
+        assertEquals(SelectionState.MultiSelect(emptyList()), holder.state.value)
+    }
+
+    @Test
+    fun `작업 목적지 확인 중에는 새 목록에 맞추지 않는다`() {
+        holder.startMultiSelect(a)
+        holder.enterOperation(SelectMode.LocalOperation.Copy)
+
+        holder.retainListed(emptyList())
+
+        assertEquals(SelectionState.Operation(SelectMode.LocalOperation.Copy, listOf(a)), holder.state.value)
+    }
+
+    @Test
+    fun `다중 선택을 끝내면 기본 모드가 된다`() {
+        holder.startMultiSelect(a)
+
+        holder.endMultiSelect()
+
+        assertEquals(SelectionState.Default, holder.state.value)
+    }
+
+    @Test
+    fun `작업 목적지 확인과 전송 대기는 다중 선택 끝내기로 바뀌지 않는다`() {
+        holder.startMultiSelect(a)
+        holder.enterOperation(SelectMode.LocalOperation.Move)
+        holder.endMultiSelect()
+        assertEquals(SelectionState.Operation(SelectMode.LocalOperation.Move, listOf(a)), holder.state.value)
+
+        holder.receive(SelectMode.Download, listOf(b))
+        holder.endMultiSelect()
+        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(b)), holder.state.value)
+    }
+
     /** [path]의 파일 항목을 만든다. */
-    private fun item(path: String) =
-        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
+    private fun item(path: String, sizeBytes: Long? = null) =
+        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), size = "", lastModified = "", sizeBytes = sizeBytes, lastModifiedMillis = 0L)
 }
