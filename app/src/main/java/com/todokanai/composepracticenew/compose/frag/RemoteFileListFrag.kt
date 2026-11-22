@@ -18,6 +18,7 @@ import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.allowsPathBarNavigation
 import com.todokanai.composepracticenew.ui.model.clickActionOf
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.viewmodel.RemoteFileListViewModel
@@ -109,7 +110,8 @@ fun RemoteFileListFrag(
             modifier = Modifier,
             navigateToStorage = navigateToStorage,
             dirTree = dirTree,
-            onDirClick = viewModel.dirTreeStateHolder::onDirClick,
+            // 다중 선택 중에는 눌러도 이동하지 않는다 — 다중 선택은 지금 폴더 안에서만 한다(#519)
+            onDirClick = { entry -> if (selectMode.allowsPathBarNavigation) viewModel.dirTreeStateHolder.onDirClick(entry) },
             sortMode = sortMode,
             onSortModeSelected = viewModel.sortModeStateHolder::onSortModeSelected,
             newFolderTarget = newFolderTarget,
