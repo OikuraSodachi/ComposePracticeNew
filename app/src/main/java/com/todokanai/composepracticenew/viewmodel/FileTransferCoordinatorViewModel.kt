@@ -16,10 +16,12 @@ import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import com.todokanai.composepracticenew.usecase.UploadConflictCheckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
@@ -67,6 +69,10 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** 업로드 전 겹침 확인이 진행 중인지. 표시 전용이며, 확인 흐름의 판단에는 쓰지 않는다. */
     val uploadChecking: StateFlow<Boolean> = uploadConfirmation.checking
+
+    /** 로컬 화면의 하단 원격 전환을 누를 수 있는지. 연결된 원격 세션이 있을 때만 true이며, 화면에 있는 동안 연결 상태가 바뀌면 따라 바뀐다(#523). */
+    val remoteSwitchEnabled: StateFlow<Boolean> = remoteSessionCheckUseCase.sessionPresence
+        .stateIn(viewModelScope, SharingStarted.Eagerly, remoteSessionCheckUseCase.hasSession())
 
     // 이 init은 모든 상태 선언 뒤에 둔다(#363) — viewModelScope는 Main.immediate이고 연결 상태는 현재 값을 바로 내보내므로,
     // 생성할 때 이미 끊겨 있으면 생성자 안에서 discardRemoteSessionState가 실행된다. 이 아래에 선언한 상태는 그때 아직 null이다.
@@ -183,7 +189,8 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun cancelUploadCheck() = uploadConfirmation.cancelFrontCheck()
 
     /**
-     * 연결된 원격 세션이 있는지 판별한다. 원격 화면은 연결된 세션이 있을 때만 들어가므로, 하단 전환은 이것으로 갈 곳(원격 화면 / 저장소 화면)을 정한다.
+     * 연결된 원격 세션이 지금 있는지 판별한다. 원격 화면은 연결된 세션이 있을 때만 들어가므로, 하단 전환은 누른 순간 이것으로 다시 확인한다 —
+     * [remoteSwitchEnabled]가 화면에 반영되기 전에 끊긴 뒤 누른 경우 세션 없이 원격 화면으로 가지 않도록.
      * @return 연결된 원격 세션이 있으면 true
      */
     fun hasRemoteSession(): Boolean = remoteSessionCheckUseCase.hasSession()

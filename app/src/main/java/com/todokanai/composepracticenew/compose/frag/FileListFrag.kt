@@ -45,6 +45,7 @@ import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백 — 취소·뒤로가기용
  * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
  * @param onSubmitItem 확인한 이름 변경의 대상으로 선택의 한 항목을 꺼내고 기본 모드로 되돌리는 콜백. 선택이 한 항목이 아니면 null
+ * @param remoteSwitchEnabled 하단 원격 전환을 누를 수 있는지. 연결된 원격 세션이 있을 때만 true다
  * @param childCountsFor 목록 조회 요청을 받아 그 결과의 폴더별 하위 항목 수를 읽는 창구를 돌려주는 함수. 상태를 바꾸지 않아 컴포지션 중에 부른다
  * @param searchViewModel 파일 검색의 열림 여부·검색어·결과를 맡는 ViewModel. 검색이 열려 있으면 목록 대신 검색 화면을 그린다
  */
@@ -64,6 +65,7 @@ fun FileListFrag(
     removeFromList: (FileHolderItem) -> Unit,
     onReplaceSelection: (List<FileHolderItem>) -> Unit,
     childCountsFor: (ListingKey) -> ChildCountSource,
+    remoteSwitchEnabled: Boolean,
     onSwitchToRemote: () -> Unit,
     navigateToStorage: () -> Unit,
     onExit: () -> Unit,
@@ -190,6 +192,7 @@ fun FileListFrag(
 
         StorageSwitchBar(
             isRemote = false,
+            remoteEnabled = remoteSwitchEnabled,
             onSwitchToLocal = {},
             onSwitchToRemote = onSwitchToRemote
         )
