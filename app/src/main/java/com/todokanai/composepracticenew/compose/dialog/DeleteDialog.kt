@@ -25,6 +25,7 @@ fun DeleteDialog(
     }
 }
 
+/** 삭제 확인 다이얼로그 미리보기. */
 @Preview
 @Composable
 private fun DeleteDialogPreview(){

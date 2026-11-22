@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.di
 
 import android.os.Environment
-import com.todokanai.composepracticenew.repository.FileListFlowProducer
 import com.todokanai.composepracticenew.data.datastore.DataStoreRepository
 import com.todokanai.composepracticenew.data.datastore.PreferenceFailureNotices
 import com.todokanai.composepracticenew.datasource.ArchiveCompressor
@@ -13,6 +12,7 @@ import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
+import com.todokanai.composepracticenew.repository.FileListFlowProducer
 import com.todokanai.composepracticenew.repository.FileSystemNameMatching
 import com.todokanai.composepracticenew.repository.FileSystemNameRules
 import com.todokanai.composepracticenew.repository.FileSystemPathRules
