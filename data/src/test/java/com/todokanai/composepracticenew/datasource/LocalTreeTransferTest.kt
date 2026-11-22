@@ -1,9 +1,10 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
@@ -127,7 +128,7 @@ class LocalTreeTransferTest {
     @Test
     fun `복사에서 실패한 파일의 몫도 진행률에 넘겨 끝나기 전에 모든 파일과 바이트를 센다`() {
         mergeScenarioFailingAtB()
-        val reports = mutableListOf<ProgressState>()
+        val reports = mutableListOf<ProgressPhase>()
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> false }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {}, leftovers = UnexpectedLeftoverDiscarder)
 
         runBlocking { transfer.copy(setOf(source.path), target.path, mergingFailingResolver) { reports += it } }
@@ -138,7 +139,7 @@ class LocalTreeTransferTest {
     @Test
     fun `같은 파티션 이동에서 실패한 파일의 몫도 진행률에 넘겨 끝나기 전에 모든 파일과 바이트를 센다`() {
         mergeScenarioFailingAtB()
-        val reports = mutableListOf<ProgressState>()
+        val reports = mutableListOf<ProgressPhase>()
         val transfer = LocalTreeTransfer(isSamePartition = { _, _ -> true }, freeSpaceOf = { Long.MAX_VALUE }, syncToDisk = {}, leftovers = UnexpectedLeftoverDiscarder)
 
         runBlocking { transfer.move(setOf(source.path), target.path, mergingFailingResolver) { reports += it } }
@@ -224,10 +225,11 @@ class LocalTreeTransferTest {
     }
 
     /** [mergeScenarioFailingAtB]의 원본 파일 3개·8바이트를 완료(100%) 보고 전에 모두 센 것을 [reports]로 확인한다. */
-    private fun assertCountedAllBeforeComplete(reports: List<ProgressState>) {
+    private fun assertCountedAllBeforeComplete(reports: List<ProgressPhase>) {
         val beforeComplete = reports.dropLast(1).last()
-        assertEquals(8L, beforeComplete.writtenBytes)
-        assertEquals(3, beforeComplete.currentIndex)
+        val bytes = beforeComplete.asBytes()
+        assertEquals(8L, bytes.writtenBytes)
+        assertEquals(3, bytes.fileIndex)
     }
 
     /** 묻는 순간 입출력 실패를 던지는 resolver. 이동·복사 중간의 입출력 실패를 만든다. */

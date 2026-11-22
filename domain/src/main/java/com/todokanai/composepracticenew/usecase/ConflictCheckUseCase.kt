@@ -37,9 +37,9 @@ class ConflictCheckUseCase(
      * @param nameOf 항목에서 파일 이름을 꺼내는 함수
      * @return 판정한 목적지 경로와 충돌 항목. 목적지 목록을 확인하지 못했으면 거부를 알리고 null
      */
-    fun <T> findCopyMoveConflicts(items: List<T>, destination: FileNavigatorUseCase, nameOf: (T) -> String): DestinationConflicts<T>? {
+    fun <T> findUploadConflicts(items: List<T>, destination: FileNavigatorUseCase, nameOf: (T) -> String): DestinationConflicts<T>? {
         val listing = verifiedOrReject(destination.verifiedListing()) ?: return null
-        return DestinationConflicts(listing.request.path, ConflictRules.copyMoveConflicts(items, namesOf(listing.items), nameOf, matchKeyIn(listing)))
+        return DestinationConflicts(listing.request.path, ConflictRules.existingNameConflicts(items, namesOf(listing.items), nameOf, matchKeyIn(listing)))
     }
 
     /**

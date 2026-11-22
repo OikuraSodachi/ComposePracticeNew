@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew.data.progress
 
+import com.todokanai.composepracticenew.model.ByteAmount
+
 /**
  * 모든 파일의 크기를 아는 작업의 계산 방식. 누적 바이트를 전체 크기에 대한 퍼센트로 바꾸고, 퍼센트가 바뀌었거나 [throttle]의 시간 간격이 지났을 때 보고한다 —
  * 큰 파일에서 같은 퍼센트가 오래 이어져도 누적 바이트 표시가 멈춘 것처럼 보이지 않도록.
@@ -14,20 +16,20 @@ internal class PercentCounting(
     private val throttle: ProgressThrottle
 ) : ProgressCounting {
 
-    override fun startReading(): ProgressReading = ProgressReading(0, totalBytes)
+    override fun startReading(): ByteAmount = ByteAmount.Known(0, totalBytes)
 
     override fun onFileStarted() {}
 
-    override fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ProgressReading? = currentReading(writtenBytes)
+    override fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ByteAmount? = currentReading(writtenBytes)
 
-    override fun currentReading(writtenBytes: Long): ProgressReading? {
+    override fun currentReading(writtenBytes: Long): ByteAmount? {
         if (totalBytes == 0L) return null
         val progress = percentBeforeCompletion(writtenBytes)
         if (!throttle.shouldReport(progress)) return null
-        return ProgressReading(progress, totalBytes)
+        return ByteAmount.Known(progress, totalBytes)
     }
 
-    override fun onFileCompleted(fileBytes: Long?): ProgressReading? = null
+    override fun onFileCompleted(fileBytes: Long?): ByteAmount? = null
 
     override fun completedBytes(writtenBytes: Long): Long = totalBytes
 

@@ -43,7 +43,7 @@ class ConflictCheckVerificationTest {
     fun `현재 요청의 조회를 마친 목록이면 같은 이름의 항목을 충돌로 판정하고 그 목록의 경로를 목적지로 돌려준다`() {
         show(DirectoryListing.Loaded(current, listOf(item("/a/x.txt"), item("/a/y.txt")), unreadableCount = 0))
 
-        assertEquals(DestinationConflicts("/a", incoming), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+        assertEquals(DestinationConflicts("/a", incoming), useCase.findUploadConflicts(incoming, navigator) { it.name })
         assertTrue(notices.failures.isEmpty())
     }
 
@@ -52,7 +52,7 @@ class ConflictCheckVerificationTest {
         show(DirectoryListing.Loaded(current, listOf(item("/a/readme.txt")), unreadableCount = 0))
         val upperCase = listOf(item("/src/README.TXT"))
 
-        assertEquals(DestinationConflicts("/a", upperCase), useCase.findCopyMoveConflicts(upperCase, navigator) { it.name })
+        assertEquals(DestinationConflicts("/a", upperCase), useCase.findUploadConflicts(upperCase, navigator) { it.name })
         assertEquals(setOf("/a"), nameMatching.locations.toSet())
     }
 
@@ -109,14 +109,14 @@ class ConflictCheckVerificationTest {
     fun `조회를 마친 빈 폴더면 충돌이 없다`() {
         show(DirectoryListing.Loaded(current, emptyList(), unreadableCount = 0))
 
-        assertEquals(DestinationConflicts("/a", emptyList<FileHolderItem>()), useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+        assertEquals(DestinationConflicts("/a", emptyList<FileHolderItem>()), useCase.findUploadConflicts(incoming, navigator) { it.name })
     }
 
     @Test
     fun `조회에 실패했으면 판정하지 않고 거부를 알린다`() {
         show(DirectoryListing.Failed(current, ListingFailureReason.UNREADABLE, IoResult.ItemFailed(FailureReason.IoFailed("550"))))
 
-        assertUnverified(useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+        assertUnverified(useCase.findUploadConflicts(incoming, navigator) { it.name })
     }
 
     @Test
@@ -124,14 +124,14 @@ class ConflictCheckVerificationTest {
         // 빠진 항목과 같은 이름을 묻지 않고 덮어쓰지 않도록(#255)
         show(DirectoryListing.Loaded(current, listOf(item("/a/y.txt")), unreadableCount = 1))
 
-        assertUnverified(useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+        assertUnverified(useCase.findUploadConflicts(incoming, navigator) { it.name })
     }
 
     @Test
     fun `같은 경로를 다시 조회하는 중이면 직전 목록이 있어도 판정하지 않는다`() {
         show(DirectoryListing.Loading(current, stale = DirectoryListing.Loaded(previous, listOf(item("/a/old.txt")), unreadableCount = 0)))
 
-        assertUnverified(useCase.findCopyMoveConflicts(incoming, navigator) { it.name })
+        assertUnverified(useCase.findUploadConflicts(incoming, navigator) { it.name })
     }
 
     @Test

@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FileHolderItem
@@ -63,13 +64,13 @@ class RenameOverwriteTest {
 
     /** 작업을 수행하지 않는 테스트용 로컬 파일 작업 저장소. 이 테스트는 저장소를 쓰지 않는다. */
     private object NoOpFileActionRepository : FileActionRepository {
-        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
         override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
-        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
-        override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
+        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
+        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
         override fun extractionTargetOf(paths: Set<String>): String? = null
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
@@ -77,14 +78,14 @@ class RenameOverwriteTest {
     /** 변경을 수행하지 않는 테스트용 원격 변경 저장소. */
     private object NoOpMutationRepository : RemoteFileMutationRepository {
         override suspend fun rename(session: RemoteSession, path: String, newName: String) = IoResult.Done
-        override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
         override suspend fun makeDirectory(session: RemoteSession, parentPath: String, name: String) = IoResult.Done
     }
 
     /** 전송을 수행하지 않는 테스트용 원격 전송 저장소. */
     private object NoOpTransferRepository : RemoteFileTransferRepository {
-        override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
+        override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
     }
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
@@ -95,9 +96,9 @@ class RenameOverwriteTest {
 
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
-        override fun progressNoti(state: ProgressState, instanceId: Int) {}
+        override fun progressNotification(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
+        override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

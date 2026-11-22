@@ -10,7 +10,7 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
@@ -52,7 +52,7 @@ class LocalArchiveExtraction @Inject constructor(
         layout: ExtractLayout,
         resolveConflict: WriteConflictResolver,
         askPassword: ArchivePasswordProvider,
-        onProgress: (ProgressState) -> Unit
+        onProgress: (ProgressPhase) -> Unit
     ): IoResult<Unit> = withContext(Dispatchers.IO) {
         // 추출 라이브러리의 콜백은 일시 중단할 수 없으므로 그 자리에서 답을 기다린다. 이 작업의 Job을 부모로 두어 작업 취소가 기다림을 끝낸다
         val job = coroutineContext.job

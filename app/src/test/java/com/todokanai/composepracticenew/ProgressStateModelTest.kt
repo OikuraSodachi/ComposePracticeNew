@@ -1,8 +1,15 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ByteAmount
+import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.KnownSizeProgress
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.toModel
+import com.todokanai.composepracticenew.ui.model.ByteAmountModel
+import com.todokanai.composepracticenew.ui.model.KnownSizeProgressModel
+import com.todokanai.composepracticenew.ui.model.ProgressPhaseModel
+import com.todokanai.composepracticenew.ui.model.percent
+import com.todokanai.composepracticenew.ui.model.toModel
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -13,12 +20,12 @@ class ProgressStateModelTest {
 
     @Test
     fun `진행률을 모르면 0%가 아니라 없음이다`() {
-        assertNull(ProgressState(writtenBytes = 10).toModel().progress)
+        assertNull(bytes(ByteAmount.PartlyUnknown(KnownSizeProgress(0, 0, 0, 1, 10))).percent())
     }
 
     @Test
     fun `크기를 아는 부분은 그 부분의 합에 대한 퍼센트와 크기 문자열로 바뀐다`() {
-        val model = ProgressState(knownSize = KnownSizeProgress(200, 50, 0, 1, 7)).toModel().knownSize!!
+        val model = knownSizeModel(KnownSizeProgress(200, 50, 0, 1, 7))
 
         assertEquals(25, model.progress)
         assertEquals(readableFileSize_td(50), model.writtenSize)
@@ -29,16 +36,22 @@ class ProgressStateModelTest {
 
     @Test
     fun `크기를 아는 부분의 합이 0이면 나눌 기준이 없어 퍼센트가 없다`() {
-        assertNull(ProgressState(knownSize = KnownSizeProgress(0, 0, 0, 2, 7)).toModel().knownSize?.progress)
+        assertNull(knownSizeModel(KnownSizeProgress(0, 0, 0, 2, 7)).progress)
     }
 
     @Test
     fun `크기를 아는 부분을 다 받았어도 처리 완료 전이면 100%가 아니다`() {
-        assertEquals(99, ProgressState(knownSize = KnownSizeProgress(200, 200, 150, 1, 7)).toModel().knownSize?.progress)
+        assertEquals(99, knownSizeModel(KnownSizeProgress(200, 200, 150, 1, 7)).progress)
     }
 
     @Test
     fun `크기를 아는 파일이 모두 처리 완료되면 100%다`() {
-        assertEquals(100, ProgressState(knownSize = KnownSizeProgress(200, 200, 200, 1, 7)).toModel().knownSize?.progress)
+        assertEquals(100, knownSizeModel(KnownSizeProgress(200, 200, 200, 1, 7)).progress)
     }
+
+    private fun bytes(amount: ByteAmount) =
+        ProgressState(FileOperationType.COPY, ProgressPhase.Bytes(amount, 10L, 1, 1, null)).toModel().phase as ProgressPhaseModel.Bytes
+
+    private fun knownSizeModel(knownSize: KnownSizeProgress): KnownSizeProgressModel =
+        (bytes(ByteAmount.PartlyUnknown(knownSize)).amount as ByteAmountModel.PartlyUnknown).knownSize
 }

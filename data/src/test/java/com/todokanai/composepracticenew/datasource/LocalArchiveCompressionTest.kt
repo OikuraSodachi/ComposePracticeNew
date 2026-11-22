@@ -1,10 +1,12 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ByteAmount
+import com.todokanai.composepracticenew.model.ProgressPhase
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
@@ -166,7 +168,7 @@ class LocalArchiveCompressionTest {
     @Test
     fun `진행 시작은 형식별 쓰기 전에, 완료는 쓰기 뒤에 알린다`() = runBlocking {
         val src = folderWith("a.txt", "hello")
-        val progress = mutableListOf<ProgressState>()
+        val progress = mutableListOf<ProgressPhase>()
         var reportedBeforeWrite = -1
         val recorder = RecordingCompressor { reportedBeforeWrite = progress.size }
 
@@ -174,10 +176,11 @@ class LocalArchiveCompressionTest {
 
         assertEquals(1, reportedBeforeWrite)
         assertEquals(2, progress.size)
-        assertEquals(5L, progress.first().totalBytes)
-        assertEquals(0L, progress.first().writtenBytes)
-        assertEquals(1, progress.first().listSize)
-        assertEquals(100, progress.last().progress)
+        assertEquals(
+            ProgressPhase.Bytes(ByteAmount.Known(0, 5), writtenBytes = 0, fileIndex = 0, fileCount = 1, currentFile = null),
+            progress.first()
+        )
+        assertEquals(100, progress.last().asKnown().percent)
     }
 
     @Test

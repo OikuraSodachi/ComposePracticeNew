@@ -35,7 +35,7 @@ class UploadConflictCheckUseCase(
         nameOf: (T) -> String,
         pathOf: (T) -> String,
     ): UploadConflicts<T>? {
-        val checked = conflictCheck.findCopyMoveConflicts(items, destination, nameOf) ?: return null
+        val checked = conflictCheck.findUploadConflicts(items, destination, nameOf) ?: return null
         val matchKeyOf = { name: String -> nameMatching.matchKeyOf(name, checked.destinationPath) }
         return UploadConflicts(checked.destinationPath, checked.conflicts, collisionsAmong(items.map(nameOf), items.map(pathOf), matchKeyOf))
     }

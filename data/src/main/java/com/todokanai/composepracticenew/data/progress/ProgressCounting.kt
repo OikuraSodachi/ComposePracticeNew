@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.data.progress
 
-import com.todokanai.composepracticenew.model.KnownSizeProgress
+import com.todokanai.composepracticenew.model.ByteAmount
 
 /**
  * [ByteProgressTracker]가 처리한 바이트를 진행 값으로 바꾸는 계산 방식. 작업 전체의 크기([TransferTotal])에 따라 구현이 갈리며,
@@ -12,7 +12,7 @@ internal interface ProgressCounting {
      * 아무것도 처리하지 않은 작업 시작 때의 진행 값을 만든다. 시작 보고도 이 계산 방식의 형식을 따르도록 — 크기를 모르는 작업이 0%로 시작하지 않도록.
      * @return 작업 시작 때의 진행 값
      */
-    fun startReading(): ProgressReading
+    fun startReading(): ByteAmount
 
     /** 다음 파일 처리를 시작한다. */
     fun onFileStarted()
@@ -24,21 +24,21 @@ internal interface ProgressCounting {
      * @param fileBytes 현재 파일의 알려진 크기. 모르면 null
      * @return 보고할 진행 값. 보고할 때가 아니면 null
      */
-    fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ProgressReading?
+    fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ByteAmount?
 
     /**
      * 처리한 바이트 없이 지금의 진행 값을 만든다. 바이트를 내지 않고 일하는 동안에도 보고가 이어지도록(보고가 취소를 확인하는 자리이므로) 쓴다.
      * @param writtenBytes 작업 전체의 누적 바이트 수
      * @return 보고할 진행 값. 보고할 때가 아니면 null
      */
-    fun currentReading(writtenBytes: Long): ProgressReading?
+    fun currentReading(writtenBytes: Long): ByteAmount?
 
     /**
      * 현재 파일의 처리 완료(서버 ACK·출력 닫기 등)를 센다.
      * @param fileBytes 완료된 파일의 알려진 크기. 모르면 null
      * @return 완료로 진행이 바뀌어 바로 보고할 진행 값. 없으면 null
      */
-    fun onFileCompleted(fileBytes: Long?): ProgressReading?
+    fun onFileCompleted(fileBytes: Long?): ByteAmount?
 
     /**
      * 작업을 마쳤을 때의 전체 바이트 수를 구한다.
@@ -47,15 +47,3 @@ internal interface ProgressCounting {
      */
     fun completedBytes(writtenBytes: Long): Long
 }
-
-/**
- * 진행 보고 한 번에 담을 계산 결과.
- * @param progress 진행도(0~100 퍼센트). 모르면 null
- * @param totalBytes 작업 전체의 바이트 수. 모르면 null
- * @param knownSize 크기를 모르는 파일이 섞였을 때 크기를 아는 부분의 진행. 그 밖에는 null
- */
-internal data class ProgressReading(
-    val progress: Int?,
-    val totalBytes: Long?,
-    val knownSize: KnownSizeProgress? = null
-)

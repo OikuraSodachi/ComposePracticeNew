@@ -2,10 +2,13 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.ByteAmount
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.IndeterminatePhase
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.ShownProgress
-import com.todokanai.composepracticenew.model.toModel
+import com.todokanai.composepracticenew.ui.model.ShownProgress
+import com.todokanai.composepracticenew.ui.model.toModel
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
@@ -121,5 +124,12 @@ class ProgressDialogViewModel @Inject constructor(
         progressMap.filterValues(::isActive).keys
 
     /** 작업이 아직 진행 중인지. 진행률을 보고하기 전인 작업도 진행 중으로 본다. */
-    private fun isActive(state: ProgressState): Boolean = (state.progress ?: 0) < 100
+    private fun isActive(state: ProgressState): Boolean = when (val phase = state.phase) {
+        ProgressPhase.Starting, is IndeterminatePhase -> true
+        is ProgressPhase.Counted -> phase.percent < 100
+        is ProgressPhase.Bytes -> when (val amount = phase.amount) {
+            is ByteAmount.Known -> amount.percent < 100
+            is ByteAmount.PartlyUnknown -> true
+        }
+    }
 }

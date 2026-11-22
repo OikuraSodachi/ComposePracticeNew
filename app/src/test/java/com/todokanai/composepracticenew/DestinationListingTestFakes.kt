@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.model.QuestionKind
@@ -79,11 +80,11 @@ internal class RecordingProgressReporter : ProgressReporter {
 /** 요청된 다운로드·업로드를 기록하는 테스트용 원격 전송 저장소. */
 internal class RecordingTransferRepository : RemoteFileTransferRepository {
     val calls = mutableListOf<String>()
-    override suspend fun download(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    override suspend fun download(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> {
         items.forEach { calls += "download ${it.path}" }
         return IoResult.Done
     }
-    override suspend fun upload(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    override suspend fun upload(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, remoteDirPath: String, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> {
         items.forEach { calls += "upload ${it.path}" }
         return IoResult.Done
     }
@@ -92,7 +93,7 @@ internal class RecordingTransferRepository : RemoteFileTransferRepository {
 /** 원격 변경을 수행하지 않는 테스트용 원격 변경 저장소. 이 테스트의 대상 작업은 원격 변경을 쓰지 않는다. */
 internal object NoOpMutationRepository : RemoteFileMutationRepository {
     override suspend fun rename(session: RemoteSession, path: String, newName: String) = IoResult.Done
-    override suspend fun delete(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, onProgress: (ProgressState) -> Unit) = IoResult.Done
+    override suspend fun delete(session: RemoteSession, items: List<com.todokanai.composepracticenew.model.FileHolderItem>, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
     override suspend fun makeDirectory(session: RemoteSession, parentPath: String, name: String) = IoResult.Done
 }
 
@@ -103,13 +104,13 @@ internal class RecordingFileActionRepository : FileActionRepository {
     /** 압축 해제 호출마다 넘어온 배치 방식. */
     val unzipLayouts = mutableListOf<ExtractLayout>()
 
-    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "compress" }
+    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressPhase) -> Unit) = IoResult.Done.also { calls += "compress" }
     override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
-    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "copy" }
+    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) = IoResult.Done.also { calls += "copy" }
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done.also { calls += "rename" }
-    override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "delete" }
-    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { calls += "move" }
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) =
+    override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressPhase) -> Unit) = IoResult.Done.also { calls += "delete" }
+    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) = IoResult.Done.also { calls += "move" }
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressPhase) -> Unit) =
         IoResult.Done.also { calls += "unzip"; unzipLayouts += layout }
     override fun extractionTargetOf(paths: Set<String>): String? = null
     override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done.also { calls += "mkdir" }
@@ -123,10 +124,10 @@ internal class InMemorySortPreference : SortPreferenceRepository {
 
 /** 알림을 표시하지 않는 테스트용 알림기. */
 internal object NoOpNotifier : FileOperationNotifier {
-    override fun progressNoti(state: ProgressState, instanceId: Int) {}
+    override fun progressNotification(state: ProgressState, instanceId: Int) {}
     override fun completedNotification(kind: OperationKind, instanceId: Int) {}
     override fun cancelNotification(instanceId: Int) {}
-    override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
+    override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
 }
 
 /** 언제나 바로 보호를 주는 테스트용 작업 보호. */

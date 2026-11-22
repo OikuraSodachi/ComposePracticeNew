@@ -1,8 +1,8 @@
 package com.todokanai.composepracticenew
 
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.IndeterminatePhaseModel
-import com.todokanai.composepracticenew.model.KnownSizeProgressModel
+import com.todokanai.composepracticenew.ui.model.IndeterminatePhaseModel
+import com.todokanai.composepracticenew.ui.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.ui.model.UiText
 import com.todokanai.composepracticenew.ui.model.knownPartTextOf
 import com.todokanai.composepracticenew.ui.model.phaseTextOf
@@ -47,7 +47,7 @@ class ProgressTextTest {
 
     @Test
     fun `모르는 파일 문구는 작업 종류로 리소스를 고르고 파일 수와 처리한 크기를 넣는다`() {
-        val expected: Map<FileOperationType?, Int> = mapOf(
+        val expected: Map<FileOperationType, Int> = mapOf(
             FileOperationType.DOWNLOAD to R.string.progress_unknown_files_received,
             FileOperationType.UPLOAD to R.string.progress_unknown_files_sent,
             FileOperationType.COPY to R.string.progress_unknown_files_processed,
@@ -55,10 +55,9 @@ class ProgressTextTest {
             FileOperationType.DELETE to R.string.progress_unknown_files_processed,
             FileOperationType.REMOTE_DELETE to R.string.progress_unknown_files_processed,
             FileOperationType.COMPRESS to R.string.progress_unknown_files_processed,
-            FileOperationType.UNZIP to R.string.progress_unknown_files_processed,
-            null to R.string.progress_unknown_files_processed
+            FileOperationType.UNZIP to R.string.progress_unknown_files_processed
         )
-        assertEquals(FileOperationType.entries.toSet<FileOperationType?>() + null, expected.keys)
+        assertEquals(FileOperationType.entries.toSet(), expected.keys)
         expected.forEach { (type, res) ->
             assertEquals("$type", UiText.Resource(res, listOf(2, "3 KB")), unknownFilesTextOf(knownSize, type))
         }

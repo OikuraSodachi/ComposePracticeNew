@@ -1,8 +1,9 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.TransferTotal
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -17,7 +18,7 @@ class ZipArchiveExtractorProgressTest {
     /** 아카이브와 압축 해제 결과를 둘 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("zip-extractor-progress-test").toFile()
     /** 보고된 진행 상태. */
-    private val reports = mutableListOf<ProgressState>()
+    private val reports = mutableListOf<ProgressPhase>()
 
     @After
     fun tearDown() {
@@ -31,7 +32,7 @@ class ZipArchiveExtractorProgressTest {
 
         ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(File(dir, "out")), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker)
 
-        val known = reports.mapNotNull { it.knownSize }
+        val known = reports.map { it.asPartlyUnknown().knownSize }
         assertEquals(known.map { it.knownWrittenBytes }.sorted(), known.map { it.knownWrittenBytes })
         assertEquals(6L, known.last().knownCompletedBytes)
     }

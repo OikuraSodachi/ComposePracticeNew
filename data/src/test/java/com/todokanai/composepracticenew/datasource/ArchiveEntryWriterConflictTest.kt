@@ -1,9 +1,10 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.FailedItem
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.model.WriteConflictKind
 import org.junit.Assert.assertEquals
@@ -29,7 +30,7 @@ class ArchiveEntryWriterConflictTest {
     private val asked = mutableListOf<WriteConflict>()
 
     /** writer가 넘긴 진행 상태(받은 순서). */
-    private val reports = mutableListOf<ProgressState>()
+    private val reports = mutableListOf<ProgressPhase>()
 
     /** 파일 두 개, 6바이트짜리 작업의 진행률 보고기. */
     private val tracker = ByteProgressTracker(6, 2, onProgress = { reports += it })
@@ -87,8 +88,9 @@ class ArchiveEntryWriterConflictTest {
         assertNull(writer.openFile("a.txt", 4))
         assertNull(writer.openFile("../evil.txt", 2))
 
-        assertEquals(2, reports.last().currentIndex)
-        assertEquals(6L, reports.last().writtenBytes)
+        val last = reports.last().asBytes()
+        assertEquals(2, last.fileIndex)
+        assertEquals(6L, last.writtenBytes)
     }
 
     /** [answer]로 답하며 받은 겹침을 [asked]에 기록하는 writer. */

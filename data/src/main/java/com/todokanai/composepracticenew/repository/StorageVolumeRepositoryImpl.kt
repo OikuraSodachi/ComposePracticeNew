@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.StorageVolumeInfo
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,7 +20,7 @@ class StorageVolumeRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context
 ) : StorageVolumeRepository {
     private val _storageList = MutableStateFlow<List<StorageVolumeInfo>>(emptyList())
-    override val storageList: StateFlow<List<StorageVolumeInfo>> get() = _storageList
+    override val storageList: StateFlow<List<StorageVolumeInfo>> = _storageList.asStateFlow()
 
     override fun load() {
         _storageList.value = scanPhysicalVolumes()

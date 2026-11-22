@@ -1,11 +1,13 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
+import com.todokanai.composepracticenew.model.ByteAmount
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.KnownSizeProgress
 import com.todokanai.composepracticenew.model.IndeterminatePhase
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -29,7 +31,7 @@ class FtpDownloaderDirectoryProgressTest {
     /** 검증 대상 다운로더. */
     private val downloader = FtpOperationParts(session).downloader(UnexpectedLeftoverDiscarder)
     /** 보고된 진행 상태. */
-    private val reports = mutableListOf<ProgressState>()
+    private val reports = mutableListOf<ProgressPhase>()
 
     @After
     fun tearDown() {
@@ -44,22 +46,21 @@ class FtpDownloaderDirectoryProgressTest {
 
         val inProgress = reports.dropLast(1)
         assertTrue(inProgress.isNotEmpty())
-        assertTrue(inProgress.all { it.progress == null && it.totalBytes == null })
-        assertEquals(KnownSizeProgress(knownTotalBytes = 4, knownWrittenBytes = 4, knownCompletedBytes = 0, unknownFileCount = 1, unknownWrittenBytes = 0), inProgress.first().knownSize)
-        assertEquals(100, reports.last().progress)
-        assertEquals(8L, reports.last().totalBytes)
+        inProgress.forEach { it.asPartlyUnknown() }
+        assertEquals(KnownSizeProgress(knownTotalBytes = 4, knownWrittenBytes = 4, knownCompletedBytes = 0, unknownFileCount = 1, unknownWrittenBytes = 0), inProgress.first().asPartlyUnknown().knownSize)
+        assertEquals(ByteAmount.Known(100, 8), reports.last().asBytes().amount)
     }
 
     @Test
     fun `받기 전 트리를 수집하는 동안 준비 단계를 알린다`() {
         // 수집이 오래 걸려도 진행이 보이고, 그 보고에서 취소를 받도록(#284)
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=4; a.txt"))
-        val all = mutableListOf<ProgressState>()
+        val all = mutableListOf<ProgressPhase>()
 
         runBlocking { downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver, onProgress = { all += it }) }
 
-        assertEquals(IndeterminatePhase.Preparing(1, "a.txt"), all.first().indeterminate)
-        assertTrue(all.drop(1).all { it.indeterminate == null })
+        assertEquals(IndeterminatePhase.Preparing(1, "a.txt"), all.first())
+        assertTrue(all.drop(1).all { it is ProgressPhase.Bytes })
     }
 
     @Test
@@ -68,8 +69,8 @@ class FtpDownloaderDirectoryProgressTest {
 
         assertEquals(IoResult.Done, download())
 
-        assertEquals(listOf(50, 99, 100), reports.map { it.progress })
-        assertTrue(reports.all { it.totalBytes == 8L })
+        assertEquals(listOf(50, 99, 100), reports.map { it.asKnown().percent })
+        assertTrue(reports.all { it.asKnown().totalBytes == 8L })
     }
 
     @Test
@@ -79,11 +80,11 @@ class FtpDownloaderDirectoryProgressTest {
 
         assertTrue(download() is IoResult.PartiallyFailed)
 
-        assertTrue(reports.none { it.progress == 100 })
+        assertTrue(reports.none { it.asKnown().percent == 100 })
     }
 
     private fun download(): IoResult<Unit> = runBlocking {
         // 받기 전 준비 단계(#284)는 빼고 전송 단계의 진행만 본다
-        downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it.indeterminate == null) reports += it })
+        downloader.download(sources = listOf(DownloadSource("ftp://host/r", File(dir, "r").path, true)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it !is IndeterminatePhase) reports += it })
     }
 }

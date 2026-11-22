@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
 import kotlinx.coroutines.Dispatchers
@@ -175,8 +175,8 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 삭제 결과. 일부 항목을 지우지 못하면 대상 이름 아래 실패를 모은 [IoResult.PartiallyFailed]
      */
-    suspend fun delete(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
-        onProgress(ProgressState(progress = 0))
+    suspend fun delete(targetFiles: Set<String>, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
+        onProgress(ProgressPhase.Starting)
         val trees = targetFiles.map { File(it).let { root -> root to root.localTreeBottomUp().map { entry -> entry.file }.toList() } }
         val progress = LocalDeletionProgress(trees.sumOf { (_, files) -> files.size }, onProgress)
         forEachCollectingFailures(trees, nameOf = { (root, _) -> root.name }) { (root, files) ->
@@ -235,7 +235,7 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
  * @param total 작업 전체에서 지울 항목 수. 0이면 1로 본다
  * @param onProgress 진행 상태를 수신하는 콜백
  */
-private class LocalDeletionProgress(total: Int, private val onProgress: (ProgressState) -> Unit) {
+private class LocalDeletionProgress(total: Int, private val onProgress: (ProgressPhase) -> Unit) {
     /** 진행률을 나눌 항목 수. */
     private val total = total.coerceAtLeast(1)
 
@@ -245,6 +245,6 @@ private class LocalDeletionProgress(total: Int, private val onProgress: (Progres
     /** [name]의 삭제를 시도한 뒤 진행을 보고한다. */
     fun afterDeleting(name: String) {
         processed++
-        onProgress(ProgressState(progress = processed * 100 / total, listSize = total, currentIndex = processed, currentFileName = name))
+        onProgress(ProgressPhase.Counted(processed, total, name))
     }
 }

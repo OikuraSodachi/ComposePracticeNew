@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.data.progress
 
 import com.todokanai.composepracticenew.model.IndeterminatePhase
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 
 /**
  * 퍼센트 없이 보이는 단계([IndeterminatePhase])의 진행을 [throttle]의 시간 간격마다 보고한다.
@@ -11,7 +11,7 @@ import com.todokanai.composepracticenew.model.ProgressState
  * @param throttle 보고 간격을 정하는 ProgressThrottle
  */
 class IndeterminateProgressReporter internal constructor(
-    private val onProgress: (ProgressState) -> Unit,
+    private val onProgress: (ProgressPhase) -> Unit,
     private val throttle: ProgressThrottle = ProgressThrottle()
 ) {
     /**
@@ -19,6 +19,6 @@ class IndeterminateProgressReporter internal constructor(
      * @param phase 보고할 단계를 만드는 함수. 보고할 때만 부른다
      */
     fun report(phase: () -> IndeterminatePhase) {
-        if (throttle.shouldReport(null)) onProgress(ProgressState(indeterminate = phase()))
+        if (throttle.shouldReport(null)) onProgress(phase())
     }
 }

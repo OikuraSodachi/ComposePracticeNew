@@ -106,13 +106,13 @@ class LocalFileOperationUseCase(
 
     /**
      * [files]를 삭제한다. 일부 항목이 실패해도 나머지를 끝까지 삭제한 뒤 실패한 항목을 모아 알린다.
-     * @param files 삭제할 파일·디렉터리 항목
+     * @param files 삭제할 파일·디렉터리의 절대 경로 집합
      * @param onRefresh 작업 완료 후 디렉터리 목록을 갱신하는 suspend 콜백
      * @return Unit
      */
-    fun delete(files: List<FileHolderItem>, onRefresh: suspend () -> Unit) {
+    fun delete(files: Set<String>, onRefresh: suspend () -> Unit) {
         orchestrator.launch(FileOperationType.DELETE, onRefresh) { onProgress ->
-            fileActionRepo.deleteFiles(files.mapTo(LinkedHashSet()) { it.path }, onProgress)
+            fileActionRepo.deleteFiles(files, onProgress)
         }
     }
 

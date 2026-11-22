@@ -1,15 +1,17 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.datasource.UnexpectedLeftoverDiscarder
 import com.todokanai.composepracticenew.datasource.UnexpectedConflictResolver
 import com.todokanai.composepracticenew.repository.OperationNotices
+import com.todokanai.composepracticenew.model.ByteAmount
+import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.KnownSizeProgress
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -29,7 +31,7 @@ class FtpTransferFileProgressTest {
     /** 검증 대상 업로더. */
     private val uploader = FtpOperationParts(session).uploader(OperationNotices())
     /** 보고된 진행 상태. */
-    private val reports = mutableListOf<ProgressState>()
+    private val reports = mutableListOf<ProgressPhase>()
 
     @After
     fun tearDown() {
@@ -42,8 +44,8 @@ class FtpTransferFileProgressTest {
 
         assertEquals(IoResult.Done, download())
 
-        assertEquals(listOf(99, 100), reports.map { it.progress })
-        assertTrue(reports.all { it.totalBytes == 4L && it.listSize == 1 })
+        assertEquals(listOf(99, 100), reports.map { it.asKnown().percent })
+        assertTrue(reports.all { it.asKnown().totalBytes == 4L && it.asBytes().fileCount == 1 })
     }
 
     @Test
@@ -53,8 +55,7 @@ class FtpTransferFileProgressTest {
 
         assertEquals(IoResult.Done, download())
 
-        assertEquals(100, reports.single().progress)
-        assertEquals(0L, reports.single().totalBytes)
+        assertEquals(ByteAmount.Known(100, 0), reports.single().asBytes().amount)
     }
 
     @Test
@@ -62,10 +63,9 @@ class FtpTransferFileProgressTest {
         assertEquals(IoResult.Done, download())
 
         val inProgress = reports.first()
-        assertNull(inProgress.progress)
-        assertEquals(KnownSizeProgress(knownTotalBytes = 0, knownWrittenBytes = 0, knownCompletedBytes = 0, unknownFileCount = 1, unknownWrittenBytes = 4), inProgress.knownSize)
-        assertEquals(100, reports.last().progress)
-        assertEquals(4L, reports.last().totalBytes)
+        inProgress.asPartlyUnknown()
+        assertEquals(KnownSizeProgress(knownTotalBytes = 0, knownWrittenBytes = 0, knownCompletedBytes = 0, unknownFileCount = 1, unknownWrittenBytes = 4), inProgress.asPartlyUnknown().knownSize)
+        assertEquals(ByteAmount.Known(100, 4), reports.last().asBytes().amount)
     }
 
     @Test
@@ -74,8 +74,7 @@ class FtpTransferFileProgressTest {
 
         assertEquals(IoResult.Done, runBlocking { uploader.upload(listOf(UploadSource(empty.path, "ftp://host/r/empty.txt")), onProgress = { reports += it }) })
 
-        assertEquals(100, reports.single().progress)
-        assertEquals(0L, reports.single().totalBytes)
+        assertEquals(ByteAmount.Known(100, 0), reports.single().asBytes().amount)
     }
 
     @Test
@@ -89,8 +88,8 @@ class FtpTransferFileProgressTest {
         }
 
         assertEquals(IoResult.Done, result)
-        assertTrue(reports.toString(), reports.all { it.totalBytes == 7L && it.listSize == 2 })
-        val progresses = reports.mapNotNull { it.progress }
+        assertTrue(reports.toString(), reports.all { it.asKnown().totalBytes == 7L && it.asBytes().fileCount == 2 })
+        val progresses = reports.map { it.asKnown().percent }
         assertEquals("진행률이 줄어들면 안 됨: $progresses", progresses.sorted(), progresses)
         assertEquals(100, progresses.last())
     }
@@ -105,9 +104,9 @@ class FtpTransferFileProgressTest {
             uploader.upload(listOf(UploadSource(missing.path, "ftp://host/r/missing.txt"), UploadSource(second.path, "ftp://host/r/b.txt")), onProgress = { reports += it })
         }
 
-        val secondReports = reports.filter { it.currentFileName == "b.txt" }
+        val secondReports = reports.filter { it.asBytes().currentFile?.name == "b.txt" }
         assertTrue(reports.toString(), secondReports.isNotEmpty())
-        assertTrue(reports.toString(), secondReports.all { it.currentIndex == 2 && it.listSize == 2 })
+        assertTrue(reports.toString(), secondReports.all { it.asBytes().fileIndex == 2 && it.asBytes().fileCount == 2 })
     }
 
     /** [size] 바이트 파일을 알리는 MLST 응답 줄을 만든다. */
@@ -116,6 +115,6 @@ class FtpTransferFileProgressTest {
     /** 원격 파일 하나를 받는다. */
     private fun download(): IoResult<Unit> = runBlocking {
         // 받기 전 준비 단계(#284)는 빼고 전송 단계의 진행만 본다
-        downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it.indeterminate == null) reports += it })
+        downloader.download(sources = listOf(DownloadSource("ftp://host/r/a.txt", File(dir, "a.txt").path, false)), resolveConflict = UnexpectedConflictResolver, onProgress = { if (it !is IndeterminatePhase) reports += it })
     }
 }

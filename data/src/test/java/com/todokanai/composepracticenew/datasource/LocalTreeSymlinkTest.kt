@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
@@ -7,7 +8,7 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.repository.UploadEntryNamesRepositoryImpl
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -313,7 +314,7 @@ class LocalTreeSymlinkTest {
         val archive = zipOf("in.zip", "new.txt")
         val link = File(target, "in")
         assumeSymlink(link, outside.absoluteFile)
-        val states = mutableListOf<ProgressState>()
+        val states = mutableListOf<ProgressPhase>()
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor()), UnexpectedLeftoverDiscarder).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver, UnexpectedPasswordProvider) { states += it }
 
@@ -329,7 +330,7 @@ class LocalTreeSymlinkTest {
         val link = File(target, "in/d")
         link.parentFile!!.mkdirs()
         assumeSymlink(link, outside.absoluteFile)
-        val states = mutableListOf<ProgressState>()
+        val states = mutableListOf<ProgressPhase>()
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor()), UnexpectedLeftoverDiscarder).unzip(setOf(archive.path), target.path, ExtractLayout.IntoArchiveFolder, UnexpectedConflictResolver, UnexpectedPasswordProvider) { states += it }
 
@@ -344,7 +345,7 @@ class LocalTreeSymlinkTest {
         val archive = zipOf("in.zip", "a.txt")
         val link = File(target, "a.txt")
         assumeSymlink(link, File(outside, "keep.txt").absoluteFile)
-        val states = mutableListOf<ProgressState>()
+        val states = mutableListOf<ProgressPhase>()
 
         val result = LocalArchiveExtraction(setOf(ZipArchiveExtractor()), UnexpectedLeftoverDiscarder).unzip(setOf(archive.path), target.path, ExtractLayout.IntoDestination, UnexpectedConflictResolver, UnexpectedPasswordProvider) { states += it }
 
@@ -358,7 +359,7 @@ class LocalTreeSymlinkTest {
     fun `같은 파티션 이동에서 최상위 폴더 자리가 링크면 옮기지 않고 원본을 남기며 실패로 알린다`() = runBlocking {
         val link = File(target, "src")
         assumeSymlink(link, outside.absoluteFile)
-        val states = mutableListOf<ProgressState>()
+        val states = mutableListOf<ProgressPhase>()
 
         val result = transfer(samePartition = true).move(setOf(source.path), target.path, ProceedingConflictResolver) { states += it }
 
@@ -373,10 +374,10 @@ class LocalTreeSymlinkTest {
      * 마지막 진행 상태가 모든 파일을 처리한 100%인지 확인한다.
      * @param states 작업이 보고한 진행 상태
      */
-    private fun assertCompleted(states: List<ProgressState>) {
-        val last = states.last()
-        assertEquals(100, last.progress)
-        assertEquals(last.listSize, last.currentIndex)
+    private fun assertCompleted(states: List<ProgressPhase>) {
+        val last = states.last().asBytes()
+        assertEquals(100, last.asKnown().percent)
+        assertEquals(last.fileCount, last.fileIndex)
     }
 
     /**

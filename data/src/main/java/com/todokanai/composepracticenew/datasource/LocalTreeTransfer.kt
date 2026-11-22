@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.data.progress.ProgressMark
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.failedItemsAt
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
@@ -49,7 +49,7 @@ class LocalTreeTransfer internal constructor(
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 복사 결과. 한 항목(폴더 안쪽 항목 포함)이 입출력 실패로 멈춰도 나머지 항목은 복사하고, 실패와 건너뛴 링크를 모아 알린다
      */
-    suspend fun copy(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
+    suspend fun copy(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo copy@{
             val roots = targetFiles.map(::File)
             val totals = treeTotalsOf(roots)
@@ -72,7 +72,7 @@ class LocalTreeTransfer internal constructor(
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 이동 결과. 한 항목(폴더 안쪽 항목 포함)이 입출력 실패로 멈춰도 나머지 항목은 옮기고, 실패와 건너뛴 링크를 모아 알린다. 실패한 항목과 그것을 품은 폴더는 원래 자리에 남는다
      */
-    suspend fun move(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
+    suspend fun move(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo move@{
             val roots = targetFiles.map(::File)
             val destDir = File(targetPath)

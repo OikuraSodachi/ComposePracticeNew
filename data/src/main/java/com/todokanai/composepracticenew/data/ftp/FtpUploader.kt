@@ -11,7 +11,7 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.LeftoverCause
 import com.todokanai.composepracticenew.model.NoticeMessage
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
@@ -51,7 +51,7 @@ class FtpUploader internal constructor(
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 전송 결과
      */
-    suspend fun upload(sources: List<UploadSource>, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit> =
+    suspend fun upload(sources: List<UploadSource>, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit> =
         withContext(Dispatchers.IO) {
             val plans = sources.map { uploadPlanOf(it) }
             val files = plans.flatMap { it.files }

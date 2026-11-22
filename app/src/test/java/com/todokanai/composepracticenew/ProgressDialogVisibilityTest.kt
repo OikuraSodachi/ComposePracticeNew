@@ -1,6 +1,9 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ByteAmount
 import com.todokanai.composepracticenew.model.FileOperationType
+import com.todokanai.composepracticenew.model.KnownSizeProgress
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.repository.ProgressRepository
@@ -145,6 +148,25 @@ class ProgressDialogVisibilityTest {
     }
 
     @Test
+    fun `크기를 모르는 파일이 섞인 작업은 퍼센트가 없어도 진행 중으로 띄운다`() = runTest {
+        backgroundScope.launch { viewModel.shownProgress.collect {} }
+        progressRepo.setProgressState(1, uploadAt(50))
+        val partlyUnknown = ProgressPhase.Bytes(ByteAmount.PartlyUnknown(KnownSizeProgress(100, 100, 100, 1, 10)), 110, 2, 2, null)
+        progressRepo.setProgressState(2, ProgressState(FileOperationType.DOWNLOAD, partlyUnknown))
+
+        awaitShownId(2)
+    }
+
+    @Test
+    fun `아직 셀 것이 없는 시작 상태의 작업도 진행 중으로 띄운다`() = runTest {
+        backgroundScope.launch { viewModel.shownProgress.collect {} }
+        progressRepo.setProgressState(1, uploadAt(50))
+        progressRepo.setProgressState(2, ProgressState(FileOperationType.DELETE, ProgressPhase.Starting))
+
+        awaitShownId(2)
+    }
+
+    @Test
     fun `앱을 열 때 이미 진행 중인 작업은 띄우지 않고 그 뒤 시작한 작업은 띄운다`() = runTest {
         progressRepo.setProgressState(1, uploadAt(30))
         viewModel = createViewModel()
@@ -183,9 +205,12 @@ class ProgressDialogVisibilityTest {
         viewModel.shownProgress.first { it?.instanceId == expected }
     }
 
-    private fun uploadAt(progress: Int) = ProgressState(progress = progress, operationType = FileOperationType.UPLOAD)
+    // 업로드·복사가 실제로 보고하는 바이트 단계로 만든다 — 표시 판정의 Bytes 갈래를 테스트가 지나도록
+    private fun uploadAt(progress: Int) = ProgressState(FileOperationType.UPLOAD, bytesAt(progress))
 
-    private fun copyAt(progress: Int) = ProgressState(progress = progress, operationType = FileOperationType.COPY)
+    private fun copyAt(progress: Int) = ProgressState(FileOperationType.COPY, bytesAt(progress))
+
+    private fun bytesAt(progress: Int) = ProgressPhase.Bytes(ByteAmount.Known(progress, 100), progress.toLong(), 1, 1, null)
 }
 
 /** 진행 상태를 테스트가 직접 넣고 빼는 테스트용 진행 저장소. */

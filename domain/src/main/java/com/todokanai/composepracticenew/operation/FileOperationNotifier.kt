@@ -12,10 +12,10 @@ import com.todokanai.composepracticenew.model.QuestionKind
  */
 interface FileOperationNotifier {
     /** [state]에 담긴 작업 종류와 진행도로 [instanceId] 작업의 진행 알림을 업데이트한다. */
-    fun progressNoti(state: ProgressState, instanceId: Int)
+    fun progressNotification(state: ProgressState, instanceId: Int)
 
-    /** [instanceId] 작업의 진행 알림을 [kind] 질문에 답을 기다리는 상태로 바꾼다(문구는 구현이 질문 종류로 정한다). 누르면 앱을 열어 질문을 보이게 한다. 다음 [progressNoti]가 진행 알림으로 되돌린다. */
-    fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int)
+    /** [instanceId] 작업의 진행 알림을 [kind] 질문에 답을 기다리는 상태로 바꾼다(문구는 구현이 질문 종류로 정한다). 누르면 앱을 열어 질문을 보이게 한다. 다음 [progressNotification]가 진행 알림으로 되돌린다. */
+    fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int)
 
     /** [instanceId] 작업의 알림을 [kind] 작업의 완료 알림으로 띄운다(문구는 구현이 작업으로 정한다). 진행 알림이 있었으면 지우고 완료 알림으로 대신한다. 그 작업에 대한 마지막 호출이다. */
     fun completedNotification(kind: OperationKind, instanceId: Int)

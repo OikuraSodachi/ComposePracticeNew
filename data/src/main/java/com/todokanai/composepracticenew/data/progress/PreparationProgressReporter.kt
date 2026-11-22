@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.data.progress
 
 import com.todokanai.composepracticenew.model.IndeterminatePhase
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 
 /**
  * 처리 전에 대상 트리를 훑는 준비 단계의 진행(찾은 항목 수)을 보고한다. 작업 하나의 준비 단계 전체(대상 여럿 포함)에 하나를 쓴다.
@@ -16,7 +16,7 @@ class PreparationProgressReporter internal constructor(
      * 진행 상태 콜백으로 보고기를 만든다.
      * @param onProgress 진행 상태를 수신하는 콜백
      */
-    internal constructor(onProgress: (ProgressState) -> Unit) : this(IndeterminateProgressReporter(onProgress))
+    internal constructor(onProgress: (ProgressPhase) -> Unit) : this(IndeterminateProgressReporter(onProgress))
 
     /** 지금까지 찾은 항목 수. */
     private var foundEntries = 0

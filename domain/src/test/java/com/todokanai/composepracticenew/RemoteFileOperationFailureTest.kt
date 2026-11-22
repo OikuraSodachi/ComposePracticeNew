@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.NoticeMessage
@@ -166,11 +167,11 @@ class RemoteFileOperationFailureTest {
         val downloads = mutableListOf<List<FileHolderItem>>()
         /** 업로드 요청마다 받은 항목 목록(요청 순서). */
         val uploads = mutableListOf<List<FileHolderItem>>()
-        override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> {
             downloads += items
             return failure ?: IoResult.Done
         }
-        override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+        override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> {
             uploads += items
             return failure ?: IoResult.Done
         }
@@ -187,15 +188,15 @@ class RemoteFileOperationFailureTest {
         /** 폴더 생성 요청이 돌려줄 결과. */
         var makeDirectoryResult: IoResult<Unit> = IoResult.Done
         override suspend fun rename(session: RemoteSession, path: String, newName: String) = renameResult
-        override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) = deleteResult.also { deletes += items }
+        override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressPhase) -> Unit) = deleteResult.also { deletes += items }
         override suspend fun makeDirectory(session: RemoteSession, parentPath: String, name: String) = makeDirectoryResult
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
-        override fun progressNoti(state: ProgressState, instanceId: Int) {}
+        override fun progressNotification(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
+        override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

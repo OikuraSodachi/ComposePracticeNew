@@ -11,14 +11,14 @@ import com.todokanai.composepracticenew.model.RenameConflict
 internal object ConflictRules {
 
     /**
-     * 복사·이동·전송 시 목적지에 같은 이름이 이미 있는 항목을 반환한다.
+     * 목적지에 같은 이름이 이미 있는 항목을 반환한다.
      * @param items 작업 대상 항목
      * @param destinationNames 목적지 디렉터리의 기존 항목 이름
      * @param nameOf 항목에서 파일 이름을 꺼내는 함수
      * @param matchKeyOf 이름의 비교 값을 구하는 함수(목적지 저장소의 규칙)
      * @return [items] 중 충돌하는 항목(원래 순서 유지)
      */
-    fun <T> copyMoveConflicts(items: List<T>, destinationNames: List<String>, nameOf: (T) -> String, matchKeyOf: (String) -> String): List<T> {
+    fun <T> existingNameConflicts(items: List<T>, destinationNames: List<String>, nameOf: (T) -> String, matchKeyOf: (String) -> String): List<T> {
         val destinationKeys = destinationNames.mapTo(HashSet(), matchKeyOf)
         return items.filter { matchKeyOf(nameOf(it)) in destinationKeys }
     }

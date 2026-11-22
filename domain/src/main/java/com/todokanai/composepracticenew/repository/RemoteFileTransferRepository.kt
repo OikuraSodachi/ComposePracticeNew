@@ -2,7 +2,7 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.RemoteSession
 
 /**
@@ -27,7 +27,7 @@ interface RemoteFileTransferRepository {
      * @param onProgress 전송 진행 상태를 수신하는 콜백
      * @return 전송 결과
      */
-    suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit>
 
     /**
      * 로컬 항목 [items]를 차례로 remoteDirPath 아래 각자의 이름으로 업로드한다. 진행률은 모든 항목을 합쳐 보고한다.
@@ -40,5 +40,5 @@ interface RemoteFileTransferRepository {
      * @param onProgress 전송 진행 상태를 수신하는 콜백
      * @return 전송 결과
      */
-    suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit = {}): IoResult<Unit>
+    suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressPhase) -> Unit = {}): IoResult<Unit>
 }

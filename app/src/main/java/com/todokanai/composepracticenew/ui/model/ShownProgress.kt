@@ -1,4 +1,4 @@
-package com.todokanai.composepracticenew.model
+package com.todokanai.composepracticenew.ui.model
 
 import androidx.compose.runtime.Immutable
 

@@ -3,7 +3,7 @@ package com.todokanai.composepracticenew.data.ftp
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.operation.forEachCollectingFailures
@@ -30,7 +30,7 @@ class FtpRemoteDeletion internal constructor(
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 삭제 결과. 실패한 대상이 있으면 대상 이름 아래 실패를 모은 [IoResult.PartiallyFailed]
      */
-    suspend fun delete(targets: List<RemoteDeletionTarget>, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    suspend fun delete(targets: List<RemoteDeletionTarget>, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> {
         val preparation = PreparationProgressReporter(onProgress)
         val plans = targets.map { target -> target to deletionPlanOf(target, preparation).also { if (it is IoResult.ConnectionLost) return it } }
         val progress = DeletionProgress(plans.sumOf { (_, plan) -> (plan as? IoResult.Success)?.value?.itemCount ?: 0 }, onProgress)
@@ -140,13 +140,13 @@ private sealed interface DeletionPlan {
  * @param total 작업 전체에서 지울 항목 수(디렉터리 대상 자신 포함)
  * @param onProgress 진행 상태를 수신하는 콜백
  */
-private class DeletionProgress(private val total: Int, private val onProgress: (ProgressState) -> Unit) {
+private class DeletionProgress(private val total: Int, private val onProgress: (ProgressPhase) -> Unit) {
     /** 이미 명령을 보낸 항목 수. */
     private var processed = 0
 
     /** [name]을 지우는 명령을 보내기 직전에 진행을 보고한다 — 보고가 취소를 확인하므로 명령마다 취소가 듣는다. */
     fun beforeDeleting(name: String) {
-        onProgress(ProgressState(progress = processed * 100 / total, listSize = total, currentIndex = processed, currentFileName = name))
+        onProgress(ProgressPhase.Counted(processed, total, name))
         processed++
     }
 }

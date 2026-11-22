@@ -3,7 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.RemoteSession
 
 /**
@@ -30,7 +30,7 @@ interface RemoteFileMutationRepository {
      * @param items 삭제할 원격 파일·디렉터리 항목
      * @param onProgress 진행 상태를 수신하는 콜백. 하위 항목을 훑는 동안에는 준비 단계([IndeterminatePhase.Preparing])를, 지우는 동안에는 작업 전체의 항목 수 기준 진행을 보고한다
      */
-    suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit): IoResult<Unit>
+    suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressPhase) -> Unit): IoResult<Unit>
 
     /**
      * [parentPath] 아래에 [name] 이름의 새 디렉토리를 생성한다.

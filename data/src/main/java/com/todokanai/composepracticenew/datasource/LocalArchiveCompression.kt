@@ -7,7 +7,7 @@ import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.valueOr
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,7 +46,7 @@ class LocalArchiveCompression @Inject constructor(
         baseName: String,
         format: ArchiveFormat,
         password: String?,
-        onProgress: (ProgressState) -> Unit
+        onProgress: (ProgressPhase) -> Unit
     ): IoResult<Unit> = withContext(Dispatchers.IO) {
         localIo {
             val compressor = compressors[format] ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(format.extension))
@@ -65,7 +65,7 @@ class LocalArchiveCompression @Inject constructor(
      * @param onProgress 진행 상태를 수신하는 콜백
      * @return 압축 결과. 넣지 못한 항목이 있으면 [IoResult.PartiallyFailed]
      */
-    private fun compressEntries(compressor: ArchiveCompressor, targetFiles: Set<String>, desired: File, password: String?, onProgress: (ProgressState) -> Unit): IoResult<Unit> {
+    private fun compressEntries(compressor: ArchiveCompressor, targetFiles: Set<String>, desired: File, password: String?, onProgress: (ProgressPhase) -> Unit): IoResult<Unit> {
         val roots = targetFiles.map(::File)
         val entries = mutableListOf<ArchiveSource>()
         val skipped = mutableListOf<FailedItem>()

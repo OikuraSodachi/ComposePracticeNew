@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -46,18 +47,18 @@ class FileOperationStartTest {
             IoResult.Done
         }
 
-        assertEquals(mapOf(1 to ProgressState(operationType = FileOperationType.COPY)), progressReporter.progressMap.value)
+        assertEquals(mapOf(1 to ProgressState(FileOperationType.COPY, ProgressPhase.Starting)), progressReporter.progressMap.value)
     }
 
     @Test
     fun `나중에 시작한 작업이 먼저 진행률을 보고해도 시작한 순서대로 등록된다`() {
         orchestrator.launch(FileOperationType.COPY, onRefresh = {}) { onProgress ->
             gate.await()
-            onProgress(ProgressState(progress = 0))
+            onProgress(ProgressPhase.Starting)
             IoResult.Done
         }
         orchestrator.launch(FileOperationType.UPLOAD, onRefresh = {}) { onProgress ->
-            onProgress(ProgressState(progress = 0))
+            onProgress(ProgressPhase.Starting)
             gate.await()
             IoResult.Done
         }
@@ -92,9 +93,9 @@ class FileOperationStartTest {
 
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
-        override fun progressNoti(state: ProgressState, instanceId: Int) {}
+        override fun progressNotification(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
+        override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }
