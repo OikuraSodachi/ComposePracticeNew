@@ -52,11 +52,14 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     /** 작업별 알림 id. 이전 프로세스가 남긴 파일 작업 알림의 id를 피해 붙인다. */
     private val ids = OperationNotificationIds { activeOperationNotificationIds() }
 
-    /** 단계마다 표시 방식을 고른다. 아직 셀 것이 없는 시작 상태는 알림을 띄우지 않는다 — 다음 보고가 곧 진행을 보인다. */
+    /**
+     * 단계마다 표시 방식을 고른다. 모든 단계가 알림을 그린다 — 답한 뒤 마지막 상태를 다시 그려 '확인 필요' 알림을 되돌리므로,
+     * 그리지 않는 단계가 있으면 첫 보고 전에 물은 작업의 알림이 답한 뒤에도 '확인 필요'로 남는다.
+     */
     override fun progressNotification(state: ProgressState, instanceId: Int) {
         val type = state.operationType
         when (val phase = state.toModel().phase) {
-            ProgressPhaseModel.Starting -> Unit
+            ProgressPhaseModel.Starting -> showStartingProgress(type, instanceId)
             is IndeterminatePhaseModel -> showIndeterminateProgress(type, phase, instanceId)
             is ProgressPhaseModel.Counted -> showCountProgress(type, phase, instanceId)
             is ProgressPhaseModel.Bytes -> showPercentProgress(type, phase, instanceId)
@@ -75,6 +78,16 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
             .setContentText(context.getString(awaitingAnswerTextRes(kind)))
             .setOngoing(true)
             .setContentIntent(buildAppOnlyClickIntent(notificationId))
+        notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
+    }
+
+    /** 아직 셀 것이 없는 시작 상태를 불확정 막대로 표시한다 — 퍼센트를 0%로 지어내지 않고 진행 중임만 보이도록. */
+    private fun showStartingProgress(type: FileOperationType, instanceId: Int) {
+        val notificationId = ids.idFor(instanceId)
+        val builder = progressBuilder(type)
+            .setOngoing(true)
+            .setProgress(0, 0, true)
+            .setContentIntent(buildClickIntent(type.id, instanceId, notificationId))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
     }
 
