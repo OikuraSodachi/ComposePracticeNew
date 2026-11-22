@@ -190,7 +190,7 @@ private fun FileListDestination(
         onSubmitItem = coordinator::submitLocalItem,
         addToList = coordinator::addToLocalList,
         removeFromList = coordinator::removeFromLocalList,
-        onRangeSelect = coordinator::setLocalSelectedList,
+        onReplaceSelection = coordinator::setLocalSelectedList,
         childCountsFor = childCountViewModel::countsFor,
         onSwitchToRemote = onSwitchToRemote@{
             // 연결된 원격 세션이 없으면 원격 화면 대신 저장소 화면으로 가 서버를 고르게 한다 — 원격 연결은 저장소 화면에서만 시작한다
@@ -240,7 +240,7 @@ private fun RemoteFileListDestination(
         onSubmitItem = coordinator::submitRemoteItem,
         addToList = coordinator::addToRemoteList,
         removeFromList = coordinator::removeFromRemoteList,
-        onRangeSelect = coordinator::setRemoteSelectedList,
+        onReplaceSelection = coordinator::setRemoteSelectedList,
         onSwitchToLocal = {
             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                 navController.navigate(NavDestinations.FILE_LIST) {

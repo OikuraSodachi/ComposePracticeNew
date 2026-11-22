@@ -31,7 +31,7 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
     /** 다중 선택 중이면 item과 같은 경로의 항목을 선택 목록에서 뺀다. 화면의 선택 표시와 같이 경로로 판단한다. */
     fun remove(item: FileHolderItem) = editSelection { selected -> selected.filterNot { it.path == item.path } }
 
-    /** 다중 선택 중이면 선택 목록을 items로 바꾼다(같은 경로는 처음 것 하나만 남긴다). 드래그 범위 선택 시 반복 add 대신 사용한다. */
+    /** 다중 선택 중이면 선택 목록을 items로 바꾼다(같은 경로는 처음 것 하나만 남긴다). 드래그 범위 선택과 모두 선택/해제에 사용한다. */
     fun replaceSelection(items: List<FileHolderItem>) = editSelection { items.distinctBy { it.path } }
 
     /** 다중 선택 중이면 선택을 유지한 채 operation의 목적지 확인 단계로 전환한다. */

@@ -90,14 +90,14 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun addToLocalList(item: FileHolderItem) = local.add(item)
     /** 로컬 다중 선택에서 item을 뺀다. */
     fun removeFromLocalList(item: FileHolderItem) = local.remove(item)
-    /** 로컬 다중 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 사용한다. */
+    /** 로컬 다중 선택 목록을 일괄 교체한다. 드래그 범위 선택과 모두 선택/해제에 사용한다. */
     fun setLocalSelectedList(list: List<FileHolderItem>) = local.replaceSelection(list)
 
     /** 원격 다중 선택에 item을 더한다. 호출부가 토글을 보장해야 한다. */
     fun addToRemoteList(item: FileHolderItem) = remote.add(item)
     /** 원격 다중 선택에서 item을 뺀다. */
     fun removeFromRemoteList(item: FileHolderItem) = remote.remove(item)
-    /** 원격 다중 선택 목록을 일괄 교체한다. 드래그 범위 선택 시 사용한다. */
+    /** 원격 다중 선택 목록을 일괄 교체한다. 드래그 범위 선택과 모두 선택/해제에 사용한다. */
     fun setRemoteSelectedList(list: List<FileHolderItem>) = remote.replaceSelection(list)
 
     /**

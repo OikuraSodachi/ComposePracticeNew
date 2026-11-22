@@ -15,6 +15,7 @@ import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.LocalTransferActions
 import com.todokanai.composepracticenew.compose.listview.RenameActions
+import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
 import com.todokanai.composepracticenew.compose.listview.CompressActions
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
@@ -35,6 +36,7 @@ import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
  * @param info 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음
  * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
  * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
+ * @param onReplaceSelection 다중 선택 목록을 바꾸는 콜백 — 드래그 범위 선택과 모두 선택/해제에 쓴다
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백 — 취소·뒤로가기용
  * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
@@ -56,7 +58,7 @@ fun FileListFrag(
     onSubmitItem: () -> SubmittedItem?,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
-    onRangeSelect: (List<FileHolderItem>) -> Unit,
+    onReplaceSelection: (List<FileHolderItem>) -> Unit,
     childCountsFor: (ListingKey) -> ChildCountSource,
     onSwitchToRemote: () -> Unit,
     navigateToStorage: () -> Unit,
@@ -131,20 +133,30 @@ fun FileListFrag(
             listing = uiState.value.listing,
             onRetry = viewModel::retryListing
         ) { loaded ->
-            FileListView(
-                modifier = Modifier.fillMaxSize(),
-                listState = listState,
-                fileHolderItemList = loaded.items,
-                childCounts = childCountsFor(loaded.key),
-                selectedList = selectedList,
-                selectMode = selectMode,
-                clickActionOf = { selectMode.clickActionOf(it) },
-                onOpen = viewModel::openItem,
-                onStartMultiSelect = onStartMultiSelect,
-                onRangeSelect = onRangeSelect,
-                addToList = addToList,
-                removeFromList = removeFromList
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (selectMode == SelectMode.MultiSelect) {
+                    SelectAllBar(
+                        modifier = Modifier,
+                        items = loaded.items,
+                        selectedList = selectedList,
+                        onReplaceSelection = onReplaceSelection
+                    )
+                }
+                FileListView(
+                    modifier = Modifier.weight(1f),
+                    listState = listState,
+                    fileHolderItemList = loaded.items,
+                    childCounts = childCountsFor(loaded.key),
+                    selectedList = selectedList,
+                    selectMode = selectMode,
+                    clickActionOf = { selectMode.clickActionOf(it) },
+                    onOpen = viewModel::openItem,
+                    onStartMultiSelect = onStartMultiSelect,
+                    onReplaceSelection = onReplaceSelection,
+                    addToList = addToList,
+                    removeFromList = removeFromList
+                )
+            }
         }
 
         BottomButtonListView(

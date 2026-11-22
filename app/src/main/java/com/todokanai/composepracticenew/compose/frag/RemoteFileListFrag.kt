@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.RenameActions
+import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -48,6 +49,7 @@ private fun RemoteFileListConnectionEffects(
  * 원격 스토리지의 파일 목록을 표시하고 I/O 작업(다운로드·업로드·이름변경·삭제·새폴더)을 제공하는 화면.
  * @param selectedList 선택 목록을 반환하는 함수 — 값을 실제로 쓰는 하위 컴포저블에서 읽어 선택 변경 시 리컴포지션 범위를 좁힌다
  * @param onStartMultiSelect 드래그로 고른 첫 항목을 선택한 채로 다중 선택 모드로 전환하는 콜백
+ * @param onReplaceSelection 다중 선택 목록을 바꾸는 콜백 — 드래그 범위 선택과 모두 선택/해제에 쓴다
  * @param onResetSelection 기본 모드로 되돌리고 선택 목록을 비우는 콜백 — 취소·뒤로가기용
  * @param onSubmitSelection 확인한 작업의 대상으로 선택을 꺼내고 기본 모드로 되돌리는 콜백. 꺼낼 선택이 없으면 null
  * @param onSubmitItem 확인한 이름 변경의 대상으로 선택의 한 항목을 꺼내고 기본 모드로 되돌리는 콜백. 선택이 한 항목이 아니면 null
@@ -64,7 +66,7 @@ fun RemoteFileListFrag(
     onSubmitItem: () -> SubmittedItem?,
     addToList: (FileHolderItem) -> Unit,
     removeFromList: (FileHolderItem) -> Unit,
-    onRangeSelect: (List<FileHolderItem>) -> Unit,
+    onReplaceSelection: (List<FileHolderItem>) -> Unit,
     onSwitchToLocal: () -> Unit,
     onEnterDownloadMode: () -> Unit,
     onConfirmUpload: () -> Unit,
@@ -121,21 +123,31 @@ fun RemoteFileListFrag(
             listing = uiState.value.listing,
             onRetry = viewModel::retryListing
         ) { loaded ->
-            FileListView(
-                modifier = Modifier.fillMaxSize(),
-                listState = listState,
-                fileHolderItemList = loaded.items,
-                // 원격 폴더는 하위 항목 수를 세지 않는다 — 세려면 폴더마다 LIST를 보내 하나뿐인 연결을 사용자 작업과 나눠 써야 한다(범위 밖)
-                childCounts = null,
-                selectedList = selectedList,
-                selectMode = selectMode,
-                clickActionOf = { selectMode.clickActionOf(it) },
-                onOpen = viewModel::openFolder,
-                onStartMultiSelect = onStartMultiSelect,
-                onRangeSelect = onRangeSelect,
-                addToList = addToList,
-                removeFromList = removeFromList
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (selectMode == SelectMode.MultiSelect) {
+                    SelectAllBar(
+                        modifier = Modifier,
+                        items = loaded.items,
+                        selectedList = selectedList,
+                        onReplaceSelection = onReplaceSelection
+                    )
+                }
+                FileListView(
+                    modifier = Modifier.weight(1f),
+                    listState = listState,
+                    fileHolderItemList = loaded.items,
+                    // 원격 폴더는 하위 항목 수를 세지 않는다 — 세려면 폴더마다 LIST를 보내 하나뿐인 연결을 사용자 작업과 나눠 써야 한다(범위 밖)
+                    childCounts = null,
+                    selectedList = selectedList,
+                    selectMode = selectMode,
+                    clickActionOf = { selectMode.clickActionOf(it) },
+                    onOpen = viewModel::openFolder,
+                    onStartMultiSelect = onStartMultiSelect,
+                    onReplaceSelection = onReplaceSelection,
+                    addToList = addToList,
+                    removeFromList = removeFromList
+                )
+            }
         }
 
         RemoteBottomButtonListView(
