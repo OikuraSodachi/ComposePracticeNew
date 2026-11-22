@@ -6,7 +6,7 @@ import com.todokanai.composepracticenew.datasource.LocalEntryMutator
 import com.todokanai.composepracticenew.datasource.LocalTreeTransfer
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,16 +25,16 @@ class FileActionRepositoryImpl @Inject constructor(
     private val archiveExtraction: LocalArchiveExtraction,
     private val entryMutator: LocalEntryMutator
 ) : FileActionRepository {
-    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) =
+    override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressPhase) -> Unit) =
         archiveCompression.compress(targetFiles, parentPath, baseName, format, password, onProgress)
     override fun supportedArchiveFormats() = archiveCompression.supportedFormats()
-    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
+    override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) =
         treeTransfer.copy(targetFiles, targetPath, resolveConflict, onProgress)
     override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = entryMutator.rename(targetFile, newName, overwrite)
-    override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = entryMutator.delete(targetFiles, onProgress)
-    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
+    override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressPhase) -> Unit) = entryMutator.delete(targetFiles, onProgress)
+    override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) =
         treeTransfer.move(targetFiles, targetPath, resolveConflict, onProgress)
-    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) =
+    override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressPhase) -> Unit) =
         archiveExtraction.unzip(zipFiles, destPath, layout, resolveConflict, askPassword, onProgress)
     override fun extractionTargetOf(paths: Set<String>) = archiveExtraction.extractionTargetOf(paths)
     override suspend fun makeDirectory(parentPath: String, name: String) = entryMutator.makeDirectory(parentPath, name)

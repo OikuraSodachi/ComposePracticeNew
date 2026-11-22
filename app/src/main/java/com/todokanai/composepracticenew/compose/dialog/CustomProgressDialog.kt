@@ -29,14 +29,18 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.IndeterminatePhaseModel
-import com.todokanai.composepracticenew.model.KnownSizeProgressModel
-import com.todokanai.composepracticenew.model.ProgressStateModel
-import com.todokanai.composepracticenew.model.sizeText
+import com.todokanai.composepracticenew.ui.model.ByteAmountModel
+import com.todokanai.composepracticenew.ui.model.CurrentFileModel
+import com.todokanai.composepracticenew.ui.model.IndeterminatePhaseModel
+import com.todokanai.composepracticenew.ui.model.KnownSizeProgressModel
+import com.todokanai.composepracticenew.ui.model.ProgressPhaseModel
+import com.todokanai.composepracticenew.ui.model.ProgressStateModel
 import com.todokanai.composepracticenew.ui.model.asString
 import com.todokanai.composepracticenew.ui.model.knownPartTextOf
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
+import com.todokanai.composepracticenew.ui.model.percent
 import com.todokanai.composepracticenew.ui.model.phaseTextOf
+import com.todokanai.composepracticenew.ui.model.sizeText
 import com.todokanai.composepracticenew.ui.model.unknownFilesTextOf
 
 /**
@@ -71,61 +75,96 @@ fun CustomProgressDialog(
 
 @Composable
 private fun ProgressItem(state: ProgressStateModel) {
-    val progress = state.progress
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
             text = stringResource(operationLabelRes(state.operationType)),
             style = MaterialTheme.typography.labelMedium
         )
-        state.indeterminate?.let {
-            IndeterminatePart(it)
-            return@Column
-        }
-        if (progress != null) {
-            ProgressLinearIndicator(
-                modifier = Modifier.fillMaxWidth().height(8.dp),
-                progress = progress / 100f
-            )
-        } else {
-            // 진행률을 모르면 0%로 멈춘 막대 대신 계속 움직이는 막대로 작업이 진행 중임을 보여준다
-            IndeterminateIndicator()
-        }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(text = progressText(progress), style = MaterialTheme.typography.bodySmall)
-            state.sizeText()?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
-        }
-        state.knownSize?.let { KnownSizePart(it, state.operationType) }
-        if (state.currentFileName != null) {
-            Text(
-                text = state.currentFileName,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            if (state.currentFileSize != null) {
-                Text(
-                    text = state.currentFileSize,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        when (val phase = state.phase) {
+            ProgressPhaseModel.Starting -> PercentPart(percent = null, sizeText = null)
+            is IndeterminatePhaseModel -> IndeterminatePart(phase)
+            is ProgressPhaseModel.Counted -> {
+                PercentPart(percent = phase.percent, sizeText = null)
+                CurrentNamePart(phase.currentName, size = null)
+                CountPart(phase.processed, phase.total)
+            }
+            is ProgressPhaseModel.Bytes -> {
+                PercentPart(percent = phase.percent(), sizeText = phase.sizeText())
+                when (val amount = phase.amount) {
+                    is ByteAmountModel.Known -> Unit
+                    is ByteAmountModel.PartlyUnknown -> KnownSizePart(amount.knownSize, state.operationType)
+                }
+                phase.currentFile?.let { CurrentNamePart(it.name, it.size) }
+                CountPart(phase.fileIndex, phase.fileCount)
             }
         }
-        if (state.listSize != null && state.currentIndex != null) {
-            ProgressLinearIndicator(
-                modifier = Modifier.fillMaxWidth().height(6.dp),
-                progress = state.currentIndex.toFloat() / state.listSize.coerceAtLeast(1),
-                progressColor = MaterialTheme.colorScheme.secondary,
-                backgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
-            )
-            Text(
-                text = stringResource(R.string.progress_file_count, state.currentIndex, state.listSize),
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
     }
+}
+
+/**
+ * 작업 전체의 진행 막대와 퍼센트·처리한 크기 줄을 보여준다.
+ * @param percent 진행도(0~100 퍼센트). 모르면 null — 0%로 멈춘 막대 대신 계속 움직이는 막대를 보인다
+ * @param sizeText 처리한 크기의 표시 문구. 없으면 null
+ */
+@Composable
+private fun PercentPart(percent: Int?, sizeText: String?) {
+    if (percent != null) {
+        ProgressLinearIndicator(
+            modifier = Modifier.fillMaxWidth().height(8.dp),
+            progress = percent / 100f
+        )
+    } else {
+        // 진행률을 모르면 0%로 멈춘 막대 대신 계속 움직이는 막대로 작업이 진행 중임을 보여준다
+        IndeterminateIndicator()
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(text = progressText(percent), style = MaterialTheme.typography.bodySmall)
+        sizeText?.let { Text(text = it, style = MaterialTheme.typography.bodySmall) }
+    }
+}
+
+/**
+ * 지금 처리하는 항목의 이름과 크기를 보여준다.
+ * @param name 항목 이름
+ * @param size 항목 크기의 표시 문구. 모르면 null
+ */
+@Composable
+private fun CurrentNamePart(name: String, size: String?) {
+    Text(
+        text = name,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
+    if (size != null) {
+        Text(
+            text = size,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * 처리한 항목 수의 막대와 "처리 / 전체" 줄을 보여준다.
+ * @param index 처리한(처리 중인) 항목 순번
+ * @param total 전체 항목 수
+ */
+@Composable
+private fun CountPart(index: Int, total: Int) {
+    ProgressLinearIndicator(
+        modifier = Modifier.fillMaxWidth().height(6.dp),
+        progress = index.toFloat() / total.coerceAtLeast(1),
+        progressColor = MaterialTheme.colorScheme.secondary,
+        backgroundColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.24f)
+    )
+    Text(
+        text = stringResource(R.string.progress_file_count, index, total),
+        style = MaterialTheme.typography.bodySmall
+    )
 }
 
 /**
@@ -175,7 +214,7 @@ private fun IndeterminateIndicator() {
  * @param operationType 작업 종류 — 크기를 모르는 파일의 처리 문구(받음·보냄·처리)를 고른다
  */
 @Composable
-private fun KnownSizePart(knownSize: KnownSizeProgressModel, operationType: FileOperationType?) {
+private fun KnownSizePart(knownSize: KnownSizeProgressModel, operationType: FileOperationType) {
     knownSize.progress?.let { progress ->
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -235,7 +274,16 @@ private fun ProgressLinearIndicator(
 private fun CustomProgressDialogPreview() {
     Surface {
         CustomProgressDialog(
-            progress = ProgressStateModel(progress = 42, operationType = FileOperationType.COPY)
+            progress = ProgressStateModel(
+                operationType = FileOperationType.COPY,
+                phase = ProgressPhaseModel.Bytes(
+                    amount = ByteAmountModel.Known(percent = 42, totalSize = "10 MB"),
+                    writtenSize = "4.2 MB",
+                    fileIndex = 1,
+                    fileCount = 3,
+                    currentFile = CurrentFileModel(name = "photo.jpg", size = "5 MB")
+                )
+            )
         )
     }
 }
@@ -247,7 +295,7 @@ private fun CustomProgressDialogPreparingPreview() {
         CustomProgressDialog(
             progress = ProgressStateModel(
                 operationType = FileOperationType.DOWNLOAD,
-                indeterminate = IndeterminatePhaseModel.Preparing(foundEntries = 1234, currentName = "photos")
+                phase = IndeterminatePhaseModel.Preparing(foundEntries = 1234, currentName = "photos")
             )
         )
     }
@@ -261,7 +309,7 @@ private fun CustomProgressDialogCheckingPasswordPreview() {
         CustomProgressDialog(
             progress = ProgressStateModel(
                 operationType = FileOperationType.UNZIP,
-                indeterminate = IndeterminatePhaseModel.CheckingPassword(archiveName = "photos.rar")
+                phase = IndeterminatePhaseModel.CheckingPassword(archiveName = "photos.rar")
             )
         )
     }
@@ -273,17 +321,21 @@ private fun CustomProgressDialogKnownSizePreview() {
     Surface {
         CustomProgressDialog(
             progress = ProgressStateModel(
-                currentSize = "300 MB",
-                listSize = 2,
-                currentIndex = 2,
-                currentFileName = "unknown.bin",
                 operationType = FileOperationType.DOWNLOAD,
-                knownSize = KnownSizeProgressModel(
-                    progress = 100,
-                    writtenSize = "4 KB",
-                    totalSize = "4 KB",
-                    unknownFileCount = 1,
-                    unknownWrittenSize = "300 MB"
+                phase = ProgressPhaseModel.Bytes(
+                    amount = ByteAmountModel.PartlyUnknown(
+                        KnownSizeProgressModel(
+                            progress = 100,
+                            writtenSize = "4 KB",
+                            totalSize = "4 KB",
+                            unknownFileCount = 1,
+                            unknownWrittenSize = "300 MB"
+                        )
+                    ),
+                    writtenSize = "300 MB",
+                    fileIndex = 2,
+                    fileCount = 2,
+                    currentFile = CurrentFileModel(name = "unknown.bin", size = null)
                 )
             )
         )

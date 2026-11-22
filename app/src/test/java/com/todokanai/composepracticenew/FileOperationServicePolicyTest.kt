@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.service.FileOperationServicePolicy
@@ -44,5 +45,5 @@ class FileOperationServicePolicyTest {
         assertTrue(stop.isCompleted)
     }
 
-    private fun copying() = ProgressState(progress = 0, operationType = FileOperationType.COPY)
+    private fun copying() = ProgressState(FileOperationType.COPY, ProgressPhase.Starting)
 }

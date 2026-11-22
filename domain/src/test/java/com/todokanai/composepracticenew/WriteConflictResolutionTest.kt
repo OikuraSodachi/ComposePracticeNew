@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.ConflictAnswer
 import com.todokanai.composepracticenew.model.ConflictChoice
@@ -146,7 +147,7 @@ class WriteConflictResolutionTest {
     @Test
     fun `묻는 동안 알림을 답을 기다리는 상태로 바꾸고 답한 뒤 마지막 진행 상태로 되돌린다`() = runTest {
         val asker = ScriptedAsker(ConflictAnswer.Choose(ConflictChoice.SKIP, applyToRest = false))
-        val progress = ProgressState(progress = 40)
+        val progress = ProgressPhase.Counted(2, 5, "a")
 
         orchestrator(asker).launchAsking(FileOperationType.UNZIP, onRefresh = {}) { onProgress, resolve ->
             onProgress(progress)
@@ -212,7 +213,7 @@ class WriteConflictResolutionTest {
         val asker = ScriptedAsker(passwordAnswers = listOf(PasswordAnswer.Enter("secret")))
 
         orchestrator(asker).launchAsking(FileOperationType.UNZIP, onRefresh = {}) { onProgress, prompts ->
-            onProgress(ProgressState(progress = 10))
+            onProgress(ProgressPhase.Counted(1, 10, "a"))
             prompts.passwordFor("a.zip", ArchivePasswordPrompt.FIRST)
             IoResult.Done
         }
@@ -263,8 +264,8 @@ class WriteConflictResolutionTest {
     private class RecordingNotifier : FileOperationNotifier {
         /** 받은 알림을 "progress 진행률" / "awaiting 작업 종류" 형태로 기록한 것. */
         val events = mutableListOf<String>()
-        override fun progressNoti(state: ProgressState, instanceId: Int) { events += "progress ${state.progress}" }
-        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) { events += "awaiting $operationType $kind" }
+        override fun progressNotification(state: ProgressState, instanceId: Int) { events += "progress ${(state.phase as? ProgressPhase.Counted)?.percent}" }
+        override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) { events += "awaiting $operationType $kind" }
         override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
     }

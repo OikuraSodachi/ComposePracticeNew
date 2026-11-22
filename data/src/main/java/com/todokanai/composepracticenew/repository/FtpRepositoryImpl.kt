@@ -9,7 +9,7 @@ import com.todokanai.composepracticenew.data.ftp.siblingFtpUri
 import com.todokanai.composepracticenew.datasource.LeftoverDiscarder
 import com.todokanai.composepracticenew.model.ConnectResult
 import com.todokanai.composepracticenew.model.FileHolderItem
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.model.RemoteSession
 import com.todokanai.composepracticenew.model.RemoteStorageItem
@@ -44,12 +44,12 @@ class FtpRepositoryImpl @Inject internal constructor(
 
     override fun current(): RemoteSession? = sessions.current()
 
-    override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
+    override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) =
         sessions.withOperationSession(session) { parts ->
             parts.downloader(leftovers).download(items.map { DownloadSource(it.path, File(localDirPath, it.name).path, it.isDirectory) }, resolveConflict, onProgress)
         }
 
-    override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit) =
+    override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressPhase) -> Unit) =
         sessions.withOperationSession(session) { parts ->
             parts.uploader(notices).upload(items.map { UploadSource(it.path, childFtpUri(remoteDirPath, it.name)) }, onProgress)
         }
@@ -57,7 +57,7 @@ class FtpRepositoryImpl @Inject internal constructor(
     override suspend fun rename(session: RemoteSession, path: String, newName: String) =
         sessions.withBrowsingSession(session) { parts -> parts.executor.rename(path, siblingFtpUri(path, newName)) }
 
-    override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) =
+    override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressPhase) -> Unit) =
         sessions.withOperationSession(session) { parts ->
             parts.deletion.delete(items.map { RemoteDeletionTarget(it.path, it.name, it.isDirectory) }, onProgress)
         }

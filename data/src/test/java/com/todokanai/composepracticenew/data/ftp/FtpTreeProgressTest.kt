@@ -1,5 +1,7 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.testviews.*
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.data.progress.IndeterminateProgressReporter
 import com.todokanai.composepracticenew.data.progress.PreparationProgressReporter
 import com.todokanai.composepracticenew.data.progress.ProgressThrottle
@@ -8,7 +10,6 @@ import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.RemoteStep
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.IndeterminatePhase
-import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -35,13 +36,13 @@ class FtpTreeProgressTest {
             "/r" to listOf("type=dir; sub", "type=file;size=1; a.txt"),
             "/r/sub" to listOf("type=file;size=1; b.txt")
         )
-        val reported = mutableListOf<ProgressState>()
+        val reported = mutableListOf<ProgressPhase>()
 
         runBlocking { commands.trees.collectRemoteTree("ftp://host/r", everyEntry { reported += it }) }
 
         assertEquals(
             listOf(IndeterminatePhase.Preparing(1, "sub"), IndeterminatePhase.Preparing(2, "b.txt"), IndeterminatePhase.Preparing(3, "a.txt")),
-            reported.map { it.indeterminate }
+            reported
         )
     }
 
@@ -67,12 +68,12 @@ class FtpTreeProgressTest {
         loggedIn()
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt", "type=file;size=1; b.txt"))
-        val deleting = mutableListOf<ProgressState>()
+        val deleting = mutableListOf<ProgressPhase>()
 
-        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) { if (it.indeterminate == null) deleting += it } }
+        runBlocking { commands.deletion.delete(listOf(directoryTarget("ftp://host/r"))) { if (it !is IndeterminatePhase) deleting += it } }
 
-        assertEquals(listOf(0 to "b.txt", 1 to "a.txt", 2 to "r"), deleting.map { it.currentIndex to it.currentFileName })
-        assertTrue(deleting.all { it.listSize == 3 && it.progress!! < 100 })
+        assertEquals(listOf(ProgressPhase.Counted(0, 3, "b.txt"), ProgressPhase.Counted(1, 3, "a.txt"), ProgressPhase.Counted(2, 3, "r")), deleting)
+        assertTrue(deleting.all { it.asCounted().percent < 100 })
     }
 
     @Test
@@ -81,16 +82,16 @@ class FtpTreeProgressTest {
         loggedIn()
         client.features = setOf("MLST")
         client.mlsdListings = mapOf("/r" to listOf("type=file;size=1; a.txt"))
-        val reported = mutableListOf<ProgressState>()
+        val reported = mutableListOf<ProgressPhase>()
 
         runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/x.txt"), directoryTarget("ftp://host/r"))) { reported += it } }
 
-        val firstDeletion = reported.indexOfFirst { it.indeterminate == null }
-        assertEquals(IndeterminatePhase.Preparing(1, "x.txt"), reported.first().indeterminate)
-        assertTrue(reported.take(firstDeletion).all { it.indeterminate != null })
+        val firstDeletion = reported.indexOfFirst { it !is IndeterminatePhase }
+        assertEquals(IndeterminatePhase.Preparing(1, "x.txt"), reported.first())
+        assertTrue(reported.take(firstDeletion).all { it is IndeterminatePhase })
         assertEquals(
-            listOf(Triple(0, 3, "x.txt"), Triple(1, 3, "a.txt"), Triple(2, 3, "r")),
-            reported.drop(firstDeletion).map { Triple(it.currentIndex, it.listSize, it.currentFileName) }
+            listOf(ProgressPhase.Counted(0, 3, "x.txt"), ProgressPhase.Counted(1, 3, "a.txt"), ProgressPhase.Counted(2, 3, "r")),
+            reported.drop(firstDeletion)
         )
     }
 
@@ -136,7 +137,7 @@ class FtpTreeProgressTest {
     @Test
     fun `파일 삭제는 명령을 보내기 전에 진행을 알려 그 보고에서 취소를 받는다`() {
         loggedIn()
-        val reporter: (ProgressState) -> Unit = { if (it.indeterminate == null) throw CancellationException("cancelled") }
+        val reporter: (ProgressPhase) -> Unit = { if (it !is IndeterminatePhase) throw CancellationException("cancelled") }
 
         assertThrows(CancellationException::class.java) {
             runBlocking { commands.deletion.delete(listOf(fileTarget("ftp://host/r/a.txt")), reporter) }
@@ -145,7 +146,7 @@ class FtpTreeProgressTest {
     }
 
     /** 찾은 항목마다 [onProgress]로 알리는 준비 단계 보고기 — 기본 보고 간격이면 테스트가 시간에 기대게 된다. */
-    private fun everyEntry(onProgress: (ProgressState) -> Unit) = PreparationProgressReporter(IndeterminateProgressReporter(onProgress, ProgressThrottle(intervalNanos = 0)))
+    private fun everyEntry(onProgress: (ProgressPhase) -> Unit) = PreparationProgressReporter(IndeterminateProgressReporter(onProgress, ProgressThrottle(intervalNanos = 0)))
 
     private fun loggedIn() = runBlocking { session.markLoggedIn(home = null) }
 }

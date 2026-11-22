@@ -1,8 +1,9 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.model.FailedItem
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -32,12 +33,12 @@ class LocalEntryMutatorDeleteTest {
         File(target, "sub").mkdirs()
         File(target, "a.txt").writeText("A")
         File(target, "sub/b.txt").writeText("B")
-        val reports = mutableListOf<ProgressState>()
+        val reports = mutableListOf<ProgressPhase>()
 
         assertEquals(IoResult.Done, mutator.delete(setOf(target.path)) { reports += it })
 
         assertFalse(target.exists())
-        assertEquals(100, reports.last().progress)
+        assertEquals(100, reports.last().asCounted().percent)
     }
 
     @Test
@@ -91,14 +92,15 @@ class LocalEntryMutatorDeleteTest {
         // 대상마다 따로 계산하면 진행 막대가 대상 수만큼 0→100%를 반복한다(#355)
         val first = File(dir, "a").apply { mkdirs() }.also { File(it, "x.txt").writeText("X") }
         val second = File(dir, "b").apply { mkdirs() }.also { File(it, "y.txt").writeText("Y"); File(it, "z.txt").writeText("Z") }
-        val reports = mutableListOf<ProgressState>()
+        val reports = mutableListOf<ProgressPhase>()
 
         assertEquals(IoResult.Done, mutator.delete(setOf(first.path, second.path)) { reports += it })
 
+        assertEquals(ProgressPhase.Starting, reports.first())
         val counted = reports.drop(1)
-        assertTrue(reports.toString(), counted.all { it.listSize == 5 })
-        assertEquals((1..5).toList(), counted.map { it.currentIndex })
-        val progresses = reports.mapNotNull { it.progress }
+        assertTrue(reports.toString(), counted.all { it.asCounted().total == 5 })
+        assertEquals((1..5).toList(), counted.map { it.asCounted().processed })
+        val progresses = counted.map { it.asCounted().percent }
         assertEquals("진행률이 줄어들면 안 됨: $progresses", progresses.sorted(), progresses)
         assertEquals(100, progresses.last())
     }

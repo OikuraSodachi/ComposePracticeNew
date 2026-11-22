@@ -1,10 +1,11 @@
 package com.todokanai.composepracticenew.data.ftp
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.model.LeftoverCause
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationNoticeKind
 import com.todokanai.composepracticenew.model.kind
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -96,8 +97,8 @@ class FtpUploaderCancelledUploadTest {
 
     /** [localFile]을 올리다 첫 진행 보고에서 취소한다. */
     private suspend fun uploadCancelledMidway() =
-        uploader.upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { state: ProgressState ->
-            if ((state.writtenBytes ?: 0) > 0) throw CancellationException("취소")
+        uploader.upload(listOf(UploadSource(localFile.path, "ftp://host/a.bin"))) { state: ProgressPhase ->
+            if (((state as? ProgressPhase.Bytes)?.writtenBytes ?: 0) > 0) throw CancellationException("취소")
         }
 
     /** 넣은 실패 메시지를 넣은 순서대로 기록하는 테스트용 메시지 저장소. */

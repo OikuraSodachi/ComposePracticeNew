@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.RemoteConnectionState
@@ -183,9 +184,9 @@ class ProgressDialogVisibilityTest {
         viewModel.shownProgress.first { it?.instanceId == expected }
     }
 
-    private fun uploadAt(progress: Int) = ProgressState(progress = progress, operationType = FileOperationType.UPLOAD)
+    private fun uploadAt(progress: Int) = ProgressState(FileOperationType.UPLOAD, ProgressPhase.Counted(progress, 100, ""))
 
-    private fun copyAt(progress: Int) = ProgressState(progress = progress, operationType = FileOperationType.COPY)
+    private fun copyAt(progress: Int) = ProgressState(FileOperationType.COPY, ProgressPhase.Counted(progress, 100, ""))
 }
 
 /** 진행 상태를 테스트가 직접 넣고 빼는 테스트용 진행 저장소. */

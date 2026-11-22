@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.ui.model.ProgressPhaseModel
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -14,8 +15,8 @@ import com.todokanai.composepracticenew.compose.presets.dialog.AppAlertDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.ProgressStateModel
-import com.todokanai.composepracticenew.model.ShownProgress
+import com.todokanai.composepracticenew.ui.model.ProgressStateModel
+import com.todokanai.composepracticenew.ui.model.ShownProgress
 import com.todokanai.composepracticenew.navigation.ProgressSection
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
@@ -37,7 +38,7 @@ class ProgressDialogYieldTest {
     private val shownProgress = MutableStateFlow<ShownProgress?>(
         ShownProgress(
             instanceId = 1,
-            progress = ProgressStateModel(progress = 30, operationType = FileOperationType.UPLOAD)
+            progress = ProgressStateModel(FileOperationType.UPLOAD, ProgressPhaseModel.Counted(30, 30, 100, ""))
         )
     )
 

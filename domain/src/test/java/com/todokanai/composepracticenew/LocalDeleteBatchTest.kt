@@ -1,11 +1,11 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.model.ExtractLayout
-import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressState
@@ -51,14 +51,10 @@ class LocalDeleteBatchTest {
 
     @Test
     fun `여러 대상을 지우면 저장소를 한 번만 부르고 모든 대상을 함께 넘긴다`() {
-        local.delete(listOf(item("/d/a"), item("/d/b.txt"), item("/d/c"))) {}
+        local.delete(linkedSetOf("/d/a", "/d/b.txt", "/d/c")) {}
 
         assertEquals(listOf(setOf("/d/a", "/d/b.txt", "/d/c")), fileActionRepo.deleteCalls)
     }
-
-    /** [path]의 마지막 경로 조각을 이름으로 갖는 테스트 항목을 만든다. */
-    private fun item(path: String) =
-        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast('/'), sizeBytes = null, lastModifiedMillis = 0L)
 
     /** 진행 상태를 기록하지 않는 테스트용 진행 저장소. */
     private object NoOpProgressReporter : ProgressReporter {
@@ -70,22 +66,22 @@ class LocalDeleteBatchTest {
     private class RecordingDeleteRepository : FileActionRepository {
         /** 삭제 호출마다 받은 대상 집합. */
         val deleteCalls = mutableListOf<Set<String>>()
-        override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { deleteCalls += targetFiles }
-        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun deleteFiles(targetFiles: Set<String>, onProgress: (ProgressPhase) -> Unit) = IoResult.Done.also { deleteCalls += targetFiles }
+        override suspend fun compressAction(targetFiles: Set<String>, parentPath: String, baseName: String, format: ArchiveFormat, password: String?, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
         override fun supportedArchiveFormats() = ArchiveFormat.entries.toSet()
-        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun copyAction(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
         override suspend fun renameFile(targetFile: String, newName: String, overwrite: Boolean) = IoResult.Done
-        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) = IoResult.Done
-        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressState) -> Unit) = IoResult.Done
+        override suspend fun moveFile(targetFiles: Set<String>, targetPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
+        override suspend fun unzipAction(zipFiles: Set<String>, destPath: String, layout: ExtractLayout, resolveConflict: WriteConflictResolver, askPassword: ArchivePasswordProvider, onProgress: (ProgressPhase) -> Unit) = IoResult.Done
         override fun extractionTargetOf(paths: Set<String>): String? = null
         override suspend fun makeDirectory(parentPath: String, name: String) = IoResult.Done
     }
 
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
-        override fun progressNoti(state: ProgressState, instanceId: Int) {}
+        override fun progressNotification(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
+        override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

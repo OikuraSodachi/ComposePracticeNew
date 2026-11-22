@@ -13,23 +13,25 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.os.bundleOf
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.model.FileOperationType
-import com.todokanai.composepracticenew.model.IndeterminatePhaseModel
-import com.todokanai.composepracticenew.model.KnownSizeProgressModel
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.ProgressState
-import com.todokanai.composepracticenew.model.ProgressStateModel
-import com.todokanai.composepracticenew.model.sizeText
-import com.todokanai.composepracticenew.model.toModel
 import com.todokanai.composepracticenew.model.QuestionKind
 import com.todokanai.composepracticenew.myobjects.OperationConstants.CHANNEL_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_ACTION_KEY
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_INSTANCE_ID
 import com.todokanai.composepracticenew.myobjects.OperationConstants.EXTRA_PROCESS_TOKEN
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
+import com.todokanai.composepracticenew.ui.model.ByteAmountModel
+import com.todokanai.composepracticenew.ui.model.IndeterminatePhaseModel
+import com.todokanai.composepracticenew.ui.model.KnownSizeProgressModel
+import com.todokanai.composepracticenew.ui.model.ProgressPhaseModel
 import com.todokanai.composepracticenew.ui.model.completionTextRes
 import com.todokanai.composepracticenew.ui.model.knownPartTextOf
 import com.todokanai.composepracticenew.ui.model.operationLabelRes
+import com.todokanai.composepracticenew.ui.model.percent
 import com.todokanai.composepracticenew.ui.model.phaseTextOf
+import com.todokanai.composepracticenew.ui.model.sizeText
+import com.todokanai.composepracticenew.ui.model.toModel
 import com.todokanai.composepracticenew.ui.model.unknownFilesTextOf
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -42,7 +44,7 @@ import javax.inject.Singleton
  * @param context 알림 생성·발송에 사용하는 애플리케이션 Context
  */
 @Singleton
-class MyNotification @Inject constructor(@ApplicationContext private val context: Context) : FileOperationNotifier {
+class MyNotification @Inject constructor(@ApplicationContext private val context: Context) : FileOperationNotifier, LeftoverProgressNotifications {
     private val channelId = CHANNEL_ID
     private val icon = android.R.drawable.stat_sys_upload
     private val notificationManager: NotificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -50,19 +52,14 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     /** 작업별 알림 id. 이전 프로세스가 남긴 파일 작업 알림의 id를 피해 붙인다. */
     private val ids = OperationNotificationIds { activeOperationNotificationIds() }
 
-    override fun progressNoti(state: ProgressState, instanceId: Int) {
+    /** 단계마다 표시 방식을 고른다. 아직 셀 것이 없는 시작 상태는 알림을 띄우지 않는다 — 다음 보고가 곧 진행을 보인다. */
+    override fun progressNotification(state: ProgressState, instanceId: Int) {
         val type = state.operationType
-        val model = state.toModel()
-        model.indeterminate?.let { return showIndeterminateProgress(type, it, instanceId) }
-        when (type) {
-            FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> showCountProgress(type, model, instanceId)
-            FileOperationType.COPY,
-            FileOperationType.MOVE,
-            FileOperationType.COMPRESS,
-            FileOperationType.UNZIP,
-            FileOperationType.DOWNLOAD,
-            FileOperationType.UPLOAD,
-            null -> showPercentProgress(type, model, instanceId)
+        when (val phase = state.toModel().phase) {
+            ProgressPhaseModel.Starting -> Unit
+            is IndeterminatePhaseModel -> showIndeterminateProgress(type, phase, instanceId)
+            is ProgressPhaseModel.Counted -> showCountProgress(type, phase, instanceId)
+            is ProgressPhaseModel.Bytes -> showPercentProgress(type, phase, instanceId)
         }
     }
 
@@ -71,7 +68,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
      * 덮어쓰지 않고 지운 뒤 새로 띄우는 것은 [completedNotification]과 같은 이유다(직전 진행 갱신이 몰렸으면 갱신이 버려질 수 있음).
      * 답한 뒤의 진행 보고가 같은 알림을 진행 알림으로 되돌린다.
      */
-    override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {
+    override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {
         cancelProgress(instanceId)
         val notificationId = ids.idFor(instanceId)
         val builder = progressBuilder(operationType)
@@ -82,39 +79,40 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     /** 퍼센트 없이 보이는 단계(준비 단계, 비밀번호 확인)를 불확정 막대와 단계의 문구로 표시한다 — 전체를 모르거나 셀 수 없는 동안에도 작업이 진행 중임을 보이도록. */
-    private fun showIndeterminateProgress(type: FileOperationType?, phase: IndeterminatePhaseModel, instanceId: Int) {
+    private fun showIndeterminateProgress(type: FileOperationType, phase: IndeterminatePhaseModel, instanceId: Int) {
         val notificationId = ids.idFor(instanceId)
         val builder = progressBuilder(type)
             .setContentText(phaseTextOf(phase).resolve(context))
             .setOngoing(true)
             .setProgress(0, 0, true)
-            .setContentIntent(buildClickIntent(type?.id ?: 0, instanceId, notificationId))
+            .setContentIntent(buildClickIntent(type.id, instanceId, notificationId))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
     }
 
-    /** 처리한 항목 수 / 전체 항목 수로 진행 알림을 표시한다. 항목 수 정보가 없으면 표시하지 않는다. */
-    private fun showCountProgress(type: FileOperationType, model: ProgressStateModel, instanceId: Int) {
-        val idx = model.currentIndex ?: return
-        val total = model.listSize ?: return
+    /** 처리한 항목 수 / 전체 항목 수로 진행 알림을 표시한다. */
+    private fun showCountProgress(type: FileOperationType, phase: ProgressPhaseModel.Counted, instanceId: Int) {
         val notificationId = ids.idFor(instanceId)
         val builder = progressBuilder(type)
             .setOngoing(true)
-            .setProgress(100, 100 * idx / total, false)
+            .setProgress(100, phase.percent, false)
             .setContentIntent(buildClickIntent(type.id, instanceId, notificationId))
-            .withDetail(summaryText(model.currentFileName, "$idx / $total"), detailLines(model, progressText = null))
+            .withDetail(
+                summaryText(phase.currentName, "${phase.processed} / ${phase.total}"),
+                listOf(phase.currentName, fileCountText(phase.processed, phase.total))
+            )
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
     }
 
     /** 퍼센트 진행률로 진행 알림을 표시한다. 전체 크기를 몰라 진행률이 없으면 불확정 막대로 진행 중임만 표시한다. */
-    private fun showPercentProgress(type: FileOperationType?, model: ProgressStateModel, instanceId: Int) {
-        val progress = model.progress
+    private fun showPercentProgress(type: FileOperationType, phase: ProgressPhaseModel.Bytes, instanceId: Int) {
+        val progress = phase.percent()
         val notificationId = ids.idFor(instanceId)
         val progressText = progress?.let { "$it%" }
         val builder = progressBuilder(type)
             .setOngoing(progress == null || progress < 100)
             .setProgress(100, progress ?: 0, progress == null)
-            .setContentIntent(buildClickIntent(type?.id ?: 0, instanceId, notificationId))
-            .withDetail(summaryText(model.currentFileName, progressText), detailLines(model, progressText))
+            .setContentIntent(buildClickIntent(type.id, instanceId, notificationId))
+            .withDetail(summaryText(phase.currentFile?.name, progressText), byteDetailLines(type, phase, progressText))
         notifyIfPermitted(PROGRESS_TAG, notificationId, builder)
     }
 
@@ -128,19 +126,26 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
         listOfNotNull(fileName, progressText).joinToString(" · ").ifEmpty { null }
 
     /**
-     * 펼친 알림의 줄들을 만든다: 현재 파일명, 처리한 크기(와 퍼센트), 크기를 모르는 파일이 섞였으면 크기를 아는 부분과 모르는 부분의 진행, 처리한 파일 수.
+     * 바이트 진행의 펼친 알림 줄들을 만든다: 현재 파일명, 처리한 크기(와 퍼센트), 크기를 모르는 파일이 섞였으면 크기를 아는 부분과 모르는 부분의 진행, 처리한 파일 수.
      * 크기를 아는 부분과 모르는 부분은 진행 다이얼로그처럼 나눠 보인다 — 아는 부분의 처리 / 전체만 보이면 작업 전체의 진행으로 읽혀, 모르는 파일을 처리하는 동안 끝난 것처럼 보인다.
-     * @param model 진행 상태
+     * @param type 작업 종류
+     * @param phase 바이트 진행
      * @param progressText 크기 줄에 붙일 퍼센트 문구. 없으면 null
      * @return 보일 줄 목록. 정보가 없는 줄은 빠진다
      */
-    private fun detailLines(model: ProgressStateModel, progressText: String?): List<String> {
-        val fileCount = model.listSize?.let { total -> model.currentIndex?.let { context.getString(R.string.progress_file_count, it, total) } }
+    private fun byteDetailLines(type: FileOperationType, phase: ProgressPhaseModel.Bytes, progressText: String?): List<String> {
+        val knownSizeLines = when (val amount = phase.amount) {
+            is ByteAmountModel.Known -> emptyList()
+            is ByteAmountModel.PartlyUnknown -> knownSizeLines(amount.knownSize, type)
+        }
         return listOfNotNull(
-            model.currentFileName,
-            listOfNotNull(model.sizeText(), progressText).joinToString(" · ").ifEmpty { null },
-        ) + model.knownSize?.let { knownSizeLines(it, model.operationType) }.orEmpty() + listOfNotNull(fileCount)
+            phase.currentFile?.name,
+            listOfNotNull(phase.sizeText(), progressText).joinToString(" · "),
+        ) + knownSizeLines + fileCountText(phase.fileIndex, phase.fileCount)
     }
+
+    /** 처리한 파일 수 줄. 진행 다이얼로그와 같은 문구를 쓴다. */
+    private fun fileCountText(index: Int, total: Int): String = context.getString(R.string.progress_file_count, index, total)
 
     /**
      * 크기를 모르는 파일이 섞인 작업에서 크기를 아는 부분의 진행 줄과 크기를 모르는 파일의 처리 줄을 만든다. 진행 다이얼로그와 같은 문구를 쓴다.
@@ -148,7 +153,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
      * @param operationType 작업 종류 — 크기를 모르는 파일의 처리 문구(받음·보냄·처리)를 고른다
      * @return 아는 부분의 줄(퍼센트를 낼 수 없으면 빠진다)과 모르는 부분의 줄
      */
-    private fun knownSizeLines(knownSize: KnownSizeProgressModel, operationType: FileOperationType?): List<String> = listOfNotNull(
+    private fun knownSizeLines(knownSize: KnownSizeProgressModel, operationType: FileOperationType): List<String> = listOfNotNull(
         knownSize.progress?.let { "${knownPartTextOf(it).resolve(context)} · ${knownSize.writtenSize} / ${knownSize.totalSize}" },
         unknownFilesTextOf(knownSize, operationType).resolve(context)
     )
@@ -169,7 +174,7 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
      * [type] 작업의 진행 알림(답을 기다리는 알림 포함)에 공통인 설정을 담은 Builder를 만든다.
      * 작업 종류를 알림 extras에 남겨, 이 프로세스가 죽은 뒤 다음 프로세스가 그 알림을 중단 알림으로 바꿀 때([interruptLeftoverProgress]) 제목을 정할 수 있게 한다.
      */
-    private fun progressBuilder(type: FileOperationType?): NotificationCompat.Builder =
+    private fun progressBuilder(type: FileOperationType): NotificationCompat.Builder =
         NotificationCompat.Builder(context, channelId)
             .setSmallIcon(icon)
             .setContentTitle(titleFor(type))
@@ -248,12 +253,10 @@ class MyNotification @Inject constructor(@ApplicationContext private val context
     }
 
     /**
-     * 이전 프로세스가 남긴 진행 알림을 중단 알림으로 바꾼다. 프로세스가 시작될 때, 이 프로세스가 진행 알림을 띄우기 전에 한 번 부른다 —
-     * 그때 남아 있는 진행 알림은 모두 이미 죽은 프로세스의 작업이다(#300).
-     * 그 작업을 실행하던 프로세스가 없어 알림을 지울 곳이 없으므로, 끝나지 않은 작업이 진행 중으로 보이거나 밀어서 지울 수 없는 채로 남지 않고 중단됐다고 알린다.
+     * 남은 진행 알림의 작업을 실행하던 프로세스가 없어 알림을 지울 곳이 없으므로, 끝나지 않은 작업이 진행 중으로 보이거나 밀어서 지울 수 없는 채로 남지 않고 중단됐다고 알린다.
      * 같은 알림 id를 쓰므로 그 id의 클릭 intent도 앱만 여는 intent로 바뀐다. 프로세스가 죽은 뒤 다시 시작되기 전까지 남은 진행 알림은 정리하지 못한다(지원 범위 밖).
      */
-    fun interruptLeftoverProgress() {
+    override fun interruptLeftoverProgress() {
         notificationManager.activeNotifications
             .filter { it.tag == PROGRESS_TAG }
             .forEach { leftover ->

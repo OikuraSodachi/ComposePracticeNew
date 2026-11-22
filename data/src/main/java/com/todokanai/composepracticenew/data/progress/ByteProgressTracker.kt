@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.data.progress
 
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ByteAmount
+import com.todokanai.composepracticenew.model.CurrentFile
+import com.todokanai.composepracticenew.model.ProgressPhase
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -18,7 +20,7 @@ import java.io.OutputStream
 class ByteProgressTracker internal constructor(
     total: TransferTotal,
     private val totalFileCount: Int,
-    private val onProgress: (ProgressState) -> Unit,
+    private val onProgress: (ProgressPhase) -> Unit,
     throttle: ProgressThrottle = ProgressThrottle()
 ) {
     /**
@@ -30,7 +32,7 @@ class ByteProgressTracker internal constructor(
     internal constructor(
         totalBytes: Long,
         totalFileCount: Int,
-        onProgress: (ProgressState) -> Unit
+        onProgress: (ProgressPhase) -> Unit
     ) : this(TransferTotal.Known(totalBytes), totalFileCount, onProgress)
 
     /** 작업 전체의 크기에 맞는 계산 방식. */
@@ -45,15 +47,7 @@ class ByteProgressTracker internal constructor(
 
     /** 작업 시작 상태(처리한 바이트·파일 없음)를 [total]에 맞는 형식으로 보고한다 — 크기를 알면 0%, 모르면 퍼센트 없이 크기를 아는 부분의 진행. */
     fun reportStart() {
-        val reading = counting.startReading()
-        onProgress(ProgressState(
-            progress = reading.progress,
-            totalBytes = reading.totalBytes,
-            writtenBytes = 0,
-            listSize = totalFileCount,
-            currentIndex = 0,
-            knownSize = reading.knownSize
-        ))
+        onProgress(ProgressPhase.Bytes(counting.startReading(), writtenBytes = 0, fileIndex = 0, fileCount = totalFileCount, currentFile = null))
     }
 
     /** 다음 파일 처리를 시작한다. */
@@ -137,30 +131,21 @@ class ByteProgressTracker internal constructor(
     /** 작업 완료 시 100% 진행 상태를 보고한다. 처리할 파일이 없던 작업도 이것으로 100%를 보고한다. */
     fun reportComplete() {
         val completed = counting.completedBytes(writtenBytes)
-        onProgress(ProgressState(
-            progress = 100,
-            totalBytes = completed,
-            writtenBytes = completed,
-            listSize = totalFileCount,
-            currentIndex = totalFileCount
-        ))
+        onProgress(ProgressPhase.Bytes(ByteAmount.Known(100, completed), writtenBytes = completed, fileIndex = totalFileCount, fileCount = totalFileCount, currentFile = null))
     }
 
     /**
-     * 계산 결과와 현재 파일 순번으로 ProgressState를 만든다.
-     * @param reading 계산 방식이 낸 진행 값
+     * 계산 결과와 현재 파일 순번으로 바이트 진행 단계를 만든다.
+     * @param amount 계산 방식이 낸 진행 값
      * @param fileName 현재 파일명
      * @param fileBytes 현재 파일의 전체 크기
      */
-    private fun stateOf(reading: ProgressReading, fileName: String, fileBytes: Long?) = ProgressState(
-        progress = reading.progress,
-        totalBytes = reading.totalBytes,
+    private fun stateOf(amount: ByteAmount, fileName: String, fileBytes: Long?) = ProgressPhase.Bytes(
+        amount = amount,
         writtenBytes = writtenBytes,
-        listSize = totalFileCount,
-        currentIndex = fileIndex,
-        currentFileName = fileName,
-        currentFileBytes = fileBytes,
-        knownSize = reading.knownSize
+        fileIndex = fileIndex,
+        fileCount = totalFileCount,
+        currentFile = CurrentFile(fileName, fileBytes)
     )
 }
 

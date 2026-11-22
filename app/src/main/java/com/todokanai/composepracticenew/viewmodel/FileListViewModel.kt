@@ -178,7 +178,7 @@ class FileListViewModel @Inject constructor(
      */
     fun delete(selection: SubmittedSelection) {
         localFileOperationUseCase.delete(
-            files = selection.items.map { it.toDomain() },
+            files = selection.items.mapTo(LinkedHashSet()) { it.path },
             onRefresh = { fileNavigatorUseCase.refresh() }
         )
     }

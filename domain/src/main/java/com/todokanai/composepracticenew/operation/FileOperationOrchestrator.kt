@@ -5,6 +5,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.OperationKind
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.model.valueOr
 import com.todokanai.composepracticenew.model.QuestionKind
@@ -70,7 +71,7 @@ class FileOperationOrchestrator(
     private fun startHandle(kind: OperationKind): ProgressHandle = synchronized(startLock) {
         val handle = ProgressHandle(++lastInstanceId, progressReporter)
         when (kind) {
-            is OperationKind.Tracked -> handle.set(ProgressState(operationType = kind.type))
+            is OperationKind.Tracked -> handle.set(ProgressState(kind.type, ProgressPhase.Starting))
             is OperationKind.Instant -> Unit
         }
         handle
@@ -91,7 +92,7 @@ class FileOperationOrchestrator(
     fun launch(
         operationType: FileOperationType,
         onRefresh: suspend () -> Unit,
-        block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
+        block: suspend (onProgress: (ProgressPhase) -> Unit) -> IoResult<Unit>
     ) {
         val kind = OperationKind.Tracked(operationType)
         val handle = startHandle(kind)
@@ -129,7 +130,7 @@ class FileOperationOrchestrator(
     fun launchAsking(
         operationType: FileOperationType,
         onRefresh: suspend () -> Unit,
-        block: suspend (onProgress: (ProgressState) -> Unit, prompts: OperationPrompts) -> IoResult<Unit>
+        block: suspend (onProgress: (ProgressPhase) -> Unit, prompts: OperationPrompts) -> IoResult<Unit>
     ) {
         val kind = OperationKind.Tracked(operationType)
         val handle = startHandle(kind)
@@ -139,8 +140,8 @@ class FileOperationOrchestrator(
             val prompter = OperationPrompter(
                 operationType = operationType,
                 questions = questions,
-                onAwaiting = { kind -> notifier.awaitingAnswerNoti(operationType, kind, handle.instanceId) },
-                onAnswered = { handle.latest?.let { notifier.progressNoti(it, handle.instanceId) } },
+                onAwaiting = { kind -> notifier.awaitingAnswerNotification(operationType, kind, handle.instanceId) },
+                onAnswered = { handle.latest?.let { notifier.progressNotification(it, handle.instanceId) } },
             )
             try {
                 OperationOutcome.Finished(block(progressReporterOf(handle, operationType), prompter))
@@ -154,16 +155,16 @@ class FileOperationOrchestrator(
      * [handle] 작업의 진행 보고 콜백을 만든다. 보고마다 취소를 확인하고, 진행 상태와 진행 알림을 갱신한다.
      * 진행 보고는 작업이 고른 스레드에서 일시 중단 없이 부르므로, 이 작업의 Job을 잡아 두고 그것으로 취소를 확인한다.
      * @param handle 작업 인스턴스의 진행 상태 핸들
-     * @param operationType 작업 종류. 보고한 상태에 붙인다
+     * @param operationType 작업 종류. 보고한 단계에 붙여 진행 상태를 만든다
      * @return 진행 보고 콜백. 취소된 뒤에 부르면 CancellationException을 던진다
      */
-    private suspend fun progressReporterOf(handle: ProgressHandle, operationType: FileOperationType): (ProgressState) -> Unit {
+    private suspend fun progressReporterOf(handle: ProgressHandle, operationType: FileOperationType): (ProgressPhase) -> Unit {
         val job = currentCoroutineContext().job
-        return { state ->
+        return { phase ->
             job.ensureActive()
-            val stateWithType = state.copy(operationType = operationType)
-            handle.set(stateWithType)
-            notifier.progressNoti(stateWithType, handle.instanceId)
+            val state = ProgressState(operationType, phase)
+            handle.set(state)
+            notifier.progressNotification(state, handle.instanceId)
         }
     }
 

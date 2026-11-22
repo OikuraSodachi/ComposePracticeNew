@@ -1,8 +1,10 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.testviews.*
+import com.todokanai.composepracticenew.model.ByteAmount
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.model.ArchiveFormat
-import com.todokanai.composepracticenew.model.ProgressState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import net.sf.sevenzipjbinding.ExtractAskMode
@@ -32,7 +34,7 @@ class CancelledLocalWriteTest {
     private val out = File(dir, "out").apply { mkdirs() }
 
     /** b.txt를 쓰는 도중의 보고에서 취소를 던지는 진행 보고 콜백. */
-    private val cancelOnB: (ProgressState) -> Unit = { if (it.currentFileName == "b.txt") throw CancellationException("취소") }
+    private val cancelOnB: (ProgressPhase) -> Unit = { if ((it as? ProgressPhase.Bytes)?.currentFile?.name == "b.txt") throw CancellationException("취소") }
 
     @After
     fun tearDown() {
@@ -67,7 +69,7 @@ class CancelledLocalWriteTest {
         assertThrows(CancellationException::class.java) {
             runBlocking {
                 compression.compress(linkedSetOf(a.path, b.path), out.path, "archive", ArchiveFormat.ZIP, password = null) {
-                    if (it.progress == 100) throw CancellationException("취소")
+                    if (it is ProgressPhase.Bytes && (it.amount as? ByteAmount.Known)?.percent == 100) throw CancellationException("취소")
                 }
             }
         }

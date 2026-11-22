@@ -23,6 +23,6 @@ enum class FileOperationType(val id: Int, val isRemote: Boolean) {
          * @param id [FileOperationType.id] 값
          * @return 일치하는 작업 종류, 없으면 null
          */
-        fun fromId(id: Int): FileOperationType? = values().firstOrNull { it.id == id }
+        fun fromId(id: Int): FileOperationType? = entries.firstOrNull { it.id == id }
     }
 }

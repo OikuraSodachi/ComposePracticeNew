@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.FileOperationType
@@ -116,9 +117,9 @@ class RemoteOperationSessionBindingTest {
     private class SessionRecordingTransfers : RemoteFileTransferRepository {
         /** 요청마다 받은 세션 id(요청 순서). */
         val sessionIds = mutableListOf<Long>()
-        override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressState) -> Unit) =
+        override suspend fun download(session: RemoteSession, items: List<FileHolderItem>, localDirPath: String, resolveConflict: WriteConflictResolver, onProgress: (ProgressPhase) -> Unit) =
             IoResult.Done.also { sessionIds += session.id }
-        override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressState) -> Unit) =
+        override suspend fun upload(session: RemoteSession, items: List<FileHolderItem>, remoteDirPath: String, onProgress: (ProgressPhase) -> Unit) =
             IoResult.Done.also { sessionIds += session.id }
     }
 
@@ -127,7 +128,7 @@ class RemoteOperationSessionBindingTest {
         /** 요청마다 받은 세션 id(요청 순서). */
         val sessionIds = mutableListOf<Long>()
         override suspend fun rename(session: RemoteSession, path: String, newName: String) = IoResult.Done.also { sessionIds += session.id }
-        override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressState) -> Unit) = IoResult.Done.also { sessionIds += session.id }
+        override suspend fun delete(session: RemoteSession, items: List<FileHolderItem>, onProgress: (ProgressPhase) -> Unit) = IoResult.Done.also { sessionIds += session.id }
         override suspend fun makeDirectory(session: RemoteSession, parentPath: String, name: String) = IoResult.Done.also { sessionIds += session.id }
     }
 
@@ -139,10 +140,10 @@ class RemoteOperationSessionBindingTest {
 
     /** 알림을 표시하지 않는 테스트용 알림기. */
     private object NoOpNotifier : FileOperationNotifier {
-        override fun progressNoti(state: ProgressState, instanceId: Int) {}
+        override fun progressNotification(state: ProgressState, instanceId: Int) {}
         override fun completedNotification(kind: OperationKind, instanceId: Int) {}
         override fun cancelNotification(instanceId: Int) {}
-        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
+        override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 
     private companion object {

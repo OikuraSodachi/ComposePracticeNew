@@ -36,7 +36,7 @@ import com.todokanai.composepracticenew.usecase.FileInfoUseCase
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
-import com.todokanai.composepracticenew.usecase.GetStorageListUseCase
+import com.todokanai.composepracticenew.usecase.LoadStorageListUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
@@ -75,8 +75,8 @@ object UseCaseModule {
         FileSearchUseCase(repo, storage, nav, paths)
 
     @Provides
-    fun provideGetStorageListUseCase(storageRepo: StorageVolumeRepository) =
-        GetStorageListUseCase(storageRepo)
+    fun provideLoadStorageListUseCase(storageRepo: StorageVolumeRepository) =
+        LoadStorageListUseCase(storageRepo)
 
     @Provides
     fun provideFileNavigatorUseCase(nav: FileNavigatorRepository, paths: StoragePathRules) =

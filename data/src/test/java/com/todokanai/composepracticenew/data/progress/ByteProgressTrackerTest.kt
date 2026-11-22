@@ -1,9 +1,11 @@
 package com.todokanai.composepracticenew.data.progress
 
+import com.todokanai.composepracticenew.testviews.*
+import com.todokanai.composepracticenew.model.ByteAmount
+import com.todokanai.composepracticenew.model.CurrentFile
 import com.todokanai.composepracticenew.model.KnownSizeProgress
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -13,7 +15,7 @@ import org.junit.Test
  */
 class ByteProgressTrackerTest {
 
-    private val reports = mutableListOf<ProgressState>()
+    private val reports = mutableListOf<ProgressPhase>()
     /** 테스트가 움직이는 가짜 시각(나노초). */
     private var now = 0L
 
@@ -24,8 +26,10 @@ class ByteProgressTrackerTest {
         tracker.startFile()
         tracker.addBytes(50, "a", 200)
 
-        assertEquals(25, reports.single().progress)
-        assertEquals(200L, reports.single().totalBytes)
+        assertEquals(
+            ProgressPhase.Bytes(ByteAmount.Known(25, 200), writtenBytes = 50, fileIndex = 1, fileCount = 1, currentFile = CurrentFile("a", 200)),
+            reports.single()
+        )
     }
 
     @Test
@@ -38,9 +42,9 @@ class ByteProgressTrackerTest {
         now += INTERVAL
         tracker.reportCurrent("b", 30)
 
-        assertEquals(listOf(25, 25), reports.map { it.progress })
-        assertEquals(listOf(50L, 50L), reports.map { it.writtenBytes })
-        assertEquals(listOf("a", "b"), reports.map { it.currentFileName })
+        assertEquals(listOf(25, 25), reports.map { it.asKnown().percent })
+        assertEquals(listOf(50L, 50L), reports.map { it.asBytes().writtenBytes })
+        assertEquals(listOf("a", "b"), reports.map { it.asBytes().currentFile?.name })
     }
 
     @Test
@@ -50,12 +54,11 @@ class ByteProgressTrackerTest {
         tracker.startFile()
         tracker.addBytes(1_000, "a", null)
 
-        val state = reports.single()
-        assertNull(state.progress)
-        assertNull(state.totalBytes)
+        val state = reports.single().asBytes()
+        state.asPartlyUnknown()
         assertEquals(1_000L, state.writtenBytes)
-        assertEquals(1, state.currentIndex)
-        assertEquals(2, state.listSize)
+        assertEquals(1, state.fileIndex)
+        assertEquals(2, state.fileCount)
     }
 
     @Test
@@ -68,8 +71,8 @@ class ByteProgressTrackerTest {
         now += INTERVAL
         tracker.addBytes(1_000_000, "a", null)
 
-        assertEquals(listOf(10L, 1_000_020L), reports.map { it.writtenBytes })
-        assertEquals(listOf(null, null), reports.map { it.progress })
+        assertEquals(listOf(10L, 1_000_020L), reports.map { it.asBytes().writtenBytes })
+        reports.forEach { it.asPartlyUnknown() }
     }
 
     @Test
@@ -81,11 +84,9 @@ class ByteProgressTrackerTest {
 
         tracker.reportComplete()
 
-        val last = reports.last()
-        assertEquals(100, last.progress)
-        assertEquals(30L, last.totalBytes)
+        val last = reports.last().asBytes()
+        assertEquals(ByteAmount.Known(100, 30), last.amount)
         assertEquals(30L, last.writtenBytes)
-        assertNull(last.knownSize)
     }
 
     @Test
@@ -99,9 +100,9 @@ class ByteProgressTrackerTest {
         tracker.startFile()
         tracker.addBytes(500, "unknown", null)
 
-        assertEquals(KnownSizeProgress(100, 100, 0, 1, 0), reports.first().knownSize)
-        assertEquals(KnownSizeProgress(100, 100, 100, 1, 500), reports.last().knownSize)
-        assertEquals(600L, reports.last().writtenBytes)
+        assertEquals(KnownSizeProgress(100, 100, 0, 1, 0), reports.first().asPartlyUnknown().knownSize)
+        assertEquals(KnownSizeProgress(100, 100, 100, 1, 500), reports.last().asPartlyUnknown().knownSize)
+        assertEquals(600L, reports.last().asBytes().writtenBytes)
     }
 
     @Test
@@ -112,7 +113,7 @@ class ByteProgressTrackerTest {
         tracker.addBytes(4, "known", 4)
         tracker.onFileCompleted("known", 4)
 
-        assertEquals(KnownSizeProgress(4, 4, 4, 1, 0), reports.last().knownSize)
+        assertEquals(KnownSizeProgress(4, 4, 4, 1, 0), reports.last().asPartlyUnknown().knownSize)
         assertEquals(2, reports.size)
     }
 
@@ -124,8 +125,7 @@ class ByteProgressTrackerTest {
         tracker.addBytes(5, "grown", 0)
         tracker.reportComplete()
 
-        assertEquals(listOf(100), reports.map { it.progress })
-        assertEquals(0L, reports.single().totalBytes)
+        assertEquals(listOf(ByteAmount.Known(100, 0)), reports.map { it.asBytes().amount })
     }
 
     @Test
@@ -135,10 +135,10 @@ class ByteProgressTrackerTest {
         tracker.startFile()
         tracker.addBytes(10, "a", 10)
         tracker.onFileCompleted("a", 10)
-        assertEquals(listOf(99), reports.map { it.progress })
+        assertEquals(listOf(99), reports.map { it.asKnown().percent })
 
         tracker.reportComplete()
-        assertEquals(listOf(99, 100), reports.map { it.progress })
+        assertEquals(listOf(99, 100), reports.map { it.asKnown().percent })
     }
 
     @Test
@@ -153,7 +153,8 @@ class ByteProgressTrackerTest {
         tracker.addBytes(2, "unknown", null)
         tracker.onFileCompleted("unknown", null)
 
-        assertEquals(listOf(null, null, null), reports.map { it.progress })
+        assertEquals(3, reports.size)
+        reports.forEach { it.asPartlyUnknown() }
     }
 
     @Test
@@ -165,8 +166,8 @@ class ByteProgressTrackerTest {
         now += INTERVAL
         tracker.addBytes(30, "grown", 10)
 
-        assertEquals(listOf(99, 99), reports.map { it.progress })
-        assertEquals(listOf(30L, 60L), reports.map { it.writtenBytes })
+        assertEquals(listOf(99, 99), reports.map { it.asKnown().percent })
+        assertEquals(listOf(30L, 60L), reports.map { it.asBytes().writtenBytes })
     }
 
     @Test
@@ -179,29 +180,25 @@ class ByteProgressTrackerTest {
         now += INTERVAL
         tracker.addBytes(1, "a", 1_000)
 
-        assertEquals(listOf(1L, 3L), reports.map { it.writtenBytes })
-        assertEquals(listOf(0, 0), reports.map { it.progress })
+        assertEquals(listOf(1L, 3L), reports.map { it.asBytes().writtenBytes })
+        assertEquals(listOf(0, 0), reports.map { it.asKnown().percent })
     }
 
     @Test
     fun `전체 크기를 알면 시작 상태를 0%로 보고한다`() {
         knownTotalTracker(totalBytes = 10, totalFileCount = 2).reportStart()
 
-        val state = reports.single()
-        assertEquals(0, state.progress)
-        assertEquals(10L, state.totalBytes)
-        assertEquals(2, state.listSize)
-        assertEquals(0, state.currentIndex)
+        assertEquals(
+            ProgressPhase.Bytes(ByteAmount.Known(0, 10), writtenBytes = 0, fileIndex = 0, fileCount = 2, currentFile = null),
+            reports.single()
+        )
     }
 
     @Test
     fun `전체 크기를 모르면 시작 상태를 퍼센트 없이 크기를 아는 부분의 진행으로 보고한다`() {
         unknownTotalTracker(totalFileCount = 2, knownBytes = 4, unknownFileCount = 1).reportStart()
 
-        val state = reports.single()
-        assertNull(state.progress)
-        assertNull(state.totalBytes)
-        assertEquals(KnownSizeProgress(4, 0, 0, 1, 0), state.knownSize)
+        assertEquals(KnownSizeProgress(4, 0, 0, 1, 0), reports.single().asPartlyUnknown().knownSize)
     }
 
     @Test
@@ -221,8 +218,8 @@ class ByteProgressTrackerTest {
         tracker.startFile()
         tracker.addBytes(2, "next", 4)
 
-        assertEquals(KnownSizeProgress(8, 4, 0, 1, 0), reports[0].knownSize)
-        assertEquals(KnownSizeProgress(8, 2, 0, 1, 0), reports[1].knownSize)
+        assertEquals(KnownSizeProgress(8, 4, 0, 1, 0), reports[0].asPartlyUnknown().knownSize)
+        assertEquals(KnownSizeProgress(8, 2, 0, 1, 0), reports[1].asPartlyUnknown().knownSize)
     }
 
     @Test
@@ -236,7 +233,7 @@ class ByteProgressTrackerTest {
         tracker.startFile()
         tracker.addBytes(10, "unknown", null)
 
-        assertEquals(KnownSizeProgress(100, 100, 100, 1, 10), reports.last().knownSize)
+        assertEquals(KnownSizeProgress(100, 100, 100, 1, 10), reports.last().asPartlyUnknown().knownSize)
     }
 
     @Test
@@ -249,9 +246,9 @@ class ByteProgressTrackerTest {
         now += INTERVAL
         tracker.addBytes(80, "grown", 100)
 
-        assertEquals(100L, reports.last().knownSize?.knownWrittenBytes)
-        assertEquals(0L, reports.last().knownSize?.unknownWrittenBytes)
-        assertEquals(240L, reports.last().writtenBytes)
+        assertEquals(100L, reports.last().asPartlyUnknown().knownSize.knownWrittenBytes)
+        assertEquals(0L, reports.last().asPartlyUnknown().knownSize.unknownWrittenBytes)
+        assertEquals(240L, reports.last().asBytes().writtenBytes)
     }
 
     @Test
@@ -263,9 +260,10 @@ class ByteProgressTrackerTest {
 
         tracker.catchUp(mark, fileCount = 2, bytes = 300, fileName = "dir")
 
-        assertEquals(75, reports.last().progress)
-        assertEquals(300L, reports.last().writtenBytes)
-        assertEquals(2, reports.last().currentIndex)
+        val last = reports.last().asBytes()
+        assertEquals(75, last.asKnown().percent)
+        assertEquals(300L, last.writtenBytes)
+        assertEquals(2, last.fileIndex)
     }
 
     private fun unknownTotalTracker(totalFileCount: Int, knownBytes: Long = 0, unknownFileCount: Int = totalFileCount) = ByteProgressTracker(

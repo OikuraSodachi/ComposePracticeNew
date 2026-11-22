@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.OperationKind
 import com.todokanai.composepracticenew.model.InstantOperation
 import com.todokanai.composepracticenew.model.QuestionKind
@@ -132,8 +133,8 @@ class OperationLauncherTest {
 
     @Test
     fun `진행 알림과 완료 알림은 그 작업에 발급한 ID를 가리킨다`() {
-        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.Done }
-        launch(FileOperationType.MOVE) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.Done }
+        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressPhase.Counted(1, 2, "a")); IoResult.Done }
+        launch(FileOperationType.MOVE) { onProgress -> onProgress(ProgressPhase.Counted(1, 2, "a")); IoResult.Done }
 
         // 완료 알림이 같은 ID여야 진행 알림 자리를 대신한다 — 다르면 끝난 작업의 진행 알림이 남는다
         assertEquals(listOf("progress 1", "completed 1", "progress 2", "completed 2"), notifier.calls)
@@ -142,7 +143,7 @@ class OperationLauncherTest {
     @Test
     fun `실패하면 그 작업에 발급한 ID의 알림을 지운다`() {
         launch { IoResult.Done }
-        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressState(progress = 50)); IoResult.ItemFailed(FailureReason.IoFailed("실패")) }
+        launch(FileOperationType.COPY) { onProgress -> onProgress(ProgressPhase.Counted(1, 2, "a")); IoResult.ItemFailed(FailureReason.IoFailed("실패")) }
 
         assertEquals(listOf("completed 1", "progress 2", "cancel 2"), notifier.calls)
     }
@@ -165,7 +166,7 @@ class OperationLauncherTest {
         var reachedAfterProgress = false
         launch(FileOperationType.UPLOAD) { onProgress ->
             orchestrator.cancel(1)
-            onProgress(ProgressState(progress = 10))
+            onProgress(ProgressPhase.Counted(1, 10, "a"))
             reachedAfterProgress = true
             IoResult.Done
         }
@@ -213,7 +214,7 @@ class OperationLauncherTest {
      */
     private fun launch(
         operationType: FileOperationType,
-        block: suspend (onProgress: (ProgressState) -> Unit) -> IoResult<Unit>
+        block: suspend (onProgress: (ProgressPhase) -> Unit) -> IoResult<Unit>
     ) = orchestrator.launch(operationType = operationType, onRefresh = {}, block = block)
 
     /**
@@ -244,9 +245,9 @@ class OperationLauncherTest {
     /** 받은 진행·완료·취소 알림 요청을 "종류 인스턴스ID"로 받은 순서대로 기록하는 테스트용 알림기. */
     private class RecordingNotifier : FileOperationNotifier {
         val calls = mutableListOf<String>()
-        override fun progressNoti(state: ProgressState, instanceId: Int) { calls += "progress $instanceId" }
+        override fun progressNotification(state: ProgressState, instanceId: Int) { calls += "progress $instanceId" }
         override fun completedNotification(kind: OperationKind, instanceId: Int) { calls += "completed $instanceId" }
         override fun cancelNotification(instanceId: Int) { calls += "cancel $instanceId" }
-        override fun awaitingAnswerNoti(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
+        override fun awaitingAnswerNotification(operationType: FileOperationType, kind: QuestionKind, instanceId: Int) {}
     }
 }

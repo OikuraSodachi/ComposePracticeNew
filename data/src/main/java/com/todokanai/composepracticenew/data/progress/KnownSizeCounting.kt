@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.data.progress
 
+import com.todokanai.composepracticenew.model.ByteAmount
 import com.todokanai.composepracticenew.model.KnownSizeProgress
 
 /**
@@ -24,13 +25,13 @@ internal class KnownSizeCounting(
     /** 크기를 모르는 파일들에서 처리한 바이트 수. */
     private var unknownWrittenBytes = 0L
 
-    override fun startReading(): ProgressReading = reading()
+    override fun startReading(): ByteAmount = reading()
 
     override fun onFileStarted() {
         currentFileKnownBytes = 0
     }
 
-    override fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ProgressReading? {
+    override fun onBytes(bytes: Long, writtenBytes: Long, fileBytes: Long?): ByteAmount? {
         if (fileBytes == null) {
             unknownWrittenBytes += bytes
         } else {
@@ -39,13 +40,13 @@ internal class KnownSizeCounting(
         return currentReading(writtenBytes)
     }
 
-    override fun currentReading(writtenBytes: Long): ProgressReading? {
+    override fun currentReading(writtenBytes: Long): ByteAmount? {
         if (!throttle.shouldReport(null)) return null
         return reading()
     }
 
     /** 크기를 아는 파일의 확정은 파일마다 한 번이므로 [throttle]을 거치지 않고 바로 보고한다 — 다음 청크를 기다리면 확정이 늦게 보인다. */
-    override fun onFileCompleted(fileBytes: Long?): ProgressReading? {
+    override fun onFileCompleted(fileBytes: Long?): ByteAmount? {
         currentFileKnownBytes = 0
         if (fileBytes == null) return null
         completedKnownBytes += fileBytes
@@ -56,7 +57,7 @@ internal class KnownSizeCounting(
     override fun completedBytes(writtenBytes: Long): Long = writtenBytes
 
     /** 퍼센트 없이 크기를 아는 부분의 진행만 담은 진행 값을 만든다. */
-    private fun reading() = ProgressReading(progress = null, totalBytes = null, knownSize = snapshot())
+    private fun reading() = ByteAmount.PartlyUnknown(snapshot())
 
     /** 지금까지 센 몫으로 크기를 아는 부분의 진행을 만든다. */
     private fun snapshot() = KnownSizeProgress(

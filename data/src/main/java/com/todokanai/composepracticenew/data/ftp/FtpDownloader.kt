@@ -13,7 +13,7 @@ import com.todokanai.composepracticenew.datasource.map
 import com.todokanai.composepracticenew.datasource.reserveFileResolving
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.map
 import com.todokanai.composepracticenew.model.onSuccess
 import com.todokanai.composepracticenew.model.valueOr
@@ -56,7 +56,7 @@ class FtpDownloader internal constructor(
     suspend fun download(
         sources: List<DownloadSource>,
         resolveConflict: WriteConflictResolver,
-        onProgress: (ProgressState) -> Unit = {}
+        onProgress: (ProgressPhase) -> Unit = {}
     ): IoResult<Unit> =
         withContext(Dispatchers.IO) {
             val preparation = PreparationProgressReporter(onProgress)

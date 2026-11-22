@@ -1,7 +1,8 @@
 package com.todokanai.composepracticenew.data.progress
 
+import com.todokanai.composepracticenew.testviews.*
 import com.todokanai.composepracticenew.model.IndeterminatePhase
-import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.model.ProgressPhase
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -10,7 +11,7 @@ class PreparationProgressReporterTest {
 
     /** 테스트가 정하는 현재 시각(나노초). */
     private var now = 0L
-    private val reported = mutableListOf<ProgressState>()
+    private val reported = mutableListOf<ProgressPhase>()
     private val reporter = PreparationProgressReporter(IndeterminateProgressReporter({ reported += it }, ProgressThrottle(intervalNanos = 100, now = { now })))
 
     @Test
@@ -21,6 +22,6 @@ class PreparationProgressReporterTest {
         now = 100
         reporter.onEntryFound("c")
 
-        assertEquals(listOf(IndeterminatePhase.Preparing(1, "a"), IndeterminatePhase.Preparing(3, "c")), reported.map { it.indeterminate })
+        assertEquals(listOf(IndeterminatePhase.Preparing(1, "a"), IndeterminatePhase.Preparing(3, "c")), reported)
     }
 }

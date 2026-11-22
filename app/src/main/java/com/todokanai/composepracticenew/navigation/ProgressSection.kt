@@ -6,7 +6,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.StateFlow
 import com.todokanai.composepracticenew.compose.dialog.CustomProgressDialog
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
-import com.todokanai.composepracticenew.model.ShownProgress
+import com.todokanai.composepracticenew.ui.model.ShownProgress
 
 /**
  * 띄울 작업의 진행률 수집과 CustomProgressDialog 표시를 담당하는 섹션 — 진행률 업데이트 리컴포즈 범위를 이 composable로 한정한다.
