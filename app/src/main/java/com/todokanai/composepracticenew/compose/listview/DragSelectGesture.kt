@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.compose.listview
 
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.Composable
@@ -11,6 +13,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.ui.model.DragSelection
@@ -94,45 +99,73 @@ fun Modifier.dragSelectGesture(
         val edgePx     = 80.dp.toPx()
         val maxSpeedPx = 15.dp.toPx()
 
-        val onDragReset = { isDragSelecting = false; progress.scrollSpeed = 0f }
-
-        detectDragGesturesAfterLongPress(
-            onDragStart = { offset ->
+        detectOwnedDragAfterLongPress(
+            onLongPress = { offset ->
                 val list = latestFileList
                 val idx = listState.itemIndexAtOffset(offset.y)
                     ?.coerceIn(0, list.lastIndex)
-                    ?: return@detectDragGesturesAfterLongPress
+                    ?: return@detectOwnedDragAfterLongPress false
                 val anchorItem = list[idx]
                 val selection = startDragSelection(latestSelectMode, anchorItem, latestSelectedList, latestOnStartMultiSelect)
-                    ?: return@detectDragGesturesAfterLongPress
+                    ?: return@detectOwnedDragAfterLongPress false
                 progress.anchorIndex       = idx
                 progress.lastReportedIndex = idx
                 progress.currentFingerY    = offset.y
                 progress.selection         = selection
                 isDragSelecting = true
                 latestOnReplaceSelection(selection.selectionWith(listOf(anchorItem)))
+                true
             },
-            onDrag = { change, _ ->
-                if (isDragSelecting) {
-                    change.consume()
-                    val y         = change.position.y
-                    val viewportH = listState.layoutInfo.viewportSize.height.toFloat()
-                    progress.currentFingerY = y
+            onDrag = { position ->
+                val y         = position.y
+                val viewportH = listState.layoutInfo.viewportSize.height.toFloat()
+                progress.currentFingerY = y
 
-                    // 경계 근접도에 비례한 스크롤 속도 (선형 보간)
-                    progress.scrollSpeed = when {
-                        y < edgePx             -> -maxSpeedPx * (1f - y / edgePx)
-                        y > viewportH - edgePx ->  maxSpeedPx * (1f - (viewportH - y) / edgePx)
-                        else                   -> 0f
-                    }
-
-                    // 엣지 외 영역: 즉시 선택 범위 갱신 (엣지 영역은 LaunchedEffect가 담당)
-                    if (progress.scrollSpeed == 0f) selectRangeAt(y)
+                // 경계 근접도에 비례한 스크롤 속도 (선형 보간)
+                progress.scrollSpeed = when {
+                    y < edgePx             -> -maxSpeedPx * (1f - y / edgePx)
+                    y > viewportH - edgePx ->  maxSpeedPx * (1f - (viewportH - y) / edgePx)
+                    else                   -> 0f
                 }
+
+                // 엣지 외 영역: 즉시 선택 범위 갱신 (엣지 영역은 LaunchedEffect가 담당)
+                if (progress.scrollSpeed == 0f) selectRangeAt(y)
             },
-            onDragEnd    = onDragReset,
-            onDragCancel = onDragReset
+            onDragEnd = { isDragSelecting = false; progress.scrollSpeed = 0f }
         )
+    }
+}
+
+/**
+ * 길게 누른 뒤의 드래그를 감지하고, 드래그를 시작하면 손을 뗄 때까지 입력을 독점한다.
+ * 길게 누르기 전에는 이벤트를 소비하지 않아 행의 탭과 목록 스크롤이 그대로 받고, 시작한 뒤에는 자식보다 먼저(Initial 패스) 모든 변화를 소비해
+ * 행의 탭(손을 뗄 때)과 목록 스크롤(손가락이 움직일 때)이 그 입력을 해석하지 않고 취소되게 한다.
+ * @param onLongPress 길게 누르기를 인식한 위치를 받아 드래그를 시작했는지 돌려준다. false면 입력을 가져가지 않는다
+ * @param onDrag 드래그 중 손가락 위치를 받는다
+ * @param onDragEnd 시작한 드래그가 손을 떼거나 취소돼 끝났을 때 부른다
+ */
+private suspend fun PointerInputScope.detectOwnedDragAfterLongPress(
+    onLongPress: (Offset) -> Boolean,
+    onDrag: (Offset) -> Unit,
+    onDragEnd: () -> Unit
+) = awaitEachGesture {
+    val down = awaitFirstDown(requireUnconsumed = false)
+    val longPress = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+    if (!onLongPress(longPress.position)) return@awaitEachGesture
+    try {
+        var pointerId = longPress.id
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            event.changes.forEach { it.consume() }
+            // 추적하던 손가락을 떼도 다른 손가락이 눌려 있으면 그 손가락으로 이어 간다
+            val change = event.changes.firstOrNull { it.id == pointerId && it.pressed }
+                ?: event.changes.firstOrNull { it.pressed }
+                ?: break
+            pointerId = change.id
+            onDrag(change.position)
+        }
+    } finally {
+        onDragEnd()
     }
 }
 
