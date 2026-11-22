@@ -4,6 +4,9 @@ import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.RemoteConnectionRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * 원격 화면으로 들어가기 전에 연결된 원격 세션이 있는지 확인하는 UseCase.
@@ -19,7 +22,12 @@ class RemoteSessionCheckUseCase(
      * 지금 연결된 원격 세션이 있는지 판별한다.
      * @return 연결 상태가 [RemoteConnectionState.Connected]면 true. 연결한 적 없음·종료됨·끊김이면 false
      */
-    fun hasSession(): Boolean = connection.connectionState.value is RemoteConnectionState.Connected
+    fun hasSession(): Boolean = isSession(connection.connectionState.value)
+
+    /** 연결된 원격 세션이 있는지를 연결 상태가 바뀔 때마다 내보낸다. 원격 화면으로 가는 버튼을 세션이 있을 때만 누를 수 있게 하는 데 쓴다. 구독하면 현재 값을 바로 내보낸다. */
+    val sessionPresence: Flow<Boolean> = connection.connectionState
+        .map(::isSession)
+        .distinctUntilChanged()
 
     /**
      * 업로드를 시작할 수 있는지 확인한다. 연결된 세션이 없으면 [NoticeMessage.NoRemoteSession]을 알리고 거부한다.
@@ -30,4 +38,7 @@ class RemoteSessionCheckUseCase(
         notices.report(NoticeMessage.NoRemoteSession)
         return false
     }
+
+    /** [state]가 연결된 원격 세션인지 판별한다. 연결한 적 없음·종료됨·끊김은 세션이 아니다. */
+    private fun isSession(state: RemoteConnectionState): Boolean = state is RemoteConnectionState.Connected
 }

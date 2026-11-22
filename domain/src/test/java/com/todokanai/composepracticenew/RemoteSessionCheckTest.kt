@@ -3,6 +3,9 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -23,6 +26,19 @@ class RemoteSessionCheckTest {
         assertTrue(checkWith(RemoteConnectionState.Connected("nas")).hasSession())
         assertFalse(checkWith(RemoteConnectionState.Disconnected).hasSession())
         assertFalse(checkWith(RemoteConnectionState.Lost).hasSession())
+    }
+
+    @Test
+    fun `세션 유무를 연결 상태가 바뀔 때마다 내보낸다`() = runBlocking {
+        val connection = FakeRemoteConnection(state = RemoteConnectionState.Connected("nas"))
+        val check = RemoteSessionCheckUseCase(connection, notices)
+        val states = connection.connectionState as MutableStateFlow
+
+        assertTrue(check.sessionPresence.first())
+        states.value = RemoteConnectionState.Lost
+        assertFalse(check.sessionPresence.first())
+        states.value = RemoteConnectionState.Disconnected
+        assertFalse(check.sessionPresence.first())
     }
 
     @Test

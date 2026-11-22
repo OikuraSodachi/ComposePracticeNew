@@ -199,6 +199,27 @@ class TransferSelectionTransitionTest {
     }
 
     @Test
+    fun `하단 원격 전환은 연결 상태를 따라 세션이 있을 때만 누를 수 있다`() {
+        assertTrue(viewModel.remoteSwitchEnabled.value)
+
+        connection.connectionState.value = RemoteConnectionState.Lost
+        assertFalse(viewModel.remoteSwitchEnabled.value)
+
+        connection.connectionState.value = RemoteConnectionState.Connected("nas")
+        assertTrue(viewModel.remoteSwitchEnabled.value)
+
+        connection.connectionState.value = RemoteConnectionState.Disconnected
+        assertFalse(viewModel.remoteSwitchEnabled.value)
+    }
+
+    @Test
+    fun `연결이 없을 때 만들어진 화면은 하단 원격 전환을 처음부터 누를 수 없다`() {
+        connection.connectionState.value = RemoteConnectionState.Disconnected
+
+        assertFalse(createViewModel().remoteSwitchEnabled.value)
+    }
+
+    @Test
     fun `원격 선택을 모두 해제했으면 다운로드 확인 단계로 들어가지 않는다`() {
         viewModel.startRemoteMultiSelect(remoteX)
         viewModel.removeFromRemoteList(remoteX)

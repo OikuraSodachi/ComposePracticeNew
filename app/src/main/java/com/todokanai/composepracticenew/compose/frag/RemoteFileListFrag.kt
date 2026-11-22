@@ -177,6 +177,7 @@ fun RemoteFileListFrag(
 
         StorageSwitchBar(
             isRemote = true,
+            remoteEnabled = true,
             onSwitchToLocal = onSwitchToLocal,
             onSwitchToRemote = {}
         )

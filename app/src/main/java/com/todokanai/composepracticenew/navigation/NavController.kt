@@ -146,6 +146,8 @@ private fun FileListDestination(
     val localSelectMode by remember(localSelection) { derivedStateOf { localSelection.value.localMode() } }
     // 선택 요약도 State 객체만 보관 — 값은 다이얼로그 호스트에서만 읽어, 계산 결과가 올 때 이 destination 전체가 리컴포지션되지 않도록
     val selectionSummary = infoViewModel.summary.collectAsStateWithLifecycle()
+    /** 하단 원격 전환을 누를 수 있는지. 연결 상태가 바뀔 때만 값이 바뀐다. */
+    val remoteSwitchEnabled by coordinator.remoteSwitchEnabled.collectAsStateWithLifecycle()
 
     /** 선택 항목 정보 다이얼로그의 표시 값과 콜백 묶음. */
     // infoViewModel·selectionSummary를 키로 — 리컴포지션마다 새 묶음을 만들어 FileListFrag의 건너뛰기가 깨지지 않도록 이 둘이 같은 동안 유지한다
@@ -192,12 +194,11 @@ private fun FileListDestination(
         removeFromList = coordinator::removeFromLocalList,
         onReplaceSelection = coordinator::setLocalSelectedList,
         childCountsFor = childCountViewModel::countsFor,
+        remoteSwitchEnabled = remoteSwitchEnabled,
         onSwitchToRemote = onSwitchToRemote@{
-            // 연결된 원격 세션이 없으면 원격 화면 대신 저장소 화면으로 가 서버를 고르게 한다 — 원격 연결은 저장소 화면에서만 시작한다
-            if (!coordinator.hasRemoteSession()) {
-                navController.popBackStack(NavDestinations.STORAGE, false)
-                return@onSwitchToRemote
-            }
+            // 버튼은 세션이 있을 때만 눌리지만, 비활성이 화면에 반영되기 전에 끊긴 뒤 누른 경우에도 아무것도 하지 않는다(#523) —
+            // 세션 없이 원격 화면으로 가면 그 화면이 스스로 닫히며 그래프 밖(STORAGE)까지 나가 로컬 선택·작업 모드가 사라진다
+            if (!coordinator.hasRemoteSession()) return@onSwitchToRemote
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                 // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
                 popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
