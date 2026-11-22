@@ -47,7 +47,7 @@ class RemoteOperationSessionBindingTest {
     private val protectionGate = CompletableDeferred<Unit>()
     private val transferRepo = SessionRecordingTransfers()
     private val mutationRepo = SessionRecordingMutations()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, NoOpProgress, notices, GatedProtection(protectionGate), UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, NoOpProgress, notices, GatedProtection(protectionGate), UnexpectedQuestions, NoOpFailureRecorder, scope)
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, sessions, FileNameUseCase(NoStorageNameRules))
 
     @After

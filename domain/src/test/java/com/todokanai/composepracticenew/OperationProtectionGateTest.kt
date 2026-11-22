@@ -39,7 +39,7 @@ class OperationProtectionGateTest {
     /** 테스트가 결과를 정하는 작업 보호. */
     private val protection = GatedProtection()
     /** 검증 대상 오케스트레이터. */
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, protection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, protection, UnexpectedQuestions, NoOpFailureRecorder, scope)
 
     @After
     fun tearDown() = scope.cancel()

@@ -299,7 +299,7 @@ class TransferSelectionTransitionTest {
      * @return 새 ViewModel
      */
     private fun createViewModel(): FileTransferCoordinatorViewModel {
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), notices, GrantedProtection, UnexpectedQuestions, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, operationScope)
         return FileTransferCoordinatorViewModel(
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             FakeNavigator().let { FileNavigatorUseCase(it, it) },

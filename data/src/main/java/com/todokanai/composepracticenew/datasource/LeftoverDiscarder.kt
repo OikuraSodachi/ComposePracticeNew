@@ -76,15 +76,18 @@ class LeftoverDiscarder internal constructor(
      * @param block [file]을 쓰는 작업
      * @return [block]의 결과, 또는 입출력 실패
      */
-    internal inline fun <T> deletingUnlessCompleted(file: File, block: () -> T): IoResult<T> =
-        try {
-            IoResult.Success(block())
-        } catch (e: IOException) {
-            discardInto(file, IoResult.ItemFailed(ioFailureReasonOf(e)))
+    internal inline fun <T> deletingUnlessCompleted(file: File, block: () -> T): IoResult<T> {
+        val result = try {
+            localIo { IoResult.Success(block()) }
         } catch (e: Throwable) {
             discardReporting(file)
             throw e
         }
+        return when (result) {
+            is IoResult.Success -> result
+            is IoResult.Failure -> discardInto(file, result)
+        }
+    }
 
     /**
      * [file]을 지운다.

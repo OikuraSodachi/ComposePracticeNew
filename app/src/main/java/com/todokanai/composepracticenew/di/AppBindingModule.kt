@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.di
 
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.OperationProtection
+import com.todokanai.composepracticenew.operation.UnexpectedFailureRecorder
 import com.todokanai.composepracticenew.repository.FileLauncher
 import com.todokanai.composepracticenew.service.FileOperationProtection
 import com.todokanai.composepracticenew.service.FileOperationServiceController
@@ -10,6 +11,7 @@ import com.todokanai.composepracticenew.tools.AndroidFileLauncher
 import com.todokanai.composepracticenew.tools.AppExitHandler
 import com.todokanai.composepracticenew.tools.AppExitHandlerImpl
 import com.todokanai.composepracticenew.tools.LeftoverProgressNotifications
+import com.todokanai.composepracticenew.tools.LogUnexpectedFailureRecorder
 import com.todokanai.composepracticenew.tools.MyNotification
 import com.todokanai.composepracticenew.tools.NewFolderNameDefaults
 import com.todokanai.composepracticenew.tools.ResourceOperationMessages
@@ -18,7 +20,7 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 
-/** app 레이어 인프라 인터페이스(서비스 제어·작업 보호·메시지·작업 알림·남은 진행 알림 정리·앱 종료·파일 열기)를 Android 구현체에 바인딩한다. */
+/** app 레이어 인프라 인터페이스(서비스 제어·작업 보호·메시지·작업 알림·남은 진행 알림 정리·앱 종료·파일 열기·구현 오류 기록)를 Android 구현체에 바인딩한다. */
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class AppBindingModule {
@@ -33,6 +35,9 @@ abstract class AppBindingModule {
 
     @Binds
     abstract fun bindFileOperationNotifier(impl: MyNotification): FileOperationNotifier
+
+    @Binds
+    abstract fun bindUnexpectedFailureRecorder(impl: LogUnexpectedFailureRecorder): UnexpectedFailureRecorder
 
     @Binds
     abstract fun bindLeftoverProgressNotifications(impl: MyNotification): LeftoverProgressNotifications

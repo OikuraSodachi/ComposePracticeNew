@@ -141,7 +141,7 @@ class WriteConflictResolutionTest {
         }
         runCurrent()
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.COPY), IoResult.ItemFailed(FailureReason.Unexpected("TYPE_MISMATCH 겹침은 건너뛰기만 할 수 있습니다")))), notices.failures)
+        assertEquals(listOf(NoticeMessage.OperationFailed(OperationKind.Tracked(FileOperationType.COPY), IoResult.ItemFailed(FailureReason.Unexpected))), notices.failures)
     }
 
     @Test
@@ -224,7 +224,7 @@ class WriteConflictResolutionTest {
 
     /** [TestScope]의 가상 시간으로 작업을 실행하는 오케스트레이터를 만든다. */
     private fun TestScope.orchestrator(asker: OperationQuestionAsker) =
-        FileOperationOrchestrator(notifier, NoOpProgressReporter, notices, GrantedProtection, asker, backgroundScope)
+        FileOperationOrchestrator(notifier, NoOpProgressReporter, notices, GrantedProtection, asker, NoOpFailureRecorder, backgroundScope)
 
     /**
      * 정해 둔 답을 차례로 돌려주고 받은 질문을 기록하는 질문 통로.

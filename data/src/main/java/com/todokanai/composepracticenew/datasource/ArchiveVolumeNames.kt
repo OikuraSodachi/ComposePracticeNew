@@ -1,7 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import java.io.File
-import java.io.IOException
 
 /**
  * 파일 이름이 압축 해제에서 맡는 역할. 이름만으로 정하며 파일을 읽지 않는다.
@@ -43,12 +43,12 @@ enum class VolumeLayout {
 }
 
 /**
- * 분할 압축의 볼륨이 없어 풀지 못했음을 알리는 입출력 실패.
+ * 분할 압축의 볼륨이 없어 풀지 못했음을 알리는 입출력 실패. 원인은 [FailureReason.MissingArchiveVolume]이다.
  * @param archiveName 압축 해제를 시작한 볼륨의 파일 이름
  * @param volumeName 없는 볼륨의 파일 이름
  */
-class MissingArchiveVolumeException(val archiveName: String, val volumeName: String) :
-    IOException("분할 압축 $archiveName 의 볼륨이 없습니다: $volumeName")
+internal class MissingArchiveVolumeException(val archiveName: String, val volumeName: String) :
+    LocalFailureException(FailureReason.MissingArchiveVolume(archiveName, volumeName))
 
 /** RAR5·RAR3의 `이름.partN.rar` 볼륨 이름. */
 private val RAR_PART = Regex("""(.*)\.part(\d+)\.rar""", RegexOption.IGNORE_CASE)

@@ -71,13 +71,13 @@ class LocalFileInfoDataSource @Inject constructor() {
     /**
      * 디렉터리를 나열하지 못한 원인을 정한다. NIO 예외의 메시지는 경로뿐인 경우가 많아 예외 종류로 원인을 정한다.
      * @param e 나열 중 난 입출력 실패
-     * @return 실패 원인. 종류로 정할 수 없고 메시지도 없으면 null
+     * @return 실패 원인. 나열 거부가 아닌 실패는 [ioFailureReasonOf]로 정한다
      */
     private fun listFailureReason(e: IOException): FailureReason? = when (e) {
         is NotDirectoryException -> FailureReason.FolderNotListed(ListingRefusal.NOT_FOLDER)
         is AccessDeniedException -> FailureReason.FolderNotListed(ListingRefusal.ACCESS_DENIED)
         is NoSuchFileException -> FailureReason.FolderNotListed(ListingRefusal.NOT_FOUND)
-        else -> e.message?.let(FailureReason::IoFailed)
+        else -> ioFailureReasonOf(e)
     }
 
     /**
@@ -117,13 +117,13 @@ class LocalFileInfoDataSource @Inject constructor() {
         }
 
         override fun visitFileFailed(file: Path, exc: IOException): FileVisitResult {
-            addUnreadable(FailedItem(file.toString(), exc.message?.let(FailureReason::IoFailed)))
+            addUnreadable(FailedItem(file.toString(), ioFailureReasonOf(exc)))
             return FileVisitResult.CONTINUE
         }
 
         override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
             // 디렉터리를 끝까지 나열하지 못했다 — 이미 더한 항목은 남기고 이 디렉터리를 읽지 못한 항목으로 둔다
-            if (exc != null) addUnreadable(FailedItem(dir.toString(), exc.message?.let(FailureReason::IoFailed)))
+            if (exc != null) addUnreadable(FailedItem(dir.toString(), ioFailureReasonOf(exc)))
             return FileVisitResult.CONTINUE
         }
 

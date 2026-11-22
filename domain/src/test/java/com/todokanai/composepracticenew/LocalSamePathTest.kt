@@ -43,7 +43,7 @@ class LocalSamePathTest {
         mapOf("deep" to "inner", "inner" to "src", "src" to "root", "otherInner" to "other", "other" to "root")
     )
     private val local = LocalFileOperationUseCase(
-        FileOperationOrchestrator(NoOpNotifier, NoOpProgressReporter, notices, GrantedProtection, UnexpectedQuestions, scope),
+        FileOperationOrchestrator(NoOpNotifier, NoOpProgressReporter, notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, scope),
         notices, NoOpFileActionRepository, FileNameUseCase(NoStorageNameRules), paths
     )
 

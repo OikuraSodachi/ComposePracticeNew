@@ -28,14 +28,24 @@ internal inline fun <T> localIo(describe: (IOException) -> FailureReason? = ::io
     }
 
 /**
- * 입출력 실패를 원인으로 바꾼다. [localIo]의 기본값이며, 문맥을 붙이는 describe도 예외 메시지 대신 이것을 쓴다.
- * java.nio는 권한 없음·없음·이미 있음 등을 전용 예외로 바꾸며 이유를 비워 두므로 메시지가 경로뿐이다. 그런 예외는 종류로 원인을 정한다.
- * @param e 입출력 실패
- * @return 실패 원인. 이유가 있는 예외는 그 메시지 그대로이고, 메시지가 없으면 null
+ * 앱이 원인을 정한 로컬 작업 실패를 IOException으로 전한다. 라이브러리 콜백 안처럼 결과를 돌려줄 수 없는 곳이나, 실패를 IOException으로 알리는 단계에서 던진다.
+ * [ioFailureReasonOf]가 메시지 대신 [reason]을 원인으로 쓴다 — 앱이 쓴 문장이 시스템 메시지처럼 화면 문구로 새지 않도록(#218).
+ * 그래서 앱이 정한 실패는 문장을 담은 IOException이 아니라 이 예외로 던진다.
+ * @param reason 실패 원인
  */
-internal fun ioFailureReasonOf(e: IOException): FailureReason? =
-    if (e is FileSystemException && e.reason == null) FailureReason.FileSystemRefused(e.message, missingReasonOf(e))
-    else e.message?.let(FailureReason::IoFailed)
+internal open class LocalFailureException(val reason: FailureReason) : IOException(reason.toString())
+
+/**
+ * 입출력 실패를 원인으로 바꾼다. [localIo]의 기본값이며, 문맥을 붙이는 describe도 예외 메시지 대신 이것을 쓴다.
+ * 앱이 정한 실패([LocalFailureException])는 그 원인을 쓴다. java.nio는 권한 없음·없음·이미 있음 등을 전용 예외로 바꾸며 이유를 비워 두므로 메시지가 경로뿐이다. 그런 예외는 종류로 원인을 정한다.
+ * @param e 입출력 실패
+ * @return 실패 원인. 그 밖의 예외는 그 메시지(시스템·라이브러리가 정한 번역하지 않는 값) 그대로이고, 메시지가 없으면 null
+ */
+internal fun ioFailureReasonOf(e: IOException): FailureReason? = when {
+    e is LocalFailureException -> e.reason
+    e is FileSystemException && e.reason == null -> FailureReason.FileSystemRefused(e.message, missingReasonOf(e))
+    else -> e.message?.let(FailureReason::IoFailed)
+}
 
 /**
  * 이유를 비워 둔 java.nio 예외의 이유를 예외 종류로 정한다.

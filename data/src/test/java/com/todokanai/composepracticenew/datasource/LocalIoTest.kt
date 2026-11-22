@@ -30,6 +30,13 @@ class LocalIoTest {
     }
 
     @Test
+    fun `앱이 정한 실패는 메시지가 아니라 담은 원인이 된다`() {
+        val result = localIo<Unit> { throw LocalFailureException(FailureReason.UnreadableArchive("a.zip")) }
+
+        assertEquals(IoResult.ItemFailed(FailureReason.UnreadableArchive("a.zip")), result)
+    }
+
+    @Test
     fun `이유가 있는 nio 예외는 메시지를 그대로 쓴다`() {
         assertEquals(FailureReason.IoFailed("/a: No space left on device"), ioFailureReasonOf(FileSystemException("/a", null, "No space left on device")))
     }

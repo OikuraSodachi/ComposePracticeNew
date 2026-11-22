@@ -29,6 +29,7 @@ import com.todokanai.composepracticenew.model.WriteConflict
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
+import com.todokanai.composepracticenew.operation.UnexpectedFailureRecorder
 import com.todokanai.composepracticenew.repository.OperationQuestionAsker
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileLauncher
@@ -159,7 +160,7 @@ internal class FakeConnectionRepository : RemoteConnectionRepository {
 
 /** 실행한 작업이 없어 취소할 것이 없는 테스트용 취소 UseCase. 취소를 다루지 않는 화면 테스트가 ViewModel을 만들 때 쓴다. */
 internal fun idleCancelOperationUseCase() =
-    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, CoroutineScope(Job())))
+    CancelOperationUseCase(FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, CoroutineScope(Job())))
 
 /** 열려고 한 경로를 기록하고 언제나 다른 앱으로 넘긴 것으로 답하는 테스트용 파일 열기. */
 internal class RecordingFileLauncher : FileLauncher {
@@ -194,4 +195,9 @@ internal object UnexpectedQuestions : OperationQuestionAsker {
         is QuestionRequest.Conflict -> throw AssertionError("예상하지 못한 충돌 질문: ${request.conflict}")
         is QuestionRequest.ArchivePassword -> throw AssertionError("예상하지 못한 비밀번호 질문: ${request.archiveName}")
     }
+}
+
+/** 기록한 구현 오류를 버리는 테스트용 기록기. 구현 오류 기록을 다루지 않는 테스트가 쓴다. */
+internal object NoOpFailureRecorder : UnexpectedFailureRecorder {
+    override fun record(error: Throwable) {}
 }

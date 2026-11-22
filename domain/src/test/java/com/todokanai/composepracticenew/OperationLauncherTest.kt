@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.ProgressState
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
+import com.todokanai.composepracticenew.operation.UnexpectedFailureRecorder
 import com.todokanai.composepracticenew.repository.ProgressReporter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -42,15 +43,17 @@ class OperationLauncherTest {
     private val notices = RecordingOperationNotices()
     /** 받은 알림 요청을 기록하는 알림기. */
     private val notifier = RecordingNotifier()
+    /** 실패로 바뀐 구현 오류의 기록. */
+    private val recordedFailures = mutableListOf<Throwable>()
     /** 검증 대상. */
-    private val orchestrator = FileOperationOrchestrator(notifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(notifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, UnexpectedFailureRecorder { recordedFailures += it }, scope)
 
     /** 작업 코루틴에서 전파된 예외. 받은 순서대로 쌓는다. */
     private val propagated = mutableListOf<Throwable>()
     /** 작업에서 전파된 예외를 [propagated]에 모으는 스코프 — 앱 수명 스코프처럼 한 작업의 실패가 다른 작업을 취소하지 않는다. */
     private val propagatingScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined + CoroutineExceptionHandler { _, e -> propagated += e })
     /** [propagatingScope]에서 작업을 실행하는 검증 대상. 보고 중 예외의 전파를 볼 때 쓴다. */
-    private val propagatingOrchestrator = FileOperationOrchestrator(notifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, propagatingScope)
+    private val propagatingOrchestrator = FileOperationOrchestrator(notifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, propagatingScope)
 
     /** 작업 종류를 따로 보지 않는 시험에서 실행하는 순간 작업. */
     private val instant = OperationKind.Instant(InstantOperation.MAKE_FOLDER, "new")
@@ -87,11 +90,12 @@ class OperationLauncherTest {
     }
 
     @Test
-    fun `구현 오류는 그 작업만 실패로 끝내고 다음 작업은 계속 실행한다`() {
+    fun `구현 오류는 기록하고 그 작업만 일반 실패로 끝내며 다음 작업은 계속 실행한다`() {
         launch { throw IllegalStateException("구현 오류") }
         launch { IoResult.Done }
 
-        assertEquals(listOf(NoticeMessage.OperationFailed(instant, IoResult.ItemFailed(FailureReason.Unexpected("구현 오류")))), notices.failures)
+        assertEquals(listOf("구현 오류"), recordedFailures.map { it.message })
+        assertEquals(listOf(NoticeMessage.OperationFailed(instant, IoResult.ItemFailed(FailureReason.Unexpected))), notices.failures)
         assertEquals(listOf(NoticeMessage.Completed(instant)), notices.completions)
     }
 

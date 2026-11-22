@@ -45,7 +45,7 @@ class FileNameEnforcementTest {
     private val notices = RecordingOperationNotices()
     private val fileActionRepo = RecordingFileActionRepository()
     private val mutationRepo = RecordingMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, scope)
     /** 저장소의 제약을 물은 이름과 위치를 기록하는 이름 규칙. */
     private val storageNames = RecordingStorageNameRules()
     private val local = LocalFileOperationUseCase(orchestrator, notices, fileActionRepo, FileNameUseCase(storageNames), LocalPathRules())

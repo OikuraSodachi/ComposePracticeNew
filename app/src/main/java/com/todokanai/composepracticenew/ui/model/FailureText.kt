@@ -99,12 +99,19 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     FailureReason.UnsafeArchiveEntryPath -> UiText.Resource(R.string.failure_unsafe_archive_entry_path)
     is FailureReason.UnsupportedArchiveFormat -> UiText.Resource(R.string.failure_unsupported_archive_format, listOf(reason.name))
     is FailureReason.MissingArchiveVolume -> UiText.Resource(R.string.failure_missing_archive_volume, listOf(reason.archiveName, reason.volumeName))
+    is FailureReason.UnreadableArchive -> UiText.Resource(R.string.failure_unreadable_archive, listOf(reason.name))
+    is FailureReason.ArchiveChangedWhileReading -> UiText.Resource(R.string.failure_archive_changed_while_reading, listOf(reason.name))
+    FailureReason.ArchiveEntryNameUnreadable -> UiText.Resource(R.string.failure_archive_entry_name_unreadable)
+    is FailureReason.ArchiveEntryPasswordMismatch -> UiText.Resource(R.string.failure_archive_entry_password_mismatch, listOf(reason.entryName))
+    FailureReason.ArchivePasswordUnverifiable -> UiText.Resource(R.string.failure_archive_password_unverifiable)
+    is FailureReason.UnreadableArchiveEntry -> reason.entryName
+        ?.let { UiText.Resource(R.string.failure_unreadable_archive_entry, listOf(it, reason.result)) }
+        ?: UiText.Resource(R.string.failure_unreadable_archive_entry_unnamed, listOf(reason.result))
     FailureReason.NothingToCompress -> UiText.Resource(R.string.failure_nothing_to_compress)
     is FailureReason.NameTaken -> UiText.Resource(R.string.failure_name_taken, listOf(reason.name))
     is FailureReason.KindConflict -> UiText.Resource(R.string.failure_kind_conflict, listOf(reason.location))
     is FailureReason.MergedSourceNotRemoved -> UiText.Resource(R.string.failure_merged_source_not_removed, listOf(reason.name))
     is FailureReason.LeftoverNotRemoved -> leftoverNotRemovedTextOf(reason, headingStep = null)
-    FailureReason.UnsupportedPath -> UiText.Resource(R.string.failure_unsupported_path)
     is FailureReason.ServerRefused -> serverRefusedTextOf(reason)
     is FailureReason.RemoteStepFailed -> remoteStepTextOf(reason.step, reasonTextOf(reason.cause))
     is FailureReason.TransferUnconfirmed -> UiText.Resource(R.string.failure_transfer_unconfirmed, listOf(reason.reply))
@@ -120,7 +127,7 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     is FailureReason.FolderCycle -> UiText.Resource(R.string.failure_folder_cycle, listOf(reason.path))
     is FailureReason.PathTooLong ->
         withCycleNote(UiText.Resource(R.string.failure_path_too_long, listOf(reason.limitBytes, reason.path)), reason.cycleUndecidable)
-    is FailureReason.Unexpected -> UiText.Raw(reason.detail)
+    FailureReason.Unexpected -> UiText.Resource(R.string.failure_unexpected)
 }
 
 /**

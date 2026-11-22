@@ -33,6 +33,7 @@ import java.util.concurrent.ConcurrentHashMap
  * @param notices 작업의 완료·실패 메시지를 화면에 알리도록 맡기는 OperationNoticeReporter
  * @param protection 진행 표시가 있는 작업이 시작 전에 받는 프로세스 보호
  * @param questions 실행 중인 작업의 질문(쓰기 충돌·압축 파일 비밀번호)을 사용자에게 묻고 답을 기다리는 통로
+ * @param failureRecorder 작업이 던진 예외(구현 오류)를 실패로 바꿀 때 그 예외를 기록하는 곳
  * @param appScope 파일 작업 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  */
 class FileOperationOrchestrator(
@@ -41,6 +42,7 @@ class FileOperationOrchestrator(
     private val notices: OperationNoticeReporter,
     private val protection: OperationProtection,
     private val questions: OperationQuestionAsker,
+    private val failureRecorder: UnexpectedFailureRecorder,
     private val appScope: CoroutineScope
 ) {
     /** ID 발급과 진행 상태 등록을 한 단위로 묶는 잠금. 동시에 시작한 작업들이 progressMap에 ID 순서대로 나타나게 한다. */
@@ -211,7 +213,8 @@ class FileOperationOrchestrator(
     }
 
     /**
-     * [work]를 실행해 결과를 돌려준다. 작업이 던진 예외(구현 오류)는 그 메시지의 실패 결과로 바꾼다.
+     * [work]를 실행해 결과를 돌려준다. 작업이 던진 예외(구현 오류)는 [failureRecorder]에 기록하고 일반 실패 결과로 바꾼다 —
+     * 내부 예외 메시지는 사용자에게 의미가 없으므로 실패 원인에 싣지 않는다(목록 조회의 경계 `FileListFlowProducer.load`와 같은 정책).
      * 취소되면 취소를 알린 뒤 전파한다.
      * @param instanceId 작업 인스턴스 ID
      * @param callback 취소를 알릴 콜백
@@ -226,7 +229,8 @@ class FileOperationOrchestrator(
             withContext(NonCancellable) { callback.onCancelled(instanceId) }
             throw e
         } catch (e: Exception) {
-            OperationOutcome.Finished(IoResult.ItemFailed(e.message?.let(FailureReason::Unexpected)))
+            failureRecorder.record(e)
+            OperationOutcome.Finished(IoResult.ItemFailed(FailureReason.Unexpected))
         }
 
     /** 작업 실행의 결과. 작업이 돌려준 결과와, 작업 질문에 답이 없어 멈춘 경우를 나눈다. */
