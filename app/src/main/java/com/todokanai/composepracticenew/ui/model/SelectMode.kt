@@ -72,6 +72,16 @@ fun RemoteSelectMode.clickActionOf(item: FileHolderItem): ItemClickAction = when
 }
 
 /**
+ * 이 모드에서 경로 표시줄을 눌러 다른 폴더로 이동하는지. 로컬·원격 화면이 같은 규칙을 따르도록 한 곳에 둔다.
+ * 다중 선택은 지금 폴더 안에서만 하므로 이동하지 않고(#519 — 이동하면 선택이 보이지 않는 폴더의 항목을 담는다), 목적지를 찾는 모드는 이동한다.
+ */
+val SelectMode.allowsPathBarNavigation: Boolean
+    get() = when (this) {
+        SelectMode.MultiSelect -> false
+        SelectMode.Default, is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> true
+    }
+
+/**
  * 폴더만 여는 모드에서 [item]에 할 일을 정한다.
  * @param item 누른 항목
  * @return 폴더면 열기, 파일이면 무시
