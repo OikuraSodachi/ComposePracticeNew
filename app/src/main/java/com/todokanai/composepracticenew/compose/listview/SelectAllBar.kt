@@ -19,6 +19,7 @@ import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.ListingUiState
 
 /**
  * 다중 선택 중 목록 위에 모두 선택 체크박스와 선택한 항목 수를 보인다. 누르면 목록이 모두 선택돼 있을 때는 모두 해제하고, 아니면 목록 전체를 선택한다.
@@ -60,6 +61,14 @@ fun SelectAllBar(
         )
     }
 }
+
+/**
+ * 모두 선택의 대상인, 지금 보이는 목록의 항목.
+ * @param listing 지금 목록 상태
+ * @return 항목을 보여 주는 상태면 그 항목, 아니면(조회 중·실패) 빈 목록
+ */
+internal fun selectAllTargetsOf(listing: ListingUiState): List<FileHolderItem> =
+    (listing as? ListingUiState.Loaded)?.items.orEmpty()
 
 /**
  * 모두 선택 체크박스의 상태.

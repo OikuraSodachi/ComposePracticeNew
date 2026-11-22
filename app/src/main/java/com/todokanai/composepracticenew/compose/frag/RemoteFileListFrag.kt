@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.compose.frag
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -12,10 +13,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.compose.listview.ListWithBottomButtons
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.RenameActions
 import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
+import com.todokanai.composepracticenew.compose.listview.selectAllTargetsOf
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.allowsPathBarNavigation
@@ -118,25 +121,45 @@ fun RemoteFileListFrag(
             onNewFolder = viewModel::onMakeDirectory,
             suggestFolderName = viewModel.entryNaming::suggestNewFolderName,
             validateFolderName = viewModel.entryNaming::validateNewFolderName,
-            onExit = onExit
-        )
-        DirectoryListingContent(
-            modifier = Modifier.weight(1f),
-            listing = uiState.value.listing,
-            onRetry = viewModel::retryListing
-        ) { loaded ->
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (selectMode == SelectMode.MultiSelect) {
+            onExit = onExit,
+            // 다중 선택 중에는 상단 버튼 바 자리를 모두 선택 바로 바꿔 쓴다 — 목록 위에 새 줄을 더하면 목록이 밀린다(#520)
+            selectionBar = if (selectMode == SelectMode.MultiSelect) {
+                {
                     SelectAllBar(
-                        modifier = Modifier,
-                        items = loaded.items,
+                        modifier = Modifier.fillMaxHeight(),
+                        items = selectAllTargetsOf(uiState.value.listing),
                         selectedList = selectedList,
                         onReplaceSelection = onReplaceSelection
                     )
                 }
+            } else null
+        )
+        ListWithBottomButtons(
+            modifier = Modifier.weight(1f),
+            buttons = {
+                RemoteBottomButtonListView(
+                    modifier = Modifier,
+                    selectMode = selectMode,
+                    onResetSelection = onResetSelection,
+                    onSubmitSelection = onSubmitSelection,
+                    selectedList = selectedList,
+                    rename = renameActions,
+                    pendingRename = pendingRename,
+                    onDelete = viewModel::onDelete,
+                    onEnterDownloadMode = onEnterDownloadMode,
+                    onConfirmUpload = onConfirmUpload,
+                )
+            }
+        ) { buttonsPadding ->
+            DirectoryListingContent(
+                modifier = Modifier.fillMaxSize(),
+                listing = uiState.value.listing,
+                onRetry = viewModel::retryListing
+            ) { loaded ->
                 FileListView(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxSize(),
                     listState = listState,
+                    contentPadding = buttonsPadding,
                     fileHolderItemList = loaded.items,
                     // 원격 폴더는 하위 항목 수를 세지 않는다 — 세려면 폴더마다 LIST를 보내 하나뿐인 연결을 사용자 작업과 나눠 써야 한다(범위 밖)
                     childCounts = null,
@@ -151,19 +174,6 @@ fun RemoteFileListFrag(
                 )
             }
         }
-
-        RemoteBottomButtonListView(
-            modifier = Modifier,
-            selectMode = selectMode,
-            onResetSelection = onResetSelection,
-            onSubmitSelection = onSubmitSelection,
-            selectedList = selectedList,
-            rename = renameActions,
-            pendingRename = pendingRename,
-            onDelete = viewModel::onDelete,
-            onEnterDownloadMode = onEnterDownloadMode,
-            onConfirmUpload = onConfirmUpload,
-        )
 
         StorageSwitchBar(
             isRemote = true,

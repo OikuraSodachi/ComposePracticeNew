@@ -34,8 +34,10 @@ private fun LazyListState.computeScrollMetrics(minThumbHeightFraction: Float): S
     val itemHeight = visibleItems.first().size.toFloat()
     if (itemHeight <= 0f) return null
     val viewportHeight = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
-    // 픽셀 기반 계산 — 아이템 단위 분모는 뷰포트에 아이템이 반쯤 걸릴 때 thumb가 바닥에 닿지 않는 오차를 유발
-    val scrollableHeight = (totalItems * itemHeight - viewportHeight).coerceAtLeast(1f)
+    // 픽셀 기반 계산 — 아이템 단위 분모는 뷰포트에 아이템이 반쯤 걸릴 때 thumb가 바닥에 닿지 않는 오차를 유발.
+    // 목록 안쪽 여백도 스크롤하는 거리이므로 콘텐츠 높이에 넣는다 — 빼면 마지막 행이 겹친 하단 버튼 뒤에 있을 때 thumb가 먼저 바닥에 닿는다
+    val contentHeight = totalItems * itemHeight + info.beforeContentPadding + info.afterContentPadding
+    val scrollableHeight = (contentHeight - viewportHeight).coerceAtLeast(1f)
     val thumbHeightFraction = (visibleItems.size.toFloat() / totalItems)
         .coerceIn(minThumbHeightFraction, 1f)
     return ScrollMetrics(itemHeight, scrollableHeight, thumbHeightFraction)

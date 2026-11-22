@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.compose.frag
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -33,6 +34,11 @@ import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.ui.model.DirectoryItem
 
 /**
+ * 상단 버튼 바와 그 자리를 대신하는 선택 바가 함께 쓰는 높이. 다중 선택으로 들어가도 아래 목록이 움직이지 않도록 같은 높이로 고정한다(#520).
+ */
+private val TopBarHeight = 48.dp
+
+/**
  * 파일 목록 위의 옵션 영역. 상단 버튼 바, 경로 표시줄, 새 폴더·정렬 다이얼로그를 조합한다. 로컬·원격 화면이 공통으로 사용한다.
  * @param modifier 레이아웃 수정자
  * @param navigateToStorage 저장소 선택 화면으로 이동하는 콜백
@@ -46,6 +52,7 @@ import com.todokanai.composepracticenew.ui.model.DirectoryItem
  * @param validateFolderName 대상 폴더와 새 폴더 이름을 검증해 위반한 규칙 집합을 반환하는 함수
  * @param onExit 앱 종료 콜백
  * @param onSearchClick 검색 버튼 클릭 콜백. null이면 검색 버튼을 두지 않는다(원격 화면, 다중 선택 중)
+ * @param selectionBar 상단 버튼 바 자리에 대신 그릴 선택 바(다중 선택 중). null이면 상단 버튼 바를 그린다
  */
 @Composable
 fun OptionFrag(
@@ -60,6 +67,7 @@ fun OptionFrag(
     suggestFolderName: () -> String,
     validateFolderName: (String, String) -> Set<FileNameError>,
     onExit: () -> Unit,
+    selectionBar: (@Composable () -> Unit)?,
     onSearchClick: (() -> Unit)? = null,
 ) {
     // 화면 단위 ViewModel에 보관된 다이얼로그 상태 — 회전 시 유지, 화면 이동·프로세스 종료 후 복귀 시 닫힘(rememberOptionDialogState 참고)
@@ -82,13 +90,24 @@ fun OptionFrag(
         modifier = modifier
             .fillMaxWidth()
     ) {
-        OptionTopBar(
-            navigateToStorage = navigateToStorage,
-            onNewFolderClick = onNewFolderClick,
-            onSortClick = dialogState::openSort,
-            onExit = onExit,
-            onSearchClick = onSearchClick,
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(TopBarHeight),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            if (selectionBar != null) {
+                selectionBar()
+            } else {
+                OptionTopBar(
+                    navigateToStorage = navigateToStorage,
+                    onNewFolderClick = onNewFolderClick,
+                    onSortClick = dialogState::openSort,
+                    onExit = onExit,
+                    onSearchClick = onSearchClick,
+                )
+            }
+        }
         PathBreadcrumb(
             dirTree = dirTree,
             onDirClick = onDirClick,
