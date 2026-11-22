@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 
 /**
  * 목록 영역 아래쪽에 하단 작업 버튼을 겹쳐 그린다. 목록은 버튼 유무와 관계없이 영역 전체를 차지하고, 버튼 높이는 목록 안쪽 아래 여백으로만 받는다.
@@ -26,8 +27,13 @@ fun ListWithBottomButtons(
     Scaffold(
         modifier = modifier,
         bottomBar = {
-            // 뒤로 지나가는 행이 비치지 않도록 화면 배경색으로 칠한다
-            Box(modifier = Modifier.background(MaterialTheme.colorScheme.background)) { buttons() }
+            // 뒤로 지나가는 행이 비치지 않도록 화면 배경색으로 칠하고, 버튼 사이 빈 곳의 터치가 가려진 행으로 넘어가지 않도록 바 영역에서 받는다
+            // (빈 pointerInput은 맞힌 것으로 처리돼 아래 형제로 넘기지 않는다 — Material Surface와 같은 방식). 이미 진행 중인 드래그는 손가락을 댈 때 대상이 정해져 영향받지 않는다
+            Box(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.background)
+                    .pointerInput(Unit) {}
+            ) { buttons() }
         },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         content = content
