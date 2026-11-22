@@ -212,11 +212,22 @@ class FileTransferCoordinatorViewModel @Inject constructor(
      */
     private fun SelectionStateHolder<*, *>.followListing(listing: DirectoryListing, isLocalFile: Boolean) {
         when (listing) {
-            // 다중 선택이 아니면 맞출 선택이 없으므로 목록 전체를 앱 레이어 항목으로 바꾸지 않는다
-            is DirectoryListing.Loaded -> if (state.value is SelectionState.MultiSelect) retainListed(FileHolderItem.fromList(listing.items, isLocalFile))
+            is DirectoryListing.Loaded -> retainListed(selectedIn(listing, isLocalFile))
             is DirectoryListing.Loading -> Unit
             DirectoryListing.NoPath, is DirectoryListing.Failed -> endMultiSelect()
         }
+    }
+
+    /**
+     * [listing]에서 이 화면의 다중 선택과 경로가 같은 항목만 앱 레이어 항목으로 바꾼다 — 목록 전체는 화면이 따로 바꾸므로, 맞추는 데 필요한 항목만 바꾼다.
+     * @param listing 새 조회 결과
+     * @param isLocalFile 로컬 파일 목록이면 true
+     * @return 선택한 경로의 새 항목. 다중 선택이 아니면 빈 목록
+     */
+    private fun SelectionStateHolder<*, *>.selectedIn(listing: DirectoryListing.Loaded, isLocalFile: Boolean): List<FileHolderItem> {
+        val current = state.value as? SelectionState.MultiSelect ?: return emptyList()
+        val selectedPaths = current.selected.mapTo(HashSet()) { it.path }
+        return FileHolderItem.fromList(listing.items.filter { it.path in selectedPaths }, isLocalFile)
     }
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */

@@ -34,13 +34,16 @@ import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolder
 @OptIn(ExperimentalCoroutinesApi::class)
 class SelectionFollowsListingTest {
 
+    /** 원격 작업 오케스트레이터가 작업을 실행할 범위. 테스트가 끝나면 취소한다. */
     private val operationScope = CoroutineScope(Job() + Dispatchers.Unconfined)
     /** 로컬 목록 조회 상태를 테스트가 정하는 탐색 저장소. */
     private val localNav = FakeNavigator()
     /** 원격 목록 조회 상태를 테스트가 정하는 탐색 저장소. */
     private val remoteNav = FakeNavigator()
+    /** 검증 대상 ViewModel. */
     private lateinit var viewModel: FileTransferCoordinatorViewModel
 
+    /** 테스트가 내보내는 목록 조회 상태가 담는 조회 요청. */
     private val request = ListingRequest("/local", 1L)
 
     @Before
@@ -94,6 +97,41 @@ class SelectionFollowsListingTest {
         localNav.directoryListing.value = DirectoryListing.Failed(request, ListingFailureReason.entries.first(), failure = null)
 
         assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `목록이 없어지면 다중 선택을 끝낸다`() {
+        val a = item("/local/a.txt")
+        localNav.directoryListing.value = loaded(domainItem("/local/a.txt"))
+        viewModel.startLocalMultiSelect(a)
+
+        localNav.directoryListing.value = DirectoryListing.NoPath
+
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `전송 대기 중에는 목록이 바뀌어도 대기 목록을 그대로 둔다`() {
+        val x = item("ftp://h/r/x.txt")
+        viewModel.startRemoteMultiSelect(x)
+        viewModel.enterDownloadMode()
+
+        localNav.directoryListing.value = loaded(domainItem("/local/c.txt"))
+        localNav.directoryListing.value = DirectoryListing.Failed(request, ListingFailureReason.entries.first(), failure = null)
+
+        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(x)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `원격 목록 조회에 실패하면 원격 다중 선택만 끝낸다`() {
+        val a = item("/local/a.txt")
+        viewModel.startRemoteMultiSelect(item("ftp://h/r/x.txt"))
+        viewModel.startLocalMultiSelect(a)
+
+        remoteNav.directoryListing.value = DirectoryListing.Failed(ListingRequest("ftp://h/r", 1L), ListingFailureReason.entries.first(), failure = null)
+
+        assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
+        assertEquals(SelectionState.MultiSelect(listOf(a)), viewModel.localSelection.value)
     }
 
     @Test

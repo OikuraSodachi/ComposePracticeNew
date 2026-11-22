@@ -128,7 +128,7 @@ fun Modifier.dragSelectGesture(
             is DragRange.Found -> {
                 progress.lastReportedKey = fingerKey
                 progress.lastReportedList = list
-                latestOnReplaceSelection(progress.selection.selectionWith(range.items))
+                latestOnReplaceSelection(progress.selection.selectionWith(range.items, list))
             }
             DragRange.AnchorGone -> stopRange()
             DragRange.FingerUnresolved -> Unit
@@ -169,7 +169,7 @@ fun Modifier.dragSelectGesture(
                 progress.selection        = selection
                 progress.rangeStopped     = false
                 isDragSelecting = true
-                latestOnReplaceSelection(selection.selectionWith(listOf(anchorItem)))
+                latestOnReplaceSelection(selection.selectionWith(listOf(anchorItem), list))
                 true
             },
             onDrag = { position ->
