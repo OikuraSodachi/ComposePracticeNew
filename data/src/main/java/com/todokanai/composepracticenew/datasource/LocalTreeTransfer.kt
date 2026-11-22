@@ -194,7 +194,7 @@ class LocalTreeTransfer internal constructor(
         // 기록을 마친 뒤에 끝난 파일로 센다 — 큰 파일을 기록하는 동안 진행 표시가 끝난 것처럼 보이지 않도록
         if (deleteSource) persistCopy(target)
         progress.onFileCompleted(src)
-        if (deleteSource && !src.delete()) throw IOException("원본 삭제 실패: ${src.name} — 대상에 복사본이 생성됐으나 원본이 남은 상태입니다")
+        if (deleteSource) Files.delete(src.toPath())
         return true
     }
 
@@ -310,9 +310,9 @@ class LocalTreeTransfer internal constructor(
 
     /**
      * 폴더 [dir] 바로 아래 항목을 돌려준다.
-     * @throws IOException 목록을 읽지 못했을 때 — 읽지 못한 폴더를 빈 폴더로 보고 지우지 않도록
+     * @throws LocalFailureException 목록을 읽지 못했을 때([FailureReason.FolderUnreadable]) — 읽지 못한 폴더를 빈 폴더로 보고 지우지 않도록
      */
-    private fun childrenOf(dir: File): List<File> = dir.listFiles()?.toList() ?: throw IOException("폴더를 읽지 못함: ${dir.name}")
+    private fun childrenOf(dir: File): List<File> = dir.listFiles()?.toList() ?: throw LocalFailureException(FailureReason.FolderUnreadable())
 
     /**
      * [roots] 트리를 한 번 훑어 항목(파일·폴더)마다 파일 수와 바이트 합을 센다. 폴더의 몫은 그 안쪽 전체의 합이다.

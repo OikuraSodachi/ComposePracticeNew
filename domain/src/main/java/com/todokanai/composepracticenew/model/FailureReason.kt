@@ -66,6 +66,37 @@ sealed interface FailureReason {
      */
     data class MissingArchiveVolume(val archiveName: String, val volumeName: String) : FailureReason
 
+    /**
+     * 압축 파일이 아니거나 손상되어 열지 못했다.
+     * @param name 압축 파일 이름
+     */
+    data class UnreadableArchive(val name: String) : FailureReason
+
+    /**
+     * 압축 파일을 읽는 동안 파일이 바뀌어(줄어들어) 끝까지 읽지 못했다.
+     * @param name 바뀐 파일 이름
+     */
+    data class ArchiveChangedWhileReading(val name: String) : FailureReason
+
+    /** 이름을 읽을 수 없는 항목(해석하지 못한 이름, 이름 없는 항목)이 있어 아무것도 풀지 않았다. */
+    data object ArchiveEntryNameUnreadable : FailureReason
+
+    /**
+     * 압축 파일에서 확인한 비밀번호가 이 항목에 맞지 않아 풀지 못했다(한 압축 파일 안의 항목마다 다른 비밀번호는 지원 범위 밖).
+     * @param entryName 항목 이름
+     */
+    data class ArchiveEntryPasswordMismatch(val entryName: String) : FailureReason
+
+    /** 비밀번호를 확인할 내용이 있는 항목이 없는 암호화 압축 파일이라, 확인하지 않은 비밀번호로 풀지 않았다. */
+    data object ArchivePasswordUnverifiable : FailureReason
+
+    /**
+     * 압축 해제 라이브러리가 항목을 풀지 못했다고 알렸다(손상, 지원하지 않는 압축 방식 등).
+     * @param entryName 항목 이름. 모르면 null
+     * @param result 라이브러리가 알린 결과 이름(번역하지 않는 값)
+     */
+    data class UnreadableArchiveEntry(val entryName: String?, val result: String) : FailureReason
+
     /** 압축에 넣을 항목이 없다. */
     data object NothingToCompress : FailureReason
 
@@ -93,9 +124,6 @@ sealed interface FailureReason {
      * @param removal 남은 파일을 지우지 못한 원인. 모르면 null
      */
     data class LeftoverNotRemoved(val cause: FailureReason?, val removal: FailureReason?) : FailureReason
-
-    /** 이 저장소가 다루지 않는 경로다. */
-    data object UnsupportedPath : FailureReason
 
     /**
      * 원격 서버가 요청을 거부했다.
@@ -172,11 +200,8 @@ sealed interface FailureReason {
      */
     data class PathTooLong(val path: String, val limitBytes: Int, val cycleUndecidable: Boolean) : FailureReason
 
-    /**
-     * 예상하지 못한 오류로 작업이 끝났다.
-     * @param detail 오류 메시지
-     */
-    data class Unexpected(val detail: String) : FailureReason
+    /** 예상하지 못한 오류(구현 오류)로 작업이 끝났다. 내부 예외 메시지는 사용자에게 의미가 없으므로 담지 않는다. */
+    data object Unexpected : FailureReason
 }
 
 /** 파일 시스템이 항목에 대한 요청을 거부한 종류. */

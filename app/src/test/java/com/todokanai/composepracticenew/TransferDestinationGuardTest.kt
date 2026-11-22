@@ -76,7 +76,7 @@ class TransferDestinationGuardTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(UnconfinedTestDispatcher())
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, operationScope)
         val remoteOps = RemoteFileOperationUseCase(
             orchestrator,
             notices,

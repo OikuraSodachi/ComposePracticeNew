@@ -1,14 +1,15 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.model.FailureReason
 import kotlinx.coroutines.CancellationException
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.exception.ZipException
 import net.lingala.zip4j.model.FileHeader
 import java.io.File
-import java.io.FileNotFoundException
 import java.io.IOException
 import java.io.InputStream
+import java.nio.file.NoSuchFileException
 import javax.inject.Inject
 
 /**
@@ -66,14 +67,14 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
      * 이 두 경우가 항목 없는 성공으로 끝나지 않도록 먼저 확인한다. 분할 압축은 빠진 볼륨이 없는지도 확인한다.
      * @param path 아카이브 파일(분할 압축이면 시작 파일) 경로
      * @return 이름을 UTF-8로 읽도록 연 ZipFile
-     * @throws FileNotFoundException [path]가 파일이 아닐 때
-     * @throws ZipException [path]가 0바이트 파일일 때
+     * @throws NoSuchFileException [path]가 없을 때
+     * @throws LocalFailureException [path]가 파일이 아니거나 0바이트 파일일 때([FailureReason.UnreadableArchive])
      * @throws MissingArchiveVolumeException 분할 압축의 볼륨이 빠졌을 때
      */
     private fun openZip(path: String): ZipFile {
         val file = File(path)
-        if (!file.isFile) throw FileNotFoundException("압축 파일이 없습니다: ${file.name}")
-        if (file.length() == 0L) throw ZipException("ZIP 파일이 아니거나 손상된 파일입니다(0바이트): ${file.name}")
+        if (!file.exists()) throw NoSuchFileException(file.path)
+        if (!file.isFile || file.length() == 0L) throw LocalFailureException(FailureReason.UnreadableArchive(file.name))
         if (zipNameRoleOf(file.name)?.set?.layout == VolumeLayout.NUMBERED) {
             numberedVolumesOf(file)
             return ZipFile(path).apply { charset = Charsets.UTF_8 }
@@ -104,11 +105,11 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
      * [measure]·[extract]가 같은 실패로 알리고, 일부만 풀린 채 끝나지 않도록.
      * @param zf 연 ZIP 파일
      * @return 아카이브에 담긴 순서의 항목 목록
-     * @throws java.util.zip.ZipException 항목 이름을 UTF-8로 해석하지 못했을 때
+     * @throws LocalFailureException 항목 이름을 UTF-8로 해석하지 못했을 때([FailureReason.ArchiveEntryNameUnreadable])
      */
     private fun headersOf(zf: ZipFile): List<FileHeader> =
         zf.fileHeaders.also { headers ->
-            if (headers.any { UNDECODABLE_MARK in it.fileName }) throw java.util.zip.ZipException(UNDECODABLE_ENTRY_MESSAGE)
+            if (headers.any { UNDECODABLE_MARK in it.fileName }) throw LocalFailureException(FailureReason.ArchiveEntryNameUnreadable)
         }
 
     /**
@@ -134,12 +135,12 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
      * @param checkEntry 비밀번호 확인에 쓸 항목([passwordCheckEntryOf]). 암호화된 파일 항목이 있으면 null이 아니다
      * @param passwords 이 아카이브의 비밀번호 세션
      * @return 항목 내용 스트림. 끝까지 읽으면 zip4j가 내용을 검증한다
-     * @throws IOException 확인한 비밀번호가 이 항목에 맞지 않을 때
+     * @throws LocalFailureException 확인한 비밀번호가 이 항목에 맞지 않을 때([FailureReason.ArchiveEntryPasswordMismatch])
      */
     private fun openEntry(zf: ZipFile, header: FileHeader, checkEntry: FileHeader?, passwords: ArchivePasswordSession): InputStream {
         if (!header.isEncrypted) return zf.getInputStream(header)
         val password = passwords.verifiedPassword { candidate -> check(zf, checkNotNull(checkEntry), candidate, passwords.reportChecking) }
-        return openWith(zf, header, password) ?: throw IOException("확인한 비밀번호가 맞지 않아 풀 수 없는 항목입니다: ${header.fileName}")
+        return openWith(zf, header, password) ?: throw LocalFailureException(FailureReason.ArchiveEntryPasswordMismatch(header.fileName))
     }
 
     /**
@@ -206,6 +207,3 @@ internal fun isZipSymlink(externalAttributes: ByteArray?): Boolean {
 
 /** zip4j가 UTF-8로 해석하지 못한 바이트를 바꿔 넣는 문자. */
 private const val UNDECODABLE_MARK = '�'
-
-/** 항목 정보를 해석하지 못한 아카이브의 실패 메시지. */
-private const val UNDECODABLE_ENTRY_MESSAGE = "항목 이름을 해석할 수 없는 압축 파일입니다(UTF-8이 아닌 이름 등)"

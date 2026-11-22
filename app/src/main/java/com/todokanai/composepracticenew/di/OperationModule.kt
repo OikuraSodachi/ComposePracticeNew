@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.di
 import com.todokanai.composepracticenew.operation.FileOperationNotifier
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.operation.OperationProtection
+import com.todokanai.composepracticenew.operation.UnexpectedFailureRecorder
 import com.todokanai.composepracticenew.repository.OperationNoticeReporter
 import com.todokanai.composepracticenew.repository.OperationQuestionAsker
 import com.todokanai.composepracticenew.repository.ProgressReporter
@@ -26,6 +27,7 @@ object OperationModule {
         notices: OperationNoticeReporter,
         protection: OperationProtection,
         questions: OperationQuestionAsker,
+        failureRecorder: UnexpectedFailureRecorder,
         @ApplicationScope appScope: CoroutineScope
-    ) = FileOperationOrchestrator(notifier, progressReporter, notices, protection, questions, appScope)
+    ) = FileOperationOrchestrator(notifier, progressReporter, notices, protection, questions, failureRecorder, appScope)
 }

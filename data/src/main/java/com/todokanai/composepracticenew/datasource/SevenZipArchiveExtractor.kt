@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
+import com.todokanai.composepracticenew.model.FailureReason
 import kotlinx.coroutines.CancellationException
 import net.sf.sevenzipjbinding.ArchiveFormat
 import net.sf.sevenzipjbinding.ExtractAskMode
@@ -30,14 +31,13 @@ import java.io.OutputStream
  * 출력 없이 풀어 보아 확인한다. RAR4는 비밀번호 검증값이 없어 틀린 비밀번호가 데이터·CRC 오류로만 드러나므로 손상과 구분하지 않는다(다시 물을 때 '틀렸거나 손상').
  * 한 아카이브 안에서 항목마다 다른 비밀번호를 쓴 경우는 지원 범위 밖이다 — 확인한 비밀번호가 맞지 않는 항목은 풀 수 없는 항목으로 실패한다.
  * 링크 항목([isSevenZipLink])은 풀지 않고 실패로 알린다(지원 범위 밖, #424).
+ * 입력을 읽다 난 실패(기기 입출력 실패, 파일이 바뀜)는 라이브러리가 자기 예외로 감싸므로, 입력이 보관한 원래 실패로 알린다([SevenZipInput.readFailure]).
  * @param names 파일 이름의 역할을 정하는 이름 규칙. 아카이브 이름이 아니면 null
  * @param formats 이 순서대로 지정해 열어 보는 7-Zip 형식. 여러 형식으로 읽히는 파일은 앞의 형식으로 다룬다
- * @param label 열지 못했을 때 실패 메시지에 쓰는 형식 이름
  */
 class SevenZipArchiveExtractor(
     private val names: (String) -> ArchiveNameRole?,
     private val formats: List<ArchiveFormat>,
-    private val label: String,
 ) : ArchiveExtractor {
 
     override fun nameRoleOf(fileName: String): ArchiveNameRole? = names(fileName)
@@ -68,6 +68,7 @@ class SevenZipArchiveExtractor(
 
     /**
      * 아카이브를 열어 [block]에 IInArchive를 넘기고 사용 후 닫는다. 분할 압축은 다른 볼륨도 추출이 끝날 때까지 열어 둔다.
+     * [block]이 입출력 실패로 끝났는데 입력을 읽다 난 실패가 있으면 그 실패로 알린다 — 라이브러리가 감싼 예외나, 읽지 못해 생긴 항목 결과 오류 대신 원인을 알리도록.
      * @param path 아카이브 파일(분할 압축이면 시작 볼륨) 경로
      * @param passwords 항목 목록까지 암호화한 아카이브를 열 때 쓰는 비밀번호 세션
      * @param block 연 아카이브로 할 일
@@ -79,7 +80,11 @@ class SevenZipArchiveExtractor(
         return inputOf(file).use { input ->
             openArchive(input, passwords, file.name).use { archive ->
                 checkVolumes(archive, input, file.name)
-                block(archive)
+                try {
+                    block(archive)
+                } catch (e: IOException) {
+                    throw input.readFailure ?: e
+                }
             }
         }
     }
@@ -102,12 +107,12 @@ class SevenZipArchiveExtractor(
      * @param name 실패 메시지에 쓰는 파일 이름
      * @return 연 아카이브
      * @throws MissingArchiveVolumeException 어느 형식으로도 열지 못했고, 여는 중에 요청한 볼륨이 없었을 때
-     * @throws IOException 어느 형식으로도 열지 못했을 때
+     * @throws LocalFailureException 어느 형식으로도 열지 못했을 때([FailureReason.UnreadableArchive])
      */
     private fun openArchive(input: SevenZipInput, passwords: ArchivePasswordSession, name: String): IInArchive {
         for (format in formats) openAs(format, input, passwords)?.let { return it }
         input.missingVolume?.let { throw MissingArchiveVolumeException(name, it) }
-        throw IOException("$label 파일이 아닙니다: $name")
+        throw LocalFailureException(FailureReason.UnreadableArchive(name))
     }
 
     /**
@@ -127,7 +132,7 @@ class SevenZipArchiveExtractor(
     /**
      * [input]을 [format] 아카이브로 연다. 여는 중에 라이브러리가 비밀번호를 물으면(항목 목록까지 암호화한 아카이브) 확인된 비밀번호를 주고,
      * 없거나 맞지 않으면 열릴 때까지 묻는다. 목록 암호화는 검증값이 없는 형식(RAR4)도 있어, 비밀번호를 준 뒤의 열기 실패는 '틀렸거나 손상'으로 본다.
-     * 비밀번호를 묻지 않고 열지 못했으면 이 형식이 아닌 것으로 본다.
+     * 비밀번호를 묻지 않고 열지 못했으면 이 형식이 아닌 것으로 본다. 단 입력을 읽다 실패했으면 형식을 판별하지 못한 것이므로 그 실패로 끝낸다.
      * @param format 지정해 열 형식
      * @param input 아카이브 입력
      * @param passwords 이 아카이브의 비밀번호 세션
@@ -138,6 +143,8 @@ class SevenZipArchiveExtractor(
         try {
             return SevenZip.openInArchive(format, input.stream(), first)
         } catch (e: SevenZipException) {
+            // 기기 입출력 실패가 "이 형식이 아님"으로 보이지 않도록 입력의 실패를 먼저 본다
+            input.readFailure?.let { throw it }
             // 확인된 비밀번호로도 열지 못했으면 아래 verifiedPassword가 그 비밀번호를 그대로 돌려줘 다시 열기가 실패로 끝난다
             if (!first.passwordRequested) return null
         }
@@ -174,7 +181,8 @@ class SevenZipArchiveExtractor(
     private fun checkPassword(archive: IInArchive, index: Int, candidate: String, reportChecking: () -> Unit): PasswordCheck {
         val callback = SevenZipPasswordCheckCallback(candidate, reportChecking)
         runCollectingFailure(callback) { archive.extract(intArrayOf(index), false, callback) }
-        return callback.result ?: throw IOException("비밀번호 확인 결과를 받지 못했습니다")
+        // 결과 없이 끝난 추출은 라이브러리 계약 위반(로직 오류)이다
+        return checkNotNull(callback.result) { "비밀번호 확인 추출이 항목 결과 없이 끝났다" }
     }
 
     /**
@@ -194,13 +202,13 @@ class SevenZipArchiveExtractor(
 
     companion object {
         /** RAR 파일(분할 압축 포함, 이름 규칙은 [rarNameRoleOf])을 RAR4·RAR5로 다루는 추출기를 만든다. */
-        fun rar(): SevenZipArchiveExtractor = SevenZipArchiveExtractor(::rarNameRoleOf, listOf(ArchiveFormat.RAR, ArchiveFormat.RAR5), "RAR")
+        fun rar(): SevenZipArchiveExtractor = SevenZipArchiveExtractor(::rarNameRoleOf, listOf(ArchiveFormat.RAR, ArchiveFormat.RAR5))
 
         /** 7z 파일(번호 분할 포함, 이름 규칙은 [sevenZipNameRoleOf])을 다루는 추출기를 만든다. */
-        fun sevenZip(): SevenZipArchiveExtractor = SevenZipArchiveExtractor(::sevenZipNameRoleOf, listOf(ArchiveFormat.SEVEN_ZIP), "7Z")
+        fun sevenZip(): SevenZipArchiveExtractor = SevenZipArchiveExtractor(::sevenZipNameRoleOf, listOf(ArchiveFormat.SEVEN_ZIP))
 
         /** `.iso` 파일을 UDF·ISO9660으로 다루는 추출기를 만든다. UDF와 ISO9660을 함께 담은 이미지(Windows 설치 이미지 등)는 실제 내용이 UDF 쪽에 있어 UDF를 먼저 연다. */
-        fun iso(): SevenZipArchiveExtractor = SevenZipArchiveExtractor({ singleFileRoleOf(it, ".iso") }, listOf(ArchiveFormat.UDF, ArchiveFormat.ISO), "ISO")
+        fun iso(): SevenZipArchiveExtractor = SevenZipArchiveExtractor({ singleFileRoleOf(it, ".iso") }, listOf(ArchiveFormat.UDF, ArchiveFormat.ISO))
     }
 }
 
@@ -232,7 +240,7 @@ internal class SevenZipExtractCallback(
     override val failure: Throwable? get() = recorder.failure
 
     override fun cryptoGetTextPassword(): String = recorder.record {
-        verifiedPassword() ?: throw IOException("확인하지 않은 비밀번호로는 풀지 않습니다")
+        verifiedPassword() ?: throw LocalFailureException(FailureReason.ArchivePasswordUnverifiable)
     }
 
     /** 현재 항목을 쓰고 있는 출력 스트림. 항목 완료 시 닫고 null로 되돌린다. */
@@ -260,7 +268,7 @@ internal class SevenZipExtractCallback(
         val output = currentOutputStream
         currentOutputStream = null
         output?.close()
-        if (extractOperationResult != ExtractOperationResult.OK) throw IOException("풀 수 없는 항목입니다: $currentPath ($extractOperationResult)")
+        if (extractOperationResult != ExtractOperationResult.OK) throw LocalFailureException(FailureReason.UnreadableArchiveEntry(currentPath, extractOperationResult.name))
         if (output != null) tracker.onFileCompleted(currentPath, currentItemSize)
     }
 
@@ -336,10 +344,10 @@ private fun isLinkEntry(archive: IInArchive, index: Int): Boolean =
  * @param path 항목의 PATH 속성 값
  * @param isLink 항목이 링크인지([isSevenZipLink])
  * @return '/' 구분으로 정규화한 경로의 [SevenZipEntryKind]
- * @throws IOException 경로가 없는 항목일 때
+ * @throws LocalFailureException 경로가 없는 항목일 때([FailureReason.ArchiveEntryNameUnreadable])
  */
 internal fun sevenZipEntryKindOf(isFolder: Any?, path: Any?, isLink: Boolean): SevenZipEntryKind {
-    if (path !is String) throw IOException(UNNAMED_ENTRY_MESSAGE)
+    if (path !is String) throw LocalFailureException(FailureReason.ArchiveEntryNameUnreadable)
     val normalized = path.replace('\\', '/')
     return when {
         isLink -> SevenZipEntryKind.Link(normalized)
@@ -382,9 +390,6 @@ private fun isUnixExtendedSymlink(attributes: Int): Boolean =
 
 /** 7-Zip이 Windows 속성의 위쪽 16비트에 Unix 모드를 담았음을 나타내는 표시. */
 private const val FILE_ATTRIBUTE_UNIX_EXTENSION = 0x8000
-
-/** 경로가 없는 항목이 있는 아카이브의 실패 메시지. */
-private const val UNNAMED_ENTRY_MESSAGE = "이름 없는 항목이 있는 압축 파일입니다"
 
 /** 추출이 아카이브 항목 하나를 어떻게 다루는지 나타내는 종류. */
 internal sealed interface SevenZipEntryKind {

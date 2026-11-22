@@ -20,7 +20,6 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 import javax.inject.Inject
 
 /**
@@ -57,7 +56,7 @@ class LocalArchiveExtraction @Inject constructor(
         // 추출 라이브러리의 콜백은 일시 중단할 수 없으므로 그 자리에서 답을 기다린다. 이 작업의 Job을 부모로 두어 작업 취소가 기다림을 끝낸다
         val job = coroutineContext.job
         val ask: (WriteConflict) -> ConflictChoice = { conflict -> runBlocking(job) { resolveConflict.resolve(conflict) } }
-        localIo(::extractionFailureReasonOf) {
+        localIo {
             val archive = when (val grouping = groupIntoArchives(zipFiles)) {
                 is ArchiveGrouping.Archive -> grouping.archive
                 is ArchiveGrouping.NotOneArchive -> throw IllegalArgumentException("아카이브 하나로 묶이는 경로만 받는다: 아카이브 ${grouping.count}개")
@@ -143,14 +142,6 @@ class LocalArchiveExtraction @Inject constructor(
         for (extractor in extractors) extractor.nameRoleOf(name)?.let { return NamedPath(path, extractor, it) }
         return null
     }
-
-    /**
-     * 압축 해제의 입출력 실패를 원인으로 바꾼다. 빠진 볼륨은 그 원인으로, 나머지는 [ioFailureReasonOf]로 바꾼다.
-     * @param e 입출력 실패
-     * @return 실패 원인
-     */
-    private fun extractionFailureReasonOf(e: IOException): FailureReason? =
-        if (e is MissingArchiveVolumeException) FailureReason.MissingArchiveVolume(e.archiveName, e.volumeName) else ioFailureReasonOf(e)
 
     /**
      * 추출기가 역할을 준 파일 경로.

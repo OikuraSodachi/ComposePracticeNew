@@ -13,6 +13,7 @@ import com.todokanai.composepracticenew.NoStorageNameRules
 import com.todokanai.composepracticenew.RecordingOperationNotices
 import com.todokanai.composepracticenew.RecordingProgressReporter
 import com.todokanai.composepracticenew.RecordingTransferRepository
+import com.todokanai.composepracticenew.NoOpFailureRecorder
 import com.todokanai.composepracticenew.UnexpectedQuestions
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
@@ -86,7 +87,7 @@ class RemoteFileListNoSessionTest {
 
     private fun createViewModel(): RemoteFileListViewModel {
         val notices = RecordingOperationNotices()
-        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), notices, GrantedProtection, UnexpectedQuestions, operationScope)
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, operationScope)
         return RemoteFileListViewModel(
             FakeNavigator().let { FileNavigatorUseCase(it, it) },
             SortModeUseCase(InMemorySortPreference()),

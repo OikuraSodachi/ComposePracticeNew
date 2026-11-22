@@ -11,5 +11,5 @@ class FileSystemNameMatching(fileSystems: Set<NameMatchFileSystem>) : StorageNam
 
     // 충돌 판정은 탐색이 조회한 목록의 폴더에서만 물으므로, 처리할 파일 시스템이 없는 위치는 배선 오류다
     override fun matchKeyOf(name: String, location: String): String =
-        checkNotNull(router.find(location)) { "No file system handles location: $location" }.nameMatchKeyOf(name, location)
+        router.resolve(location).nameMatchKeyOf(name, location)
 }

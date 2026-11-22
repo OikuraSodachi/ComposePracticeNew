@@ -12,6 +12,7 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.NoSuchFileException
+import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 
 /**
@@ -48,9 +49,11 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
     private suspend fun renameEntry(source: File, newName: String, overwrite: Boolean): IoResult<Unit> {
         val dest = File(source.parentFile, newName)
         // 대소문자만 바꾸는 경우 대소문자 무시 저장소에서는 dest가 source 자신으로 보인다 — 충돌이 아니므로 그대로 바꾼다.
+        // ATOMIC_MOVE 없는 Files.move는 두 이름이 같은 항목이면 아무것도 하지 않고 돌아오므로, 같은 항목 확인 전에 rename을 부르는 ATOMIC_MOVE로 옮긴다(실패 이유도 남는다).
         // 어느 쪽이 링크면 같은 항목 판정이 링크를 따라가 링크와 그 대상을 같은 항목으로 보므로, 이 지름길을 타지 않는다(대상을 링크로 대신하지 않도록)
         if (source.entryKind != LocalEntryKind.LINK && dest.entryKind != LocalEntryKind.LINK && isSameEntry(source, dest)) {
-            return if (source.renameTo(dest)) IoResult.Done else IoResult.ItemFailed(null)
+            Files.move(source.toPath(), dest.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            return IoResult.Done
         }
         if (!dest.exists()) {
             // REPLACE_EXISTING 없이 이동 — 확인 직후 같은 이름이 생겨도 덮어쓰지 않고 실패한다
@@ -226,7 +229,10 @@ class LocalEntryMutator internal constructor(private val removeEntry: (File) -> 
      * @return 생성 결과
      */
     suspend fun makeDirectory(parentPath: String, name: String): IoResult<Unit> = withContext(Dispatchers.IO) {
-        if (File(parentPath, name).mkdir()) IoResult.Done else IoResult.ItemFailed(null)
+        localIo {
+            Files.createDirectory(File(parentPath, name).toPath())
+            IoResult.Done
+        }
     }
 }
 

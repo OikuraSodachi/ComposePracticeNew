@@ -42,7 +42,7 @@ class RemoteFileOperationFailureTest {
     private val notices = RecordingOperationNotices()
     private val transferRepo = FakeTransferRepository()
     private val mutationRepo = FakeMutationRepository()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, progressReporter, notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, scope)
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, transferRepo, mutationRepo, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules))
 
     @After

@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
 import android.util.Log
-import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.onSuccess
 
@@ -15,13 +14,14 @@ private const val TAG = "FileExplorerRepo"
 internal class FileSystemRouter<T : PathHandlingFileSystem>(private val fileSystems: Set<T>) {
 
     /**
-     * [path]를 처리하는 파일 시스템을 반환한다. 처리자가 없는 경로는 크래시 대신 경고 로그를 남기고 null을 반환해
-     * 호출부가 "목록 조회 실패·부모 없음·이동 무시"로 다루게 한다.
+     * [path]를 처리하는 파일 시스템을 반환한다. 화면마다 그 화면이 다루는 경로의 파일 시스템 집합을 주입하므로, 처리자가 없는 경로는 배선 오류다 —
+     * "읽을 수 없음·부모 없음"으로 덮으면 배선 오류가 틀린 원인으로 보이므로 실패시킨다.
      * @param path 처리할 경로
-     * @return 경로를 처리하는 파일 시스템. 없으면 null
+     * @return 경로를 처리하는 파일 시스템
+     * @throws IllegalStateException 처리자가 없을 때(배선 오류)
      */
-    fun resolve(path: String): T? =
-        find(path) ?: null.also { Log.w(TAG, "No file system handles path: $path") }
+    fun resolve(path: String): T =
+        checkNotNull(find(path)) { "No file system handles path: $path" }
 
     /**
      * [path]를 처리하는 파일 시스템을 로그 없이 찾는다. 처리자가 없다는 사실을 결과로 알리는 호출부가 쓴다 — 입력마다 불리는 판정이 경고 로그를 쌓지 않도록.
@@ -35,12 +35,12 @@ internal class FileSystemRouter<T : PathHandlingFileSystem>(private val fileSyst
 /**
  * [path]의 파일과 하위 디렉터리 목록을 경로를 처리하는 파일 시스템에서 조회한다.
  * @param path 조회할 디렉터리 경로
- * @return 항목 목록. 처리할 파일 시스템이 없거나 읽을 수 없으면 실패 결과
+ * @return 항목 목록. 읽을 수 없으면 실패 결과
+ * @throws IllegalStateException 처리할 파일 시스템이 없을 때(배선 오류)
  */
 internal suspend fun FileSystemRouter<out NavigableFileSystem>.listFiles(path: String): IoResult<ListedDirectory> {
     Log.d(TAG, "fileList 갱신 — path=$path")
-    val fileSystem = resolve(path) ?: return IoResult.ItemFailed(FailureReason.UnsupportedPath)
-    return fileSystem.listFiles(path).onSuccess {
+    return resolve(path).listFiles(path).onSuccess {
         Log.d(TAG, "fileList 결과 — path=$path size=${it.entries.size} unreadable=${it.unreadableCount}")
     }
 }

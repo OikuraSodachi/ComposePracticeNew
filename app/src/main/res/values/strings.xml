@@ -241,12 +241,18 @@
     <string name="failure_unsafe_archive_entry_path">경로 검증 실패</string>
     <string name="failure_unsupported_archive_format">지원하지 않는 압축 형식: %1$s</string>
     <string name="failure_missing_archive_volume">분할 압축 %1$s의 볼륨이 없습니다: %2$s</string>
+    <string name="failure_unreadable_archive">압축 파일이 아니거나 손상되어 열 수 없습니다: %1$s</string>
+    <string name="failure_archive_changed_while_reading">압축 파일이 읽는 동안 바뀌었습니다: %1$s</string>
+    <string name="failure_archive_entry_name_unreadable">이름을 읽을 수 없는 항목이 있는 압축 파일입니다(UTF-8이 아닌 이름 등)</string>
+    <string name="failure_archive_entry_password_mismatch">확인한 비밀번호가 맞지 않아 풀 수 없는 항목입니다: %1$s</string>
+    <string name="failure_archive_password_unverifiable">비밀번호를 확인할 내용이 없는 암호화 압축 파일이라 풀지 않았습니다</string>
+    <string name="failure_unreadable_archive_entry">풀 수 없는 항목입니다: %1$s (%2$s)</string>
+    <string name="failure_unreadable_archive_entry_unnamed">풀 수 없는 항목입니다 (%1$s)</string>
     <string name="failure_nothing_to_compress">압축할 항목이 없습니다.</string>
     <string name="failure_name_taken">같은 이름의 항목이 이미 있습니다 (%1$s)</string>
     <string name="failure_kind_conflict">종류가 다른 항목이 같은 이름으로 있습니다 (%1$s)</string>
     <string name="failure_merged_source_not_removed">합친 뒤 원래 폴더를 지우지 못했습니다 (%1$s)</string>
     <string name="failure_leftover_not_removed">%1$s — 쓰다 만 파일을 지우지 못했습니다 (%2$s)</string>
-    <string name="failure_unsupported_path">지원하지 않는 경로입니다</string>
     <string name="failure_remote_step">%1$s 실패: %2$s</string>
     <string name="failure_hidden_entries_note">%1$s (폴더가 비어 있지 않아 거부됐다면 목록에 보이지 않는 항목(숨김 파일 등)이 남아 있을 수 있습니다)</string>
     <string name="failure_transfer_unconfirmed">전송 미완료: %1$s</string>
@@ -261,6 +267,7 @@
     <string name="failure_folder_cycle">폴더 순환 감지: %1$s 은(는) 상위 폴더와 같은 폴더입니다</string>
     <string name="failure_path_too_long">경로가 너무 깁니다(%1$d바이트 이상): %2$s</string>
     <string name="failure_cycle_undecidable">%1$s — 이 서버의 목록으로는 폴더가 순환하는지 판별할 수 없습니다</string>
+    <string name="failure_unexpected">예상하지 못한 오류가 발생했습니다</string>
     <string name="remote_step_open_folder">폴더 열기</string>
     <string name="remote_step_list_folder">목록 읽기</string>
     <string name="remote_step_rename">이름 변경</string>

@@ -39,7 +39,7 @@ class LocalDeleteBatchTest {
 
     /** 검증 대상. */
     private val local = LocalFileOperationUseCase(
-        FileOperationOrchestrator(NoOpNotifier, NoOpProgressReporter, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, scope),
+        FileOperationOrchestrator(NoOpNotifier, NoOpProgressReporter, RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, scope),
         RecordingOperationNotices(),
         fileActionRepo,
         FileNameUseCase(NoStorageNameRules),

@@ -1,9 +1,13 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import net.sf.sevenzipjbinding.ISeekableStream
+import net.sf.sevenzipjbinding.SevenZipException
 import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -15,6 +19,9 @@ class ConcatenatedInStreamTest {
     /** 볼륨 파일을 둘 임시 디렉터리. */
     private val dir: File = Files.createTempDirectory("concatenated-stream-test").toFile()
 
+    /** 스트림이 던진 실패를 남기는 기록. */
+    private val failures = StreamFailureLog()
+
     @After
     fun tearDown() {
         dir.deleteRecursively()
@@ -22,14 +29,14 @@ class ConcatenatedInStreamTest {
 
     @Test
     fun `볼륨 경계를 넘어 끝까지 읽으면 이어 붙인 내용이 된다`() {
-        ConcatenatedInStream(files("abc", "", "de", "fghij")).use { stream ->
+        ConcatenatedInStream(files("abc", "", "de", "fghij"), failures).use { stream ->
             assertArrayEquals("abcdefghij".toByteArray(), readAll(stream))
         }
     }
 
     @Test
     fun `한 번의 읽기는 볼륨 경계를 넘지 않는다`() {
-        ConcatenatedInStream(files("abc", "de")).use { stream ->
+        ConcatenatedInStream(files("abc", "de"), failures).use { stream ->
             val buffer = ByteArray(10)
             assertEquals(3, stream.read(buffer))
             assertEquals(2, stream.read(buffer))
@@ -39,13 +46,45 @@ class ConcatenatedInStreamTest {
 
     @Test
     fun `기준마다 옮긴 위치에서 읽는다`() {
-        ConcatenatedInStream(files("abc", "de", "fgh")).use { stream ->
+        ConcatenatedInStream(files("abc", "de", "fgh"), failures).use { stream ->
             assertEquals(4L, stream.seek(4, ISeekableStream.SEEK_SET))
             assertEquals("e", readString(stream, 1))
             assertEquals(6L, stream.seek(1, ISeekableStream.SEEK_CUR))
             assertEquals("gh", readString(stream, 5))
             assertEquals(6L, stream.seek(-2, ISeekableStream.SEEK_END))
             assertEquals("gh", readString(stream, 5))
+        }
+    }
+
+    @Test
+    fun `연 뒤에 줄어든 볼륨은 그 볼륨이 바뀐 실패로 남기고 라이브러리에는 SevenZipException으로 알린다`() {
+        val volumes = files("abc", "de")
+        ConcatenatedInStream(volumes, failures).use { stream ->
+            volumes[1].writeText("")
+            stream.seek(3, ISeekableStream.SEEK_SET)
+
+            assertThrows(SevenZipException::class.java) { stream.read(ByteArray(2)) }
+
+            assertEquals(FailureReason.ArchiveChangedWhileReading("a.7z.002"), (failures.first as LocalFailureException).reason)
+        }
+    }
+
+    @Test
+    fun `스트림 앞을 가리키는 이동은 구현 오류로 남긴다`() {
+        ConcatenatedInStream(files("abc"), failures).use { stream ->
+            assertThrows(SevenZipException::class.java) { stream.seek(-1, ISeekableStream.SEEK_SET) }
+
+            assertTrue(failures.first is IllegalArgumentException)
+        }
+    }
+
+    @Test
+    fun `비우면 이전 실패를 남기지 않는다`() {
+        ConcatenatedInStream(files("abc"), failures).use { stream ->
+            assertThrows(SevenZipException::class.java) { stream.seek(-1, ISeekableStream.SEEK_SET) }
+            failures.clear()
+
+            assertEquals(null, failures.first)
         }
     }
 

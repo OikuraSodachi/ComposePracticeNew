@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
 import net.sf.sevenzipjbinding.IArchiveExtractCallback
@@ -10,7 +11,6 @@ import net.sf.sevenzipjbinding.IInStream
 import net.sf.sevenzipjbinding.ISequentialOutStream
 import net.sf.sevenzipjbinding.PropID
 import net.sf.sevenzipjbinding.SevenZipException
-import java.io.IOException
 
 /** 라이브러리에 넘긴 콜백이 처음 던진 예외를 보관하는 콜백. 라이브러리는 콜백의 예외를 자기 예외로 감싸므로, 호출부가 원래 예외로 알리도록 꺼낸다. */
 internal interface FailureRecordingCallback {
@@ -77,7 +77,7 @@ internal class SevenZipOpenCallback(
  * 암호화된 항목 하나를 출력 없이 풀어 후보 비밀번호를 확인하는 추출 콜백. 실제 추출과 같은 길로 풀어(시험 모드가 아님) 내용 검증까지 거친다.
  * 받은 내용은 버린다. 내용을 받을 때와 라이브러리가 진행을 알릴 때마다 비밀번호 확인 단계의 진행을 보고한다 — 진행 보고가 작업 취소를 확인하므로.
  * solid RAR은 확인할 항목에 닿기까지 앞 항목을 출력 없이 모두 푸는데, 그동안 라이브러리는 내용을 넘기지 않고 진행([setCompleted])만 알린다(#418).
- * 결과의 해석: OK면 통과, WRONG_PASSWORD(검증값이 있는 형식)면 틀림, 데이터·CRC 오류면 틀렸거나 손상(RAR4는 검증값이 없다). 그 밖의 결과는 비밀번호와 무관한 실패라 IOException으로 멈춘다.
+ * 결과의 해석: OK면 통과, WRONG_PASSWORD(검증값이 있는 형식)면 틀림, 데이터·CRC 오류면 틀렸거나 손상(RAR4는 검증값이 없다). 그 밖의 결과는 비밀번호와 무관한 실패라 [FailureReason.UnreadableArchiveEntry]로 멈춘다.
  * @param candidate 확인할 비밀번호
  * @param reportChecking 비밀번호 확인 단계의 진행 보고. 취소됐으면 CancellationException을 던진다
  */
@@ -105,7 +105,7 @@ internal class SevenZipPasswordCheckCallback(
     override fun prepareOperation(extractAskMode: ExtractAskMode) {}
 
     override fun setOperationResult(extractOperationResult: ExtractOperationResult) = recorder.record {
-        result = passwordCheckOf(extractOperationResult) ?: throw IOException("풀 수 없는 항목입니다 ($extractOperationResult)")
+        result = passwordCheckOf(extractOperationResult) ?: throw LocalFailureException(FailureReason.UnreadableArchiveEntry(null, extractOperationResult.name))
     }
 
     override fun setTotal(total: Long) {}

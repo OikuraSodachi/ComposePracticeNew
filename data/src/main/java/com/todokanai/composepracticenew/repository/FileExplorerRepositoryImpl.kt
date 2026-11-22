@@ -46,8 +46,7 @@ class FileExplorerRepositoryImpl(
     override fun refresh() = navigation.refresh()
 
     override suspend fun navigate(path: String): NavigateResult {
-        val fileSystem = router.resolve(path)
-        val resolved = fileSystem?.resolveNavigationPath(path)
+        val resolved = router.resolve(path).resolveNavigationPath(path)
         if (resolved == null) {
             notices.report(NoticeMessage.FolderUnreadable(pathRules.displayNameOf(path)))
             return NavigateResult.Rejected

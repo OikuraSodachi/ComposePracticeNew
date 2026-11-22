@@ -39,7 +39,7 @@ class RenameOverwriteTest {
 
     /** 넣은 실패·완료 메시지를 기록하는 메시지 저장소. */
     private val notices = RecordingOperationNotices()
-    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, NoOpProgressReporter, notices, GrantedProtection, UnexpectedQuestions, scope)
+    private val orchestrator = FileOperationOrchestrator(NoOpNotifier, NoOpProgressReporter, notices, GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, scope)
     private val local = LocalFileOperationUseCase(orchestrator, notices, NoOpFileActionRepository, FileNameUseCase(NoStorageNameRules), LocalPathRules())
     private val remote = RemoteFileOperationUseCase(orchestrator, notices, NoOpTransferRepository, NoOpMutationRepository, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules))
 

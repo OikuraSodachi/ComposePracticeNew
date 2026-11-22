@@ -1,9 +1,9 @@
 package com.todokanai.composepracticenew.datasource
 
+import com.todokanai.composepracticenew.model.FailureReason
 import net.sf.sevenzipjbinding.IInStream
 import net.sf.sevenzipjbinding.ISeekableStream
 import net.sf.sevenzipjbinding.SevenZipException
-import net.sf.sevenzipjbinding.impl.RandomAccessFileInStream
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -31,6 +31,15 @@ internal interface SevenZipVolumeSource {
  */
 internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
 
+    /** 이 입력이 라이브러리에 준 스트림의 실패 기록. 열어 볼 때마다([stream]) 비운다. */
+    protected val failures = StreamFailureLog()
+
+    /**
+     * 마지막 [stream] 뒤로 이 입력의 스트림이 처음 던진 예외(기기 입출력 실패, 읽는 중에 바뀐 파일, 구현 오류). 없으면 null.
+     * 라이브러리는 스트림의 예외를 자기 예외로 감싸 다시 던지므로, 호출부는 라이브러리가 실패하면 이 원래 실패로 알린다.
+     */
+    val readFailure: Throwable? get() = failures.first
+
     /**
      * 아카이브를 처음부터 읽는 스트림을 만든다. 형식을 바꿔 열어 볼 때마다 부른다.
      * 한 입력으로는 한 번에 아카이브 하나만 연다(앞서 연 아카이브를 닫거나 열기가 실패한 뒤에 부른다) —
@@ -51,8 +60,8 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
      */
     class SelfLocating(private val first: File) : SevenZipInput() {
 
-        /** 연 볼륨 파일. 라이브러리가 같은 볼륨을 다시 요청하면 이것을 쓴다. */
-        private val opened = LinkedHashMap<String, RandomAccessFile>()
+        /** 연 볼륨 스트림. 라이브러리가 같은 볼륨을 다시 요청하면 이것을 쓴다. */
+        private val opened = LinkedHashMap<String, ConcatenatedInStream>()
 
         override var currentVolumeName: String = first.path
             private set
@@ -65,17 +74,19 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
         override fun stream(): IInStream {
             currentVolumeName = first.path
             missingVolume = null
+            failures.clear()
             return streamOf(first)
         }
 
-        override fun open(name: String): IInStream? {
+        // 라이브러리가 부르는 입구라 볼륨을 열다 난 실패도 기록한다 — 라이브러리가 감싸면 "이 형식이 아님"과 구분할 수 없으므로
+        override fun open(name: String): IInStream? = failures.record {
             val volume = File(name).let { if (it.isAbsolute) it else File(first.parentFile, name) }
             if (!volume.isFile) {
                 if (missingVolume == null) missingVolume = volume.name
-                return null
+                return@record null
             }
             currentVolumeName = volume.path
-            return streamOf(volume)
+            streamOf(volume)
         }
 
         override fun close() = closeAll(opened.values)
@@ -86,11 +97,8 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
          * @param file 볼륨 파일
          * @return 처음 위치의 스트림
          */
-        private fun streamOf(file: File): IInStream {
-            val raf = opened.getOrPut(file.path) { RandomAccessFile(file, "r") }
-            raf.seek(0)
-            return RandomAccessFileInStream(raf)
-        }
+        private fun streamOf(file: File): IInStream =
+            opened.getOrPut(file.path) { ConcatenatedInStream(listOf(file), failures) }.also { it.seek(0, ISeekableStream.SEEK_SET) }
     }
 
     /**
@@ -100,13 +108,16 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
     class Numbered(volumes: List<File>) : SevenZipInput() {
 
         /** 이어 붙인 볼륨. */
-        private val joined = ConcatenatedInStream(volumes)
+        private val joined = ConcatenatedInStream(volumes, failures)
 
         override val currentVolumeName: String = volumes.first().path
 
         override val missingVolume: String? = null
 
-        override fun stream(): IInStream = joined.also { it.seek(0, ISeekableStream.SEEK_SET) }
+        override fun stream(): IInStream {
+            failures.clear()
+            return joined.also { it.seek(0, ISeekableStream.SEEK_SET) }
+        }
 
         override fun open(name: String): IInStream? = null
 
@@ -118,9 +129,15 @@ internal sealed class SevenZipInput : SevenZipVolumeSource, Closeable {
  * 여러 파일을 순서대로 이어 붙인 하나의 스트림. 번호 볼륨은 아카이브를 바이트 단위로 자른 것이라 이어 붙이면 원래 아카이브가 된다.
  * 읽기는 볼륨 경계를 넘지 않고 그 볼륨의 남은 만큼만 돌려준다(라이브러리는 짧은 읽기를 받아 다시 읽는다).
  * 파일 크기는 연 때의 크기로 정한다 — 읽는 중에 파일이 바뀌는 것은 지원 범위 밖이며, 줄어들면 읽기 실패로 알린다.
+ * 단일 파일도 같은 방식으로 읽는다(파일 하나를 이어 붙인 스트림).
+ * 읽기·위치 이동의 실패는 [failures]에 남긴 뒤 라이브러리 계약대로 SevenZipException으로 넘긴다.
  * @param files 이어 붙일 파일들(비어 있지 않음)
+ * @param failures 읽기·위치 이동의 실패를 남길 기록
  */
-internal class ConcatenatedInStream(files: List<File>) : IInStream {
+internal class ConcatenatedInStream(files: List<File>, private val failures: StreamFailureLog) : IInStream {
+
+    /** 각 파일의 이름. 읽는 중에 줄어든 파일을 알릴 때 쓴다. */
+    private val names: List<String> = files.map { it.name }
 
     /** 연 파일들. 하나라도 열지 못하면 앞서 연 것을 닫고 실패한다. */
     private val parts: List<RandomAccessFile> = buildList {
@@ -147,35 +164,32 @@ internal class ConcatenatedInStream(files: List<File>) : IInStream {
     /** 다음에 읽을 위치. */
     private var position = 0L
 
-    override fun seek(offset: Long, seekOrigin: Int): Long {
+    // 알 수 없는 기준·스트림 앞을 가리키는 이동은 라이브러리의 계약 위반(로직 오류)이다
+    override fun seek(offset: Long, seekOrigin: Int): Long = failures.record {
         val base = when (seekOrigin) {
             ISeekableStream.SEEK_SET -> 0L
             ISeekableStream.SEEK_CUR -> position
             ISeekableStream.SEEK_END -> length
-            else -> throw SevenZipException("알 수 없는 seek 기준: $seekOrigin")
+            else -> throw IllegalArgumentException("알 수 없는 seek 기준: $seekOrigin")
         }
         val target = base + offset
-        if (target < 0) throw SevenZipException("스트림 앞을 가리키는 seek: $target")
+        require(target >= 0) { "스트림 앞을 가리키는 seek: $target" }
         position = target
-        return position
+        position
     }
 
-    override fun read(data: ByteArray): Int {
-        if (data.isEmpty() || position >= length) return 0
+    override fun read(data: ByteArray): Int = failures.record {
+        if (data.isEmpty() || position >= length) return@record 0
         val index = partIndexOf(position)
         val offsetInPart = position - starts[index]
         val count = minOf(data.size.toLong(), starts[index + 1] - position).toInt()
-        val read = try {
-            parts[index].run {
-                seek(offsetInPart)
-                read(data, 0, count)
-            }
-        } catch (e: IOException) {
-            throw SevenZipException("볼륨을 읽지 못했습니다", e)
+        val read = parts[index].run {
+            seek(offsetInPart)
+            read(data, 0, count)
         }
-        if (read <= 0) throw SevenZipException("볼륨이 연 뒤에 줄어들었습니다")
+        if (read <= 0) throw LocalFailureException(FailureReason.ArchiveChangedWhileReading(names[index]))
         position += read
-        return read
+        read
     }
 
     override fun close() = closeAll(parts)
@@ -186,6 +200,35 @@ internal class ConcatenatedInStream(files: List<File>) : IInStream {
      * @return 파일 순번. 길이가 0인 파일은 건너뛴다
      */
     private fun partIndexOf(offset: Long): Int = (0 until parts.size).first { offset < starts[it + 1] }
+}
+
+/**
+ * 7-Zip에 준 입력 스트림이 던진 첫 예외를 보관한다. 라이브러리는 스트림의 예외를 자기 예외로 감싸 다시 던지므로, 호출부가 원래 실패로 알리도록 꺼낸다.
+ * 같은 입력을 다른 형식으로 다시 열 때 비워([clear]), 이전 열기의 실패가 이번 열기의 실패로 보이지 않게 한다.
+ */
+internal class StreamFailureLog {
+
+    /** 비운 뒤 스트림이 처음 던진 예외. 없으면 null. */
+    var first: Throwable? = null
+        private set
+
+    /** 보관한 예외를 비운다. */
+    fun clear() {
+        first = null
+    }
+
+    /**
+     * [block]을 실행하고, 던진 예외를 처음 것만 보관한 뒤 라이브러리 계약대로 SevenZipException으로 넘긴다.
+     * @param block 스트림 본문
+     * @return [block]의 결과
+     */
+    fun <T> record(block: () -> T): T =
+        try {
+            block()
+        } catch (e: Exception) {
+            if (first == null) first = e
+            throw e as? SevenZipException ?: SevenZipException(e.message, e)
+        }
 }
 
 /**

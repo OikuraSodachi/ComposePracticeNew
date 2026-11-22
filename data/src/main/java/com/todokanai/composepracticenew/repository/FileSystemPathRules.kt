@@ -10,7 +10,7 @@ class FileSystemPathRules(fileSystems: Set<PathRuleFileSystem>) : StoragePathRul
     /** 경로별 파일 시스템을 고르는 라우터. */
     private val router = FileSystemRouter(fileSystems)
 
-    override fun getParentPath(path: String): String? = router.resolve(path)?.getParent(path)
-    // 처리할 파일 시스템이 없는 경로는 경로 전체를 이름으로 보여 준다(목록 조회는 실패로 알린다)
-    override fun displayNameOf(path: String): String = router.resolve(path)?.displayName(path) ?: path
+    // 처리할 파일 시스템이 없는 경로는 배선 오류라 라우터가 실패시킨다 — "부모 없음"이나 경로 그대로의 이름으로 덮지 않도록
+    override fun getParentPath(path: String): String? = router.resolve(path).getParent(path)
+    override fun displayNameOf(path: String): String = router.resolve(path).displayName(path)
 }
