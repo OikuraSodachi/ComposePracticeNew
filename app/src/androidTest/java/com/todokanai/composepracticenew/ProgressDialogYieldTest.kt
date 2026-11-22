@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.ui.model.ByteAmountModel
 import com.todokanai.composepracticenew.ui.model.ProgressPhaseModel
 import androidx.activity.ComponentActivity
 import androidx.compose.material3.Text
@@ -38,7 +39,7 @@ class ProgressDialogYieldTest {
     private val shownProgress = MutableStateFlow<ShownProgress?>(
         ShownProgress(
             instanceId = 1,
-            progress = ProgressStateModel(FileOperationType.UPLOAD, ProgressPhaseModel.Counted(30, 30, 100, ""))
+            progress = ProgressStateModel(FileOperationType.UPLOAD, ProgressPhaseModel.Bytes(ByteAmountModel.Known(30, "100 B"), "30 B", 1, 1, null))
         )
     )
 

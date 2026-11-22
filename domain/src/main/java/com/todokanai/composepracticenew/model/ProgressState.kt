@@ -32,6 +32,11 @@ sealed interface ProgressPhase {
         val total: Int,
         val currentName: String
     ) : ProgressPhase {
+        init {
+            // 계약을 어긴 값은 퍼센트 계산(0으로 나누기, 100% 초과)에 닿기 전에 만들 때 실패시킨다
+            require(total >= 1 && processed in 0..total) { "Counted 계약 위반: processed=$processed, total=$total" }
+        }
+
         /** 처리한 항목 수의 비율(0~100 퍼센트). */
         val percent: Int get() = processed * 100 / total
     }
