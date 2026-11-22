@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.compose.listview
 
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
@@ -134,9 +135,13 @@ fun Modifier.dragSelectGesture(
         }
     }
 
-    // isDragSelecting이 true인 동안 실행 — 스크롤 후 currentFingerY 기준으로 범위 재계산
+    // isDragSelecting이 true인 동안 실행 — 스크롤 후 currentFingerY 기준으로 범위 재계산.
+    // false가 되면(손을 뗌) 범위 끝 행이 겹친 하단 버튼에 가려 있을 때 버튼 위로 올린다
     LaunchedEffect(isDragSelecting) {
-        if (!isDragSelecting) return@LaunchedEffect
+        if (!isDragSelecting) {
+            revealRangeEnd(listState, progress)
+            return@LaunchedEffect
+        }
         while (isActive) {
             if (progress.scrollSpeed != 0f && latestFileList.isNotEmpty()) {
                 listState.scrollBy(progress.scrollSpeed)
@@ -249,6 +254,32 @@ internal fun edgeScrollSpeed(y: Float, viewportHeight: Float, edgePx: Float, max
     y > viewportHeight - edgePx ->  maxSpeedPx * edgeProximity(y - (viewportHeight - edgePx), edgePx)
     else                        -> 0f
 }
+
+/**
+ * 드래그를 끝낸 뒤 범위 끝 행(마지막으로 보고한 손가락 아래 행)이 겹친 하단 버튼에 가려 있으면, 버튼 위로 보이도록 목록을 그만큼 스크롤한다.
+ * 드래그 중의 판정은 목록 전체를 기준으로 해 버튼 뒤의 행도 범위 끝이 되므로, 보이지 않는 행이 선택된 채 남지 않게 한다(#521).
+ * 손을 뗀 뒤에 하므로 드래그가 재는 기준(목록 위치·크기)을 바꾸지 않는다(#520). 시작한 항목이 사라져 범위 갱신을 멈춘 드래그는 건드리지 않는다.
+ * @param listState 대상 목록의 스크롤 상태
+ * @param progress 끝난 드래그의 진행 값
+ */
+private suspend fun revealRangeEnd(listState: LazyListState, progress: DragSelectProgress) {
+    if (progress.rangeStopped) return
+    val endKey = progress.lastReportedKey ?: return
+    val layout = listState.layoutInfo
+    val endRow = layout.visibleItemsInfo.firstOrNull { it.key == endKey } ?: return
+    val hidden = hiddenBelowVisibleEnd(endRow, layout.viewportEndOffset, layout.afterContentPadding)
+    if (hidden > 0) listState.animateScrollBy(hidden.toFloat())
+}
+
+/**
+ * 행이 목록 아래쪽 안쪽 여백(겹친 하단 버튼 자리)에 가려진 높이를 구한다.
+ * @param row 행의 배치 정보
+ * @param viewportEndOffset 목록 아래쪽 끝의 배치 좌표
+ * @param afterContentPadding 아래쪽 안쪽 여백
+ * @return 가려진 높이(px). 가려지지 않았으면 0
+ */
+internal fun hiddenBelowVisibleEnd(row: LazyListItemInfo, viewportEndOffset: Int, afterContentPadding: Int): Int =
+    (row.offset + row.size - (viewportEndOffset - afterContentPadding)).coerceAtLeast(0)
 
 // 가장자리 영역에 들어간 깊이를 0~1 배율로 바꾼다 — 영역을 지나 목록 밖까지 가도 1을 넘지 않는다
 private fun edgeProximity(depth: Float, edgePx: Float): Float = (depth / edgePx).coerceIn(0f, 1f)

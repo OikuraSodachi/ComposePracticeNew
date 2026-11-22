@@ -5,7 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
-/** 드래그 선택의 자동 스크롤 속도가 최대 속도를 넘지 않고, 손가락이 행 위에 없어도 범위의 끝점이 가장 가까운 행으로 정해지는지 검증하는 단위 테스트(#521). */
+/** 드래그 선택의 자동 스크롤 속도가 최대 속도를 넘지 않고, 손가락이 행 위에 없어도 범위의 끝점이 가장 가까운 행으로 정해지며, 손을 뗀 뒤 가려진 끝 행을 올릴 높이를 구하는지 검증하는 단위 테스트(#521). */
 class DragAutoScrollTest {
 
     private val viewport = 1000f
@@ -64,6 +64,19 @@ class DragAutoScrollTest {
     @Test
     fun `배치된 행이 없으면 끝점이 없다`() {
         assertNull(dragTargetKeyIn(emptyList(), 0, 10f))
+    }
+
+    @Test
+    fun `아래쪽 여백에 가려진 높이만큼 올려야 한다`() {
+        // 목록 끝 1000, 여백(버튼) 150 → 보이는 끝 850
+        assertEquals(50, hiddenBelowVisibleEnd(row("/a", offset = 800), viewportEndOffset = 1000, afterContentPadding = 150))
+        assertEquals(100, hiddenBelowVisibleEnd(row("/a", offset = 850), viewportEndOffset = 1000, afterContentPadding = 150))
+    }
+
+    @Test
+    fun `보이는 영역 안의 행은 올리지 않는다`() {
+        assertEquals(0, hiddenBelowVisibleEnd(row("/a", offset = 750), viewportEndOffset = 1000, afterContentPadding = 150))
+        assertEquals(0, hiddenBelowVisibleEnd(row("/a", offset = 100), viewportEndOffset = 1000, afterContentPadding = 0))
     }
 
     private fun row(key: String, offset: Int, size: Int = 100) = object : LazyListItemInfo {
