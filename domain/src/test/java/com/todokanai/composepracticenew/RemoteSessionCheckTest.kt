@@ -3,8 +3,10 @@ package com.todokanai.composepracticenew
 import com.todokanai.composepracticenew.model.NoticeMessage
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -29,16 +31,21 @@ class RemoteSessionCheckTest {
     }
 
     @Test
-    fun `세션 유무를 연결 상태가 바뀔 때마다 내보낸다`() = runBlocking {
-        val connection = FakeRemoteConnection(state = RemoteConnectionState.Connected("nas"))
+    fun `세션 유무가 바뀔 때만 차례로 내보낸다`() = runBlocking {
+        val connection = FakeRemoteConnection(state = RemoteConnectionState.Connected("a"))
         val check = RemoteSessionCheckUseCase(connection, notices)
         val states = connection.connectionState as MutableStateFlow
+        val emitted = mutableListOf<Boolean>()
+        // Unconfined로 모아 상태를 넣는 즉시 받는다 — 연달아 바꿔도 중간 값이 합쳐져 사라지지 않도록
+        val collecting = launch(Dispatchers.Unconfined) { check.sessionPresence.toList(emitted) }
 
-        assertTrue(check.sessionPresence.first())
+        states.value = RemoteConnectionState.Connected("b")
         states.value = RemoteConnectionState.Lost
-        assertFalse(check.sessionPresence.first())
         states.value = RemoteConnectionState.Disconnected
-        assertFalse(check.sessionPresence.first())
+        states.value = RemoteConnectionState.Connected("c")
+        collecting.cancel()
+
+        assertEquals(listOf(true, false, true), emitted)
     }
 
     @Test
