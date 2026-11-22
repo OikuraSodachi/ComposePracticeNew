@@ -1,7 +1,6 @@
 package com.todokanai.composepracticenew.repository
 
 import android.util.Log
-import com.todokanai.composepracticenew.data.DataConverter
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ListingRequest
@@ -20,16 +19,14 @@ import java.util.concurrent.atomic.AtomicLong
  * 조회 방법은 생성자 인자로 받으므로 생성할 때 항상 준비돼 있다. 공유는 생성 중에 시작될 수 있으므로(started에 따라),
  * 보유자는 생성 중인 자신에 묶인 함수(`::listFiles` 같은 자기 멤버 참조)가 아니라 이미 생성된 의존 객체의 함수를 넘긴다 —
  * 그래야 생성 중에 바로 조회해도 보유자의 초기화되지 않은 필드를 읽지 않는다.
- * @param converter 파일 목록을 정렬·도메인 모델로 변환하는 DataConverter
- * @param sortPreference 정렬 기준 Flow를 제공하는 SortPreferenceRepository
+ * @param listingProducer 목록 조회 요청으로 목록 조회 상태 StateFlow를 만드는 FileListFlowProducer
  * @param appScope 파일 탐색 Flow를 공유할 애플리케이션 수명 CoroutineScope
  * @param started StateFlow 공유 시작 전략
  * @param initialPath 초기 탐색 경로; null이면 경로 없이 시작한다
  * @param listFiles 경로의 파일과 하위 디렉터리 목록 조회 결과를 반환하는 suspend 함수. 비어 있으면 저장소가 드러내는 항목이 없는 디렉터리다([DirectoryListing.Loaded]의 알려진 한계 참고). 경로가 없거나 디렉터리가 아니거나 읽을 수 없으면 빈 목록이 아니라 실패 결과를 돌려줘야 한다
  */
 internal class DirectoryListingNavigation(
-    converter: DataConverter,
-    sortPreference: SortPreferenceRepository,
+    listingProducer: FileListFlowProducer,
     appScope: CoroutineScope,
     started: SharingStarted,
     initialPath: String?,
@@ -55,7 +52,7 @@ internal class DirectoryListingNavigation(
 
     /** [listingRequest]의 목록 조회 상태. */
     val directoryListing: StateFlow<DirectoryListing> =
-        FileListFlowProducer(converter, sortPreference).produce(
+        listingProducer.produce(
             requests = listingRequest,
             appScope = appScope,
             started = started,
