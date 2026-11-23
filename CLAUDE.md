@@ -49,7 +49,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 업로드 진입·원격 진행 알림으로 들어온 원격 화면은 `FILE_LIST` 위에 쌓여, 루트에서 뒤로가면 로컬 목록으로 돌아온다(업로드 대기 상태 유지).
 - 압축 파일 내용 보기(`ARCHIVE_VIEW`)에서는 원격 진행 알림을 눌러도 원격 화면으로 가지 않는다(진행 다이얼로그만 뜬다) — 내용 보기 위에 원격 화면을 쌓지 않는다.
 - 다운로드 진입은 원격 화면을 꺼내고 로컬 목록으로 간다.
-- 압축 파일 내용 보기로의 이동은 `FILE_LIST`의 back stack entry가 RESUMED일 때만 실행한다(#537) — 연타로 `ARCHIVE_VIEW`가 두 번 쌓이지 않도록. 화면 전환 애니메이션 동안(entry가 STARTED)에 연 요청도 버려진다(다시 누르면 열린다).
+- 연타(떠나는 입력은 떠나는 동안 받지 않는다 — 전역 `rules/leaving-input.md`)의 이 앱 적용(#535): 사용자 입력으로 화면을 떠나는 `navigate`·`popBackStack`은 실행 직전에 그 destination의 entry를 `isResumed`로 확인한다(압축 파일 내용 보기 이동 #537 포함). 화면 전환 애니메이션 동안의 입력도 버려진다(다시 누르면 된다). 다이얼로그 확인은 `GuardedConfirmButton`이 막는다. 확인하지 않는 이동: 세션 없음으로 원격 화면 닫기(`onNoSession`), 비밀번호 질문 취소로 내용 보기 닫기(`closeRequest`) — 버리면 화면이 상태와 맞지 않게 남는다. 원격 진행 알림 클릭은 화면 밖 입력이라 지금 route로 판정한다. 열 수 없는 항목을 누를 때마다 거부를 알리는 것(#350)은 연타해도 맞는 결과다.
 - 연결된 원격 세션이 없어 원격 화면이 나갈 때도 루트 뒤로가기와 같이 원격 화면만 닫는다(#492) — 나가는 곳은 위 백스택 모양이 정한다.
 
 ### UI Modes (`ui/model/SelectMode`)

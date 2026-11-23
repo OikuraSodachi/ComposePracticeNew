@@ -70,7 +70,8 @@ fun AppNavHost(
         mainViewModel.exitEvent.collect { onExitApp() }
     }
 
-    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 원격 화면으로 갈 수 있는 화면이면 이동한다
+    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 원격 화면으로 갈 수 있는 화면이면 이동한다.
+    // 알림은 화면 밖 입력이라 RESUMED 대신 지금 route로 판정한다 — 연타해도 첫 이동으로 지금 화면이 원격 화면이 되어 두 번째는 버려진다
     LaunchedEffect(Unit) {
         progressDialogViewModel.remoteProgressNavigation.collect {
             if (canNavigateToRemoteFrom(navController.currentDestination?.route)) {
@@ -84,11 +85,12 @@ fun AppNavHost(
 
     CompositionLocalProvider(LocalOpenDialogRegistry provides openDialogRegistry) {
         NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
-            composable(NavDestinations.STORAGE) {
+            composable(NavDestinations.STORAGE) { entry ->
                 StorageFrag(
                     modifier = Modifier,
-                    exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
-                    exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
+                    // 저장소 화면이 RESUMED가 아니면(이미 떠나는 중이면) 버린다 — 연타로 목록 화면이 두 번 쌓이지 않도록(#535)
+                    exitStorageFrag = { if (isResumed(entry)) navController.navigate(NavDestinations.FILE_LIST) },
+                    exitToRemoteFileFrag = { if (isResumed(entry)) navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
                     onExit = mainViewModel::exit
                 )
             }
@@ -101,12 +103,12 @@ fun AppNavHost(
                 composable(NavDestinations.FILE_LIST) { entry ->
                     FileListDestination(navController, mainViewModel, entry)
                 }
-                composable(NavDestinations.REMOTE_FILE_LIST) {
-                    RemoteFileListDestination(navController, mainViewModel)
+                composable(NavDestinations.REMOTE_FILE_LIST) { entry ->
+                    RemoteFileListDestination(navController, mainViewModel, entry)
                 }
                 // 그래프 안에 둔다 — 내용 보기에서 돌아와도 그래프의 로컬 선택·작업 모드가 남도록
-                composable(NavDestinations.ARCHIVE_VIEW) {
-                    ArchiveViewDestination(navController)
+                composable(NavDestinations.ARCHIVE_VIEW) { entry ->
+                    ArchiveViewDestination(navController, entry)
                 }
             }
         }
@@ -146,9 +148,12 @@ private fun canNavigateToRemoteFrom(route: String?): Boolean =
 
 /**
  * [owner]의 화면이 입력을 받는 중인지(RESUMED) 판정한다.
- * `navigate()`를 부르면 떠나는 화면의 back stack entry는 그 안에서 곧바로 RESUMED를 벗어나므로, 그 뒤에 처리되는 이동 요청을 버리는 데 쓴다(#537).
- * [LifecycleOwner]로 받는다 — navigation 2.5.1의 [NavBackStackEntry]에서는 `lifecycle`이 private 필드로 가려진다.
- * @param owner 이동 요청을 처리하는 destination의 back stack entry
+ * 사용자 입력으로 화면을 떠나는 이동(navigate·popBackStack)은 실행하기 직전에 이것으로 확인하고, 아니면 버린다(#535) —
+ * `navigate()`·`popBackStack()`을 부르면 떠나는 화면의 back stack entry는 그 안에서 곧바로 RESUMED를 벗어나므로, 연타한 두 번째 이동이 버려진다.
+ * 화면 전환 애니메이션 동안에도 entry가 RESUMED가 아니므로 그 사이의 입력도 버려진다(다시 누르면 된다).
+ * 전환이 중간에 끊겨도 entry는 STARTED에 남지 않는다 — navigation 2.8.9 NavHost는 전환이 멈추거나 화면이 사라질 때 보이는 entry를 모두 전환 완료로 표시한다(바이트코드로 확인).
+ * 사용자 입력이 아닌 상태 변화로 떠나는 이동(세션 없음, 비밀번호 질문 취소로 끝난 내용 보기)은 확인하지 않는다 — 버리면 화면이 그 상태와 맞지 않게 남는다.
+ * @param owner 이동을 실행하는 destination의 back stack entry
  * @return RESUMED이면 true
  */
 private fun isResumed(owner: LifecycleOwner): Boolean =
@@ -189,11 +194,13 @@ private fun FileListDestination(
         )
     }
     /** 로컬 화면의 전송 콜백 묶음. */
-    // coordinator·navController를 키로 — 위와 같은 이유로 이 둘이 같은 동안 유지한다
-    val transferActions = remember(coordinator, navController) {
+    // coordinator·navController·entry를 키로 — 위와 같은 이유로 이 셋이 같은 동안 유지한다
+    val transferActions = remember(coordinator, navController, entry) {
         LocalTransferActions(
             onConfirmDownload = coordinator::confirmDownload,
             onEnterUploadMode = onEnterUploadMode@{
+                // 이미 떠나는 중이면 업로드 모드에 다시 들어가지 않고 버린다(#535)
+                if (!isResumed(entry)) return@onEnterUploadMode
                 // 넘길 선택이 없거나 연결된 원격 세션이 없으면(거부를 알림) 업로드 확인 단계가 아니므로 원격 화면으로 가지 않는다
                 if (!coordinator.enterUploadMode()) return@onEnterUploadMode
                 // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다 —
@@ -212,11 +219,7 @@ private fun FileListDestination(
     // 목록 행·검색 결과에서 연 압축 파일을 내용 보기 화면으로 띄운다. 두 ViewModel은 이 destination 동안 같으므로 그 둘을 키로 한 번씩만 수집한다
     LaunchedEffect(viewModel, searchViewModel) {
         merge(viewModel.itemOpener.archiveViewRequests, searchViewModel.itemOpener.archiveViewRequests).collect { path ->
-            // 이 화면이 RESUMED가 아니면(이미 다른 화면으로 떠나는 중이면) 요청을 버린다 — 연타로 내용 보기가 두 번 쌓이지 않도록(#537).
-            // 화면 전환 애니메이션 동안에도 entry가 RESUMED가 아니므로, 그 사이에 연 요청도 버려진다(다시 누르면 열린다)
-            // 확인하지 못한 경우: 이 화면에 들어오는 전환이 중간에 끊기면(들어오자마자 뒤로가기) entry가 STARTED에 남는지는 실기기로 확인하지 않았다.
-            // navigation 2.5.1 NavHost는 Crossfade 자식이 dispose될 때 보이는 entry를 모두 전환 완료로 표시하므로 남지 않을 것으로 보지만,
-            // 남는다면 다른 화면으로 이동하기 전까지 압축 파일이 열리지 않는다(PR #538 리뷰)
+            // 이 화면이 RESUMED가 아니면(이미 다른 화면으로 떠나는 중이면) 요청을 버린다 — 연타로 내용 보기가 두 번 쌓이지 않도록(#537)
             if (!isResumed(entry)) return@collect
             navController.navigate(NavDestinations.archiveView(path))
         }
@@ -242,12 +245,14 @@ private fun FileListDestination(
             // 버튼은 세션이 있을 때만 눌리지만, 비활성이 화면에 반영되기 전에 끊긴 뒤 누른 경우에도 아무것도 하지 않는다(#523) —
             // 세션 없이 원격 화면으로 가면 그 화면이 스스로 닫히며 그래프 밖(STORAGE)까지 나가 로컬 선택·작업 모드가 사라진다
             if (!coordinator.hasRemoteSession()) return@onSwitchToRemote
+            // 이미 떠나는 중이면 버린다(#535)
+            if (!isResumed(entry)) return@onSwitchToRemote
             navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
                 // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
                 popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
             }
         },
-        navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
+        navigateToStorage = { if (isResumed(entry)) navController.popBackStack(NavDestinations.STORAGE, false) },
         onExit = mainViewModel::exit,
         viewModel = viewModel,
         searchViewModel = searchViewModel
@@ -256,16 +261,18 @@ private fun FileListDestination(
 
 /** ARCHIVE_VIEW destination의 UI와 상태를 담당한다. 루트에서 뒤로가거나 비밀번호 질문에서 취소하면 이 화면만 닫는다. */
 @Composable
-private fun ArchiveViewDestination(navController: NavHostController) {
+private fun ArchiveViewDestination(navController: NavHostController, entry: NavBackStackEntry) {
     val viewModel: ArchiveViewViewModel = hiltViewModel()
 
-    // Unit 키 — 이 destination 동안 1회만 수집. 비밀번호 질문에서 취소하면 화면을 닫는다
+    // Unit 키 — 이 destination 동안 1회만 수집. 비밀번호 질문에서 취소하면 화면을 닫는다.
+    // RESUMED를 확인하지 않는다 — 취소로 목록 읽기가 이미 끝났으므로, 버리면 읽지 못한 내용 보기가 남는다
     LaunchedEffect(Unit) {
         viewModel.closeRequest.collect { navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
     }
 
     BackHandler {
-        viewModel.onBackPressed { navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
+        // 이미 떠나는 중이면 버린다(#535)
+        viewModel.onBackPressed { if (isResumed(entry)) navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
     }
 
     ArchiveViewFrag(modifier = Modifier, viewModel = viewModel)
@@ -275,7 +282,8 @@ private fun ArchiveViewDestination(navController: NavHostController) {
 @Composable
 private fun RemoteFileListDestination(
     navController: NavHostController,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    entry: NavBackStackEntry
 ) {
     val coordinator = rememberGraphCoordinator(navController)
     val remoteViewModel: RemoteFileListViewModel = hiltViewModel()
@@ -288,7 +296,8 @@ private fun RemoteFileListDestination(
     val uploadChecking by coordinator.uploadChecking.collectAsStateWithLifecycle()
 
     BackHandler {
-        remoteViewModel.onBackPressed { navController.popBackStack() }
+        // 이미 떠나는 중이면 버린다(#535) — 루트에서 뒤로가기를 연타하면 아래 화면까지 꺼지지 않도록
+        remoteViewModel.onBackPressed { if (isResumed(entry)) navController.popBackStack() }
     }
 
     RemoteFileListFrag(
@@ -302,7 +311,9 @@ private fun RemoteFileListDestination(
         addToList = coordinator::addToRemoteList,
         removeFromList = coordinator::removeFromRemoteList,
         onReplaceSelection = coordinator::setRemoteSelectedList,
-        onSwitchToLocal = {
+        onSwitchToLocal = onSwitchToLocal@{
+            // 이미 떠나는 중이면 버린다(#535)
+            if (!isResumed(entry)) return@onSwitchToLocal
             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
                 navController.navigate(NavDestinations.FILE_LIST) {
                     // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
@@ -311,6 +322,8 @@ private fun RemoteFileListDestination(
             }
         },
         onEnterDownloadMode = onEnterDownloadMode@{
+            // 이미 떠나는 중이면 다운로드 모드에 다시 들어가지 않고 버린다(#535)
+            if (!isResumed(entry)) return@onEnterDownloadMode
             // 넘길 선택이 없으면 다운로드 확인 단계가 아니므로 로컬 화면으로 가지 않는다
             if (!coordinator.enterDownloadMode()) return@onEnterDownloadMode
             if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
@@ -321,9 +334,10 @@ private fun RemoteFileListDestination(
         },
         onConfirmUpload = coordinator::confirmUpload,
         // 원격 화면만 닫는다(루트 뒤로가기와 같은 결과) — 저장소까지 거슬러 나가면 아래에 쌓인 로컬 목록과 그래프의 로컬 선택까지 사라진다(#492).
-        // 혼자 있던 원격 화면이면 남은 그래프 항목도 함께 꺼져 저장소로 간다
+        // 혼자 있던 원격 화면이면 남은 그래프 항목도 함께 꺼져 저장소로 간다.
+        // RESUMED를 확인하지 않는다 — 사용자 입력이 아니라 세션이 없어진 결과이므로, 버리면 세션 없는 원격 화면이 남는다
         onNoSession = { navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, true) },
-        navigateToStorage = { navController.popBackStack(NavDestinations.STORAGE, false) },
+        navigateToStorage = { if (isResumed(entry)) navController.popBackStack(NavDestinations.STORAGE, false) },
         onExit = mainViewModel::exit,
         viewModel = remoteViewModel
     )
