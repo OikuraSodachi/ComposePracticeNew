@@ -74,6 +74,7 @@ class ArchiveViewViewModel @Inject constructor(
     /** 질문 id 발급기. 다시 물을 때 다이얼로그를 새로 그려 앞서 입력한 값이 남지 않도록 질문마다 새 id를 준다. */
     private val questionIds = AtomicLong()
 
+    /** 화면 닫기 요청을 화면이 수집할 때까지 하나만 보관하는 채널. 연속 요청은 한 번의 닫기로 합쳐진다. */
     private val _closeRequest = Channel<Unit>(Channel.CONFLATED)
 
     /** 화면을 닫으라는 요청(비밀번호 질문에서 취소). */
