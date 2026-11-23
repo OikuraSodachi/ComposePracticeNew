@@ -42,10 +42,12 @@ class CorruptionResetTest {
             scope = storeScope,
             produceFile = { file }
         )
-        val store = PreferencesStore(dataStore, storeScope, failures, corruptionReset)
+        // 공유 수집이 생성자에서 시작해, 교체 뒤의 읽기 성공으로 초기화를 알린다
+        PreferencesStore(dataStore, storeScope, failures, corruptionReset)
 
         withTimeout(5_000) {
-            assertEquals(emptyPreferences(), store.data.first())
+            // 기본값으로 대신하는 PreferencesStore.data가 아니라 DataStore를 직접 읽는다 — 읽기에 실패하면 빈 설정 대신 예외로 드러나도록
+            assertEquals(emptyPreferences(), dataStore.data.first())
             assertEquals(PreferenceFailure.RESET, failures.pending.first { it.isNotEmpty() }.single().content)
         }
     }
