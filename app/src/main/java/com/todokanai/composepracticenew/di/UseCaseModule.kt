@@ -39,6 +39,8 @@ import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LoadStorageListUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
+import com.todokanai.composepracticenew.usecase.ArchiveViewUseCase
+import com.todokanai.composepracticenew.repository.ArchiveContentRepository
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
 import com.todokanai.composepracticenew.usecase.PreferenceFailureUseCase
 import com.todokanai.composepracticenew.usecase.ProgressUseCase
@@ -65,6 +67,9 @@ object UseCaseModule {
     @Provides
     fun provideOpenFileUseCase(nav: FileNavigatorRepository, launcher: FileLauncher, notices: OperationNoticeReporter) =
         OpenFileUseCase(nav, launcher, notices)
+
+    @Provides
+    fun provideArchiveViewUseCase(repo: ArchiveContentRepository) = ArchiveViewUseCase(repo)
 
     @Provides
     fun provideFileInfoUseCase(repo: FileInfoRepository, paths: StoragePathRules) =

@@ -6,8 +6,8 @@ package com.todokanai.composepracticenew.model
  * @param id DataStore에 저장되는 문자열 식별자(기존 저장값과 호환되도록 변경 금지). 저장 전용이며 UI 표시·선택 판별에 쓰지 않는다
  * @param comparator 이 모드의 정렬 규칙
  */
-enum class SortMode(val id: String, val comparator: Comparator<FileHolderItem>) {
-    BY_DEFAULT("BY_DEFAULT", compareBy<FileHolderItem> { !it.isDirectory }.thenBy { it.name }),
+enum class SortMode(val id: String, val comparator: Comparator<SortableEntry>) {
+    BY_DEFAULT("BY_DEFAULT", compareBy<SortableEntry> { !it.isDirectory }.thenBy { it.name }),
     BY_NAME_ASCENDING("BY_NAME_ASCENDING", compareBy { it.name }),
     BY_NAME_DESCENDING("BY_NAME_DESCENDING", compareByDescending { it.name }),
     // 크기가 없는 항목(디렉터리·크기 미확인)은 오름차순에서 앞, 내림차순에서 뒤에 둔다
@@ -29,4 +29,4 @@ enum class SortMode(val id: String, val comparator: Comparator<FileHolderItem>) 
 }
 
 /** '종류' 정렬에 쓰는 확장자. 확장자가 없는 항목은 빈 문자열이라 오름차순에서 앞에 온다. */
-private fun FileHolderItem.extension(): String = FileNameParts.extensionOf(name) ?: ""
+private fun SortableEntry.extension(): String = FileNameParts.extensionOf(name) ?: ""

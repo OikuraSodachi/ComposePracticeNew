@@ -37,6 +37,8 @@ import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 import com.todokanai.composepracticenew.model.FileHolderItem as DomainFileHolderItem
+import com.todokanai.composepracticenew.ViewableArchives
+import com.todokanai.composepracticenew.usecase.ArchiveViewUseCase
 
 /**
  * [FileSearchViewModel]이 검색어 입력이 멈춘 뒤에만 찾고, 찾는 대로 결과를 더해 다 훑으면 끝났음을 표시하며,
@@ -56,6 +58,8 @@ class FileSearchViewModelTest {
     private val nav = RecordingNavigator()
     /** 외부 앱으로 연 파일 경로를 기록하는 파일 열기. */
     private val launcher = RecordingFileLauncher()
+    /** 내용 보기로 열 압축 파일. */
+    private val archives = ViewableArchives()
     private lateinit var viewModel: FileSearchViewModel
 
     /** 검색 결과로 쓸 폴더. */
@@ -70,7 +74,7 @@ class FileSearchViewModelTest {
             override val storageList = volumes
             override fun load() {}
         }
-        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav, nav), OpenFileUseCase(nav, launcher, RecordingOperationNotices()))
+        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav, nav), OpenFileUseCase(nav, launcher, RecordingOperationNotices()), ArchiveViewUseCase(archives))
         viewModel.open()
     }
 
@@ -205,6 +209,18 @@ class FileSearchViewModelTest {
         viewModel.onResultClick(result, SelectMode.Default)
 
         assertEquals(listOf(song.path), launcher.launched)
+        assertEquals(2, viewModel.state.value?.results?.size)
+    }
+
+    @Test
+    fun `내용을 볼 수 있는 압축 파일 결과를 누르면 외부 앱 대신 내용 보기를 요청하고 검색은 그대로 둔다`() {
+        val result = searchedResults().first { !it.isDirectory }
+        archives.viewable += result.path
+
+        viewModel.onResultClick(result, SelectMode.Default)
+
+        assertEquals(result.path, runBlocking { viewModel.itemOpener.archiveViewRequests.first() })
+        assertEquals(emptyList<String>(), launcher.launched)
         assertEquals(2, viewModel.state.value?.results?.size)
     }
 

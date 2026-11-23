@@ -10,8 +10,8 @@ package com.todokanai.composepracticenew.model
  */
 data class FileHolderItem(
     val path: String,
-    val isDirectory: Boolean,
-    val name: String,
-    val sizeBytes: Long?,
-    val lastModifiedMillis: Long
-)
+    override val isDirectory: Boolean,
+    override val name: String,
+    override val sizeBytes: Long?,
+    override val lastModifiedMillis: Long
+) : SortableEntry

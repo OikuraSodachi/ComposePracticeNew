@@ -19,6 +19,7 @@ import com.todokanai.composepracticenew.compose.presets.image.ImageHolder
 import com.todokanai.composepracticenew.myobjects.AppConstants
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.FileType
+import com.todokanai.composepracticenew.ui.thumbnail.Thumbnail
 
 /** 숨김 항목(이름이 점으로 시작)의 아이콘 불투명도. placeholder와 불러온 썸네일 모두 흐리게 하고 텍스트는 그대로 둔다. */
 private const val HIDDEN_ICON_ALPHA = 0.4f
@@ -32,14 +33,33 @@ private const val HIDDEN_ICON_ALPHA = 0.4f
  */
 @Composable
 fun RowScope.FileIconAndName(item: FileHolderItem, typeIcons: Map<FileType, Painter>, subtitle: @Composable () -> Unit) {
+    FileIconAndName(
+        name = item.name,
+        icon = typeIcons.getValue(item.fileType),
+        thumbnail = item.thumbnail,
+        isHidden = item.isHidden,
+        subtitle = subtitle
+    )
+}
+
+/**
+ * 파일 행의 왼쪽 부분을 표시 값으로 그린다. 파일 목록 항목이 아닌 행(압축 파일 안의 항목)도 같은 모양을 쓰도록 둔다.
+ * @param name 항목 이름
+ * @param icon 썸네일이 없거나 불러오기 전에 보이는 placeholder 아이콘
+ * @param thumbnail 불러올 썸네일의 요청 모델. 없으면 null
+ * @param isHidden 숨김 항목이면 true — 아이콘을 흐리게 한다
+ * @param subtitle 이름 아래 줄을 그리는 컴포저블
+ */
+@Composable
+fun RowScope.FileIconAndName(name: String, icon: Painter, thumbnail: Thumbnail?, isHidden: Boolean, subtitle: @Composable () -> Unit) {
     ImageHolder(
         modifier = Modifier
             .width(AppConstants.THUMBNAIL_SIZE_DP)
             .fillMaxHeight()
             .padding(5.dp)
-            .alpha(if (item.isHidden) HIDDEN_ICON_ALPHA else 1f),
-        data = item.thumbnail,
-        icon = typeIcons.getValue(item.fileType)
+            .alpha(if (isHidden) HIDDEN_ICON_ALPHA else 1f),
+        data = thumbnail,
+        icon = icon
     )
 
     Column(
@@ -49,7 +69,7 @@ fun RowScope.FileIconAndName(item: FileHolderItem, typeIcons: Map<FileType, Pain
         verticalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
-            text = item.name,
+            text = name,
             fontSize = 18.sp,
             maxLines = 1,
             fontWeight = FontWeight.Bold,

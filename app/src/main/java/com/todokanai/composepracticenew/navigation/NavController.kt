@@ -18,6 +18,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.UploadCheckingDialog
+import com.todokanai.composepracticenew.compose.frag.ArchiveViewFrag
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
@@ -28,7 +29,9 @@ import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistr
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
+import com.todokanai.composepracticenew.viewmodel.ArchiveViewViewModel
 import com.todokanai.composepracticenew.viewmodel.ChildCountViewModel
+import kotlinx.coroutines.flow.merge
 import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
@@ -97,6 +100,10 @@ fun AppNavHost(
                 }
                 composable(NavDestinations.REMOTE_FILE_LIST) {
                     RemoteFileListDestination(navController, mainViewModel)
+                }
+                // 그래프 안에 둔다 — 내용 보기에서 돌아와도 그래프의 로컬 선택·작업 모드가 남도록
+                composable(NavDestinations.ARCHIVE_VIEW) {
+                    ArchiveViewDestination(navController)
                 }
             }
         }
@@ -179,6 +186,13 @@ private fun FileListDestination(
         viewModel.onBackPressed()
     }
 
+    // 목록 행·검색 결과에서 연 압축 파일을 내용 보기 화면으로 띄운다. 두 ViewModel은 이 destination 동안 같으므로 그 둘을 키로 한 번씩만 수집한다
+    LaunchedEffect(viewModel, searchViewModel) {
+        merge(viewModel.itemOpener.archiveViewRequests, searchViewModel.itemOpener.archiveViewRequests).collect { path ->
+            navController.navigate(NavDestinations.archiveView(path))
+        }
+    }
+
     FileListFrag(
         modifier = Modifier,
         selectMode = localSelectMode,
@@ -209,6 +223,23 @@ private fun FileListDestination(
         viewModel = viewModel,
         searchViewModel = searchViewModel
     )
+}
+
+/** ARCHIVE_VIEW destination의 UI와 상태를 담당한다. 루트에서 뒤로가거나 비밀번호 질문에서 취소하면 이 화면만 닫는다. */
+@Composable
+private fun ArchiveViewDestination(navController: NavHostController) {
+    val viewModel: ArchiveViewViewModel = hiltViewModel()
+
+    // Unit 키 — 이 destination 동안 1회만 수집. 비밀번호 질문에서 취소하면 화면을 닫는다
+    LaunchedEffect(Unit) {
+        viewModel.closeRequest.collect { navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
+    }
+
+    BackHandler {
+        viewModel.onBackPressed { navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
+    }
+
+    ArchiveViewFrag(modifier = Modifier, viewModel = viewModel)
 }
 
 /** REMOTE_FILE_LIST destination의 UI와 상태를 담당한다. */

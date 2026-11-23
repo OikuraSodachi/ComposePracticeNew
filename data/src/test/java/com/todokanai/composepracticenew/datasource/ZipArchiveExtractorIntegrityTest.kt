@@ -49,11 +49,11 @@ class ZipArchiveExtractorIntegrityTest {
     }
 
     @Test
-    fun `0바이트 파일은 빈 아카이브로 풀지 않고 크기 산정과 압축 해제 모두 IOException으로 멈춘다`() {
+    fun `0바이트 파일은 빈 아카이브로 풀지 않고 목록 읽기와 압축 해제 모두 IOException으로 멈춘다`() {
         // zip4j는 0바이트 파일을 새로 만들 빈 아카이브로 열어, 확인하지 않으면 항목 없는 성공으로 끝난다
         val zip = File(dir, "empty.zip").apply { createNewFile() }
 
-        assertThrows(IOException::class.java) { ZipArchiveExtractor().measure(zip.path, unexpectedPasswordSession()) }
+        assertThrows(IOException::class.java) { ZipArchiveExtractor().entries(zip.path, unexpectedPasswordSession()) }
         assertThrows(IOException::class.java) { extract(zip) }
     }
 

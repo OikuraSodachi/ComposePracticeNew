@@ -73,7 +73,7 @@ SelectMode.Upload                         — 원격 화면, 업로드 목적지
 ### File Operations
 
 - 로컬: `LocalFileOperationUseCase` → `FileActionRepository`(`FileActionRepositoryImpl`). 구현은 작업 단위 클래스(`LocalTreeTransfer`, `LocalArchiveCompression` + 형식별 `ArchiveCompressor`(@IntoMap, 키는 domain `ArchiveFormat`), `LocalArchiveExtraction` + 형식별 `ArchiveExtractor`(@IntoSet, 항목 생성·건너뜀 집계는 공통 `ArchiveEntryWriter`로만. ZIP은 zip4j, RAR·7z·ISO는 7-Zip-JBinding `SevenZipArchiveExtractor`의 형식별 인스턴스 — 이름 규칙과 받는 형식만 다르다. 형식은 자동 판별하지 않고 받는 형식을 순서대로 지정해 연다 — ISO는 UDF를 먼저 연다), `LocalEntryMutator`)로 나뉘고, `FileActionRepositoryImpl`이 이들에 직접 맡긴다(사이에 data source 인터페이스를 두지 않는다 — 교체 지점은 `FileActionRepository` 바인딩).
-- 압축 비밀번호(AES-256 압축, 압축 해제의 비밀번호 질문·확인)와 분할 압축 해제(시작 볼륨, 볼륨 묶기, 빠진 볼륨)는 `.claude/rules/archive.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.
+- 압축 비밀번호(AES-256 압축, 압축 해제의 비밀번호 질문·확인)와 분할 압축 해제(시작 볼륨, 볼륨 묶기, 빠진 볼륨), 압축 파일 내용 보기(`ArchiveViewUseCase` → `ArchiveContentRepository`, 화면 `ARCHIVE_VIEW`)는 `.claude/rules/archive.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.
 - 원격: `RemoteFileOperationUseCase` → `RemoteFileTransferRepository` / `RemoteFileMutationRepository` (FTP 구현: `FtpRepositoryImpl`). 원격 작업은 실행을 요청할 때(보호를 기다리기 전에) 지금의 원격 세션(`RemoteSession`, `RemoteSessionProvider`)에 묶이며, 그 뒤 다른 서버에 접속해도 고른 세션에서만 실행된다(#436). 진행 표시가 있는 원격 작업은 작업마다 자기 연결을 연다(`.claude/rules/ftp.md`의 세션 단위).
 - 실행·진행 보고·완료/실패 처리는 `FileOperationOrchestrator`가 담당하며, 작업 인스턴스 ID도 여기서만 발급한다.
 - 진행 표시가 있는 작업의 저장소 계약은 그 작업의 대상 전체를 한 번에 받는다. 보고하는 진행 단계(`ProgressPhase`)는 구현이 계산한 퍼센트·전체 수라 부르는 쪽이 대상별 보고를 합칠 수 없고, 폴더 안쪽 수는 구현만 알기 때문이다. 대상 하나를 받는 계약을 UseCase가 반복해 부르면 진행이 대상마다 0%로 돌아간다(로컬 삭제 #355). 기존 계약에 진행 표시를 붙일 때도 받는 범위를 함께 바꾼다.
