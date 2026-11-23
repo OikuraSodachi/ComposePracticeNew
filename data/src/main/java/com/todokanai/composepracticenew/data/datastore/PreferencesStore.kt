@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.model.PreferenceFailure
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -30,7 +29,6 @@ import javax.inject.Singleton
  * Preferences DataStore 접근의 실행 위치·재시도·실패 정책을 한 곳에서 정의하는 래퍼.
  * 파일 손상은 [corruptionReset]의 핸들러가 빈 설정으로 바꾸며, 교체가 쓰였음은 이 클래스의 읽기·편집 성공으로 확인해 알린다. 이 클래스는 I/O 실패를 처리한다 —
  * [data]의 읽기 실패는 기본값으로 대신하며 다시 읽고, 저장 실패는 이전 값을 남긴다. 어느 쪽이든 결과를 받는 호출부가 없으므로 [failures]로 알려, 실패가 기본값이나 "바뀌지 않음"으로만 보이지 않게 한다.
- * [readOnce]의 읽기 실패는 null로 호출부에 돌려준다.
  * @param dataStore 앱 전역에서 단일 인스턴스로 제공되는 Preferences DataStore
  * @param appScope 설정을 읽는 공유 수집과 저장 코루틴을 실행할 애플리케이션 수명 CoroutineScope
  * @param failures 읽기·저장 실패를 화면에 알리기 위해 넣는 알림 목록
@@ -50,7 +48,7 @@ class PreferencesStore @Inject constructor(
     }
 
     /**
-     * [readOnce]·편집이 성공한 횟수. 읽기 실패 뒤 재시도를 기다리는 [data]의 공유 수집은 이 값이 늘면 타이머를 기다리지 않고 다시 읽는다 —
+     * 편집이 성공한 횟수. 읽기 실패 뒤 재시도를 기다리는 [data]의 공유 수집은 이 값이 늘면 타이머를 기다리지 않고 다시 읽는다 —
      * 성공했다면 DataStore가 이미 회복해 있어, 타이머가 끝날 때까지 이전 값을 보여 줄 이유가 없다.
      * [data]보다 먼저 선언한다 — 공유 수집이 생성자에서 시작해 이 값을 읽는다.
      */
@@ -60,7 +58,7 @@ class PreferencesStore @Inject constructor(
      * 설정 값의 Flow. 앱 수명 동안 DataStore를 한 곳에서 수집해 모든 소비자가 나눠 받으며, 새 소비자는 마지막 값을 바로 받는다.
      * DataStore의 읽기 실패는 소비자마다가 아니라 저장소 하나의 상태(캐시)이므로, 실패 처리도 이 수집 하나에서 한다 — 소비자 수와 관계없이 실패를 실패 구간마다 한 번 알린다.
      * 읽기 IOException 시 실패 구간의 첫 실패에만 빈 Preferences(= 기본값)를 방출하고 [PreferenceFailure.READ]를 알린 뒤 다시 수집해, 회복하면 실제 값을 계속 방출하고 아직 알리지 않은 [PreferenceFailure.READ]를 뺀다 —
-     * 다시 수집하지 않으면 실패한 수집이 끝나 이후 저장이 반영되지 않는다. 다시 수집은 지수 백오프 타이머가 끝나거나, 그 전에 [readOnce]·편집이 성공하면 바로 한다.
+     * 다시 수집하지 않으면 실패한 수집이 끝나 이후 저장이 반영되지 않는다. 다시 수집은 지수 백오프 타이머가 끝나거나, 그 전에 편집이 성공하면 바로 한다.
      * 실패 구간은 마지막 읽기 성공부터 센다. 회복한 뒤 다시 실패하면(저장 실패 뒤의 다시 읽기가 실패하면 DataStore는 열린 수집도 끝낸다) 첫 실패와 같이 처리하고 대기도 처음부터 한다.
      * IOException이 아닌 예외는 구현 오류로 보고 공유 수집을 끝내 [appScope]로 전파한다(kotlinx `shareIn`: 상류 예외는 구독자가 아니라 공유를 실행한 스코프가 처리한다).
      */
@@ -91,70 +89,22 @@ class PreferencesStore @Inject constructor(
     }.shareIn(appScope, SharingStarted.Eagerly, replay = 1)
 
     /**
-     * 지금의 설정 값을 한 번 읽는다. [data]와 달리 읽지 못하면 기본값으로 대신하지 않는다 — 저장된 값이 없는 것과 읽지 못한 것을 구별해야 하는 호출부를 위해.
-     * 공유된 [data]의 마지막 값이 아니라 DataStore를 직접 읽는다 — [data]가 재시도를 기다리는 중이어도 지금 읽을 수 있는지를 돌려주기 위해.
-     * 읽기 실패는 결과로 받는 호출부가 사용자에게 알리므로 [failures]로 알리지 않는다 — [PreferenceFailure.READ]는 기본값으로 대신해 결과로 드러나지 않는 [data]의 실패만 뜻한다.
-     * 먼저 호출한 [launchEdit]가 반영되거나 저장 실패로 끝난 뒤에 읽는다 — 반영을 기다리는 편집이 "저장된 값 없음"으로 보이지 않도록. 이후에 호출한 편집은 기다리지 않는다.
-     * @return 설정 값. 읽기 IOException이면 null
+     * 반영을 기다리는 편집 대기열. [launchEdit]가 호출 스레드에서 바로 넣고, [appScope]의 소비자 코루틴 하나가 넣은 순서대로 꺼내 반영한다.
+     * 용량 제한이 없어 소비자가 살아 있는 동안 넣기가 일시 중단되거나 실패하지 않는다.
+     * 소비자가 끝나면 그 원인으로 닫혀(#211) 이후 [launchEdit]가 넣기에서 그 원인으로 실패한다 — 받기만 하고 반영되지 않는 저장이 남지 않도록. 이미 넣었지만 처리하지 못한 편집은 반영되지 않는다.
      */
-    suspend fun readOnce(): Preferences? {
-        awaitEarlierEdits()
-        return try {
-            dataStore.data.first().also { onAccessSucceeded() }
-        } catch (_: IOException) {
-            null
-        }
-    }
-
-    /**
-     * [pendingWork]에 넣는 일. 소비자 코루틴이 넣은 순서대로 처리하므로, 쓰기와 그 뒤의 읽기가 이 순서 하나로 정해진다.
-     */
-    private sealed interface PendingWork {
-        /**
-         * DataStore에 반영할 편집.
-         * @param transform 저장할 값을 MutablePreferences에 기록하는 편집 람다
-         */
-        class Edit(val transform: (MutablePreferences) -> Unit) : PendingWork
-
-        /**
-         * 앞서 넣은 편집이 모두 끝났음을 알리는 표시. 소비자가 여기에 닿으면 [reached]를 완료한다.
-         * @param reached 앞선 편집이 모두 반영되거나 실패로 끝났을 때 완료되는 신호
-         */
-        class Barrier(val reached: CompletableDeferred<Unit>) : PendingWork
-    }
-
-    /**
-     * 처리를 기다리는 편집·장벽 대기열. [launchEdit]·[readOnce]가 호출 스레드에서 바로 넣고, [appScope]의 소비자 코루틴 하나가 넣은 순서대로 꺼내 처리한다.
-     * 용량 제한이 없어 소비자가 살아 있는 동안 넣기가 일시 중단되거나 실패하지 않는다. 소비자가 끝나면 그 원인으로 닫힌다([failPendingWork]).
-     */
-    private val pendingWork = Channel<PendingWork>(Channel.UNLIMITED)
+    private val pendingEdits = Channel<(MutablePreferences) -> Unit>(Channel.UNLIMITED)
 
     init {
-        // 소비자는 하나뿐이고 앞선 edit이 끝나야 다음을 꺼내므로, 반영 순서가 대기열에 넣은 순서(= launchEdit 호출 순서)와 같고, 장벽에 닿으면 그 앞의 편집은 모두 끝난 것이다
+        // 소비자는 하나뿐이고 앞선 edit이 끝나야 다음을 꺼내므로, 반영 순서가 대기열에 넣은 순서(= launchEdit 호출 순서)와 같다
         appScope.launch {
             try {
-                for (work in pendingWork) when (work) {
-                    is PendingWork.Edit -> applyEdit(work.transform)
-                    is PendingWork.Barrier -> work.reached.complete(Unit)
-                }
+                for (transform in pendingEdits) applyEdit(transform)
             } catch (e: Throwable) {
-                failPendingWork(e)
+                // 소비자를 끝낸 예외(구현 오류, 또는 appScope 취소)로 대기열을 닫고, 다시 던져 appScope로 전파한다
+                pendingEdits.close(e)
                 throw e
             }
-        }
-    }
-
-    /**
-     * 소비자가 끝났음을 대기열에 드러낸다(#211). [cause]로 대기열을 닫아 이후 [launchEdit]·[readOnce]가 넣기에서 그 원인으로 실패하게 하고,
-     * 이미 넣었지만 처리하지 못한 장벽도 그 원인으로 실패시킨다 — 받기만 하고 반영되지 않는 저장, 영영 닿지 않는 장벽을 기다리는 읽기가 남지 않도록.
-     * 처리하지 못한 편집은 반영되지 않는다. [cause]는 소비자를 끝낸 예외(구현 오류, 또는 [appScope] 취소)이며 호출부가 다시 던져 [appScope]로 전파한다.
-     * @param cause 소비자를 끝낸 예외
-     */
-    private fun failPendingWork(cause: Throwable) {
-        pendingWork.close(cause)
-        while (true) {
-            val work = pendingWork.tryReceive().getOrNull() ?: break
-            if (work is PendingWork.Barrier) work.reached.completeExceptionally(cause)
         }
     }
 
@@ -163,21 +113,11 @@ class PreferencesStore @Inject constructor(
      * 호출 스레드에서 즉시 대기열에 넣으므로, 먼저 호출한 편집이 나중 편집을 덮어쓰지 않는다.
      * 조건에 따라 값을 바꾸는 편집은 [transform] 안에서 현재 값을 확인해야 한다 — 그래야 직전 편집이 반영된 값을 기준으로 판단한다.
      * 저장 실패(IOException) 시 이 편집만 반영되지 않고 이전 값이 남으며, [PreferenceFailure.SAVE]를 알린다.
-     * IOException이 아닌 예외(구현 오류)는 소비자를 끝내 [appScope]로 전파되며, 그 뒤의 호출은 그 예외를 던진다([failPendingWork]).
+     * IOException이 아닌 예외(구현 오류)는 소비자를 끝내 [appScope]로 전파되며, 그 뒤의 호출은 그 예외를 던진다([pendingEdits]).
      * @param transform 저장할 값을 MutablePreferences에 기록하는 편집 람다
      */
     fun launchEdit(transform: (MutablePreferences) -> Unit) {
-        pendingWork.trySend(PendingWork.Edit(transform)).getOrThrow()
-    }
-
-    /**
-     * 지금까지 [launchEdit]로 넣은 편집이 모두 반영되거나 저장 실패로 끝날 때까지 기다린다. 대기열에 장벽을 넣고 소비자가 거기에 닿기를 기다린다.
-     * 소비자가 끝났으면 그 원인을 던진다([failPendingWork]).
-     */
-    private suspend fun awaitEarlierEdits() {
-        val barrier = CompletableDeferred<Unit>()
-        pendingWork.trySend(PendingWork.Barrier(barrier)).getOrThrow()
-        barrier.await()
+        pendingEdits.trySend(transform).getOrThrow()
     }
 
     /**
@@ -193,14 +133,14 @@ class PreferencesStore @Inject constructor(
         }
     }
 
-    /** [readOnce]·편집이 성공했을 때의 처리. 재시도를 기다리는 [data]의 수집을 깨우고, 손상 파일을 교체한 뒤의 첫 성공이면 초기화를 알린다. */
+    /** 편집이 성공했을 때의 처리. 재시도를 기다리는 [data]의 수집을 깨우고, 손상 파일을 교체한 뒤의 첫 성공이면 초기화를 알린다. */
     private fun onAccessSucceeded() {
         accessSuccesses.update { it + 1 }
         corruptionReset.confirmIfReplaced()
     }
 
     /**
-     * [delayMillis]가 지나거나, [seen] 이후 [readOnce]·편집이 성공할 때까지 기다린다.
+     * [delayMillis]가 지나거나, [seen] 이후 편집이 성공할 때까지 기다린다.
      * @param delayMillis 성공이 없을 때 기다릴 최대 시간
      * @param seen 기다리기 전에 확인한 [accessSuccesses]
      */

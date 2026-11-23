@@ -5,7 +5,6 @@ import androidx.room.Room
 import com.todokanai.composepracticenew.data.room.MIGRATION_3_4
 import com.todokanai.composepracticenew.data.room.MyDatabase
 import com.todokanai.composepracticenew.data.room.RemoteStorageInfoDao
-import com.todokanai.composepracticenew.data.room.UserDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -25,11 +24,6 @@ class DatabaseModule {
             .addMigrations(MIGRATION_3_4)
             .fallbackToDestructiveMigration()
             .build()
-    }
-
-    @Provides
-    fun provideUserDao(myDatabase: MyDatabase) : UserDao {
-        return myDatabase.userDao()
     }
 
     @Provides
