@@ -53,7 +53,7 @@ fun StorageHolder(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(50.dp),
-            progress = progress,
+            progress = { progress },
             trackColor = Color.LightGray,
             color = Color.Red
         )
