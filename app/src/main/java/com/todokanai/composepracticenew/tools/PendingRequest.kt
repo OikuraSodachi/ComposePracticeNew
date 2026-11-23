@@ -32,4 +32,9 @@ class PendingRequest<T : Any> {
     fun consume(request: T) {
         _request.compareAndSet(request, null)
     }
+
+    /** 처리를 기다리는 요청을 처리하지 않고 버린다 — 요청한 화면을 떠나 더는 처리하면 안 될 때. */
+    fun clear() {
+        _request.value = null
+    }
 }

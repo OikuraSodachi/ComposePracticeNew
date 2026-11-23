@@ -57,14 +57,20 @@ class StorageViewModel @Inject constructor(
     )
 
     /**
-     * [setPath]가 시작한 연결 작업(연결·루트 이동·마지막 연결 저장)이 끝나지 않았으면 true.
+     * 저장소 열기 작업([openLocalStorage]의 경로 설정, [setPath]의 연결·루트 이동·마지막 연결 저장)이 끝나지 않았으면 true.
      * FTP 세션의 연결 중 상태는 로그인 직후 false가 되어 루트 이동·저장 구간을 덮지 못하므로, 작업 전체를 이 값으로 따로 표시한다.
      */
-    private val connectInProgress = MutableStateFlow(false)
+    private val openInProgress = MutableStateFlow(false)
 
-    /** 원격 연결 진행 중 여부. 세션이 연결 중이거나 [setPath]의 연결 작업이 끝나지 않았으면 true이며, 이 동안 목록 입력을 막는다. */
-    val isConnecting: StateFlow<Boolean> = combine(connectionStateUseCase.isConnecting, connectInProgress) { session, task -> session || task }
+    /** 저장소를 여는 중인지. 세션이 연결 중이거나 저장소 열기 작업이 끝나지 않았으면 true이며, 이 동안 목록 입력을 막는다. */
+    val isOpening: StateFlow<Boolean> = combine(connectionStateUseCase.isConnecting, openInProgress) { session, task -> session || task }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    /**
+     * 저장소 화면 방문 번호. 화면을 떠날 때마다 올라가며, 열기 작업은 시작할 때의 번호와 같을 때만 이동을 요청한다 —
+     * 떠난 뒤 끝난 작업의 요청이 남아 저장소 화면으로 돌아오자마자 다시 넘어가지 않도록. 메인 스레드에서만 읽고 쓴다.
+     */
+    private var visit = 0
 
     /** 연결 실패를 이유에 맞는 알림(알림함·다이얼로그)으로 바꾼다. */
     private val connectFailureNotice = ConnectFailureNotice(connectFailureReportUseCase)
@@ -87,6 +93,15 @@ class StorageViewModel @Inject constructor(
      */
     fun onExitHandled(exit: StorageExit) = pendingExit.consume(exit)
 
+    /**
+     * 저장소 화면이 다른 화면으로 떠났다고 알린다(백그라운드·회전은 해당하지 않는다). 처리하지 않은 이동 요청을 버리고,
+     * 진행 중인 열기 작업이 끝나도 이동을 요청하지 않게 한다. 작업 자체(경로 설정·연결)는 끝까지 진행한다.
+     */
+    fun onScreenLeft() {
+        visit++
+        pendingExit.clear()
+    }
+
     /** 로컬 저장소 볼륨 목록과 저장된 원격 서버 목록을 합친 UI 상태. */
     val uiState: StateFlow<UiState> = combine(
         storageVolumeUseCase.storageList,
@@ -105,11 +120,10 @@ class StorageViewModel @Inject constructor(
     /**
      * 선택한 로컬 스토리지 루트([path])로 파일 탐색기의 현재 경로를 설정하고, 이동했을 때만 로컬 목록으로 넘어가라고 요청한다([exitRequest]) —
      * 이동이 거부됐는데 목록 화면으로 넘어가 이전 폴더를 고른 저장소처럼 보이지 않도록. 거부는 탐색 저장소가 알린다.
+     * 이미 열기 작업이 진행 중이면 무시한다.
      */
-    fun openLocalStorage(path: String) {
-        viewModelScope.launch {
-            if (localNavigator.setPath(path) == NavigateResult.Navigated) pendingExit.post(StorageExit.LOCAL_LIST)
-        }
+    fun openLocalStorage(path: String) = launchOpening {
+        if (localNavigator.setPath(path) == NavigateResult.Navigated) StorageExit.LOCAL_LIST else null
     }
 
     /** 원격 스토리지 추가·수정 입력값이 위반한 규칙을 돌려준다. 통과하면 빈 집합이다. */
@@ -127,9 +141,9 @@ class StorageViewModel @Inject constructor(
         }
     }
 
-    /** 기존 원격 스토리지 접속 정보를 위반한 규칙이 없는 값으로 수정한다. 연결 작업이 진행 중이면 무시하고, 규칙을 위반한 입력이면 구현 오류로 실패한다. */
+    /** 기존 원격 스토리지 접속 정보를 위반한 규칙이 없는 값으로 수정한다. 열기 작업이 진행 중이면 무시하고, 규칙을 위반한 입력이면 구현 오류로 실패한다. */
     fun updateRemoteStorage(input: RemoteStorageInput) {
-        if (connectInProgress.value) return
+        if (openInProgress.value) return
         val valid = validInputOf(input)
         viewModelScope.launch {
             remoteStorageUseCase.save(valid)
@@ -147,29 +161,43 @@ class StorageViewModel @Inject constructor(
             is RemoteStorageInputCheck.Invalid -> error("확인을 허용한 입력이 저장 직전 검증에 실패했다: ${check.errors}")
         }
 
-    /** 원격 스토리지 접속 정보를 삭제한다. 연결 작업이 진행 중이면 무시한다 — 삭제한 서버로 연결이 이어지거나 그 id가 마지막 연결 서버로 저장되지 않게 한다. */
+    /** 원격 스토리지 접속 정보를 삭제한다. 열기 작업이 진행 중이면 무시한다 — 삭제한 서버로 연결이 이어지거나 그 id가 마지막 연결 서버로 저장되지 않게 한다. */
     fun deleteRemoteStorage(item: RemoteStorageItem) {
-        if (connectInProgress.value) return
+        if (openInProgress.value) return
         viewModelScope.launch { remoteStorageUseCase.delete(item.toDomain()) }
     }
 
     /**
      * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결에 성공하면 원격 목록으로 넘어가라고 요청한다([exitRequest]).
      * 실패하면 이유에 맞게 알림함에 맡기거나 [connectFailureDialog]를 띄운다.
-     * 이미 연결 작업이 진행 중이면 무시한다. 작업이 끝날 때까지 [isConnecting]이 true로 유지된다.
+     * 이미 열기 작업이 진행 중이면 무시한다. 작업이 끝날 때까지 [isOpening]이 true로 유지된다.
      */
-    fun setPath(item: RemoteStorageItem) {
-        if (connectInProgress.value) return
+    fun setPath(item: RemoteStorageItem) = launchOpening {
+        when (val result = remoteConnectionUseCase.connectAndNavigate(item.toDomain())) {
+            ConnectResult.Connected -> StorageExit.REMOTE_LIST
+            is ConnectResult.Failed -> {
+                connectFailureNotice.report(result.reason)
+                null
+            }
+        }
+    }
+
+    /**
+     * 저장소 열기 작업 [task]를 하나만 실행하고, 끝나면 그 결과로 넘어갈 곳을 요청한다. 이미 열기 작업이 진행 중이면 무시한다.
+     * 작업 중에 화면을 떠났으면([onScreenLeft]) 요청하지 않는다.
+     * @param task 저장소를 열고 넘어갈 목록 화면을 돌려주는 작업. 넘어가지 않으면 null
+     */
+    private fun launchOpening(task: suspend () -> StorageExit?) {
+        if (openInProgress.value) return
         // launch 전에 설정 — 같은 프레임의 연속 입력도 위 확인에서 걸러진다
-        connectInProgress.value = true
+        openInProgress.value = true
+        val startedVisit = visit
         viewModelScope.launch {
             try {
-                when (val result = remoteConnectionUseCase.connectAndNavigate(item.toDomain())) {
-                    ConnectResult.Connected -> pendingExit.post(StorageExit.REMOTE_LIST)
-                    is ConnectResult.Failed -> connectFailureNotice.report(result.reason)
-                }
+                val exit = task()
+                if (exit != null && startedVisit == visit) pendingExit.post(exit)
             } finally {
-                connectInProgress.value = false
+                openInProgress.value = false
             }
         }
     }

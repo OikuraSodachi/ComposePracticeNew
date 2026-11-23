@@ -84,12 +84,14 @@ fun AppNavHost(
 
     CompositionLocalProvider(LocalOpenDialogRegistry provides openDialogRegistry) {
         NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
-            composable(NavDestinations.STORAGE) {
+            composable(NavDestinations.STORAGE) { entry ->
                 StorageFrag(
                     modifier = Modifier,
-                    // RESUMED를 다시 확인하지 않는다 — StorageFrag가 저장소 클릭을 RESUMED일 때만 받고, 이동 요청도 RESUMED가 된 뒤에 처리한다(#534·#542)
+                    // RESUMED를 다시 확인하지 않는다 — StorageFrag가 저장소 클릭을 RESUMED일 때만 받고, 이동 요청도 RESUMED가 된 뒤에 처리하며,
+                    // 화면을 떠나면 남은 요청을 버린다(#534·#542)
                     exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
                     exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
+                    isCurrentScreen = { navController.currentBackStackEntry == entry },
                     onExit = mainViewModel::exit
                 )
             }
