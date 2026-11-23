@@ -214,6 +214,9 @@ private fun FileListDestination(
         merge(viewModel.itemOpener.archiveViewRequests, searchViewModel.itemOpener.archiveViewRequests).collect { path ->
             // 이 화면이 RESUMED가 아니면(이미 다른 화면으로 떠나는 중이면) 요청을 버린다 — 연타로 내용 보기가 두 번 쌓이지 않도록(#537).
             // 화면 전환 애니메이션 동안에도 entry가 RESUMED가 아니므로, 그 사이에 연 요청도 버려진다(다시 누르면 열린다)
+            // 확인하지 못한 경우: 이 화면에 들어오는 전환이 중간에 끊기면(들어오자마자 뒤로가기) entry가 STARTED에 남는지는 실기기로 확인하지 않았다.
+            // navigation 2.5.1 NavHost는 Crossfade 자식이 dispose될 때 보이는 entry를 모두 전환 완료로 표시하므로 남지 않을 것으로 보지만,
+            // 남는다면 다른 화면으로 이동하기 전까지 압축 파일이 열리지 않는다(PR #538 리뷰)
             if (!isResumed(entry)) return@collect
             navController.navigate(NavDestinations.archiveView(path))
         }
