@@ -74,7 +74,7 @@ class FileSearchViewModelTest {
             override val storageList = volumes
             override fun load() {}
         }
-        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav, nav), OpenFileUseCase(nav, launcher, RecordingOperationNotices()), ArchiveViewUseCase(archives))
+        viewModel = FileSearchViewModel(FileSearchUseCase(repo, storage, nav, nav), LocalItemOpener(OpenFileUseCase(nav, launcher, RecordingOperationNotices()), ArchiveViewUseCase(archives)))
         viewModel.open()
     }
 
