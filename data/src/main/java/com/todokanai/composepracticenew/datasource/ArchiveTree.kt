@@ -5,7 +5,7 @@ import com.todokanai.composepracticenew.model.ArchiveFolder
 
 /**
  * 압축 파일 항목 목록(경로 목록)을 폴더 트리로 만든다.
- * 항목의 위치는 압축 해제([ExtractionRoot.targetOf])와 같은 글자 규칙으로 정한다 — 빈 세그먼트와 `.`는 무시하고 `..`는 앞 세그먼트를 지운다.
+ * 항목의 위치는 압축 해제([ExtractionRoot.targetOf])와 같은 판정([extractionSegmentsOf])으로 정한다 — 빈 세그먼트와 `.`는 무시하고 `..`는 앞 세그먼트를 지운다.
  * 압축 해제 위치 밖이나 루트 자신을 가리키는 항목은 루트에 [ArchiveEntry.UnsafePath]로 둔다(숨기지 않는다).
  * 폴더 항목이 없는 형식은 안쪽 항목의 경로로 폴더를 만든다. 같은 이름의 폴더는 합치고, 폴더가 아닌 항목은 이름이 같아도 모두 둔다.
  * 재귀하지 않는다 — 깊이 중첩된 경로에서 스택이 넘치지 않도록.
@@ -32,24 +32,6 @@ internal fun archiveTreeOf(entries: List<ArchiveEntryInfo>): ArchiveFolder {
     }
     for (node in created.asReversed()) node.result = ArchiveFolder(node.items.map(Item::toEntry))
     return checkNotNull(root.result)
-}
-
-/**
- * [path]를 압축 해제와 같은 글자 규칙으로 정리한 세그먼트로 나눈다. 링크는 보지 않는다(글자로만 정리).
- * @param path 압축 파일 안의 '/' 구분 경로
- * @return 루트부터의 세그먼트. 절대 경로이거나, 루트 위로 올라가거나, 루트 자신을 가리키면 null
- */
-internal fun extractionSegmentsOf(path: String): List<String>? {
-    if (path.startsWith('/')) return null
-    val segments = ArrayDeque<String>()
-    for (segment in path.split('/')) {
-        when (segment) {
-            "", "." -> continue
-            ".." -> segments.removeLastOrNull() ?: return null
-            else -> segments.addLast(segment)
-        }
-    }
-    return segments.toList().ifEmpty { null }
 }
 
 /**
