@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -17,6 +18,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -47,6 +49,9 @@ private const val FOLDER_SEPARATOR = " › "
 fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val passwordRequest by viewModel.passwordRequest.collectAsStateWithLifecycle()
+    // 지금 폴더(이름 목록)를 키로 — 다른 폴더로 가면 맨 위부터 새로 시작한다(파일 목록의 rememberListingScrollState와 같은 규칙).
+    // rememberSaveable이라 화면 회전 뒤에도 같은 폴더의 위치가 복원된다
+    val listState = rememberSaveable(uiState.folderNames, saver = LazyListState.Saver) { LazyListState() }
 
     Column(modifier = modifier.fillMaxSize()) {
         Text(
@@ -70,6 +75,7 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
                 .weight(1f)
                 .fillMaxWidth(),
             content = uiState.content,
+            listState = listState,
             onRetry = viewModel::retry,
             onOpen = viewModel::openEntry
         )
@@ -92,6 +98,7 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
  * 목록 영역. 읽는 중 표시, 읽기 실패 안내와 다시 시도 버튼, 빈 폴더 안내, 또는 항목 목록을 보인다.
  * @param modifier 목록 영역의 크기·배치를 정하는 Modifier
  * @param content 목록 영역의 상태
+ * @param listState 항목 목록의 스크롤 상태
  * @param onRetry 다시 시도 버튼이 부르는 콜백
  * @param onOpen 행을 눌렀을 때 부르는 콜백
  */
@@ -99,6 +106,7 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
 private fun ArchiveContent(
     modifier: Modifier,
     content: ArchiveViewContent,
+    listState: LazyListState,
     onRetry: () -> Unit,
     onOpen: (ArchiveEntryRow) -> Unit
 ) {
@@ -125,7 +133,7 @@ private fun ArchiveContent(
             if (content.rows.isEmpty()) {
                 Text(text = stringResource(R.string.archive_view_empty), modifier = modifier.wrapContentSize())
             } else {
-                ArchiveEntryList(modifier = modifier, rows = content.rows, onOpen = onOpen)
+                ArchiveEntryList(modifier = modifier, rows = content.rows, listState = listState, onOpen = onOpen)
             }
     }
 }
@@ -134,14 +142,20 @@ private fun ArchiveContent(
  * 지금 폴더의 항목 목록.
  * @param modifier 목록의 크기·배치를 정하는 Modifier
  * @param rows 표시할 행들(정렬됨)
+ * @param listState 목록의 스크롤 상태. 폴더마다 새로 만든 것을 받는다
  * @param onOpen 행을 눌렀을 때 부르는 콜백
  */
 @Composable
-private fun ArchiveEntryList(modifier: Modifier, rows: List<ArchiveEntryRow>, onOpen: (ArchiveEntryRow) -> Unit) {
+private fun ArchiveEntryList(
+    modifier: Modifier,
+    rows: List<ArchiveEntryRow>,
+    listState: LazyListState,
+    onOpen: (ArchiveEntryRow) -> Unit
+) {
     // items{} 밖에서 한 번 만들어 모든 행이 같은 인스턴스를 공유 — 행이 Strong Skipping의 인스턴스 비교로 생략된다
     val typeIcons = rememberTypeIcons()
     // 키를 주지 않는다(위치 키) — 압축 파일에는 같은 이름의 항목이 여럿 있을 수 있어 이름 키는 중복될 수 있다
-    LazyColumn(modifier = modifier) {
+    LazyColumn(modifier = modifier, state = listState) {
         items(rows) { row ->
             ArchiveEntryHolder(
                 modifier = Modifier,
