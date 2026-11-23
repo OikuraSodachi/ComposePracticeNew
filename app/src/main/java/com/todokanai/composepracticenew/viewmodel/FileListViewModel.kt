@@ -27,7 +27,7 @@ import javax.inject.Inject
 /**
  * 로컬 파일 목록 화면의 탐색·목록 상태와 로컬 파일 작업을 담당하는 ViewModel.
  * @param fileNavigatorUseCase 로컬 디렉터리 탐색 상태를 제공하는 UseCase
- * @param itemOpener 항목 열기 — 내용을 볼 수 있는 압축 파일은 내용 보기 화면으로 가라는 요청([LocalItemOpener.archiveViewRequests])을 낸다
+ * @param itemOpener 항목 열기 — 내용을 볼 수 있는 압축 파일은 내용 보기 화면으로 가라는 요청([LocalItemOpener.archiveViewRequest])을 낸다
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase

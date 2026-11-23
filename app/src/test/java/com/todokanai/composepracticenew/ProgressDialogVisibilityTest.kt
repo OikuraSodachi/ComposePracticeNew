@@ -99,7 +99,7 @@ class ProgressDialogVisibilityTest {
         viewModel.requestShowProgressDialog(FileOperationType.UPLOAD.id, instanceId = 1)
 
         awaitShownId(1)
-        assertEquals(Unit, viewModel.remoteProgressNavigation.first())
+        assertEquals(Unit, viewModel.remoteProgressNavigation.value)
     }
 
     @Test
@@ -114,28 +114,28 @@ class ProgressDialogVisibilityTest {
         viewModel.requestShowProgressDialog(FileOperationType.UPLOAD.id, instanceId = 1)
 
         awaitShownId(1)
-        assertNull(withTimeoutOrNull(1_000) { viewModel.remoteProgressNavigation.first() })
+        assertNull(viewModel.remoteProgressNavigation.value)
     }
 
     @Test
     fun `원격 삭제 알림 클릭은 원격 화면 이동을 요청한다`() = runTest {
         viewModel.requestShowProgressDialog(FileOperationType.REMOTE_DELETE.id, instanceId = 1)
 
-        assertEquals(Unit, viewModel.remoteProgressNavigation.first())
+        assertEquals(Unit, viewModel.remoteProgressNavigation.value)
     }
 
     @Test
     fun `로컬 삭제 알림 클릭은 화면 이동을 요청하지 않는다`() = runTest {
         viewModel.requestShowProgressDialog(FileOperationType.DELETE.id, instanceId = 1)
 
-        assertNull(withTimeoutOrNull(1_000) { viewModel.remoteProgressNavigation.first() })
+        assertNull(viewModel.remoteProgressNavigation.value)
     }
 
     @Test
     fun `로컬 작업 알림 클릭은 화면 이동을 요청하지 않는다`() = runTest {
         viewModel.requestShowProgressDialog(FileOperationType.COPY.id, instanceId = 1)
 
-        assertNull(withTimeoutOrNull(1_000) { viewModel.remoteProgressNavigation.first() })
+        assertNull(viewModel.remoteProgressNavigation.value)
     }
 
     @Test

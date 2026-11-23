@@ -16,17 +16,13 @@ import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionUseCase
 import com.todokanai.composepracticenew.usecase.RemoteStorageUseCase
 import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
+import com.todokanai.composepracticenew.tools.PendingRequest
+import com.todokanai.composepracticenew.ui.model.StorageExit
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -79,10 +75,17 @@ class StorageViewModel @Inject constructor(
     /** 연결 실패 다이얼로그를 닫는다. */
     fun dismissConnectFailureDialog() = connectFailureNotice.dismissDialog()
 
-    /** [connectionSucceeded]의 변경 가능한 원본. */
-    private val _connectionSucceeded = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    /** 원격 연결 성공 이벤트. */
-    val connectionSucceeded: SharedFlow<Unit> = _connectionSucceeded.asSharedFlow()
+    /** [exitRequest]의 원본. 화면이 처리했다고 알릴 때까지 보관한다 — 연결 중 회전하거나 백그라운드로 가도 넘어가라는 요청을 잃지 않도록(#534). */
+    private val pendingExit = PendingRequest<StorageExit>()
+
+    /** 고른 저장소를 연 뒤 넘어갈 목록 화면. 넘어갈 곳이 없으면 null. 로컬 이동이 거부되거나 원격 연결에 실패하면 요청하지 않는다. */
+    val exitRequest: StateFlow<StorageExit?> = pendingExit.request
+
+    /**
+     * [exit]로 넘어갔다고 알린다.
+     * @param exit 처리한 요청
+     */
+    fun onExitHandled(exit: StorageExit) = pendingExit.consume(exit)
 
     /** 로컬 저장소 볼륨 목록과 저장된 원격 서버 목록을 합친 UI 상태. */
     val uiState: StateFlow<UiState> = combine(
@@ -100,19 +103,12 @@ class StorageViewModel @Inject constructor(
     )
 
     /**
-     * [localStorageOpened]의 원본. 화면이 다시 만들어지는 동안(회전 등) 보낸 이벤트도 잃지 않도록 받을 때까지 보관한다.
-     */
-    private val _localStorageOpened = Channel<Unit>(Channel.CONFLATED)
-    /** 고른 로컬 스토리지 루트로 이동했음을 알리는 일회성 이벤트. 이동이 거부되면 보내지 않는다. */
-    val localStorageOpened: Flow<Unit> = _localStorageOpened.receiveAsFlow()
-
-    /**
-     * 선택한 로컬 스토리지 루트([path])로 파일 탐색기의 현재 경로를 설정하고, 이동했을 때만 [localStorageOpened]를 보낸다 —
+     * 선택한 로컬 스토리지 루트([path])로 파일 탐색기의 현재 경로를 설정하고, 이동했을 때만 로컬 목록으로 넘어가라고 요청한다([exitRequest]) —
      * 이동이 거부됐는데 목록 화면으로 넘어가 이전 폴더를 고른 저장소처럼 보이지 않도록. 거부는 탐색 저장소가 알린다.
      */
     fun openLocalStorage(path: String) {
         viewModelScope.launch {
-            if (localNavigator.setPath(path) == NavigateResult.Navigated) _localStorageOpened.trySend(Unit)
+            if (localNavigator.setPath(path) == NavigateResult.Navigated) pendingExit.post(StorageExit.LOCAL_LIST)
         }
     }
 
@@ -158,7 +154,7 @@ class StorageViewModel @Inject constructor(
     }
 
     /**
-     * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결 성공 시 connectionSucceeded를 emit한다.
+     * 원격 스토리지에 접속하여 파일 탐색기를 해당 스토리지 루트로 이동시킨다. 연결에 성공하면 원격 목록으로 넘어가라고 요청한다([exitRequest]).
      * 실패하면 이유에 맞게 알림함에 맡기거나 [connectFailureDialog]를 띄운다.
      * 이미 연결 작업이 진행 중이면 무시한다. 작업이 끝날 때까지 [isConnecting]이 true로 유지된다.
      */
@@ -169,7 +165,7 @@ class StorageViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 when (val result = remoteConnectionUseCase.connectAndNavigate(item.toDomain())) {
-                    ConnectResult.Connected -> _connectionSucceeded.tryEmit(Unit)
+                    ConnectResult.Connected -> pendingExit.post(StorageExit.REMOTE_LIST)
                     is ConnectResult.Failed -> connectFailureNotice.report(result.reason)
                 }
             } finally {

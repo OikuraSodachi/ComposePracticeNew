@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
 import com.todokanai.composepracticenew.model.IndeterminatePhase
 import com.todokanai.composepracticenew.model.ProgressPhase
 import com.todokanai.composepracticenew.model.ProgressState
+import com.todokanai.composepracticenew.tools.PendingRequest
 import com.todokanai.composepracticenew.ui.model.ShownProgress
 import com.todokanai.composepracticenew.ui.model.toModel
 import com.todokanai.composepracticenew.usecase.CancelOperationUseCase
@@ -14,8 +15,6 @@ import com.todokanai.composepracticenew.usecase.ProgressUseCase
 import com.todokanai.composepracticenew.usecase.RemoteSessionCheckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +24,6 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import javax.inject.Inject
@@ -62,10 +60,14 @@ class ProgressDialogViewModel @Inject constructor(
                 initialValue = null
             )
 
-    /** 원격 파일 목록 화면으로의 이동 요청을 화면이 수집할 때까지 하나만 보관하는 채널. 연속 요청은 한 번의 이동으로 합쳐진다. */
-    private val _remoteProgressNavigation = Channel<Unit>(Channel.CONFLATED)
-    /** 원격 작업 알림 클릭으로 원격 파일 목록 화면으로 이동해야 할 때(연결된 원격 세션이 있을 때만) 발행된다. */
-    val remoteProgressNavigation: Flow<Unit> = _remoteProgressNavigation.receiveAsFlow()
+    /** [remoteProgressNavigation]의 원본. 화면이 처리했다고 알릴 때까지 하나만 보관한다(#534). 연속 요청은 한 번의 이동으로 합쳐진다. */
+    private val pendingRemoteNavigation = PendingRequest<Unit>()
+
+    /** 원격 작업 알림 클릭으로 원격 파일 목록 화면으로 이동해야 하면(연결된 원격 세션이 있을 때만) Unit. 없으면 null. */
+    val remoteProgressNavigation: StateFlow<Unit?> = pendingRemoteNavigation.request
+
+    /** 원격 파일 목록 화면 이동 요청을 처리했다고 알린다. */
+    fun onRemoteProgressNavigationHandled() = pendingRemoteNavigation.consume(Unit)
 
     init {
         // 화면이 다이얼로그를 수집하지 않는 동안에도 새 작업의 시작을 놓치지 않도록 ViewModel이 살아 있는 동안 계속 본다
@@ -86,7 +88,7 @@ class ProgressDialogViewModel @Inject constructor(
     fun requestShowProgressDialog(operationTypeId: Int, instanceId: Int) {
         dialogSelection.update { it.show(instanceId) }
         if (shouldNavigateToRemote(operationTypeId)) {
-            _remoteProgressNavigation.trySend(Unit)
+            pendingRemoteNavigation.post(Unit)
         }
     }
 

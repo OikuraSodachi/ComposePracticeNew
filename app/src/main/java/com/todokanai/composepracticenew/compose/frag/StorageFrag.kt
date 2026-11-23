@@ -8,12 +8,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.dropUnlessResumed
+import com.todokanai.composepracticenew.compose.PendingRequestEffect
 import com.todokanai.composepracticenew.compose.StorageMenuButtons
 import com.todokanai.composepracticenew.compose.dialog.AddRemoteStorageDialog
 import com.todokanai.composepracticenew.compose.dialog.BinaryTypeRefusedDialog
@@ -26,30 +28,32 @@ import com.todokanai.composepracticenew.model.RemoteStorageInputError
 import com.todokanai.composepracticenew.ui.model.ConnectFailureDialog
 import com.todokanai.composepracticenew.ui.model.RemoteStorageInput
 import com.todokanai.composepracticenew.ui.model.RemoteStorageItem
+import com.todokanai.composepracticenew.ui.model.StorageExit
 import com.todokanai.composepracticenew.viewmodel.StorageViewModel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.StateFlow
 
 /**
- * 원격 스토리지 연결 성공과 로컬 스토리지 열기 결과 Flow를 수집하고 부수 효과를 실행한다.
- * 연결 실패는 화면 호스트가 앱 전역에서 알린다.
+ * 고른 저장소를 연 뒤의 목록 화면 이동 요청을 이 화면이 입력을 받는 동안(RESUMED) 처리한다(#534).
+ * 백그라운드에 있는 동안 연결에 성공해도 요청이 남아, 화면이 다시 RESUMED가 되면 넘어간다. 연결 실패는 화면 호스트가 앱 전역에서 알린다.
  *
- * @param connectionSucceeded 원격 스토리지 연결 성공 이벤트 Flow
- * @param localStorageOpened 로컬 스토리지 루트로 이동한 이벤트 Flow
- * @param onConnectionSucceeded 연결 성공 시 실행할 콜백
- * @param onLocalStorageOpened 로컬 스토리지 루트로 이동했을 때 실행할 콜백
+ * @param exitRequest 넘어갈 목록 화면. 없으면 null
+ * @param onExitHandled 넘어갔다고 알리는 콜백
+ * @param exitToLocalList 로컬 목록 화면으로 넘어가는 콜백
+ * @param exitToRemoteList 원격 목록 화면으로 넘어가는 콜백
  */
 @Composable
-private fun StorageConnectionEffects(
-    connectionSucceeded: Flow<Unit>,
-    localStorageOpened: Flow<Unit>,
-    onConnectionSucceeded: () -> Unit,
-    onLocalStorageOpened: () -> Unit,
+private fun StorageExitEffect(
+    exitRequest: StateFlow<StorageExit?>,
+    onExitHandled: (StorageExit) -> Unit,
+    exitToLocalList: () -> Unit,
+    exitToRemoteList: () -> Unit,
 ) {
-    // 두 Flow를 키로 — 다른 Flow가 들어오면 이전 수집을 끝내고 새 Flow를 수집한다
-    LaunchedEffect(connectionSucceeded, localStorageOpened) {
-        launch { connectionSucceeded.collect { onConnectionSucceeded() } }
-        launch { localStorageOpened.collect  { onLocalStorageOpened()  } }
+    // RESUMED까지 기다린다 — 떠나는 중에 넘어가지 않고, 넘어가는 중에 누른 저장소는 클릭 시점에 버린다(dropUnlessResumed)
+    PendingRequestEffect(exitRequest, Lifecycle.State.RESUMED, onExitHandled) { exit ->
+        when (exit) {
+            StorageExit.LOCAL_LIST -> exitToLocalList()
+            StorageExit.REMOTE_LIST -> exitToRemoteList()
+        }
     }
 }
 
@@ -121,11 +125,11 @@ fun StorageFrag(
     // rememberSaveable로 기억 — 다이얼로그의 대상이 저장된 서버 id라 회전·프로세스 종료 뒤에도 열린 다이얼로그를 복원한다(#273)
     val dialogState = rememberStorageDialogState()
 
-    StorageConnectionEffects(
-        connectionSucceeded = viewModel.connectionSucceeded,
-        localStorageOpened = viewModel.localStorageOpened,
-        onConnectionSucceeded = exitToRemoteFileFrag,
-        onLocalStorageOpened  = exitStorageFrag,
+    StorageExitEffect(
+        exitRequest = viewModel.exitRequest,
+        onExitHandled = viewModel::onExitHandled,
+        exitToLocalList = exitStorageFrag,
+        exitToRemoteList = exitToRemoteFileFrag,
     )
     StorageDialogHost(
         dialogState = dialogState,
@@ -152,16 +156,18 @@ fun StorageFrag(
             // 연결하는 동안에는 목록 입력(로컬 열기, 원격 연결·수정·삭제)을 막는다 — 진행 중인 연결과 다른 연결·수정·삭제가 엇갈려
             // 삭제한 서버로 연결이 이어지거나 삭제된 서버 id가 마지막 연결 서버로 저장되는 것을 막는다
             val listEnabled = !isConnecting
+            // 저장소 열기는 이 화면이 RESUMED일 때만 받는다(#542) — 목록 화면으로 넘어가는 중에 누른 저장소가 경로·연결을 바꾸고,
+            // 그 이동 요청이 남아 저장소 화면으로 돌아오자마자 다시 넘어가지 않도록
             LazyColumn(modifier = modifier.fillMaxSize()) {
                 items(uiState.value.storageList, key = { it.absolutePath }) { storage ->
                     StorageHolder(
-                        modifier = Modifier.clickable(enabled = listEnabled) { viewModel.openLocalStorage(storage.absolutePath) },
+                        modifier = Modifier.clickable(enabled = listEnabled, onClick = dropUnlessResumed { viewModel.openLocalStorage(storage.absolutePath) }),
                         storage = storage
                     )
                 }
                 items(uiState.value.remoteStorageList, key = { it.id }) { remote ->
                     RemoteStorageHolder(
-                        modifier = Modifier.clickable(enabled = listEnabled) { viewModel.setPath(remote) },
+                        modifier = Modifier.clickable(enabled = listEnabled, onClick = dropUnlessResumed { viewModel.setPath(remote) }),
                         item = remote,
                         enabled = listEnabled,
                         onEdit   = { dialogState.openEdit(remote) },

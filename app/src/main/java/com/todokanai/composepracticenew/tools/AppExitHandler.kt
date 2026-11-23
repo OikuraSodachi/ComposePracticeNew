@@ -3,23 +3,27 @@ package com.todokanai.composepracticenew.tools
 import com.todokanai.composepracticenew.di.ApplicationScope
 import com.todokanai.composepracticenew.usecase.RemoteDisconnectUseCase
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** 원격 연결을 종료하고 앱 종료 이벤트를 발행하는 계약. */
+/** 원격 연결을 종료하고 앱 종료를 요청하는 계약. */
 interface AppExitHandler {
-    /** 앱을 종료하라는 이벤트. 화면 호스트가 수집해 Activity를 종료한다. */
-    val exitEvent: Flow<Unit>
+    /** 앱을 종료하라는 요청이 있으면 Unit. 없으면 null. 화면 호스트가 받아 Activity를 종료한다. */
+    val exitRequest: StateFlow<Unit?>
 
     /**
-     * 원격 연결을 종료하고 앱 종료 이벤트를 발행한다.
+     * 원격 연결을 종료하고 앱 종료를 요청한다.
      * @return Unit
      */
     fun execute()
+
+    /**
+     * 앱 종료 요청을 처리했다고 알린다 — 프로세스가 남아 Activity가 다시 열려도 같은 요청으로 다시 종료하지 않도록.
+     * @return Unit
+     */
+    fun onExitHandled()
 }
 
 /**
@@ -32,13 +36,15 @@ class AppExitHandlerImpl @Inject constructor(
     private val disconnectUseCase: RemoteDisconnectUseCase,
     @ApplicationScope private val appScope: CoroutineScope
 ) : AppExitHandler {
-    /** [exitEvent]의 원본. 수집 전에 여러 번 요청해도 한 번의 종료로 합친다. */
-    private val _exitChannel = Channel<Unit>(Channel.CONFLATED)
+    /** [exitRequest]의 원본. 화면 호스트가 처리했다고 알릴 때까지 보관하며(#534), 처리 전에 여러 번 요청해도 한 번의 종료로 합친다. */
+    private val pendingExit = PendingRequest<Unit>()
 
-    override val exitEvent: Flow<Unit> = _exitChannel.receiveAsFlow()
+    override val exitRequest: StateFlow<Unit?> = pendingExit.request
 
     override fun execute() {
         appScope.launch { disconnectUseCase.disconnect() }
-        _exitChannel.trySend(Unit)
+        pendingExit.post(Unit)
     }
+
+    override fun onExitHandled() = pendingExit.consume(Unit)
 }

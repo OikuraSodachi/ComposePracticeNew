@@ -152,7 +152,7 @@ class ArchiveViewViewModelTest {
 
         viewModel.cancelPassword(viewModel.passwordRequest.value!!.id)
 
-        runBlocking { withTimeout(TIMEOUT_MILLIS) { viewModel.closeRequest.first() } }
+        assertEquals(Unit, viewModel.closeRequest.value)
         assertNull(viewModel.passwordRequest.value)
         assertEquals(ArchiveViewContent.Loading, viewModel.uiState.value.content)
     }

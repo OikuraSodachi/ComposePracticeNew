@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
+import com.todokanai.composepracticenew.tools.PendingRequest
 import com.todokanai.composepracticenew.ui.model.ArchiveEntryRow
 import com.todokanai.composepracticenew.ui.model.ArchiveEntryRowKind
 import com.todokanai.composepracticenew.ui.model.UiText
@@ -19,15 +20,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.io.File
@@ -74,11 +72,14 @@ class ArchiveViewViewModel @Inject constructor(
     /** 질문 id 발급기. 다시 물을 때 다이얼로그를 새로 그려 앞서 입력한 값이 남지 않도록 질문마다 새 id를 준다. */
     private val questionIds = AtomicLong()
 
-    /** 화면 닫기 요청을 화면이 수집할 때까지 하나만 보관하는 채널. 연속 요청은 한 번의 닫기로 합쳐진다. */
-    private val _closeRequest = Channel<Unit>(Channel.CONFLATED)
+    /** [closeRequest]의 원본. 화면이 처리했다고 알릴 때까지 하나만 보관한다(#534). 연속 요청은 한 번의 닫기로 합쳐진다. */
+    private val pendingClose = PendingRequest<Unit>()
 
-    /** 화면을 닫으라는 요청(비밀번호 질문에서 취소). */
-    val closeRequest: Flow<Unit> = _closeRequest.receiveAsFlow()
+    /** 화면을 닫으라는 요청(비밀번호 질문에서 취소)이 있으면 Unit. 없으면 null. */
+    val closeRequest: StateFlow<Unit?> = pendingClose.request
+
+    /** 화면 닫기 요청을 처리했다고 알린다. */
+    fun onCloseHandled() = pendingClose.consume(Unit)
 
     /** 진행 중인 목록 읽기. 다시 시도하면 앞의 것을 끝낸다. */
     private var loadJob: Job? = null
@@ -135,7 +136,7 @@ class ArchiveViewViewModel @Inject constructor(
     fun cancelPassword(id: Long) {
         val pending = pendingPassword.value?.takeIf { it.request.id == id } ?: return
         pending.answer.complete(null)
-        _closeRequest.trySend(Unit)
+        pendingClose.post(Unit)
     }
 
     /** 목록을 읽는다. 진행 중인 읽기가 있으면 끝내고 새로 읽는다. */
