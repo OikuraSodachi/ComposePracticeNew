@@ -67,10 +67,10 @@ fun AppNavHost(
         mainViewModel.exitEvent.collect { onExitApp() }
     }
 
-    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 현재 화면이 REMOTE_FILE_LIST가 아니면 이동한다
+    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 원격 화면으로 갈 수 있는 화면이면 이동한다
     LaunchedEffect(Unit) {
         progressDialogViewModel.remoteProgressNavigation.collect {
-            if (navController.currentDestination?.route != NavDestinations.REMOTE_FILE_LIST) {
+            if (canNavigateToRemoteFrom(navController.currentDestination?.route)) {
                 navController.navigate(NavDestinations.REMOTE_FILE_LIST)
             }
         }
@@ -131,6 +131,15 @@ private fun rememberGraphCoordinator(navController: NavHostController): FileTran
     // FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     return hiltViewModel(graphEntry)
 }
+
+/**
+ * 원격 진행 알림을 눌렀을 때 [route] 화면에서 원격 화면으로 이동하는지 판정한다.
+ * 이미 원격 화면이면 이동하지 않는다. 내용 보기 화면에서도 이동하지 않는다 — 내용 보기 위에 원격 화면을 쌓지 않도록(알림의 진행 다이얼로그는 그대로 뜬다).
+ * @param route 지금 화면의 route
+ * @return 원격 화면으로 이동하면 true
+ */
+private fun canNavigateToRemoteFrom(route: String?): Boolean =
+    route != NavDestinations.REMOTE_FILE_LIST && route != NavDestinations.ARCHIVE_VIEW
 
 /** FILE_LIST destination의 UI와 상태를 담당한다. */
 @Composable
