@@ -36,7 +36,7 @@ import javax.inject.Inject
  * 검색어 입력이 [QUERY_DEBOUNCE_MILLIS] 동안 멈추면 진행 중인 검색을 취소하고 새로 시작한다. 파일을 열고 돌아와도 결과가 남도록 화면 수명과 무관하게 끝까지 훑는다.
  * 결과가 [FileSearchUseCase.MAX_RESULTS]를 넘으면 그 자리에서 멈추고, 다 훑은 것과 구별해 표시한다.
  * @param fileSearchUseCase 모든 저장소에서 이름으로 항목을 찾고 찾은 폴더나 항목의 위치로 이동하는 UseCase
- * @param itemOpener 파일 결과 열기 — 내용을 볼 수 있는 압축 파일은 내용 보기 화면으로 가라는 요청([LocalItemOpener.archiveViewRequests])을 낸다
+ * @param itemOpener 파일 결과 열기 — 내용을 볼 수 있는 압축 파일은 내용 보기 화면으로 가라는 요청([LocalItemOpener.archiveViewRequest])을 낸다
  */
 @HiltViewModel
 class FileSearchViewModel @Inject constructor(

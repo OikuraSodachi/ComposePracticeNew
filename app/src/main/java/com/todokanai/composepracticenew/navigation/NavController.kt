@@ -3,7 +3,6 @@ package com.todokanai.composepracticenew.navigation
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -19,6 +18,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
+import com.todokanai.composepracticenew.compose.PendingRequestEffect
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.UploadCheckingDialog
 import com.todokanai.composepracticenew.compose.frag.ArchiveViewFrag
@@ -34,7 +34,6 @@ import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
 import com.todokanai.composepracticenew.viewmodel.ArchiveViewViewModel
 import com.todokanai.composepracticenew.viewmodel.ChildCountViewModel
-import kotlinx.coroutines.flow.merge
 import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
@@ -65,18 +64,18 @@ fun AppNavHost(
     // activity-scoped: 작업 질문(충돌·비밀번호)은 화면 이동과 무관하게 하나만 묻는다
     val operationQuestionViewModel: OperationQuestionViewModel = hiltViewModel(viewModelStoreOwner = viewModelStoreOwner)
 
-    // mainViewModel.exit()이 원격 연결 종료를 요청한 뒤 emit — View는 호스트 종료 콜백 호출만 담당
-    LaunchedEffect(Unit) {
-        mainViewModel.exitEvent.collect { onExitApp() }
-    }
+    // mainViewModel.exit()이 원격 연결 종료를 요청한 뒤 남긴 종료 요청 — View는 호스트 종료 콜백 호출만 담당
+    PendingRequestEffect(mainViewModel.exitRequest, Lifecycle.State.CREATED, { mainViewModel.onExitHandled() }) { onExitApp() }
 
-    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 원격 화면으로 갈 수 있는 화면이면 이동한다.
+    // 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 요청) 원격 화면으로 갈 수 있는 화면이면 이동한다. 갈 수 없는 화면이면 요청을 버린다.
     // 알림은 화면 밖 입력이라 RESUMED 대신 지금 route로 판정한다 — 연타해도 첫 이동으로 지금 화면이 원격 화면이 되어 두 번째는 버려진다
-    LaunchedEffect(Unit) {
-        progressDialogViewModel.remoteProgressNavigation.collect {
-            if (canNavigateToRemoteFrom(navController.currentDestination?.route)) {
-                navController.navigate(NavDestinations.REMOTE_FILE_LIST)
-            }
+    PendingRequestEffect(
+        progressDialogViewModel.remoteProgressNavigation,
+        Lifecycle.State.CREATED,
+        { progressDialogViewModel.onRemoteProgressNavigationHandled() }
+    ) {
+        if (canNavigateToRemoteFrom(navController.currentDestination?.route)) {
+            navController.navigate(NavDestinations.REMOTE_FILE_LIST)
         }
     }
 
@@ -88,9 +87,11 @@ fun AppNavHost(
             composable(NavDestinations.STORAGE) { entry ->
                 StorageFrag(
                     modifier = Modifier,
-                    // 저장소 화면이 RESUMED가 아니면(이미 떠나는 중이면) 버린다 — 연타로 목록 화면이 두 번 쌓이지 않도록(#535)
-                    exitStorageFrag = { if (isResumed(entry)) navController.navigate(NavDestinations.FILE_LIST) },
-                    exitToRemoteFileFrag = { if (isResumed(entry)) navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
+                    // RESUMED를 다시 확인하지 않는다 — StorageFrag가 저장소 클릭을 RESUMED일 때만 받고, 이동 요청도 RESUMED가 된 뒤에 처리하며,
+                    // 화면을 떠나면 남은 요청을 버린다(#534·#542)
+                    exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
+                    exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
+                    isCurrentScreen = { navController.currentBackStackEntry == entry },
                     onExit = mainViewModel::exit
                 )
             }
@@ -216,12 +217,12 @@ private fun FileListDestination(
         viewModel.onBackPressed()
     }
 
-    // 목록 행·검색 결과에서 연 압축 파일을 내용 보기 화면으로 띄운다. 두 ViewModel은 이 destination 동안 같으므로 그 둘을 키로 한 번씩만 수집한다
-    LaunchedEffect(viewModel, searchViewModel) {
-        merge(viewModel.itemOpener.archiveViewRequests, searchViewModel.itemOpener.archiveViewRequests).collect { path ->
-            // 이 화면이 RESUMED가 아니면(이미 다른 화면으로 떠나는 중이면) 요청을 버린다 — 연타로 내용 보기가 두 번 쌓이지 않도록(#537)
-            if (!isResumed(entry)) return@collect
-            navController.navigate(NavDestinations.archiveView(path))
+    // 목록 행·검색 결과에서 연 압축 파일을 내용 보기 화면으로 띄운다.
+    // 이 화면이 RESUMED가 아니면(이미 다른 화면으로 떠나는 중이면) 요청을 처리한 것으로 하고 버린다 — 연타로 내용 보기가 두 번 쌓이거나,
+    // 보관했다가 이 화면으로 돌아오자마자 열리지 않도록(#537). 행 클릭은 폴더 이동·선택도 맡아 클릭 시점에 버릴 수 없으므로 처리 시점에 판정한다
+    for (opener in listOf(viewModel.itemOpener, searchViewModel.itemOpener)) {
+        PendingRequestEffect(opener.archiveViewRequest, Lifecycle.State.CREATED, opener::onArchiveViewHandled) { path ->
+            if (isResumed(entry)) navController.navigate(NavDestinations.archiveView(path))
         }
     }
 
@@ -264,10 +265,10 @@ private fun FileListDestination(
 private fun ArchiveViewDestination(navController: NavHostController, entry: NavBackStackEntry) {
     val viewModel: ArchiveViewViewModel = hiltViewModel()
 
-    // Unit 키 — 이 destination 동안 1회만 수집. 비밀번호 질문에서 취소하면 화면을 닫는다.
+    // 비밀번호 질문에서 취소하면 화면을 닫는다.
     // RESUMED를 확인하지 않는다 — 취소로 목록 읽기가 이미 끝났으므로, 버리면 읽지 못한 내용 보기가 남는다
-    LaunchedEffect(Unit) {
-        viewModel.closeRequest.collect { navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
+    PendingRequestEffect(viewModel.closeRequest, Lifecycle.State.CREATED, { viewModel.onCloseHandled() }) {
+        navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true)
     }
 
     BackHandler {

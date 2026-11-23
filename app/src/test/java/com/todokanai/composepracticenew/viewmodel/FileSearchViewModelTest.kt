@@ -23,6 +23,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
@@ -219,7 +220,7 @@ class FileSearchViewModelTest {
 
         viewModel.onResultClick(result, SelectMode.Default)
 
-        assertEquals(result.path, runBlocking { viewModel.itemOpener.archiveViewRequests.first() })
+        assertEquals(result.path, runBlocking { viewModel.itemOpener.archiveViewRequest.filterNotNull().first() })
         assertEquals(emptyList<String>(), launcher.launched)
         assertEquals(2, viewModel.state.value?.results?.size)
     }
