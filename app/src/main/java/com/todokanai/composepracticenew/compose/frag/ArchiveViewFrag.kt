@@ -12,7 +12,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,7 +69,7 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         )
-        Divider()
+        HorizontalDivider()
         ArchiveContent(
             modifier = Modifier
                 .weight(1f)
