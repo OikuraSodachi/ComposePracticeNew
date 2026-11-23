@@ -13,7 +13,7 @@ import java.nio.file.NoSuchFileException
 import javax.inject.Inject
 
 /**
- * zip4j로 ZIP 아카이브를 산정·추출하는 ArchiveExtractor. 이름이 `.zip`인 파일만 다루며, 속이 ZIP인 다른 형식(.apk, .jar, .docx 등)은 지원 범위 밖이다.
+ * zip4j로 ZIP 아카이브의 항목을 읽고 추출하는 ArchiveExtractor. 이름이 `.zip`인 파일만 다루며, 속이 ZIP인 다른 형식(.apk, .jar, .docx 등)은 지원 범위 밖이다.
  * 항목 내용은 zip4j가 끝에서 검증한다(CRC, AES는 HMAC) — 손상된 항목을 성공으로 풀지 않는다.
  * 암호화된 항목(AES, ZipCrypto)은 출력을 만들기 전에 비밀번호를 확인한다. 확인은 내용이 있는 가장 작은 암호화 항목([passwordCheckEntryOf])을 끝까지 풀어 보는 것이다 —
  * 비밀번호 검증값(AES 2바이트, ZipCrypto 1바이트)만으로는 틀린 비밀번호가 통과할 수 있고, 그때는 내용 검증에서야 드러나기 때문이다.
@@ -32,6 +32,9 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
             val knownSizes = files.mapNotNull(::knownSizeOf)
             ArchiveSize(knownBytes = knownSizes.sum(), fileCount = files.size, unknownSizeCount = files.size - knownSizes.size)
         }
+
+    override fun entries(path: String, passwords: ArchivePasswordSession): List<ArchiveEntryInfo> =
+        openZip(path).use { zf -> headersOf(zf).map(::entryInfoOf) }
 
     override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
         openZip(path).use { zf ->
@@ -102,7 +105,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     /**
      * 아카이브의 항목을 모두 읽는다. 이름을 해석하지 못한 항목이 있으면 아무것도 풀기 전에 실패한다 —
-     * [measure]·[extract]가 같은 실패로 알리고, 일부만 풀린 채 끝나지 않도록.
+     * [measure]·[entries]·[extract]가 같은 실패로 알리고, 일부만 풀린 채 끝나지 않도록.
      * @param zf 연 ZIP 파일
      * @return 아카이브에 담긴 순서의 항목 목록
      * @throws LocalFailureException 항목 이름을 UTF-8로 해석하지 못했을 때([FailureReason.ArchiveEntryNameUnreadable])
@@ -113,7 +116,24 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
         }
 
     /**
-     * 항목의 압축 해제 후 크기를 구한다. [measure]와 [extract]가 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
+     * 항목의 목록 정보를 만든다. 종류는 [extract]가 항목을 가르는 순서(폴더 → 링크 → 파일)와 같다.
+     * @param header 아카이브 항목
+     * @return 목록 정보. 수정 시각은 zip4j가 DOS 시각을 바꾼 값이다
+     */
+    private fun entryInfoOf(header: FileHeader): ArchiveEntryInfo = ArchiveEntryInfo(
+        path = header.fileName,
+        kind = when {
+            header.isDirectory -> ArchiveEntryKind.FOLDER
+            isLink(header) -> ArchiveEntryKind.LINK
+            else -> ArchiveEntryKind.FILE
+        },
+        size = knownSizeOf(header),
+        lastModifiedMillis = header.lastModifiedTimeEpoch,
+        isEncrypted = header.isEncrypted,
+    )
+
+    /**
+     * 항목의 압축 해제 후 크기를 구한다. [measure]·[entries]·[extract]가 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
      * @param header 아카이브 항목
      * @return 크기(bytes), 아카이브가 알려주지 않으면(음수) null
      */

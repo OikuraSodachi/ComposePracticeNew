@@ -18,6 +18,7 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.UploadCheckingDialog
+import com.todokanai.composepracticenew.compose.frag.ArchiveViewFrag
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
 import com.todokanai.composepracticenew.compose.frag.StorageFrag
@@ -28,7 +29,9 @@ import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistr
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
+import com.todokanai.composepracticenew.viewmodel.ArchiveViewViewModel
 import com.todokanai.composepracticenew.viewmodel.ChildCountViewModel
+import kotlinx.coroutines.flow.merge
 import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
 import com.todokanai.composepracticenew.viewmodel.FileListViewModel
 import com.todokanai.composepracticenew.viewmodel.FileSearchViewModel
@@ -64,10 +67,10 @@ fun AppNavHost(
         mainViewModel.exitEvent.collect { onExitApp() }
     }
 
-    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 현재 화면이 REMOTE_FILE_LIST가 아니면 이동한다
+    // Unit 키 — NavHost 생존 동안 1회만 수집. 원격 알림 클릭 시(연결된 원격 세션이 있을 때만 발행) 원격 화면으로 갈 수 있는 화면이면 이동한다
     LaunchedEffect(Unit) {
         progressDialogViewModel.remoteProgressNavigation.collect {
-            if (navController.currentDestination?.route != NavDestinations.REMOTE_FILE_LIST) {
+            if (canNavigateToRemoteFrom(navController.currentDestination?.route)) {
                 navController.navigate(NavDestinations.REMOTE_FILE_LIST)
             }
         }
@@ -98,6 +101,10 @@ fun AppNavHost(
                 composable(NavDestinations.REMOTE_FILE_LIST) {
                     RemoteFileListDestination(navController, mainViewModel)
                 }
+                // 그래프 안에 둔다 — 내용 보기에서 돌아와도 그래프의 로컬 선택·작업 모드가 남도록
+                composable(NavDestinations.ARCHIVE_VIEW) {
+                    ArchiveViewDestination(navController)
+                }
             }
         }
         // 화면 이동과 무관하게 하나만 둔다. 다이얼로그 등록부 안에 두어, 묻는 동안 진행률 다이얼로그가 질문을 덮지 않고 비켜난다
@@ -124,6 +131,15 @@ private fun rememberGraphCoordinator(navController: NavHostController): FileTran
     // FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     return hiltViewModel(graphEntry)
 }
+
+/**
+ * 원격 진행 알림을 눌렀을 때 [route] 화면에서 원격 화면으로 이동하는지 판정한다.
+ * 이미 원격 화면이면 이동하지 않는다. 내용 보기 화면에서도 이동하지 않는다 — 내용 보기 위에 원격 화면을 쌓지 않도록(알림의 진행 다이얼로그는 그대로 뜬다).
+ * @param route 지금 화면의 route
+ * @return 원격 화면으로 이동하면 true
+ */
+private fun canNavigateToRemoteFrom(route: String?): Boolean =
+    route != NavDestinations.REMOTE_FILE_LIST && route != NavDestinations.ARCHIVE_VIEW
 
 /** FILE_LIST destination의 UI와 상태를 담당한다. */
 @Composable
@@ -179,6 +195,13 @@ private fun FileListDestination(
         viewModel.onBackPressed()
     }
 
+    // 목록 행·검색 결과에서 연 압축 파일을 내용 보기 화면으로 띄운다. 두 ViewModel은 이 destination 동안 같으므로 그 둘을 키로 한 번씩만 수집한다
+    LaunchedEffect(viewModel, searchViewModel) {
+        merge(viewModel.itemOpener.archiveViewRequests, searchViewModel.itemOpener.archiveViewRequests).collect { path ->
+            navController.navigate(NavDestinations.archiveView(path))
+        }
+    }
+
     FileListFrag(
         modifier = Modifier,
         selectMode = localSelectMode,
@@ -209,6 +232,23 @@ private fun FileListDestination(
         viewModel = viewModel,
         searchViewModel = searchViewModel
     )
+}
+
+/** ARCHIVE_VIEW destination의 UI와 상태를 담당한다. 루트에서 뒤로가거나 비밀번호 질문에서 취소하면 이 화면만 닫는다. */
+@Composable
+private fun ArchiveViewDestination(navController: NavHostController) {
+    val viewModel: ArchiveViewViewModel = hiltViewModel()
+
+    // Unit 키 — 이 destination 동안 1회만 수집. 비밀번호 질문에서 취소하면 화면을 닫는다
+    LaunchedEffect(Unit) {
+        viewModel.closeRequest.collect { navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
+    }
+
+    BackHandler {
+        viewModel.onBackPressed { navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
+    }
+
+    ArchiveViewFrag(modifier = Modifier, viewModel = viewModel)
 }
 
 /** REMOTE_FILE_LIST destination의 UI와 상태를 담당한다. */

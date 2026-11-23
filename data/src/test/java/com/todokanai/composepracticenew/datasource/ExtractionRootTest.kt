@@ -39,4 +39,23 @@ class ExtractionRootTest {
         assertNull(ExtractionRoot(dest).targetOf("a/.."))
     }
 
+    @Test
+    fun `루트 위로 나갔다 루트 이름으로 다시 들어오는 항목도 풀지 않는다`() {
+        val root = ExtractionRoot(dest)
+
+        assertNull(root.targetOf("../dest/x.txt"))
+        assertNull(root.targetOf("a/../../dest/x.txt"))
+    }
+
+    @Test
+    fun `절대 경로 항목은 루트 안을 가리켜도 풀지 않는다`() {
+        // Android 경로 형식 — 판정은 항목 경로만 보므로 루트가 이 아래여도 같다
+        assertNull(extractionSegmentsOf("/storage/emulated/0/Download/dest/x.txt"))
+    }
+
+    @Test
+    fun `루트 위로 올라가지 않는 점 세그먼트는 정리해 푼다`() {
+        assertEquals(File(dest.canonicalFile, "b/x.txt"), ExtractionRoot(dest).targetOf("./a/../b//x.txt"))
+    }
+
 }

@@ -11,6 +11,8 @@ import com.todokanai.composepracticenew.datasource.ZipArchiveExtractor
 import com.todokanai.composepracticenew.model.ArchiveFormat
 import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
+import com.todokanai.composepracticenew.repository.ArchiveContentRepository
+import com.todokanai.composepracticenew.repository.ArchiveContentRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileListFlowProducer
 import com.todokanai.composepracticenew.repository.FileSystemNameMatching
@@ -89,6 +91,10 @@ abstract class RepositoryModule {
 
     @Binds
     abstract fun bindFileActionRepository(impl: FileActionRepositoryImpl): FileActionRepository
+
+    /** 내용 보기는 로컬 목록 화면에서만 열리므로 로컬 구현만 바인딩한다. */
+    @Binds
+    abstract fun bindArchiveContentRepository(impl: ArchiveContentRepositoryImpl): ArchiveContentRepository
 
     /** 정보 다이얼로그는 로컬 목록 화면에만 있으므로 로컬 구현만 바인딩한다. 원격 화면에 붙이려면 원격 구현을 따로 둔다. */
     @Binds

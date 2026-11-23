@@ -11,7 +11,6 @@ import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
-import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +27,7 @@ import javax.inject.Inject
 /**
  * 로컬 파일 목록 화면의 탐색·목록 상태와 로컬 파일 작업을 담당하는 ViewModel.
  * @param fileNavigatorUseCase 로컬 디렉터리 탐색 상태를 제공하는 UseCase
- * @param openFileUseCase 항목 열기(디렉터리 진입 포함)를 수행하는 UseCase
+ * @param itemOpener 항목 열기 — 내용을 볼 수 있는 압축 파일은 내용 보기 화면으로 가라는 요청([LocalItemOpener.archiveViewRequests])을 낸다
  * @param sortModeUseCase 정렬 기준을 조회·저장하는 UseCase
  * @param localFileOperationUseCase 로컬 파일 작업을 실행하는 UseCase
  * @param conflictCheckUseCase 목적지 이름 충돌을 판별하는 UseCase
@@ -37,7 +36,7 @@ import javax.inject.Inject
 @HiltViewModel
 class FileListViewModel @Inject constructor(
     private val fileNavigatorUseCase: FileNavigatorUseCase,
-    private val openFileUseCase: OpenFileUseCase,
+    val itemOpener: LocalItemOpener,
     sortModeUseCase: SortModeUseCase,
     private val localFileOperationUseCase: LocalFileOperationUseCase,
     conflictCheckUseCase: ConflictCheckUseCase,
@@ -113,9 +112,9 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    /** 항목을 연다 — 폴더는 그리로 이동하고, 파일은 외부 앱으로 연다. 열지는 선택 모드 규칙(clickActionOf)이 정한다. */
+    /** 항목을 연다 — 폴더는 그리로 이동하고, 내용을 볼 수 있는 압축 파일은 내용 보기로, 그 밖의 파일은 외부 앱으로 연다. 열지는 선택 모드 규칙(clickActionOf)이 정한다. */
     fun openItem(selected: FileHolderItem) {
-        viewModelScope.launch { openFileUseCase.open(selected.toDomain()) }
+        viewModelScope.launch { itemOpener.open(selected) }
     }
 
     /**

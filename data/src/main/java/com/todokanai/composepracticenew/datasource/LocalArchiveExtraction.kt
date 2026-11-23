@@ -94,10 +94,8 @@ class LocalArchiveExtraction @Inject constructor(
      * @param checking 비밀번호 확인 단계를 보고하는 보고기. 그 보고가 확인하는 동안의 작업 취소를 확인한다
      * @return 새 비밀번호 세션
      */
-    private fun passwordSessionOf(archiveName: String, askPassword: ArchivePasswordProvider, job: Job, checking: IndeterminateProgressReporter) = ArchivePasswordSession(
-        ask = { prompt -> runBlocking(job) { askPassword.passwordFor(archiveName, prompt) } },
-        reportChecking = { checking.report { IndeterminatePhase.CheckingPassword(archiveName) } },
-    )
+    private fun passwordSessionOf(archiveName: String, askPassword: ArchivePasswordProvider, job: Job, checking: IndeterminateProgressReporter) =
+        askingPasswordSession(archiveName, askPassword, job) { checking.report { IndeterminatePhase.CheckingPassword(archiveName) } }
 
     /**
      * [layout]에 따라 [archive]의 항목을 풀 루트 디렉터리를 정한다.
@@ -137,11 +135,8 @@ class LocalArchiveExtraction @Inject constructor(
      * @param path 파일 경로
      * @return 추출기와 역할. 지원하지 않는 형식이면 null
      */
-    private fun namedPathOf(path: String): NamedPath? {
-        val name = File(path).name
-        for (extractor in extractors) extractor.nameRoleOf(name)?.let { return NamedPath(path, extractor, it) }
-        return null
-    }
+    private fun namedPathOf(path: String): NamedPath? =
+        extractors.matchOf(File(path).name)?.let { NamedPath(path, it.extractor, it.role) }
 
     /**
      * 추출기가 역할을 준 파일 경로.

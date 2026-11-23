@@ -17,9 +17,10 @@ import java.io.Closeable
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
+import java.util.Date
 
 /**
- * SevenZipJBinding으로 아카이브를 산정·추출하는 ArchiveExtractor. [names]가 아카이브로 보는 이름이고 내용이 [formats] 중 하나로 열리는 파일만 다룬다.
+ * SevenZipJBinding으로 아카이브의 항목을 읽고 추출하는 ArchiveExtractor. [names]가 아카이브로 보는 이름이고 내용이 [formats] 중 하나로 열리는 파일만 다룬다.
  * 형식마다 이름 규칙과 받는 형식만 다르므로 형식별 인스턴스를 DI에서 만든다(RAR: `.rar`·`.partN.rar`·`.rNN` → RAR4·RAR5, 7z: `.7z`·`.7z.###` → 7z, ISO: `.iso` → UDF·ISO9660).
  * 분할 압축은 시작 볼륨으로 연다. 라이브러리가 다음 볼륨의 이름을 계산해 요청하면 같은 폴더에서 찾아 주고(RAR), 번호 볼륨은 이어 붙여 하나로 읽는다(7z, [SevenZipInput]).
  * 라이브러리는 세트의 끝에서도 다음 이름을 물을 수 있어 없는 볼륨을 요청한 것만으로는 실패로 보지 않는다. 요청한 볼륨이 없었는데 아카이브를 열지 못했거나,
@@ -55,6 +56,9 @@ class SevenZipArchiveExtractor(
             }
             ArchiveSize(knownBytes, count, unknownSizeCount)
         }
+
+    override fun entries(path: String, passwords: ArchivePasswordSession): List<ArchiveEntryInfo> =
+        withArchive(path, passwords) { archive -> (0 until archive.numberOfItems).map { entryInfoOf(archive, it) } }
 
     override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
         withArchive(path, passwords) { archive ->
@@ -305,12 +309,34 @@ internal class SevenZipExtractCallback(
 }
 
 /**
- * 항목의 압축 해제 후 크기를 구한다. 산정과 추출이 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
+ * 항목의 압축 해제 후 크기를 구한다. 목록과 추출이 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
  * @param archive 열린 아카이브
  * @param index 항목 번호
  * @return 크기(bytes), 아카이브가 알려주지 않으면 null
  */
 private fun knownSizeOf(archive: IInArchive, index: Int): Long? = (archive.getProperty(index, PropID.SIZE) as? Long)?.takeIf { it >= 0 }
+
+/**
+ * 열린 아카이브의 항목 하나의 목록 정보를 만든다. 종류는 추출과 같은 규칙([entryKindOf])으로 정한다.
+ * @param archive 열린 아카이브
+ * @param index 항목 번호
+ * @return 목록 정보
+ * @throws IOException 경로가 없는 항목일 때
+ */
+private fun entryInfoOf(archive: IInArchive, index: Int): ArchiveEntryInfo {
+    val kind = entryKindOf(archive, index)
+    return ArchiveEntryInfo(
+        path = kind.path,
+        kind = when (kind) {
+            is SevenZipEntryKind.Folder -> ArchiveEntryKind.FOLDER
+            is SevenZipEntryKind.File -> ArchiveEntryKind.FILE
+            is SevenZipEntryKind.Link -> ArchiveEntryKind.LINK
+        },
+        size = knownSizeOf(archive, index),
+        lastModifiedMillis = (archive.getProperty(index, PropID.LAST_MODIFICATION_TIME) as? Date)?.time,
+        isEncrypted = archive.getProperty(index, PropID.ENCRYPTED) == true,
+    )
+}
 
 /**
  * 열린 아카이브의 항목을 추출이 어떻게 다루는지 판별한다.
@@ -337,7 +363,7 @@ private fun isLinkEntry(archive: IInArchive, index: Int): Boolean =
     )
 
 /**
- * 항목 속성으로 추출이 그 항목을 어떻게 다루는지 판별한다. 산정·나열·추출이 같은 규칙으로 항목을 고르도록 한 곳에 둔다.
+ * 항목 속성으로 추출이 그 항목을 어떻게 다루는지 판별한다. 목록·추출이 같은 규칙으로 항목을 고르도록 한 곳에 둔다.
  * 경로가 없는 항목은 놓을 위치를 정할 수 없으므로 읽지 못하는 아카이브로 알린다. 링크는 폴더로 표시돼 있어도(디렉터리 링크·정션) 링크로 판별한다.
  * 라이브러리 없이 검증할 수 있도록 속성 값만 받는다.
  * @param isFolder 항목의 IS_FOLDER 속성 값

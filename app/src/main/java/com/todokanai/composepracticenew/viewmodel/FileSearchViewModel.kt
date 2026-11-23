@@ -16,7 +16,6 @@ import com.todokanai.composepracticenew.ui.model.SearchStatus
 import com.todokanai.composepracticenew.ui.model.SearchUiState
 import com.todokanai.composepracticenew.ui.model.clickActionOf
 import com.todokanai.composepracticenew.usecase.FileSearchUseCase
-import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -37,12 +36,12 @@ import javax.inject.Inject
  * 검색어 입력이 [QUERY_DEBOUNCE_MILLIS] 동안 멈추면 진행 중인 검색을 취소하고 새로 시작한다. 파일을 열고 돌아와도 결과가 남도록 화면 수명과 무관하게 끝까지 훑는다.
  * 결과가 [FileSearchUseCase.MAX_RESULTS]를 넘으면 그 자리에서 멈추고, 다 훑은 것과 구별해 표시한다.
  * @param fileSearchUseCase 모든 저장소에서 이름으로 항목을 찾고 찾은 폴더나 항목의 위치로 이동하는 UseCase
- * @param openFileUseCase 파일 결과를 외부 앱으로 여는 UseCase
+ * @param itemOpener 파일 결과 열기 — 내용을 볼 수 있는 압축 파일은 내용 보기 화면으로 가라는 요청([LocalItemOpener.archiveViewRequests])을 낸다
  */
 @HiltViewModel
 class FileSearchViewModel @Inject constructor(
     private val fileSearchUseCase: FileSearchUseCase,
-    private val openFileUseCase: OpenFileUseCase
+    val itemOpener: LocalItemOpener
 ) : ViewModel() {
 
     private companion object {
@@ -159,9 +158,9 @@ class FileSearchViewModel @Inject constructor(
     private fun finished(state: SearchUiState): SearchUiState =
         if (state.status == SearchStatus.Searching) state.copy(status = SearchStatus.Finished) else state
 
-    /** [item] 파일을 연다. */
+    /** [item] 파일을 연다 — 내용을 볼 수 있는 압축 파일은 내용 보기로, 그 밖은 외부 앱으로. */
     private fun openFile(item: FileHolderItem) {
-        viewModelScope.launch { openFileUseCase.open(item.toDomain()) }
+        viewModelScope.launch { itemOpener.open(item) }
     }
 
     /**
