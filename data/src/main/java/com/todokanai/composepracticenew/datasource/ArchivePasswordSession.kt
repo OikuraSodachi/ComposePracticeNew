@@ -1,6 +1,9 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
+import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.runBlocking
 
 /**
  * 압축 파일 하나의 비밀번호를 필요할 때 묻고, 내용으로 확인한 비밀번호를 그 압축 파일 안에서 다시 쓴다. 압축 파일마다 새로 만든다 —
@@ -38,6 +41,20 @@ class ArchivePasswordSession(
         }
     }
 }
+
+/**
+ * [askPassword]로 [archiveName]의 비밀번호를 묻는 세션을 만든다. 압축 해제와 내용 보기가 같은 방식으로 묻도록 한 곳에 둔다.
+ * 추출 라이브러리의 콜백 안에서도 묻도록, 일시 중단하지 않고 [job]을 부모로 답을 기다린다 — [job]이 취소되면 기다림도 끝난다.
+ * @param archiveName 비밀번호를 물을 때 보일 압축 파일 이름
+ * @param askPassword 비밀번호를 묻는 통로
+ * @param job 묻는 쪽(작업·목록 읽기)의 Job
+ * @param reportChecking 비밀번호를 확인하려고 내용을 푸는 동안 부르는 진행 보고([ArchivePasswordSession]의 같은 이름 매개변수)
+ * @return 새 비밀번호 세션
+ */
+fun askingPasswordSession(archiveName: String, askPassword: ArchivePasswordProvider, job: Job, reportChecking: () -> Unit) = ArchivePasswordSession(
+    ask = { prompt -> runBlocking(job) { askPassword.passwordFor(archiveName, prompt) } },
+    reportChecking = reportChecking,
+)
 
 /**
  * 비밀번호 확인으로 끝까지 풀어 볼 항목을 고른다. 형식별 추출기가 같은 기준으로 고르도록 한 곳에 둔다.

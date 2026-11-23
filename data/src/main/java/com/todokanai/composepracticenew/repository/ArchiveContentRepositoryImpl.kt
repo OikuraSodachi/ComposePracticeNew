@@ -2,8 +2,8 @@ package com.todokanai.composepracticenew.repository
 
 import com.todokanai.composepracticenew.datasource.ArchiveExtractor
 import com.todokanai.composepracticenew.datasource.ArchiveNameRole
-import com.todokanai.composepracticenew.datasource.ArchivePasswordSession
 import com.todokanai.composepracticenew.datasource.archiveTreeOf
+import com.todokanai.composepracticenew.datasource.askingPasswordSession
 import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.matchOf
 import com.todokanai.composepracticenew.model.ArchiveFolder
@@ -12,7 +12,6 @@ import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.job
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -36,10 +35,7 @@ class ArchiveContentRepositoryImpl @Inject constructor(
             val match = extractors.matchOf(name)?.takeIf { it.role is ArchiveNameRole.Entry }
                 ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(name))
             // 목록 읽기는 내용을 풀지 않아 비밀번호 확인 단계가 없다. 보고 자리에서는 취소만 확인한다
-            val passwords = ArchivePasswordSession(
-                ask = { prompt -> runBlocking(job) { askPassword.passwordFor(name, prompt) } },
-                reportChecking = { job.ensureActive() },
-            )
+            val passwords = askingPasswordSession(name, askPassword, job) { job.ensureActive() }
             val entries = match.extractor.entries(archivePath, passwords)
             job.ensureActive()
             IoResult.Success(archiveTreeOf(entries))
