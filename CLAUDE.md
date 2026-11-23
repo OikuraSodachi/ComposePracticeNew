@@ -49,6 +49,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 업로드 진입·원격 진행 알림으로 들어온 원격 화면은 `FILE_LIST` 위에 쌓여, 루트에서 뒤로가면 로컬 목록으로 돌아온다(업로드 대기 상태 유지).
 - 압축 파일 내용 보기(`ARCHIVE_VIEW`)에서는 원격 진행 알림을 눌러도 원격 화면으로 가지 않는다(진행 다이얼로그만 뜬다) — 내용 보기 위에 원격 화면을 쌓지 않는다.
 - 다운로드 진입은 원격 화면을 꺼내고 로컬 목록으로 간다.
+- 압축 파일 내용 보기로의 이동은 `FILE_LIST`의 back stack entry가 RESUMED일 때만 실행한다(#537) — 연타로 `ARCHIVE_VIEW`가 두 번 쌓이지 않도록. 화면 전환 애니메이션 동안(entry가 STARTED)에 연 요청도 버려진다(다시 누르면 열린다).
 - 연결된 원격 세션이 없어 원격 화면이 나갈 때도 루트 뒤로가기와 같이 원격 화면만 닫는다(#492) — 나가는 곳은 위 백스택 모양이 정한다.
 
 ### UI Modes (`ui/model/SelectMode`)

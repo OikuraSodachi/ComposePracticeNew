@@ -9,8 +9,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -95,8 +98,8 @@ fun AppNavHost(
                 startDestination = NavDestinations.FILE_LIST,
                 route = NavDestinations.FILE_BROWSER_GRAPH
             ) {
-                composable(NavDestinations.FILE_LIST) {
-                    FileListDestination(navController, mainViewModel)
+                composable(NavDestinations.FILE_LIST) { entry ->
+                    FileListDestination(navController, mainViewModel, entry)
                 }
                 composable(NavDestinations.REMOTE_FILE_LIST) {
                     RemoteFileListDestination(navController, mainViewModel)
@@ -141,11 +144,22 @@ private fun rememberGraphCoordinator(navController: NavHostController): FileTran
 private fun canNavigateToRemoteFrom(route: String?): Boolean =
     route != NavDestinations.REMOTE_FILE_LIST && route != NavDestinations.ARCHIVE_VIEW
 
+/**
+ * [owner]의 화면이 입력을 받는 중인지(RESUMED) 판정한다.
+ * `navigate()`를 부르면 떠나는 화면의 back stack entry는 그 안에서 곧바로 RESUMED를 벗어나므로, 그 뒤에 처리되는 이동 요청을 버리는 데 쓴다(#537).
+ * [LifecycleOwner]로 받는다 — navigation 2.5.1의 [NavBackStackEntry]에서는 `lifecycle`이 private 필드로 가려진다.
+ * @param owner 이동 요청을 처리하는 destination의 back stack entry
+ * @return RESUMED이면 true
+ */
+private fun isResumed(owner: LifecycleOwner): Boolean =
+    owner.lifecycle.currentState == Lifecycle.State.RESUMED
+
 /** FILE_LIST destination의 UI와 상태를 담당한다. */
 @Composable
 private fun FileListDestination(
     navController: NavHostController,
-    mainViewModel: MainViewModel
+    mainViewModel: MainViewModel,
+    entry: NavBackStackEntry
 ) {
     val viewModel: FileListViewModel = hiltViewModel()
     /** 정보 다이얼로그의 표시 상태와 선택 항목의 정보 계산을 맡는다. 화면 회전에도 다이얼로그 내용이 유지되도록 이 destination의 백스택 항목에 스코프된다. */
@@ -198,6 +212,12 @@ private fun FileListDestination(
     // 목록 행·검색 결과에서 연 압축 파일을 내용 보기 화면으로 띄운다. 두 ViewModel은 이 destination 동안 같으므로 그 둘을 키로 한 번씩만 수집한다
     LaunchedEffect(viewModel, searchViewModel) {
         merge(viewModel.itemOpener.archiveViewRequests, searchViewModel.itemOpener.archiveViewRequests).collect { path ->
+            // 이 화면이 RESUMED가 아니면(이미 다른 화면으로 떠나는 중이면) 요청을 버린다 — 연타로 내용 보기가 두 번 쌓이지 않도록(#537).
+            // 화면 전환 애니메이션 동안에도 entry가 RESUMED가 아니므로, 그 사이에 연 요청도 버려진다(다시 누르면 열린다)
+            // 확인하지 못한 경우: 이 화면에 들어오는 전환이 중간에 끊기면(들어오자마자 뒤로가기) entry가 STARTED에 남는지는 실기기로 확인하지 않았다.
+            // navigation 2.5.1 NavHost는 Crossfade 자식이 dispose될 때 보이는 entry를 모두 전환 완료로 표시하므로 남지 않을 것으로 보지만,
+            // 남는다면 다른 화면으로 이동하기 전까지 압축 파일이 열리지 않는다(PR #538 리뷰)
+            if (!isResumed(entry)) return@collect
             navController.navigate(NavDestinations.archiveView(path))
         }
     }
