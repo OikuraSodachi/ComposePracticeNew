@@ -26,6 +26,13 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     override fun nameRoleOf(fileName: String): ArchiveNameRole? = zipNameRoleOf(fileName)
 
+    override fun measure(path: String, passwords: ArchivePasswordSession): ArchiveSize =
+        openZip(path).use { zf ->
+            val files = headersOf(zf).filter { !it.isDirectory }
+            val knownSizes = files.mapNotNull(::knownSizeOf)
+            ArchiveSize(knownBytes = knownSizes.sum(), fileCount = files.size, unknownSizeCount = files.size - knownSizes.size)
+        }
+
     override fun entries(path: String, passwords: ArchivePasswordSession): List<ArchiveEntryInfo> =
         openZip(path).use { zf -> headersOf(zf).map(::entryInfoOf) }
 
@@ -98,7 +105,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     /**
      * 아카이브의 항목을 모두 읽는다. 이름을 해석하지 못한 항목이 있으면 아무것도 풀기 전에 실패한다 —
-     * [entries]·[extract]가 같은 실패로 알리고, 일부만 풀린 채 끝나지 않도록.
+     * [measure]·[entries]·[extract]가 같은 실패로 알리고, 일부만 풀린 채 끝나지 않도록.
      * @param zf 연 ZIP 파일
      * @return 아카이브에 담긴 순서의 항목 목록
      * @throws LocalFailureException 항목 이름을 UTF-8로 해석하지 못했을 때([FailureReason.ArchiveEntryNameUnreadable])
@@ -126,7 +133,7 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     )
 
     /**
-     * 항목의 압축 해제 후 크기를 구한다. [entries]와 [extract]가 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
+     * 항목의 압축 해제 후 크기를 구한다. [measure]·[entries]·[extract]가 같은 기준으로 크기를 모르는 항목을 가르도록 한 곳에 둔다.
      * @param header 아카이브 항목
      * @return 크기(bytes), 아카이브가 알려주지 않으면(음수) null
      */

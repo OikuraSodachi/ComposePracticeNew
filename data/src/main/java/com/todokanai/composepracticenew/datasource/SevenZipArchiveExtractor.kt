@@ -43,6 +43,20 @@ class SevenZipArchiveExtractor(
 
     override fun nameRoleOf(fileName: String): ArchiveNameRole? = names(fileName)
 
+    override fun measure(path: String, passwords: ArchivePasswordSession): ArchiveSize =
+        withArchive(path, passwords) { archive ->
+            var knownBytes = 0L
+            var count = 0
+            var unknownSizeCount = 0
+            for (i in 0 until archive.numberOfItems) {
+                if (entryKindOf(archive, i) is SevenZipEntryKind.Folder) continue
+                val size = knownSizeOf(archive, i)
+                if (size == null) unknownSizeCount++ else knownBytes += size
+                count++
+            }
+            ArchiveSize(knownBytes, count, unknownSizeCount)
+        }
+
     override fun entries(path: String, passwords: ArchivePasswordSession): List<ArchiveEntryInfo> =
         withArchive(path, passwords) { archive -> (0 until archive.numberOfItems).map { entryInfoOf(archive, it) } }
 

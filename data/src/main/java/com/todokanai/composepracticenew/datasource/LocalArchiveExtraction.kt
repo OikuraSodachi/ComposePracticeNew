@@ -64,7 +64,7 @@ class LocalArchiveExtraction @Inject constructor(
             }
             // 산정과 추출은 같은 비밀번호 세션을 쓴다 — 산정에서 확인한 비밀번호를 추출에서 다시 묻지 않도록
             val passwords = passwordSessionOf(File(archive.path).name, askPassword, job, IndeterminateProgressReporter(onProgress))
-            val size = ArchiveSize.of(archive.extractor.entries(archive.path, passwords))
+            val size = archive.extractor.measure(archive.path, passwords)
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
             checkDiskSpace(size.knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
             val tracker = ByteProgressTracker(TransferTotal.of(size.knownBytes, size.unknownSizeCount), size.fileCount, onProgress)
