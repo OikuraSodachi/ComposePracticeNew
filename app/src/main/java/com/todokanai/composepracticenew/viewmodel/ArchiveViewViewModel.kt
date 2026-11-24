@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.ArchiveEntryKey
 import com.todokanai.composepracticenew.model.ArchiveFolder
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.IoResult
@@ -20,6 +21,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -56,11 +58,22 @@ class ArchiveViewViewModel @Inject constructor(
     /** 루트부터 들어간 폴더 이름들. Bundle에 담기도록 ArrayList로 저장한다. */
     private val folderNames: StateFlow<ArrayList<String>> = savedStateHandle.getStateFlow(KEY_FOLDER_NAMES, ArrayList())
 
-    /** 화면 표시 상태. */
-    val uiState: StateFlow<ArchiveViewUiState> =
+    /** 선택 상태. 목록을 새로 읽으면 기본 모드로 돌아간다. */
+    private val selection = MutableStateFlow<ArchiveSelection>(ArchiveSelection.None)
+
+    /** 지금 폴더의 표시 상태(선택 제외). 선택이 바뀔 때마다 정렬·날짜 포맷을 다시 하지 않도록 선택과 따로 만든다. */
+    private val folderState: Flow<ArchiveViewUiState> =
         combine(listing, folderNames, sortModeUseCase.sortBy) { listing, names, sortMode -> uiStateOf(listing, names, sortMode) }
             .flowOn(Dispatchers.Default) // 큰 폴더의 정렬·날짜 포맷을 메인 스레드 밖에서 한다
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ArchiveViewUiState(archiveNameOf(), emptyList(), ArchiveViewContent.Loading))
+
+    /** 화면 표시 상태. */
+    val uiState: StateFlow<ArchiveViewUiState> =
+        combine(folderState, selection) { state, current -> state.copy(selection = selectionOf(state.content, current)) }
+            .stateIn(
+                viewModelScope,
+                SharingStarted.WhileSubscribed(5_000),
+                ArchiveViewUiState(archiveNameOf(), emptyList(), ArchiveViewContent.Loading, ArchiveViewSelection.None)
+            )
 
     /** 답을 기다리는 비밀번호 질문과 그 답을 받을 자리. */
     private val pendingPassword = MutableStateFlow<PendingPassword?>(null)
@@ -103,19 +116,42 @@ class ArchiveViewViewModel @Inject constructor(
     fun retry() = load()
 
     /**
-     * 행을 연다 — 폴더면 그 안으로 들어가고, 폴더가 아니면 아무것도 하지 않는다(항목 열기는 지원하지 않는다).
+     * 누른 행을 처리한다. 다중 선택 중이면 그 행의 선택을 토글하고, 기본 모드면 폴더 안으로 들어간다(폴더가 아니면 아무것도 하지 않는다 — 항목 열기는 지원하지 않는다).
+     * 다중 선택 중에는 폴더를 옮기지 않는다 — 선택이 보이지 않는 폴더의 항목을 담지 않도록(파일 목록의 #519와 같은 규칙).
      * @param row 누른 행
      */
-    fun openEntry(row: ArchiveEntryRow) {
-        if (row.kind != ArchiveEntryRowKind.FOLDER) return
-        savedStateHandle[KEY_FOLDER_NAMES] = ArrayList(folderNames.value + row.name)
+    fun onRowClick(row: ArchiveEntryRow) {
+        when (val current = selection.value) {
+            ArchiveSelection.None -> openFolder(row)
+            is ArchiveSelection.MultiSelect -> selection.value = current.toggled(row.key)
+        }
     }
 
     /**
-     * 뒤로가기를 처리한다. 안쪽 폴더면 바깥 폴더로 가고, 루트면 [close]로 화면을 닫는다.
+     * [anchor]를 선택한 채로 다중 선택으로 들어간다. 길게 눌러 드래그 선택을 시작할 때 부른다. 이미 다중 선택 중이면 아무것도 하지 않는다.
+     * @param anchor 길게 누른 행
+     */
+    fun startMultiSelect(anchor: ArchiveEntryRow) {
+        if (selection.value == ArchiveSelection.None) selection.value = ArchiveSelection.MultiSelect(setOf(anchor.key))
+    }
+
+    /**
+     * 다중 선택 목록을 [rows]로 바꾼다(드래그 범위 선택, 모두 선택). 다중 선택 중이 아니면 아무것도 하지 않는다 — 비어 있어도 다중 선택은 유지한다.
+     * @param rows 새 선택 목록
+     */
+    fun replaceSelection(rows: List<ArchiveEntryRow>) {
+        if (selection.value is ArchiveSelection.MultiSelect) selection.value = ArchiveSelection.MultiSelect(rows.mapTo(HashSet()) { it.key })
+    }
+
+    /**
+     * 뒤로가기를 처리한다. 다중 선택 중이면 선택을 비우고 기본 모드로 돌아가며, 안쪽 폴더면 바깥 폴더로 가고, 루트면 [close]로 화면을 닫는다.
      * @param close 화면을 닫는 함수
      */
     fun onBackPressed(close: () -> Unit) {
+        if (selection.value is ArchiveSelection.MultiSelect) {
+            selection.value = ArchiveSelection.None
+            return
+        }
         val names = folderNames.value
         if (names.isEmpty()) close() else savedStateHandle[KEY_FOLDER_NAMES] = ArrayList(names.dropLast(1))
     }
@@ -139,9 +175,22 @@ class ArchiveViewViewModel @Inject constructor(
         pendingClose.post(Unit)
     }
 
-    /** 목록을 읽는다. 진행 중인 읽기가 있으면 끝내고 새로 읽는다. */
+    /**
+     * 폴더 행이면 그 안으로 들어간다.
+     * @param row 누른 행
+     */
+    private fun openFolder(row: ArchiveEntryRow) {
+        if (row.kind != ArchiveEntryRowKind.FOLDER) return
+        savedStateHandle[KEY_FOLDER_NAMES] = ArrayList(folderNames.value + row.name)
+    }
+
+    /**
+     * 목록을 읽는다. 진행 중인 읽기가 있으면 끝내고 새로 읽는다.
+     * 다중 선택을 끝낸다 — 선택은 읽은 목록의 키로 들고 있어, 새로 읽은 목록에서는 같은 키가 다른 항목을 가리킬 수 있다.
+     */
     private fun load() {
         loadJob?.cancel()
+        selection.value = ArchiveSelection.None
         listing.value = ArchiveListing.Loading
         loadJob = viewModelScope.launch {
             listing.value = when (val result = archiveViewUseCase.contentsOf(archivePath, askPassword)) {
@@ -172,7 +221,19 @@ class ArchiveViewViewModel @Inject constructor(
             is ArchiveListing.Failed -> ArchiveViewContent.Failed(failureTextOf(listing.failure, kind = null))
             is ArchiveListing.Loaded -> loadedContentOf(listing.root, names, sortMode)
         }
-        return ArchiveViewUiState(archiveNameOf(), names, content)
+        return ArchiveViewUiState(archiveNameOf(), names, content, ArchiveViewSelection.None)
+    }
+
+    /**
+     * 선택 상태를 화면에 보일 선택으로 바꾼다.
+     * @param content 지금 폴더의 목록 영역 상태
+     * @param selection 선택 상태
+     * @return 다중 선택이면 지금 폴더의 행 중 선택된 것들(화면의 행 순서)
+     */
+    private fun selectionOf(content: ArchiveViewContent, selection: ArchiveSelection): ArchiveViewSelection = when (selection) {
+        ArchiveSelection.None -> ArchiveViewSelection.None
+        is ArchiveSelection.MultiSelect ->
+            ArchiveViewSelection.MultiSelect((content as? ArchiveViewContent.Loaded)?.rows.orEmpty().filter { it.key in selection.keys })
     }
 
     /**
@@ -208,6 +269,21 @@ class ArchiveViewViewModel @Inject constructor(
         data class Failed(val failure: IoResult.Failure) : ArchiveListing
     }
 
+    /** 선택 상태. 선택은 행이 아니라 키로 든다 — 정렬이 바뀌어 행이 새로 만들어져도 선택이 이어지도록. */
+    private sealed interface ArchiveSelection {
+        /** 기본 모드 — 선택이 없다. */
+        data object None : ArchiveSelection
+
+        /**
+         * 다중 선택. 지금 폴더 안의 항목만 담는다(다중 선택 중에는 폴더를 옮기지 않는다).
+         * @param keys 선택한 항목의 키. 비어 있어도 다중 선택이다
+         */
+        data class MultiSelect(val keys: Set<ArchiveEntryKey>) : ArchiveSelection {
+            /** [key]의 선택을 뒤집은 선택. */
+            fun toggled(key: ArchiveEntryKey): MultiSelect = MultiSelect(if (key in keys) keys - key else keys + key)
+        }
+    }
+
     /**
      * 답을 기다리는 비밀번호 질문.
      * @param request 화면에 보일 질문
@@ -229,8 +305,21 @@ class ArchiveViewViewModel @Inject constructor(
  * @param archiveName 압축 파일 이름
  * @param folderNames 루트부터 들어간 폴더 이름들
  * @param content 목록 영역의 상태
+ * @param selection 선택 상태
  */
-data class ArchiveViewUiState(val archiveName: String, val folderNames: List<String>, val content: ArchiveViewContent)
+data class ArchiveViewUiState(val archiveName: String, val folderNames: List<String>, val content: ArchiveViewContent, val selection: ArchiveViewSelection)
+
+/** 내용 보기 화면의 선택 상태. */
+sealed interface ArchiveViewSelection {
+    /** 기본 모드 — 폴더 행을 누르면 들어간다. */
+    data object None : ArchiveViewSelection
+
+    /**
+     * 다중 선택 — 행을 누르면 선택을 토글한다.
+     * @param selected 지금 폴더의 행 중 선택된 것들
+     */
+    data class MultiSelect(val selected: List<ArchiveEntryRow>) : ArchiveViewSelection
+}
 
 /** 내용 보기 화면 목록 영역의 상태. 읽기 실패는 빈 폴더가 아니라 실패로 보인다. */
 sealed interface ArchiveViewContent {

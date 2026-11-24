@@ -23,20 +23,23 @@ import com.todokanai.composepracticenew.ui.model.ListingUiState
 
 /**
  * 다중 선택 중 목록 위에 모두 선택 체크박스와 선택한 항목 수를 보인다. 누르면 목록이 모두 선택돼 있을 때는 모두 해제하고, 아니면 목록 전체를 선택한다.
+ * @param T 목록 항목 타입
  * @param items 지금 보이는 목록의 항목 — 모두 선택의 대상
+ * @param keyOf 항목의 목록 키 — 선택 여부를 이 키로 판단한다
  * @param selectedList 선택 목록을 반환하는 함수
  * @param onReplaceSelection 다중 선택 목록을 바꾸는 콜백
  */
 @Composable
-fun SelectAllBar(
+fun <T> SelectAllBar(
     modifier: Modifier,
-    items: List<FileHolderItem>,
-    selectedList: () -> List<FileHolderItem>,
-    onReplaceSelection: (List<FileHolderItem>) -> Unit
+    items: List<T>,
+    keyOf: (T) -> Any,
+    selectedList: () -> List<T>,
+    onReplaceSelection: (List<T>) -> Unit
 ) {
-    // items·selectedList를 키로 — 목록이나 선택 출처가 바뀌면 다시 만든다. derivedStateOf는 selectedList()가 읽는 선택 목록 State를 추적해 체크박스 상태가 바뀔 때만 리컴포지션한다
-    val toggleState by remember(items, selectedList) {
-        derivedStateOf { selectAllStateOf(items, selectedList()) }
+    // items·keyOf·selectedList를 키로 — 목록이나 선택 출처가 바뀌면 다시 만든다. derivedStateOf는 selectedList()가 읽는 선택 목록 State를 추적해 체크박스 상태가 바뀔 때만 리컴포지션한다
+    val toggleState by remember(items, keyOf, selectedList) {
+        derivedStateOf { selectAllStateOf(items, selectedList(), keyOf) }
     }
     // selectedList를 키로 — 선택 목록 State를 추적해 선택한 수가 바뀔 때만 리컴포지션한다
     val selectedCount by remember(selectedList) { derivedStateOf { selectedList().size } }
@@ -47,7 +50,7 @@ fun SelectAllBar(
             .triStateToggleable(
                 state = toggleState,
                 role = Role.Checkbox,
-                onClick = { onReplaceSelection(selectionAfterSelectAllToggle(items, selectedList())) }
+                onClick = { onReplaceSelection(selectionAfterSelectAllToggle(items, selectedList(), keyOf)) }
             )
             .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -74,11 +77,12 @@ internal fun selectAllTargetsOf(listing: ListingUiState): List<FileHolderItem> =
  * 모두 선택 체크박스의 상태.
  * @param items 지금 보이는 목록의 항목
  * @param selected 선택 목록
+ * @param keyOf 항목의 목록 키
  * @return 목록이 비어 있지 않고 모두 선택돼 있으면 On, 하나도 선택되지 않았으면 Off, 일부만 선택돼 있으면 Indeterminate
  */
-internal fun selectAllStateOf(items: List<FileHolderItem>, selected: List<FileHolderItem>): ToggleableState {
-    val selectedPaths = selected.mapTo(HashSet()) { it.path }
-    val selectedInList = items.count { it.path in selectedPaths }
+internal fun <T> selectAllStateOf(items: List<T>, selected: List<T>, keyOf: (T) -> Any): ToggleableState {
+    val selectedKeys = selected.mapTo(HashSet(), keyOf)
+    val selectedInList = items.count { keyOf(it) in selectedKeys }
     return when {
         selectedInList == 0 -> ToggleableState.Off
         selectedInList == items.size -> ToggleableState.On
@@ -90,7 +94,8 @@ internal fun selectAllStateOf(items: List<FileHolderItem>, selected: List<FileHo
  * 모두 선택 체크박스를 눌렀을 때의 새 선택 목록.
  * @param items 지금 보이는 목록의 항목
  * @param selected 지금 선택 목록
+ * @param keyOf 항목의 목록 키
  * @return 목록이 모두 선택돼 있으면 빈 목록(모두 해제), 아니면 목록 전체
  */
-internal fun selectionAfterSelectAllToggle(items: List<FileHolderItem>, selected: List<FileHolderItem>): List<FileHolderItem> =
-    if (selectAllStateOf(items, selected) == ToggleableState.On) emptyList() else items
+internal fun <T> selectionAfterSelectAllToggle(items: List<T>, selected: List<T>, keyOf: (T) -> Any): List<T> =
+    if (selectAllStateOf(items, selected, keyOf) == ToggleableState.On) emptyList() else items

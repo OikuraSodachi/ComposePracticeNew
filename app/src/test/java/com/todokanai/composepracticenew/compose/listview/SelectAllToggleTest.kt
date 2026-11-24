@@ -17,30 +17,30 @@ class SelectAllToggleTest {
 
     @Test
     fun `선택 정도에 따라 체크박스 상태가 정해진다`() {
-        assertEquals(ToggleableState.Off, selectAllStateOf(items, emptyList()))
-        assertEquals(ToggleableState.Indeterminate, selectAllStateOf(items, listOf(a)))
-        assertEquals(ToggleableState.On, selectAllStateOf(items, listOf(b, a)))
+        assertEquals(ToggleableState.Off, selectAllStateOf(items, emptyList(), ::fileListKeyOf))
+        assertEquals(ToggleableState.Indeterminate, selectAllStateOf(items, listOf(a), ::fileListKeyOf))
+        assertEquals(ToggleableState.On, selectAllStateOf(items, listOf(b, a), ::fileListKeyOf))
     }
 
     @Test
     fun `목록 밖 항목만 선택돼 있으면 선택하지 않은 것으로 본다`() {
-        assertEquals(ToggleableState.Off, selectAllStateOf(items, listOf(item("/elsewhere"))))
+        assertEquals(ToggleableState.Off, selectAllStateOf(items, listOf(item("/elsewhere")), ::fileListKeyOf))
     }
 
     @Test
     fun `빈 목록은 선택하지 않은 것으로 본다`() {
-        assertEquals(ToggleableState.Off, selectAllStateOf(emptyList(), emptyList()))
+        assertEquals(ToggleableState.Off, selectAllStateOf(emptyList(), emptyList(), ::fileListKeyOf))
     }
 
     @Test
     fun `모두 선택돼 있지 않으면 목록 전체를 선택한다`() {
-        assertEquals(items, selectionAfterSelectAllToggle(items, emptyList()))
-        assertEquals(items, selectionAfterSelectAllToggle(items, listOf(a)))
+        assertEquals(items, selectionAfterSelectAllToggle(items, emptyList(), ::fileListKeyOf))
+        assertEquals(items, selectionAfterSelectAllToggle(items, listOf(a), ::fileListKeyOf))
     }
 
     @Test
     fun `모두 선택돼 있으면 모두 해제한다`() {
-        assertEquals(emptyList<FileHolderItem>(), selectionAfterSelectAllToggle(items, listOf(a, b)))
+        assertEquals(emptyList<FileHolderItem>(), selectionAfterSelectAllToggle(items, listOf(a, b), ::fileListKeyOf))
     }
 
     @Test

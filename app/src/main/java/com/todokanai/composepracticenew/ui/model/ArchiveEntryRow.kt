@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.ui.model
 
 import com.todokanai.composepracticenew.model.ArchiveEntry
+import com.todokanai.composepracticenew.model.ArchiveEntryKey
 import com.todokanai.composepracticenew.model.FileNameParts
 import com.todokanai.composepracticenew.tools.independent.readableFileSize_td
 import java.text.DateFormat
@@ -11,12 +12,14 @@ import java.text.DateFormat
  * @param kind 항목 종류
  * @param size 크기 표시 문자열. 크기가 없거나 모르면 빈 문자열
  * @param lastModified 수정 시각 표시 문자열. 모르면 빈 문자열
+ * @param key 항목을 가리키는 키 — 이름이 같은 항목끼리도 달라 선택과 목록 키에 쓴다
  */
 data class ArchiveEntryRow(
     val name: String,
     val kind: ArchiveEntryRowKind,
     val size: String,
     val lastModified: String,
+    val key: ArchiveEntryKey,
 ) {
     /** 아이콘을 고르는 항목 종류. 이름과 폴더 여부에서 생성 시 한 번 정한다. */
     val fileType: FileType = FileType.of(name, kind == ArchiveEntryRowKind.FOLDER)
@@ -39,6 +42,7 @@ data class ArchiveEntryRow(
                     kind = kindOf(entry),
                     size = entry.sizeBytes?.let(::readableFileSize_td) ?: "",
                     lastModified = entry.lastModifiedMillis?.let(dateFormat::format) ?: "",
+                    key = entry.key,
                 )
             }
         }

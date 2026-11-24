@@ -1,21 +1,9 @@
 package com.todokanai.composepracticenew.compose.holder
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
@@ -23,8 +11,7 @@ import com.todokanai.composepracticenew.ui.model.FileType
 
 /**
  * 파일 목록의 개별 항목을 표시하는 컴포저블. 아이콘과 썸네일 여부는 [file]의 종류로 정하고, 숨김 항목은 아이콘을 흐리게 표시한다.
- * 오른쪽 아래 칸에는 파일이면 크기를, 폴더면 하위 항목 수를 표시한다.
- * 길게 누르기는 받지 않는다 — 목록의 드래그 선택(dragSelectGesture)이 맡으며, 행이 길게 누르기를 감지하면 그 뒤 이벤트를 모두 소비해 목록의 드래그가 취소된다.
+ * 오른쪽 아래 칸에는 파일이면 크기를, 폴더면 하위 항목 수를 표시한다. 행의 틀과 선택 표시는 [SelectableFileRow]가 맡는다.
  * @param typeIcons 항목 종류별 placeholder 아이콘 — 목록 전체가 공유하는 같은 인스턴스여야 행 리컴포지션이 생략된다
  * @param childCount 폴더의 하위 항목 수 표시 상태. 파일이거나 하위 항목 수를 세지 않는 목록(원격)이면 null이며, 그때는 크기 칸을 그대로 표시한다
  */
@@ -37,32 +24,16 @@ fun FileHolder(
     childCount: ChildCountInfo?,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = modifier
-            .clickable(onClick = onClick)
-            .background(if (isSelected) Color.LightGray else Color.Transparent)
-            .fillMaxWidth()
-            .height(60.dp),
-        verticalAlignment = Alignment.CenterVertically
+    SelectableFileRow(
+        modifier = modifier,
+        isSelected = isSelected,
+        clickEnabled = true,
+        onClick = onClick,
+        amount = amountText(file, childCount)
     ) {
         FileIconAndName(item = file, typeIcons = typeIcons) {
-            Text(
-                text = file.lastModified,
-                fontSize = 15.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp, end = 4.dp)
-            )
+            FileRowSubtitle(text = file.lastModified)
         }
-
-        Text(
-            text = amountText(file, childCount),
-            fontSize = 15.sp,
-            maxLines = 1,
-            modifier = Modifier
-                .align(Alignment.Bottom)
-                .padding(4.dp)
-        )
     }
 }
 
