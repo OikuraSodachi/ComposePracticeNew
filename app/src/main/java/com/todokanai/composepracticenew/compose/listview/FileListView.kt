@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.holder.FileHolder
 import com.todokanai.composepracticenew.compose.util.verticalScrollbar
 import com.todokanai.composepracticenew.ui.model.ChildCountInfo
+import com.todokanai.composepracticenew.ui.model.DragSelection
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ItemClickAction
 import com.todokanai.composepracticenew.ui.model.ListingUiState
@@ -94,10 +95,9 @@ fun FileListView(
             .fillMaxWidth()
             .dragSelectGesture(
                 listState = listState,
-                fileList = fileHolderItemList,
-                selectMode = selectMode,
-                selectedList = selectedList,
-                onStartMultiSelect = onStartMultiSelect,
+                items = fileHolderItemList,
+                keyOf = ::fileListKeyOf,
+                startSelection = { anchor -> startDragSelection(selectMode, anchor, selectedList, onStartMultiSelect) },
                 onReplaceSelection = onReplaceSelection
             )
     ) {
@@ -140,6 +140,26 @@ fun FileListView(
                 .verticalScrollbar(listState)
         )
     }
+}
+
+/**
+ * 선택 모드에 맞춰 드래그 선택을 시작하고 이번 드래그의 범위 선택 규칙을 정한다.
+ * 기본 모드에서 시작하면 다중 선택으로 들어가 범위를 선택하고, 다중 선택 중에 시작하면 시작 항목의 선택 여부에 따라 범위를 선택하거나 해제한다.
+ * @param selectMode 드래그를 시작할 때의 선택 모드
+ * @param anchor 드래그를 시작한 항목
+ * @param selectedList 선택 목록을 반환하는 함수
+ * @param onStartMultiSelect anchor를 선택한 채로 다중 선택 모드로 전환을 요청하는 콜백 — 기본 모드에서만 부른다
+ * @return 범위 선택 규칙. 목적지 확인 단계처럼 선택을 편집하지 않는 모드면 null이며 드래그 선택을 시작하지 않는다
+ */
+private fun startDragSelection(
+    selectMode: SelectMode,
+    anchor: FileHolderItem,
+    selectedList: () -> List<FileHolderItem>,
+    onStartMultiSelect: (FileHolderItem) -> Unit
+): DragSelection<FileHolderItem>? = when (selectMode) {
+    SelectMode.Default -> DragSelection.fresh(::fileListKeyOf).also { onStartMultiSelect(anchor) }
+    SelectMode.MultiSelect -> DragSelection.startingAt(anchor, selectedList(), ::fileListKeyOf)
+    is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> null
 }
 
 /**

@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.ArchiveEntry
+import com.todokanai.composepracticenew.model.ArchiveEntryKey
 import com.todokanai.composepracticenew.model.ArchiveFolder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -64,8 +65,25 @@ class ArchiveTreeTest {
             ArchiveEntryInfo("secret.txt", ArchiveEntryKind.FILE, size = 3, lastModifiedMillis = 7L, isEncrypted = true),
         ))
 
-        assertEquals(ArchiveEntry.Link("link", null), root.entries[0])
-        assertEquals(ArchiveEntry.File("secret.txt", 3, 7L, isEncrypted = true), root.entries[1])
+        assertEquals(ArchiveEntry.Link("link", null, ArchiveEntryKey.Item(0)), root.entries[0])
+        assertEquals(ArchiveEntry.File("secret.txt", 3, 7L, isEncrypted = true, ArchiveEntryKey.Item(1)), root.entries[1])
+    }
+
+    @Test
+    fun `폴더가 아닌 항목의 키는 항목 목록에서의 순번이라 이름이 같아도 다르다`() {
+        val root = archiveTreeOf(listOf(file("a.txt"), file("../up.txt"), folder("d/"), file("a.txt")))
+
+        assertEquals(
+            listOf(ArchiveEntryKey.Item(0), ArchiveEntryKey.Item(1), ArchiveEntryKey.Folder("d"), ArchiveEntryKey.Item(3)),
+            root.entries.map { it.key }
+        )
+    }
+
+    @Test
+    fun `폴더의 키는 그 이름이라 합친 폴더는 키가 하나다`() {
+        val root = archiveTreeOf(listOf(file("a/b/x.txt"), folder("a/b/")))
+
+        assertEquals(listOf(ArchiveEntryKey.Folder("b")), root.folderAt(listOf("a"))!!.entries.map { it.key })
     }
 
     @Test

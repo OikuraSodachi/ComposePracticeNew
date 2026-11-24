@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.compose.listview.fileListKeyOf
 import com.todokanai.composepracticenew.compose.listview.ListWithBottomButtons
 import com.todokanai.composepracticenew.compose.listview.RemoteBottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.RenameActions
@@ -128,6 +129,7 @@ fun RemoteFileListFrag(
                     SelectAllBar(
                         modifier = Modifier.fillMaxHeight(),
                         items = selectAllTargetsOf(uiState.value.listing),
+                        keyOf = ::fileListKeyOf,
                         selectedList = selectedList,
                         onReplaceSelection = onReplaceSelection
                     )

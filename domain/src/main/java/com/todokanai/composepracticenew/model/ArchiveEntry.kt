@@ -5,13 +5,17 @@ package com.todokanai.composepracticenew.model
  */
 sealed interface ArchiveEntry : SortableEntry {
 
+    /** 이 항목을 가리키는 키. 이름이 같은 항목끼리도 다르다. */
+    val key: ArchiveEntryKey
+
     /**
      * 폴더. 폴더 항목이 없는 형식은 안쪽 항목의 경로로 만든 폴더이며, 그때 수정 시각이 없다.
      * @param name 폴더 이름
      * @param lastModifiedMillis 수정 시각. 모르면 null
      * @param contents 바로 아래 항목들
+     * @param key 폴더 이름으로 만든 키
      */
-    data class Folder(override val name: String, override val lastModifiedMillis: Long?, val contents: ArchiveFolder) : ArchiveEntry {
+    data class Folder(override val name: String, override val lastModifiedMillis: Long?, val contents: ArchiveFolder, override val key: ArchiveEntryKey.Folder) : ArchiveEntry {
         override val isDirectory: Boolean get() = true
         override val sizeBytes: Long? get() = null
     }
@@ -22,8 +26,9 @@ sealed interface ArchiveEntry : SortableEntry {
      * @param sizeBytes 압축 해제 후 크기. 압축 파일이 알려주지 않으면 null
      * @param lastModifiedMillis 수정 시각. 모르면 null
      * @param isEncrypted 내용이 암호화된 파일이면 true
+     * @param key 압축 파일 항목 목록에서의 순번으로 만든 키
      */
-    data class File(override val name: String, override val sizeBytes: Long?, override val lastModifiedMillis: Long?, val isEncrypted: Boolean) : ArchiveEntry {
+    data class File(override val name: String, override val sizeBytes: Long?, override val lastModifiedMillis: Long?, val isEncrypted: Boolean, override val key: ArchiveEntryKey.Item) : ArchiveEntry {
         override val isDirectory: Boolean get() = false
     }
 
@@ -31,8 +36,9 @@ sealed interface ArchiveEntry : SortableEntry {
      * 링크(심볼릭·하드 링크). 압축 해제는 만들지 않고 실패로 알린다(지원 범위 밖).
      * @param name 링크 이름
      * @param lastModifiedMillis 수정 시각. 모르면 null
+     * @param key 압축 파일 항목 목록에서의 순번으로 만든 키
      */
-    data class Link(override val name: String, override val lastModifiedMillis: Long?) : ArchiveEntry {
+    data class Link(override val name: String, override val lastModifiedMillis: Long?, override val key: ArchiveEntryKey.Item) : ArchiveEntry {
         override val isDirectory: Boolean get() = false
         override val sizeBytes: Long? get() = null
     }
@@ -41,11 +47,32 @@ sealed interface ArchiveEntry : SortableEntry {
      * 압축 해제 위치 밖을 가리키는 경로(`..`·절대 경로)의 항목. 압축 해제는 풀지 않고 실패로 알린다. 숨기지 않고 루트에 원래 경로로 보인다.
      * @param name 압축 파일에 적힌 원래 경로
      * @param lastModifiedMillis 수정 시각. 모르면 null
+     * @param key 압축 파일 항목 목록에서의 순번으로 만든 키
      */
-    data class UnsafePath(override val name: String, override val lastModifiedMillis: Long?) : ArchiveEntry {
+    data class UnsafePath(override val name: String, override val lastModifiedMillis: Long?, override val key: ArchiveEntryKey.Item) : ArchiveEntry {
         override val isDirectory: Boolean get() = false
         override val sizeBytes: Long? get() = null
     }
+}
+
+/**
+ * 압축 파일 안 폴더 하나에서 항목 하나를 가리키는 키. 압축 파일에는 이름이 같은 파일이 여럿 있을 수 있어 이름으로는 항목을 가리킬 수 없다.
+ * 한 폴더 안에서만 항목마다 다르고([Folder]), 한 번 읽은 목록 안에서만 뜻이 있다 — 압축 파일이 바뀌면 같은 키가 다른 항목을 가리킬 수 있다.
+ */
+sealed interface ArchiveEntryKey {
+
+    /**
+     * 압축 파일에 담긴 항목(파일·링크·풀 수 없는 경로).
+     * @param index 압축 파일 항목 목록에서의 순번(0부터, 담긴 순서)
+     */
+    data class Item(val index: Int) : ArchiveEntryKey
+
+    /**
+     * 폴더. 폴더 항목이 없는 형식은 경로로 폴더를 만들므로 순번이 아니라 이름으로 가리킨다 — 같은 이름의 폴더는 합쳐 있어 한 폴더 안에서 이름마다 하나다.
+     * 다른 폴더의 같은 이름 폴더와는 구분하지 않는다 — 선택은 한 폴더 안에서만 하므로, 폴더 밖에서 쓰는 쪽은 그 폴더의 위치를 따로 갖는다.
+     * @param name 폴더 이름
+     */
+    data class Folder(val name: String) : ArchiveEntryKey
 }
 
 /**

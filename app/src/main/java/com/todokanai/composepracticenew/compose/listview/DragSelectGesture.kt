@@ -21,15 +21,13 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.todokanai.composepracticenew.ui.model.DragSelection
-import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.ui.model.SelectMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 
 /**
  * 드래그 선택 진행 중 값 — composition에서 읽지 않으므로 State가 아닌 일반 필드로 둬 포인터 이벤트마다 snapshot write가 생기지 않게 한다.
  */
-private class DragSelectProgress {
+private class DragSelectProgress<T> {
     /** 드래그를 시작한 항목의 목록 키 — 범위 선택의 고정 끝점. 위치가 아니라 항목으로 기억해, 드래그 중 목록이 바뀌어도 같은 항목을 가리킨다 */
     var anchorKey: Any? = null
     /** 가장 최근 드래그 Y 좌표 — 엣지 스크롤 후 항목 재평가에 사용 */
@@ -39,73 +37,73 @@ private class DragSelectProgress {
     /** 마지막으로 범위를 보고한 손가락 아래 항목의 키 — 같은 목록에서 같은 항목의 중복 보고를 막는다 */
     var lastReportedKey: Any? = null
     /** 마지막으로 범위를 보고한 목록 — 목록이 바뀌면 손가락이 같은 항목에 있어도 범위가 달라지므로 다시 보고한다 */
-    var lastReportedList: List<FileHolderItem>? = null
-    /** 이번 드래그의 범위 선택 규칙 — 드래그를 시작할 때 정한다 */
-    var selection = DragSelection.Fresh
+    var lastReportedList: List<T>? = null
+    /** 이번 드래그의 범위 선택 규칙 — 드래그를 시작할 때 정한다. 시작하기 전에는 null */
+    var selection: DragSelection<T>? = null
     /** 시작한 항목이 목록에서 사라져 이번 드래그의 범위 갱신을 멈췄는지 — 손을 뗄 때까지 입력은 계속 독점한다 */
     var rangeStopped = false
 }
 
 /** 드래그 범위를 지금 목록에서 찾은 결과. */
-internal sealed interface DragRange {
+internal sealed interface DragRange<out T> {
     /**
      * 시작한 항목부터 손가락 아래 항목까지의 범위.
      * @param items 지금 목록에서 두 항목 사이(양 끝 포함)의 항목
      */
-    data class Found(val items: List<FileHolderItem>) : DragRange
+    data class Found<T>(val items: List<T>) : DragRange<T>
 
     /** 시작한 항목이 지금 목록에 없다 — 범위를 정할 끝점이 없으므로 이번 드래그의 범위 갱신을 멈춘다. */
-    data object AnchorGone : DragRange
+    data object AnchorGone : DragRange<Nothing>
 
     /** 손가락 아래 항목이 지금 목록에 없다(화면 배치가 목록보다 한 프레임 늦음) — 이번 보고만 건너뛴다. */
-    data object FingerUnresolved : DragRange
+    data object FingerUnresolved : DragRange<Nothing>
 }
 
 /**
  * 시작한 항목과 손가락 아래 항목을 키로 지금 목록에서 찾아 그 사이를 범위로 정한다.
  * @param list 지금 목록
- * @param anchorKey 드래그를 시작한 항목의 키([fileListKeyOf])
+ * @param keyOf 항목의 목록 키
+ * @param anchorKey 드래그를 시작한 항목의 키
  * @param fingerKey 손가락 아래 항목의 키
  * @return 범위, 또는 끝점을 지금 목록에서 찾지 못한 이유
  */
-internal fun dragRangeIn(list: List<FileHolderItem>, anchorKey: Any, fingerKey: Any): DragRange {
-    val anchor = list.indexOfFirst { fileListKeyOf(it) == anchorKey }
+internal fun <T> dragRangeIn(list: List<T>, keyOf: (T) -> Any, anchorKey: Any, fingerKey: Any): DragRange<T> {
+    val anchor = list.indexOfFirst { keyOf(it) == anchorKey }
     if (anchor < 0) return DragRange.AnchorGone
-    val finger = list.indexOfFirst { fileListKeyOf(it) == fingerKey }
+    val finger = list.indexOfFirst { keyOf(it) == fingerKey }
     if (finger < 0) return DragRange.FingerUnresolved
     return DragRange.Found(list.subList(minOf(anchor, finger), maxOf(anchor, finger) + 1))
 }
 
 /**
  * longPress 후 드래그로 항목 범위를 선택하고, 상·하단 경계 근접 시 자동 스크롤한다.
- * 기본 모드에서 시작하면 다중 선택으로 들어가 범위를 선택하고, 다중 선택 중에 시작하면 시작 항목의 선택 여부에 따라 범위를 선택하거나 해제한다([DragSelection]).
+ * 드래그를 시작할지와 범위를 선택할지 해제할지는 화면의 선택 모드 규칙([startSelection])이 정한다([DragSelection]).
  *
+ * @param T 목록 항목 타입
  * @param listState 대상 LazyColumn의 스크롤 상태
- * @param fileList 현재 표시 중인 파일 항목 목록
- * @param selectMode 현재 선택 모드 — 기본·다중 선택 모드에서만 드래그 선택이 시작된다
- * @param selectedList 선택 목록을 반환하는 함수 — 다중 선택 중 드래그를 시작할 때의 선택을 읽는다
- * @param onStartMultiSelect 기본 모드에서 드래그 시작 시 anchor 항목을 선택한 채로 다중 선택 모드로 전환을 요청하는 콜백
+ * @param items 현재 표시 중인 항목 목록
+ * @param keyOf 항목의 목록 키 — LazyColumn의 항목 키와 같아야 손가락 아래 행을 찾는다
+ * @param startSelection 길게 누른 항목을 받아 이번 드래그의 범위 선택 규칙을 돌려준다. 기본 모드면 이 안에서 다중 선택으로 전환한다.
+ *   선택을 편집하지 않는 모드(목적지 확인 등)면 null을 돌려주며, 그때는 드래그 선택을 시작하지 않는다
  * @param onReplaceSelection 드래그 범위를 반영한 선택 목록을 전달
  */
 @Composable
-fun Modifier.dragSelectGesture(
+fun <T> Modifier.dragSelectGesture(
     listState: LazyListState,
-    fileList: List<FileHolderItem>,
-    selectMode: SelectMode,
-    selectedList: () -> List<FileHolderItem>,
-    onStartMultiSelect: (FileHolderItem) -> Unit,
-    onReplaceSelection: (List<FileHolderItem>) -> Unit
+    items: List<T>,
+    keyOf: (T) -> Any,
+    startSelection: (T) -> DragSelection<T>?,
+    onReplaceSelection: (List<T>) -> Unit
 ): Modifier {
     // isDragSelecting만 LaunchedEffect 키로 쓰이므로 State로 유지 — 키 없이 1회 생성해 리컴포지션 간 드래그 상태 보존
     var isDragSelecting by remember { mutableStateOf(false) }
     // 키 없이 1회 생성 — 포인터 콜백과 LaunchedEffect가 같은 인스턴스를 공유해야 하며, State가 아니므로 갱신이 리컴포지션을 일으키지 않는다
-    val progress = remember { DragSelectProgress() }
+    val progress = remember { DragSelectProgress<T>() }
 
     // pointerInput(Unit) 클로저 내 stale 캡처 방지 — Composable 파라미터는 재호출 시 새 값이 오므로 State로 감쌈
-    val latestFileList           by rememberUpdatedState(fileList)
-    val latestSelectMode         by rememberUpdatedState(selectMode)
-    val latestSelectedList       by rememberUpdatedState(selectedList)
-    val latestOnStartMultiSelect by rememberUpdatedState(onStartMultiSelect)
+    val latestItems              by rememberUpdatedState(items)
+    val latestKeyOf              by rememberUpdatedState(keyOf)
+    val latestStartSelection     by rememberUpdatedState(startSelection)
     val latestOnReplaceSelection by rememberUpdatedState(onReplaceSelection)
 
     // 시작한 항목이 사라졌을 때 이번 드래그의 범위 갱신을 멈춘다 — 자동 스크롤도 멈추고, 그때까지의 선택은 그대로 둔다
@@ -119,16 +117,17 @@ fun Modifier.dragSelectGesture(
     // 손가락이 행 위에 없어도(목록 밖, 빈 곳) 가장 가까운 행까지 선택해, 자동 스크롤 중에도 범위가 따라오고 빠르게 쓸어 건너뛴 행도 빠지지 않는다(#521)
     fun selectRangeAt(y: Float) {
         if (progress.rangeStopped) return
-        val list = latestFileList
+        val list = latestItems
         val anchorKey = progress.anchorKey ?: return
+        val selection = progress.selection ?: return
         val layout = listState.layoutInfo
         val fingerKey = dragTargetKeyIn(layout.visibleItemsInfo, layout.viewportStartOffset, y) ?: return
         if (fingerKey == progress.lastReportedKey && list === progress.lastReportedList) return
-        when (val range = dragRangeIn(list, anchorKey, fingerKey)) {
+        when (val range = dragRangeIn(list, latestKeyOf, anchorKey, fingerKey)) {
             is DragRange.Found -> {
                 progress.lastReportedKey = fingerKey
                 progress.lastReportedList = list
-                latestOnReplaceSelection(progress.selection.selectionWith(range.items, list))
+                latestOnReplaceSelection(selection.selectionWith(range.items, list))
             }
             DragRange.AnchorGone -> stopRange()
             DragRange.FingerUnresolved -> Unit
@@ -143,7 +142,7 @@ fun Modifier.dragSelectGesture(
             return@LaunchedEffect
         }
         while (isActive) {
-            if (progress.scrollSpeed != 0f && latestFileList.isNotEmpty()) {
+            if (progress.scrollSpeed != 0f && latestItems.isNotEmpty()) {
                 listState.scrollBy(progress.scrollSpeed)
                 selectRangeAt(progress.currentFingerY)
             }
@@ -157,11 +156,10 @@ fun Modifier.dragSelectGesture(
 
         detectOwnedDragAfterLongPress(
             onLongPress = { offset ->
-                val list = latestFileList
+                val list = latestItems
                 val anchorKey = listState.itemKeyAtOffset(offset.y) ?: return@detectOwnedDragAfterLongPress false
-                val anchorItem = list.firstOrNull { fileListKeyOf(it) == anchorKey } ?: return@detectOwnedDragAfterLongPress false
-                val selection = startDragSelection(latestSelectMode, anchorItem, latestSelectedList, latestOnStartMultiSelect)
-                    ?: return@detectOwnedDragAfterLongPress false
+                val anchorItem = list.firstOrNull { latestKeyOf(it) == anchorKey } ?: return@detectOwnedDragAfterLongPress false
+                val selection = latestStartSelection(anchorItem) ?: return@detectOwnedDragAfterLongPress false
                 progress.anchorKey        = anchorKey
                 progress.lastReportedKey  = anchorKey
                 progress.lastReportedList = list
@@ -222,25 +220,6 @@ private suspend fun PointerInputScope.detectOwnedDragAfterLongPress(
 }
 
 /**
- * 선택 모드에 맞춰 드래그 선택을 시작하고 이번 드래그의 범위 선택 규칙을 정한다.
- * @param selectMode 드래그를 시작할 때의 선택 모드
- * @param anchor 드래그를 시작한 항목
- * @param selectedList 선택 목록을 반환하는 함수
- * @param onStartMultiSelect anchor를 선택한 채로 다중 선택 모드로 전환을 요청하는 콜백 — 기본 모드에서만 부른다
- * @return 범위 선택 규칙. 목적지 확인 단계처럼 선택을 편집하지 않는 모드면 null이며 드래그 선택을 시작하지 않는다
- */
-private fun startDragSelection(
-    selectMode: SelectMode,
-    anchor: FileHolderItem,
-    selectedList: () -> List<FileHolderItem>,
-    onStartMultiSelect: (FileHolderItem) -> Unit
-): DragSelection? = when (selectMode) {
-    SelectMode.Default -> DragSelection.Fresh.also { onStartMultiSelect(anchor) }
-    SelectMode.MultiSelect -> DragSelection.startingAt(anchor, selectedList())
-    is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> null
-}
-
-/**
  * 드래그 중 손가락 위치에 따른 자동 스크롤 속도를 정한다. 가장자리 영역 안에서는 끝에 가까울수록 빨라지고, 영역 끝과 목록 밖에서는 최대 속도다(#521).
  * 드래그는 손을 뗄 때까지 입력을 독점해 손가락이 목록 밖으로 나가도 위치가 계속 오므로, 배율을 0~1로 제한해야 목록에서 멀어질수록 끝없이 빨라지지 않는다.
  * @param y 목록 위쪽 끝 기준 손가락 Y 좌표. 목록 밖이면 음수이거나 [viewportHeight]보다 크다
@@ -262,7 +241,7 @@ internal fun edgeScrollSpeed(y: Float, viewportHeight: Float, edgePx: Float, max
  * @param listState 대상 목록의 스크롤 상태
  * @param progress 끝난 드래그의 진행 값
  */
-private suspend fun revealRangeEnd(listState: LazyListState, progress: DragSelectProgress) {
+private suspend fun revealRangeEnd(listState: LazyListState, progress: DragSelectProgress<*>) {
     if (progress.rangeStopped) return
     val endKey = progress.lastReportedKey ?: return
     val layout = listState.layoutInfo

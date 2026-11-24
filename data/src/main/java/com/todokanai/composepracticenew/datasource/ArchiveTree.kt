@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.datasource
 
 import com.todokanai.composepracticenew.model.ArchiveEntry
+import com.todokanai.composepracticenew.model.ArchiveEntryKey
 import com.todokanai.composepracticenew.model.ArchiveFolder
 
 /**
@@ -8,6 +9,7 @@ import com.todokanai.composepracticenew.model.ArchiveFolder
  * 항목의 위치는 압축 해제([ExtractionRoot.targetOf])와 같은 판정([extractionSegmentsOf])으로 정한다 — 빈 세그먼트와 `.`는 무시하고 `..`는 앞 세그먼트를 지운다.
  * 압축 해제 위치 밖이나 루트 자신을 가리키는 항목은 루트에 [ArchiveEntry.UnsafePath]로 둔다(숨기지 않는다).
  * 폴더 항목이 없는 형식은 안쪽 항목의 경로로 폴더를 만든다. 같은 이름의 폴더는 합치고, 폴더가 아닌 항목은 이름이 같아도 모두 둔다.
+ * 폴더가 아닌 항목의 키는 [entries]에서의 순번이고, 폴더의 키는 그 이름이다([ArchiveEntryKey]).
  * 재귀하지 않는다 — 깊이 중첩된 경로에서 스택이 넘치지 않도록.
  * @param entries [ArchiveExtractor.entries]가 읽은 항목 목록
  * @return 루트 폴더
@@ -16,18 +18,19 @@ internal fun archiveTreeOf(entries: List<ArchiveEntryInfo>): ArchiveFolder {
     val root = FolderNode(name = "", lastModifiedMillis = null)
     // 만든 순서 — 하위 폴더는 항상 상위 폴더보다 뒤에 만들어지므로, 거꾸로 변환하면 하위가 먼저 끝난다
     val created = mutableListOf(root)
-    for (entry in entries) {
+    entries.forEachIndexed { index, entry ->
+        val key = ArchiveEntryKey.Item(index)
         val segments = extractionSegmentsOf(entry.path)
         if (segments == null) {
-            root.items += Item.Leaf(ArchiveEntry.UnsafePath(entry.path, entry.lastModifiedMillis))
-            continue
+            root.items += Item.Leaf(ArchiveEntry.UnsafePath(entry.path, entry.lastModifiedMillis, key))
+            return@forEachIndexed
         }
         val parent = segments.dropLast(1).fold(root) { folder, name -> folder.childFolder(name, created) }
         val name = segments.last()
         when (entry.kind) {
             ArchiveEntryKind.FOLDER -> parent.childFolder(name, created).apply { lastModifiedMillis = entry.lastModifiedMillis ?: lastModifiedMillis }
-            ArchiveEntryKind.FILE -> parent.items += Item.Leaf(ArchiveEntry.File(name, entry.size, entry.lastModifiedMillis, entry.isEncrypted))
-            ArchiveEntryKind.LINK -> parent.items += Item.Leaf(ArchiveEntry.Link(name, entry.lastModifiedMillis))
+            ArchiveEntryKind.FILE -> parent.items += Item.Leaf(ArchiveEntry.File(name, entry.size, entry.lastModifiedMillis, entry.isEncrypted, key))
+            ArchiveEntryKind.LINK -> parent.items += Item.Leaf(ArchiveEntry.Link(name, entry.lastModifiedMillis, key))
         }
     }
     for (node in created.asReversed()) node.result = ArchiveFolder(node.items.map(Item::toEntry))
@@ -76,6 +79,11 @@ private sealed interface Item {
 
     /** 하위 폴더. */
     class Sub(val node: FolderNode) : Item {
-        override fun toEntry(): ArchiveEntry = ArchiveEntry.Folder(node.name, node.lastModifiedMillis, checkNotNull(node.result) { "하위 폴더가 먼저 변환되지 않았다" })
+        override fun toEntry(): ArchiveEntry = ArchiveEntry.Folder(
+            node.name,
+            node.lastModifiedMillis,
+            checkNotNull(node.result) { "하위 폴더가 먼저 변환되지 않았다" },
+            ArchiveEntryKey.Folder(node.name)
+        )
     }
 }

@@ -14,6 +14,7 @@ import com.todokanai.composepracticenew.compose.StorageSwitchBar
 import com.todokanai.composepracticenew.compose.listview.BottomButtonListView
 import com.todokanai.composepracticenew.compose.listview.DirectoryListingContent
 import com.todokanai.composepracticenew.compose.listview.FileListView
+import com.todokanai.composepracticenew.compose.listview.fileListKeyOf
 import com.todokanai.composepracticenew.compose.listview.ListWithBottomButtons
 import com.todokanai.composepracticenew.compose.listview.LocalTransferActions
 import com.todokanai.composepracticenew.compose.listview.RenameActions
@@ -138,6 +139,7 @@ fun FileListFrag(
                     SelectAllBar(
                         modifier = Modifier.fillMaxHeight(),
                         items = selectAllTargetsOf(uiState.value.listing),
+                        keyOf = ::fileListKeyOf,
                         selectedList = selectedList,
                         onReplaceSelection = onReplaceSelection
                     )

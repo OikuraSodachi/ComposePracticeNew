@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew
 
+import com.todokanai.composepracticenew.compose.listview.fileListKeyOf
 import com.todokanai.composepracticenew.ui.model.DragSelection
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import org.junit.Assert.assertEquals
@@ -17,14 +18,14 @@ class DragSelectionTest {
 
     @Test
     fun `드래그 중 목록에서 사라진 시작 때 선택은 다시 넣지 않는다`() {
-        val drag = DragSelection.startingAt(anchor = b, selected = listOf(a, d))
+        val drag = DragSelection.startingAt(anchor = b, selected = listOf(a, d), keyOf = ::fileListKeyOf)
 
         assertEquals(setOf("/b", "/d"), pathsOf(drag.selectionWith(listOf(b), listed = listOf(b, c, d))))
     }
 
     @Test
     fun `시작 때 선택의 범위 밖 항목은 지금 목록의 항목으로 바뀐다`() {
-        val drag = DragSelection.startingAt(anchor = b, selected = listOf(d))
+        val drag = DragSelection.startingAt(anchor = b, selected = listOf(d), keyOf = ::fileListKeyOf)
         val newerD = item("/d", sizeBytes = 7L)
 
         val selection = drag.selectionWith(listOf(b), listed = listOf(a, b, c, newerD))
@@ -34,26 +35,26 @@ class DragSelectionTest {
 
     @Test
     fun `기본 모드에서 시작한 드래그는 범위만 선택한다`() {
-        assertEquals(setOf("/a", "/b"), pathsOf(DragSelection.Fresh.selectionWith(listOf(a, b), listed)))
+        assertEquals(setOf("/a", "/b"), pathsOf(DragSelection.fresh(::fileListKeyOf).selectionWith(listOf(a, b), listed)))
     }
 
     @Test
     fun `선택되지 않은 항목에서 시작하면 범위를 기존 선택에 더한다`() {
-        val drag = DragSelection.startingAt(anchor = b, selected = listOf(d))
+        val drag = DragSelection.startingAt(anchor = b, selected = listOf(d), keyOf = ::fileListKeyOf)
 
         assertEquals(setOf("/b", "/c", "/d"), pathsOf(drag.selectionWith(listOf(b, c), listed)))
     }
 
     @Test
     fun `선택된 항목에서 시작하면 범위를 선택에서 뺀다`() {
-        val drag = DragSelection.startingAt(anchor = b, selected = listOf(a, b, c, d))
+        val drag = DragSelection.startingAt(anchor = b, selected = listOf(a, b, c, d), keyOf = ::fileListKeyOf)
 
         assertEquals(setOf("/a", "/d"), pathsOf(drag.selectionWith(listOf(b, c), listed)))
     }
 
     @Test
     fun `더하는 드래그의 범위가 줄면 빠진 항목은 선택에서 빠진다`() {
-        val drag = DragSelection.startingAt(anchor = a, selected = listOf(d))
+        val drag = DragSelection.startingAt(anchor = a, selected = listOf(d), keyOf = ::fileListKeyOf)
         drag.selectionWith(listOf(a, b, c), listed)
 
         assertEquals(setOf("/a", "/d"), pathsOf(drag.selectionWith(listOf(a), listed)))
@@ -61,7 +62,7 @@ class DragSelectionTest {
 
     @Test
     fun `빼는 드래그의 범위가 줄면 빠진 항목은 다시 선택된다`() {
-        val drag = DragSelection.startingAt(anchor = a, selected = listOf(a, b, c))
+        val drag = DragSelection.startingAt(anchor = a, selected = listOf(a, b, c), keyOf = ::fileListKeyOf)
         drag.selectionWith(listOf(a, b, c), listed)
 
         assertEquals(setOf("/b", "/c"), pathsOf(drag.selectionWith(listOf(a), listed)))
@@ -69,7 +70,7 @@ class DragSelectionTest {
 
     @Test
     fun `같은 경로의 다른 인스턴스도 같은 항목으로 본다`() {
-        val drag = DragSelection.startingAt(anchor = item("/a"), selected = listOf(a))
+        val drag = DragSelection.startingAt(anchor = item("/a"), selected = listOf(a), keyOf = ::fileListKeyOf)
 
         assertEquals(emptySet<String>(), pathsOf(drag.selectionWith(listOf(item("/a")), listed)))
     }

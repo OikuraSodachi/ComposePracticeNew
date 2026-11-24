@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import com.todokanai.composepracticenew.InMemorySortPreference
 import com.todokanai.composepracticenew.ViewableArchives
 import com.todokanai.composepracticenew.model.ArchiveEntry
+import com.todokanai.composepracticenew.model.ArchiveEntryKey
 import com.todokanai.composepracticenew.model.ArchiveFolder
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.FailureReason
@@ -31,7 +32,8 @@ import org.junit.Test
 
 /**
  * [ArchiveViewViewModel]이 압축 파일 목록을 한 번 읽어 정렬해 보이고, 폴더 안팎으로 오가며 루트에서 뒤로가면 화면을 닫고,
- * 읽기 실패를 빈 폴더가 아니라 실패로 보이며, 목록 암호화 압축 파일의 비밀번호를 묻고 취소하면 화면을 닫는지 검증하는 단위 테스트.
+ * 읽기 실패를 빈 폴더가 아니라 실패로 보이며, 목록 암호화 압축 파일의 비밀번호를 묻고 취소하면 화면을 닫고,
+ * 다중 선택 중에는 행을 누르면 폴더로 들어가지 않고 선택을 토글하며 뒤로가기가 선택만 비우는지 검증하는 단위 테스트.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ArchiveViewViewModelTest {
@@ -43,9 +45,13 @@ class ArchiveViewViewModelTest {
 
     /** 루트에 파일 둘(b, a)과 폴더 하나(dir — 안에 in.txt)를 둔 트리. */
     private val tree = ArchiveFolder(listOf(
-        ArchiveEntry.File("b.txt", 2, null, isEncrypted = false),
-        ArchiveEntry.Folder("dir", null, ArchiveFolder(listOf(ArchiveEntry.File("in.txt", 1, null, isEncrypted = true)))),
-        ArchiveEntry.File("a.txt", 1, null, isEncrypted = false),
+        ArchiveEntry.File("b.txt", 2, null, isEncrypted = false, ArchiveEntryKey.Item(0)),
+        ArchiveEntry.Folder(
+            "dir", null,
+            ArchiveFolder(listOf(ArchiveEntry.File("in.txt", 1, null, isEncrypted = true, ArchiveEntryKey.Item(1)))),
+            ArchiveEntryKey.Folder("dir")
+        ),
+        ArchiveEntry.File("a.txt", 1, null, isEncrypted = false, ArchiveEntryKey.Item(2)),
     ))
 
     @Before
@@ -83,7 +89,7 @@ class ArchiveViewViewModelTest {
         val viewModel = viewModel()
         val folder = loadedRows(viewModel).first { it.kind == ArchiveEntryRowKind.FOLDER }
 
-        viewModel.openEntry(folder)
+        viewModel.onRowClick(folder)
         val inner = awaitRows(viewModel) { rows -> rows.singleOrNull()?.name == "in.txt" }
         assertEquals(ArchiveEntryRowKind.ENCRYPTED_FILE, inner.single().kind)
         assertEquals(listOf("dir"), viewModel.uiState.value.folderNames)
@@ -102,9 +108,80 @@ class ArchiveViewViewModelTest {
         val viewModel = viewModel()
         val file = loadedRows(viewModel).first { it.kind == ArchiveEntryRowKind.FILE }
 
-        viewModel.openEntry(file)
+        viewModel.onRowClick(file)
 
         assertEquals(emptyList<String>(), viewModel.uiState.value.folderNames)
+    }
+
+    @Test
+    fun `다중 선택 중에는 폴더 행을 눌러도 들어가지 않고 선택을 토글한다`() {
+        val viewModel = viewModel()
+        val rows = loadedRows(viewModel)
+        val folder = rows.first { it.kind == ArchiveEntryRowKind.FOLDER }
+        val file = rows.first { it.name == "a.txt" }
+
+        viewModel.startMultiSelect(file)
+        viewModel.onRowClick(folder)
+        assertEquals(listOf("dir", "a.txt"), selectedNames(viewModel))
+        assertEquals(emptyList<String>(), viewModel.uiState.value.folderNames)
+
+        viewModel.onRowClick(file)
+        assertEquals(listOf("dir"), selectedNames(viewModel))
+    }
+
+    @Test
+    fun `선택은 이름이 아니라 키로 들어 이름이 같은 파일을 따로 고른다`() {
+        archives.contents = { IoResult.Success(ArchiveFolder(listOf(
+            ArchiveEntry.File("same.txt", 1, null, isEncrypted = false, ArchiveEntryKey.Item(0)),
+            ArchiveEntry.File("same.txt", 2, null, isEncrypted = false, ArchiveEntryKey.Item(1)),
+        ))) }
+        val viewModel = viewModel()
+        val second = loadedRows(viewModel).single { it.key == ArchiveEntryKey.Item(1) }
+
+        viewModel.startMultiSelect(second)
+
+        val selected = await(viewModel) { it.selection is ArchiveViewSelection.MultiSelect }.selection as ArchiveViewSelection.MultiSelect
+        assertEquals(listOf(ArchiveEntryKey.Item(1)), selected.selected.map { it.key })
+    }
+
+    @Test
+    fun `정렬이 바뀌어도 선택이 이어진다`() {
+        val viewModel = viewModel()
+        viewModel.startMultiSelect(loadedRows(viewModel).first { it.name == "a.txt" })
+
+        sortPreference.saveSortBy(SortMode.BY_NAME_DESCENDING)
+
+        awaitRows(viewModel) { rows -> rows.map { it.name } == listOf("dir", "b.txt", "a.txt") }
+        assertEquals(listOf("a.txt"), selectedNames(viewModel))
+    }
+
+    @Test
+    fun `모두 선택으로 비워도 다중 선택은 유지하고 뒤로가기는 선택만 비운다`() {
+        val viewModel = viewModel()
+        val rows = loadedRows(viewModel)
+        viewModel.startMultiSelect(rows.first())
+
+        viewModel.replaceSelection(emptyList())
+        assertEquals(emptyList<String>(), selectedNames(viewModel))
+
+        var closed = false
+        viewModel.onBackPressed { closed = true }
+        assertFalse(closed)
+        assertEquals(ArchiveViewSelection.None, await(viewModel) { it.selection == ArchiveViewSelection.None }.selection)
+
+        viewModel.replaceSelection(rows)
+        assertEquals(ArchiveViewSelection.None, viewModel.uiState.value.selection)
+    }
+
+    @Test
+    fun `다시 읽으면 다중 선택을 끝낸다`() {
+        val viewModel = viewModel()
+        viewModel.startMultiSelect(loadedRows(viewModel).first())
+
+        viewModel.retry()
+
+        loadedRows(viewModel)
+        assertEquals(ArchiveViewSelection.None, viewModel.uiState.value.selection)
     }
 
     @Test
@@ -168,6 +245,10 @@ class ArchiveViewViewModelTest {
     /** `/s/a.zip`을 보는 ViewModel을 만든다. */
     private fun viewModel(handle: SavedStateHandle = SavedStateHandle(mapOf(ArchiveViewViewModel.ARG_ARCHIVE_PATH to "/s/a.zip"))) =
         ArchiveViewViewModel(handle, ArchiveViewUseCase(archives), SortModeUseCase(sortPreference))
+
+    /** 다중 선택 상태가 될 때까지 기다려 선택된 행의 이름을 화면 순서로 돌려준다. */
+    private fun selectedNames(viewModel: ArchiveViewViewModel): List<String> =
+        (await(viewModel) { it.selection is ArchiveViewSelection.MultiSelect }.selection as ArchiveViewSelection.MultiSelect).selected.map { it.name }
 
     /** 목록을 다 읽은 상태가 될 때까지 기다려 그 행들을 돌려준다. */
     private fun loadedRows(viewModel: ArchiveViewViewModel) = awaitRows(viewModel) { true }
