@@ -13,6 +13,8 @@ import com.todokanai.composepracticenew.repository.FileActionRepository
 import com.todokanai.composepracticenew.repository.FileActionRepositoryImpl
 import com.todokanai.composepracticenew.repository.ArchiveContentRepository
 import com.todokanai.composepracticenew.repository.ArchiveContentRepositoryImpl
+import com.todokanai.composepracticenew.repository.ArchiveAddRepository
+import com.todokanai.composepracticenew.repository.ArchiveAddRepositoryImpl
 import com.todokanai.composepracticenew.repository.ArchiveEntryCopyRepository
 import com.todokanai.composepracticenew.repository.ArchiveEntryCopyRepositoryImpl
 import com.todokanai.composepracticenew.repository.FileExplorerRepositoryImpl
@@ -101,6 +103,10 @@ abstract class RepositoryModule {
     /** 고른 항목 복사는 내용 보기(로컬 압축 파일)에서만 시작하므로 로컬 구현만 바인딩한다. */
     @Binds
     abstract fun bindArchiveEntryCopyRepository(impl: ArchiveEntryCopyRepositoryImpl): ArchiveEntryCopyRepository
+
+    /** 압축 파일에 추가는 로컬 목록에서 고른 항목을 로컬 압축 파일에 넣으므로 로컬 구현만 바인딩한다. */
+    @Binds
+    abstract fun bindArchiveAddRepository(impl: ArchiveAddRepositoryImpl): ArchiveAddRepository
 
     /** 정보 다이얼로그는 로컬 목록 화면에만 있으므로 로컬 구현만 바인딩한다. 원격 화면에 붙이려면 원격 구현을 따로 둔다. */
     @Binds

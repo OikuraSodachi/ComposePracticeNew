@@ -102,6 +102,8 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     is FailureReason.UnreadableArchive -> UiText.Resource(R.string.failure_unreadable_archive, listOf(reason.name))
     is FailureReason.ArchiveChangedWhileReading -> UiText.Resource(R.string.failure_archive_changed_while_reading, listOf(reason.name))
     is FailureReason.ArchiveChangedSinceViewed -> UiText.Resource(R.string.failure_archive_changed_since_viewed, listOf(reason.name))
+    is FailureReason.ArchiveNotAppendable -> UiText.Resource(R.string.failure_archive_not_appendable, listOf(reason.name))
+    is FailureReason.ArchiveAddedIntoItself -> UiText.Resource(R.string.failure_archive_added_into_itself, listOf(reason.name))
     FailureReason.ArchiveEntryNameUnreadable -> UiText.Resource(R.string.failure_archive_entry_name_unreadable)
     is FailureReason.ArchiveEntryPasswordMismatch -> UiText.Resource(R.string.failure_archive_entry_password_mismatch, listOf(reason.entryName))
     FailureReason.ArchivePasswordUnverifiable -> UiText.Resource(R.string.failure_archive_password_unverifiable)
@@ -343,6 +345,7 @@ private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = w
     FileOperationType.MOVE -> R.string.failure_partial_heading_move
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.failure_partial_heading_delete
     FileOperationType.COMPRESS -> R.string.failure_partial_heading_compress
+    FileOperationType.ARCHIVE_ADD -> R.string.failure_partial_heading_add_to_archive
     FileOperationType.UNZIP -> R.string.failure_partial_heading_unzip
     FileOperationType.DOWNLOAD -> R.string.failure_partial_heading_download
     FileOperationType.UPLOAD -> R.string.failure_partial_heading_upload
@@ -357,5 +360,5 @@ private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = w
 private fun headingStepOf(operationType: FileOperationType?): RemoteStep? = when (operationType) {
     FileOperationType.DOWNLOAD -> RemoteStep.DOWNLOAD
     FileOperationType.UPLOAD -> RemoteStep.UPLOAD
-    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.REMOTE_DELETE, FileOperationType.COMPRESS, FileOperationType.UNZIP, FileOperationType.ARCHIVE_COPY, null -> null
+    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.REMOTE_DELETE, FileOperationType.COMPRESS, FileOperationType.UNZIP, FileOperationType.ARCHIVE_COPY, FileOperationType.ARCHIVE_ADD, null -> null
 }

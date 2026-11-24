@@ -20,6 +20,7 @@ class OperationLabelTest {
         FileOperationType.COMPRESS to R.string.progress_compressing,
         FileOperationType.UNZIP to R.string.progress_unzipping,
         FileOperationType.ARCHIVE_COPY to R.string.progress_copying,
+        FileOperationType.ARCHIVE_ADD to R.string.progress_adding_to_archive,
         FileOperationType.DOWNLOAD to R.string.progress_downloading,
         FileOperationType.UPLOAD to R.string.progress_uploading,
         null to R.string.progress_processing

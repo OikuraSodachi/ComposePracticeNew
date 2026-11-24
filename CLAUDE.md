@@ -62,6 +62,7 @@ SelectMode.Default / MultiSelect          — 두 화면 공통 (일반 탐색 /
 SelectMode.LocalOperation.Copy/Move/Unzip/UnzipHere — 로컬 화면, 목적지 확인 후 실행 (같은 이름은 실행 중에 묻는다)
 SelectMode.Download(pending)              — 로컬 화면, 다운로드 목적지 확인
 SelectMode.ArchiveCopy(selection)         — 로컬 화면, 압축 파일 내용 보기에서 고른 항목을 풀 목적지 확인
+SelectMode.AddToArchive                   — 로컬 화면, 고른 항목을 넣을 ZIP을 찾아 내용 보기의 폴더에서 확인(로컬 목록에는 확인 버튼 없음)
 SelectMode.Upload(pending)                — 원격 화면, 업로드 목적지 확인
 ```
 

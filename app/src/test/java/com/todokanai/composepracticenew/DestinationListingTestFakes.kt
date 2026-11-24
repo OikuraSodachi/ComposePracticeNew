@@ -67,7 +67,11 @@ internal class FakeNavigator : FileNavigatorRepository, StoragePathRules {
     }
 
     override suspend fun navigate(path: String) = NavigateResult.Navigated
-    override fun refresh() {}
+    /** [refresh]가 불린 횟수. */
+    var refreshCount = 0
+        private set
+
+    override fun refresh() { refreshCount++ }
     override fun getParentPath(path: String): String? = null
     override fun displayNameOf(path: String): String = path.substringAfterLast('/').ifEmpty { path }
 }

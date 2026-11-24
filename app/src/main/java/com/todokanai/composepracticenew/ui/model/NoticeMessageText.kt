@@ -48,7 +48,7 @@ fun completionTextRes(kind: OperationKind): Int = when (kind) {
         FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.noti_delete_complete
         FileOperationType.DOWNLOAD -> R.string.noti_download_complete
         FileOperationType.UPLOAD -> R.string.noti_upload_complete
-        FileOperationType.COPY, FileOperationType.COMPRESS, FileOperationType.UNZIP, FileOperationType.ARCHIVE_COPY -> R.string.noti_complete
+        FileOperationType.COPY, FileOperationType.COMPRESS, FileOperationType.UNZIP, FileOperationType.ARCHIVE_COPY, FileOperationType.ARCHIVE_ADD -> R.string.noti_complete
     }
     is OperationKind.Instant -> R.string.noti_complete
 }
@@ -75,6 +75,7 @@ private fun operationNameRes(operationType: FileOperationType): Int = when (oper
     FileOperationType.MOVE -> R.string.op_name_move
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.op_name_delete
     FileOperationType.COMPRESS -> R.string.op_name_compress
+    FileOperationType.ARCHIVE_ADD -> R.string.op_name_add_to_archive
     FileOperationType.UNZIP -> R.string.op_name_unzip
     FileOperationType.DOWNLOAD -> R.string.op_name_download
     FileOperationType.UPLOAD -> R.string.op_name_upload
@@ -91,6 +92,7 @@ private fun cancelRemainderRes(operationType: FileOperationType): Int = when (op
     FileOperationType.MOVE -> R.string.notice_cancel_remainder_move
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.notice_cancel_remainder_delete
     FileOperationType.COMPRESS -> R.string.notice_cancel_remainder_compress
+    FileOperationType.ARCHIVE_ADD -> R.string.notice_cancel_remainder_add_to_archive
     FileOperationType.UNZIP -> R.string.notice_cancel_remainder_unzip
     FileOperationType.DOWNLOAD -> R.string.notice_cancel_remainder_download
     FileOperationType.UPLOAD -> R.string.notice_cancel_remainder_upload

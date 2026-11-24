@@ -16,6 +16,8 @@ enum class FileOperationType(val id: Int, val isRemote: Boolean) {
     UNZIP(24, false),
     /** 압축 파일 내용 보기에서 고른 항목만 로컬 폴더로 푸는 복사. */
     ARCHIVE_COPY(28, false),
+    /** 로컬 파일·폴더를 기존 ZIP 압축 파일 안의 폴더에 넣는 추가. */
+    ARCHIVE_ADD(29, false),
     DOWNLOAD(25, true),
     UPLOAD(26, true);
 

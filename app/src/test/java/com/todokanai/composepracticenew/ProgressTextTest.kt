@@ -56,7 +56,8 @@ class ProgressTextTest {
             FileOperationType.REMOTE_DELETE to R.string.progress_unknown_files_processed,
             FileOperationType.COMPRESS to R.string.progress_unknown_files_processed,
             FileOperationType.UNZIP to R.string.progress_unknown_files_processed,
-            FileOperationType.ARCHIVE_COPY to R.string.progress_unknown_files_processed
+            FileOperationType.ARCHIVE_COPY to R.string.progress_unknown_files_processed,
+            FileOperationType.ARCHIVE_ADD to R.string.progress_unknown_files_processed
         )
         assertEquals(FileOperationType.entries.toSet(), expected.keys)
         expected.forEach { (type, res) ->

@@ -23,6 +23,9 @@
     <string name="btn_move">Move</string>
     <string name="btn_copy">Copy</string>
     <string name="btn_copy_here">여기에 복사</string>
+    <string name="btn_add_to_archive">압축 파일에 추가</string>
+    <string name="btn_add_here">여기에 추가</string>
+    <string name="add_to_archive_hint">추가할 ZIP 압축 파일을 누르세요</string>
     <string name="btn_delete">Delete</string>
     <string name="btn_more">More</string>
     <string name="btn_zip">Zip</string>
@@ -126,6 +129,7 @@
     <string name="progress_moving">이동 중</string>
     <string name="progress_deleting">삭제 중</string>
     <string name="progress_compressing">압축 중</string>
+    <string name="progress_adding_to_archive">압축 파일에 추가 중</string>
     <string name="progress_unzipping">압축 해제 중</string>
     <string name="progress_downloading">다운로드 중</string>
     <string name="progress_uploading">업로드 중</string>
@@ -192,6 +196,7 @@
     <string name="op_name_move">이동</string>
     <string name="op_name_delete">삭제</string>
     <string name="op_name_compress">압축</string>
+    <string name="op_name_add_to_archive">압축 파일에 추가</string>
     <string name="op_name_unzip">압축 해제</string>
     <string name="op_name_download">다운로드</string>
     <string name="op_name_upload">업로드</string>
@@ -201,6 +206,7 @@
     <string name="notice_cancel_remainder_move">이미 이동한 항목은 그대로 둡니다</string>
     <string name="notice_cancel_remainder_delete">이미 삭제한 항목은 되돌리지 않습니다</string>
     <string name="notice_cancel_remainder_compress">끝나지 않은 압축 파일은 지웁니다</string>
+    <string name="notice_cancel_remainder_add_to_archive">압축 파일은 바뀌지 않았습니다</string>
     <string name="notice_cancel_remainder_unzip">이미 푼 항목은 그대로 둡니다</string>
     <string name="notice_cancel_remainder_download">이미 받은 파일은 그대로 둡니다</string>
     <string name="notice_cancel_remainder_upload">이미 올린 파일은 그대로 둡니다</string>
@@ -216,6 +222,7 @@
     <string name="failure_partial_heading_move">이동하지 못함</string>
     <string name="failure_partial_heading_delete">삭제 실패</string>
     <string name="failure_partial_heading_compress">압축에 넣지 못함</string>
+    <string name="failure_partial_heading_add_to_archive">압축 파일에 넣지 못함</string>
     <string name="failure_partial_heading_unzip">압축을 풀지 못함</string>
     <string name="failure_partial_heading_download">다운로드 실패</string>
     <string name="failure_partial_heading_upload">업로드 실패</string>
@@ -245,6 +252,8 @@
     <string name="failure_unreadable_archive">압축 파일이 아니거나 손상되어 열 수 없습니다: %1$s</string>
     <string name="failure_archive_changed_while_reading">압축 파일이 읽는 동안 바뀌었습니다: %1$s</string>
     <string name="failure_archive_changed_since_viewed">항목을 고른 뒤 압축 파일이 바뀌었습니다. 내용 보기를 다시 열어 고르세요: %1$s</string>
+    <string name="failure_archive_not_appendable">항목을 추가할 수 없는 압축 파일입니다(ZIP만, 분할 압축 제외): %1$s</string>
+    <string name="failure_archive_added_into_itself">압축 파일을 그 안에 넣을 수 없습니다: %1$s</string>
     <string name="failure_archive_entry_name_unreadable">이름을 읽을 수 없는 항목이 있는 압축 파일입니다(UTF-8이 아닌 이름 등)</string>
     <string name="failure_archive_entry_password_mismatch">확인한 비밀번호가 맞지 않아 풀 수 없는 항목입니다: %1$s</string>
     <string name="failure_archive_password_unverifiable">비밀번호를 확인할 내용이 없는 암호화 압축 파일이라 풀지 않았습니다</string>

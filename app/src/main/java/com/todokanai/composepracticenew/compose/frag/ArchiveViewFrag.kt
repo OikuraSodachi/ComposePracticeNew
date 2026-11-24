@@ -36,7 +36,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.ArchivePasswordDialog
 import com.todokanai.composepracticenew.compose.holder.ArchiveEntryHolder
+import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.listview.ListWithBottomButtons
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.dragSelectGesture
 import com.todokanai.composepracticenew.compose.listview.rememberTypeIcons
@@ -64,14 +66,25 @@ internal fun archiveListKeyOf(row: ArchiveEntryRow): Any = when (val key = row.k
 }
 
 /**
- * 압축 파일 내용 보기 화면. 위에 압축 파일 이름과 지금 폴더를, 아래에 지금 폴더의 항목을 보인다. 압축 파일을 바꾸지 않는다.
+ * 압축 파일 내용 보기 화면. 위에 압축 파일 이름과 지금 폴더를, 아래에 지금 폴더의 항목을 보인다.
  * 길게 눌러 끌면 다중 선택으로 들어가며, 다중 선택 중에는 위쪽 이름 자리에 모두 선택 바를, 목록 아래에 복사 버튼을 겹쳐 그린다. 항목 목록까지 암호화한 압축 파일이면 비밀번호를 묻는다.
+ * 로컬 목록에서 압축 파일에 추가할 곳을 찾는 중이고 이 압축 파일에 넣을 수 있으면, 다중 선택이 아닐 때 목록 아래에 추가 확인 버튼을 겹쳐 그린다.
  * @param modifier 화면의 배치를 정하는 Modifier
  * @param viewModel 목록 읽기·폴더 탐색·선택·비밀번호 질문을 맡는 ViewModel
  * @param onCopy 복사 버튼이 부르는 콜백 — 고른 항목을 꺼내 로컬 목록에서 목적지를 고르게 한다
+ * @param isAddingToArchive 로컬 목록에서 압축 파일에 추가할 곳을 찾는 중이면 true
+ * @param onAddHere 추가 확인 버튼이 부르는 콜백 — 로컬 선택을 꺼내 지금 폴더에 넣는다
+ * @param onCancelAdd 추가 취소 버튼이 부르는 콜백 — 로컬 화면의 추가 모드를 끝낸다
  */
 @Composable
-fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel, onCopy: () -> Unit) {
+fun ArchiveViewFrag(
+    modifier: Modifier,
+    viewModel: ArchiveViewViewModel,
+    onCopy: () -> Unit,
+    isAddingToArchive: Boolean,
+    onAddHere: () -> Unit,
+    onCancelAdd: () -> Unit,
+) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val passwordRequest by viewModel.passwordRequest.collectAsStateWithLifecycle()
     // 지금 폴더(이름 목록)를 키로 — 다른 폴더로 가면 맨 위부터 새로 시작한다(파일 목록의 rememberListingScrollState와 같은 규칙).
@@ -105,12 +118,22 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel, onCopy:
             }
         }
         HorizontalDivider()
-        // 복사 버튼은 목록 위에 겹쳐 그리고 그 높이를 목록 안쪽 여백으로만 받는다 — 다중 선택으로 들어갈 때 목록 크기가 바뀌면 진행 중인 드래그 선택이 어긋난다(#520)
+        // 복사·추가 버튼은 목록 위에 겹쳐 그리고 그 높이를 목록 안쪽 여백으로만 받는다 — 다중 선택으로 들어갈 때 목록 크기가 바뀌면 진행 중인 드래그 선택이 어긋난다(#520)
         ListWithBottomButtons(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            buttons = { if (isMultiSelect) ArchiveSelectionButtons(modifier = Modifier, onCopy = onCopy) }
+            buttons = {
+                when {
+                    isMultiSelect -> ArchiveSelectionButtons(modifier = Modifier, onCopy = onCopy)
+                    isAddingToArchive && uiState.canAdd -> ConfirmButtons(
+                        modifier = Modifier,
+                        confirm = onAddHere,
+                        cancel = onCancelAdd,
+                        mode = SelectMode.AddToArchive
+                    )
+                }
+            }
         ) { contentPadding ->
             ArchiveContent(
                 modifier = Modifier.fillMaxSize(),

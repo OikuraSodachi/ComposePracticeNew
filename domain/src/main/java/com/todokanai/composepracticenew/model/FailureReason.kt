@@ -84,6 +84,18 @@ sealed interface FailureReason {
      */
     data class ArchiveChangedSinceViewed(val name: String) : FailureReason
 
+    /**
+     * 항목을 추가할 수 없는 압축 파일이다(ZIP이 아니거나 분할 압축). 압축 파일을 바꾸지 않았다.
+     * @param name 압축 파일 이름
+     */
+    data class ArchiveNotAppendable(val name: String) : FailureReason
+
+    /**
+     * 추가할 항목에 그 압축 파일 자신이 들어 있다(고른 항목 자신이거나 고른 폴더 안). 압축 파일을 바꾸지 않았다.
+     * @param name 압축 파일 이름
+     */
+    data class ArchiveAddedIntoItself(val name: String) : FailureReason
+
     /** 이름을 읽을 수 없는 항목(해석하지 못한 이름, 이름 없는 항목)이 있어 아무것도 풀지 않았다. */
     data object ArchiveEntryNameUnreadable : FailureReason
 

@@ -168,7 +168,8 @@ fun RemoteFileListFrag(
                     selectedList = selectedList,
                     selectMode = selectMode,
                     clickActionOf = { selectMode.clickActionOf(it) },
-                    onOpen = viewModel::openFolder,
+                    // 원격 모드는 폴더만 열고 압축 파일만 열기를 고르지 않는다
+                    onOpen = { item, _ -> viewModel.openFolder(item) },
                     onStartMultiSelect = onStartMultiSelect,
                     onReplaceSelection = onReplaceSelection,
                     addToList = addToList,
