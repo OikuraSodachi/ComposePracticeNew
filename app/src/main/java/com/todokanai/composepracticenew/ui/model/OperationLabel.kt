@@ -16,6 +16,7 @@ fun operationLabelRes(type: FileOperationType?): Int = when (type) {
     FileOperationType.MOVE -> R.string.progress_moving
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.progress_deleting
     FileOperationType.COMPRESS -> R.string.progress_compressing
+    FileOperationType.ARCHIVE_ADD -> R.string.progress_adding_to_archive
     FileOperationType.UNZIP -> R.string.progress_unzipping
     FileOperationType.DOWNLOAD -> R.string.progress_downloading
     FileOperationType.UPLOAD -> R.string.progress_uploading

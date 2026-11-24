@@ -8,7 +8,7 @@ CLAUDE.md의 UI Modes 절에서 나눈 규칙이다.
 
 화면마다 선택 상태는 `SelectionState<Op, T>` 하나다(`FileTransferCoordinatorViewModel.localSelection` / `remoteSelection`, 전환은 `SelectionStateHolder`). 모드와 항목 목록을 한 값으로 묶어, 목록이 의미 있는 상태에만 둔다.
 
-- `MultiSelect(selected)`, `Operation(operation, selected)` — 이 화면의 선택이 작업 대상(같은 저장소 작업, `SameStorageOperation`).
+- `MultiSelect(selected)`, `Operation(operation, selected)` — 이 화면의 선택이 작업 대상(같은 저장소 작업, `SameStorageOperation`). 로컬의 작업은 `LocalSameStorageOperation`이며 확인하는 곳으로 나뉜다: `LocalOperation`(복사·이동·압축 해제)은 로컬 목록의 지금 폴더에서 확인하고, `AddToArchive`는 로컬 목록에 확인 버튼 없이(안내와 취소만) 압축 파일을 찾아 내용 보기의 폴더에서 확인한다(`submitArchiveAddSelection` — 추가할 곳을 찾는 중일 때만 꺼낸다, `archive.md`).
 - `Receiving(transfer)` — 다른 화면에서 고른 것을 받는 전송 목적지(`TransferMode`: 로컬은 `LocalTransferMode`의 Download/ArchiveCopy, 원격은 Upload). 이 화면의 선택은 없고, 대기 대상은 전송이 직접 갖는다(다운로드·업로드는 `pending` 항목 목록, 압축 파일 항목 복사는 내용 보기에서 고른 `ArchiveEntrySelection`) — 전송마다 대상의 모양이 달라서다. 확인은 전송 종류에 대한 exhaustive `when`으로 나눈다(`confirmLocalTransfer`). 전송을 시작하면 받는 화면에 남아 있던 다중 선택·작업 목적지 확인·다른 전송 대기는 묻지 않고 버린다(의도된 동작 — 새 전송이 우선). 원격 세션이 끊기면 원격 세션에 기대는 대기(다운로드)만 버린다(`discardReceiving`).
 - `Default` — 선택도 대기 목록도 없다. 취소·뒤로가기·실행 후 모두 여기로 돌아가며 목록은 함께 사라진다.
 

@@ -40,7 +40,9 @@ import com.todokanai.composepracticenew.usecase.LoadStorageListUseCase
 import com.todokanai.composepracticenew.usecase.LocalFileOperationUseCase
 import com.todokanai.composepracticenew.usecase.OpenFileUseCase
 import com.todokanai.composepracticenew.usecase.ArchiveViewUseCase
+import com.todokanai.composepracticenew.usecase.ArchiveAddUseCase
 import com.todokanai.composepracticenew.usecase.ArchiveCopyUseCase
+import com.todokanai.composepracticenew.repository.ArchiveAddRepository
 import com.todokanai.composepracticenew.repository.ArchiveEntryCopyRepository
 import com.todokanai.composepracticenew.repository.ArchiveContentRepository
 import com.todokanai.composepracticenew.usecase.OperationNoticeUseCase
@@ -75,6 +77,9 @@ object UseCaseModule {
 
     @Provides
     fun provideArchiveCopyUseCase(orchestrator: FileOperationOrchestrator, repo: ArchiveEntryCopyRepository) = ArchiveCopyUseCase(orchestrator, repo)
+
+    @Provides
+    fun provideArchiveAddUseCase(orchestrator: FileOperationOrchestrator, repo: ArchiveAddRepository) = ArchiveAddUseCase(orchestrator, repo)
 
     @Provides
     fun provideFileInfoUseCase(repo: FileInfoRepository, paths: StoragePathRules) =

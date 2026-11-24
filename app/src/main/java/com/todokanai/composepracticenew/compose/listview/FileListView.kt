@@ -62,7 +62,7 @@ fun rememberListingScrollState(listing: ListingUiState): LazyListState {
  * @param selectedList 선택 목록을 반환하는 함수 — 항목별 선택 여부를 derivedStateOf로 구독해, 선택이 바뀐 행만 리컴포지션한다
  * @param childCounts [fileHolderItemList]의 폴더별 하위 항목 수. 폴더 행이 화면에 있는 동안에만 센다. null이면 세지 않는다(원격 목록)
  * @param clickActionOf 누른 항목에 할 일을 정하는 함수 — 화면의 선택 모드 규칙
- * @param onOpen 항목을 여는 콜백. [clickActionOf]가 열기로 정한 항목에만 부른다
+ * @param onOpen 항목을 여는 콜백(항목, 압축 파일만 여는지). [clickActionOf]가 열기로 정한 항목에만 부른다
  * @param onReplaceSelection 다중 선택 목록을 바꾸는 콜백 — 드래그 범위 선택에 쓴다
  */
 @Composable
@@ -75,7 +75,7 @@ fun FileListView(
     selectedList: () -> List<FileHolderItem>,
     selectMode: SelectMode,
     clickActionOf: (FileHolderItem) -> ItemClickAction,
-    onOpen: (FileHolderItem) -> Unit,
+    onOpen: (FileHolderItem, Boolean) -> Unit,
     onStartMultiSelect: (FileHolderItem) -> Unit,
     onReplaceSelection: (List<FileHolderItem>) -> Unit,
     addToList: (FileHolderItem) -> Unit,
@@ -123,7 +123,8 @@ fun FileListView(
                     onClick = {
                         when (clickActionOf(fileHolderItem)) {
                             ItemClickAction.TOGGLE -> if (isSelected) removeFromList(fileHolderItem) else addToList(fileHolderItem)
-                            ItemClickAction.OPEN -> onOpen(fileHolderItem)
+                            ItemClickAction.OPEN -> onOpen(fileHolderItem, false)
+                            ItemClickAction.OPEN_ARCHIVE -> onOpen(fileHolderItem, true)
                             ItemClickAction.IGNORE -> {}
                         }
                     }
@@ -159,7 +160,7 @@ private fun startDragSelection(
 ): DragSelection<FileHolderItem>? = when (selectMode) {
     SelectMode.Default -> DragSelection.fresh(::fileListKeyOf).also { onStartMultiSelect(anchor) }
     SelectMode.MultiSelect -> DragSelection.startingAt(anchor, selectedList(), ::fileListKeyOf)
-    is SelectMode.LocalOperation, is SelectMode.Download, is SelectMode.ArchiveCopy, is SelectMode.Upload -> null
+    is SelectMode.LocalOperation, SelectMode.AddToArchive, is SelectMode.Download, is SelectMode.ArchiveCopy, is SelectMode.Upload -> null
 }
 
 /**

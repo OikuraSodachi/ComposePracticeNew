@@ -16,7 +16,9 @@ import com.todokanai.composepracticenew.ui.model.ArchiveEntryRow
 import com.todokanai.composepracticenew.ui.model.ArchiveEntryRowKind
 import com.todokanai.composepracticenew.ui.model.UiText
 import com.todokanai.composepracticenew.ui.model.failureTextOf
+import com.todokanai.composepracticenew.usecase.ArchiveAddUseCase
 import com.todokanai.composepracticenew.usecase.ArchiveViewUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -37,22 +39,29 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 /**
- * 압축 파일 내용 보기 화면의 목록 읽기·폴더 탐색·선택(복사 대상 꺼내기 포함)·비밀번호 질문을 담당하는 ViewModel.
+ * 압축 파일 내용 보기 화면의 목록 읽기·폴더 탐색·선택(복사 대상 꺼내기 포함)·지금 폴더에 로컬 항목 추가·비밀번호 질문을 담당하는 ViewModel.
  * 목록은 화면이 열릴 때 한 번 읽어 두고, 폴더 이동은 읽은 트리 안에서만 한다. 지금 폴더는 [SavedStateHandle]에 이름으로 남겨 프로세스가 다시 시작돼도 이어진다.
  * 비밀번호 질문은 이 화면의 읽기에 묶여 있어(작업이 아니다) 작업 질문함이 아니라 이 ViewModel이 보관한다. 화면을 나가면 viewModelScope와 함께 읽기와 기다림이 끝난다.
  * @param savedStateHandle 내비게이션 인자(압축 파일 경로)와 지금 폴더를 담는 저장 상태
  * @param archiveViewUseCase 압축 파일의 항목 목록을 읽는 UseCase
  * @param sortModeUseCase 정렬 기준을 조회하는 UseCase — 파일 목록과 같은 정렬을 쓴다
+ * @param archiveAddUseCase 압축 파일에 로컬 항목을 넣는 UseCase
+ * @param localNavigator 추가가 끝난 뒤 로컬 목록(바뀐 압축 파일 크기)을 다시 조회하는 탐색 UseCase
  */
 @HiltViewModel
 class ArchiveViewViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val archiveViewUseCase: ArchiveViewUseCase,
     sortModeUseCase: SortModeUseCase,
+    private val archiveAddUseCase: ArchiveAddUseCase,
+    private val localNavigator: FileNavigatorUseCase,
 ) : ViewModel() {
 
     /** 보고 있는 압축 파일의 경로. */
     private val archivePath: String = checkNotNull(savedStateHandle[ARG_ARCHIVE_PATH]) { "압축 파일 경로 인자가 없다" }
+
+    /** 이 압축 파일이 항목을 넣을 수 있는 형식인지. 이름으로 정하므로 화면이 열릴 때 한 번 정한다. */
+    private val isAppendable: Boolean = archiveAddUseCase.canAddTo(archivePath)
 
     /** 목록 읽기 상태. */
     private val listing = MutableStateFlow<ArchiveListing>(ArchiveListing.Loading)
@@ -74,7 +83,7 @@ class ArchiveViewViewModel @Inject constructor(
             .stateIn(
                 viewModelScope,
                 SharingStarted.WhileSubscribed(5_000),
-                ArchiveViewUiState(archiveNameOf(), emptyList(), ArchiveViewContent.Loading, ArchiveViewSelection.None)
+                ArchiveViewUiState(archiveNameOf(), emptyList(), ArchiveViewContent.Loading, ArchiveViewSelection.None, canAdd = false)
             )
 
     /** 답을 기다리는 비밀번호 질문과 그 답을 받을 자리. */
@@ -157,6 +166,22 @@ class ArchiveViewViewModel @Inject constructor(
     }
 
     /**
+     * 지금 폴더에 로컬 항목을 넣는다. 넣을 수 있는 압축 파일이고 목록을 다 읽었을 때만 [take]로 대상을 꺼낸다 — 넣을 수 없는데 선택만 비우지 않도록.
+     * 추가가 끝나면 목록을 다시 읽어 넣은 항목을 보이고, 로컬 목록도 다시 조회한다(압축 파일 크기가 바뀐다).
+     * @param take 로컬 화면의 선택을 꺼내는 함수. 꺼낼 선택이 없으면(그사이 다른 작업·전송으로 바뀜) null
+     */
+    fun addHere(take: () -> SubmittedSelection?) {
+        if (!isAppendable || listing.value !is ArchiveListing.Loaded) return
+        val selection = take() ?: return
+        val sources = selection.items.mapTo(LinkedHashSet()) { it.path }
+        archiveAddUseCase.add(sources, archivePath, folderNames.value.toList()) {
+            // 작업 스코프에서 불리므로 목록 읽기는 이 화면의 스코프로 넘긴다 — 화면을 이미 나갔으면 아무것도 하지 않는다
+            viewModelScope.launch { load() }
+            localNavigator.refresh()
+        }
+    }
+
+    /**
      * 뒤로가기를 처리한다. 다중 선택 중이면 선택을 비우고 기본 모드로 돌아가며, 안쪽 폴더면 바깥 폴더로 가고, 루트면 [close]로 화면을 닫는다.
      * @param close 화면을 닫는 함수
      */
@@ -234,7 +259,7 @@ class ArchiveViewViewModel @Inject constructor(
             is ArchiveListing.Failed -> ArchiveViewContent.Failed(failureTextOf(listing.failure, kind = null))
             is ArchiveListing.Loaded -> loadedContentOf(listing.contents.root, names, sortMode)
         }
-        return ArchiveViewUiState(archiveNameOf(), names, content, ArchiveViewSelection.None)
+        return ArchiveViewUiState(archiveNameOf(), names, content, ArchiveViewSelection.None, canAdd = isAppendable && listing is ArchiveListing.Loaded)
     }
 
     /**
@@ -321,8 +346,15 @@ class ArchiveViewViewModel @Inject constructor(
  * @param folderNames 루트부터 들어간 폴더 이름들
  * @param content 목록 영역의 상태
  * @param selection 선택 상태
+ * @param canAdd 지금 폴더에 로컬 항목을 넣을 수 있는지 — 넣을 수 있는 형식(ZIP)이고 목록을 다 읽었을 때만 true
  */
-data class ArchiveViewUiState(val archiveName: String, val folderNames: List<String>, val content: ArchiveViewContent, val selection: ArchiveViewSelection)
+data class ArchiveViewUiState(
+    val archiveName: String,
+    val folderNames: List<String>,
+    val content: ArchiveViewContent,
+    val selection: ArchiveViewSelection,
+    val canAdd: Boolean,
+)
 
 /** 내용 보기 화면의 선택 상태. */
 sealed interface ArchiveViewSelection {

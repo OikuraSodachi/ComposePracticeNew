@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.model.ArchiveFolder
 import com.todokanai.composepracticenew.model.ArchiveListingId
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.ProgressPhase
+import com.todokanai.composepracticenew.repository.ArchiveAddRepository
 import com.todokanai.composepracticenew.repository.ArchiveContentRepository
 import com.todokanai.composepracticenew.repository.ArchiveEntryCopyRepository
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
@@ -33,6 +34,29 @@ internal class RecordingArchiveCopyRepository : ArchiveEntryCopyRepository {
         onProgress: (ProgressPhase) -> Unit
     ): IoResult<Unit> {
         calls += selection to destPath
+        return IoResult.Done
+    }
+}
+
+/**
+ * [appendable]에 든 경로만 항목을 넣을 수 있는 압축 파일로 보고, 추가 요청을 기록하고 바로 성공하는 ArchiveAddRepository.
+ * @param appendable 항목을 넣을 수 있는 압축 파일 경로
+ */
+internal class RecordingArchiveAddRepository(private val appendable: Set<String>) : ArchiveAddRepository {
+    /** 받은 요청(넣을 경로, 압축 파일 경로, 넣을 폴더 이름들)을 순서대로. */
+    val calls = mutableListOf<Triple<Set<String>, String, List<String>>>()
+
+    override fun canAddTo(archivePath: String): Boolean = archivePath in appendable
+
+    override suspend fun addFiles(
+        sources: Set<String>,
+        archivePath: String,
+        folderNames: List<String>,
+        resolveConflict: WriteConflictResolver,
+        askPassword: ArchivePasswordProvider,
+        onProgress: (ProgressPhase) -> Unit
+    ): IoResult<Unit> {
+        calls += Triple(sources, archivePath, folderNames)
         return IoResult.Done
     }
 }

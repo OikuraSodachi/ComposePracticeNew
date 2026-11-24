@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ItemClickAction
 import com.todokanai.composepracticenew.ui.model.ItemClickAction.IGNORE
 import com.todokanai.composepracticenew.ui.model.ItemClickAction.OPEN
+import com.todokanai.composepracticenew.ui.model.ItemClickAction.OPEN_ARCHIVE
 import com.todokanai.composepracticenew.ui.model.ItemClickAction.TOGGLE
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.RemoteSelectMode
@@ -41,6 +42,11 @@ class ItemClickActionTest {
             SelectMode.LocalOperation.UnzipHere, SelectMode.Download(emptyList()), SelectMode.ArchiveCopy(archiveSelection)
         )
         confirmModes.forEach { assertEquals("$it", listOf(OPEN, IGNORE), actions(it)) }
+    }
+
+    @Test
+    fun `압축 파일에 추가할 곳을 찾는 중에는 폴더를 열고 파일은 압축 파일일 때만 연다`() {
+        assertEquals(listOf(OPEN, OPEN_ARCHIVE), actions(SelectMode.AddToArchive))
     }
 
     @Test

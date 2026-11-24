@@ -8,6 +8,7 @@ import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalSameStorageOperation
 import com.todokanai.composepracticenew.ui.model.LocalTransferMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -50,12 +51,12 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** 로컬 화면의 선택 상태 — 다운로드 대기 목록과 압축 파일에서 고른 항목도 이 상태(목적지 확인)에만 있다. */
-    private val local = SelectionStateHolder<SelectMode.LocalOperation, LocalTransferMode>()
+    private val local = SelectionStateHolder<LocalSameStorageOperation, LocalTransferMode>()
     /** 원격 화면의 선택 상태 — 업로드 대기 목록도 이 상태(업로드 목적지 확인)에만 있다. 원격 작업은 아직 없다. */
     private val remote = SelectionStateHolder<Nothing, SelectMode.Upload>()
 
     /** 로컬 파일 목록 화면의 선택 상태(모드와 선택·다운로드 대기 목록·압축 파일에서 고른 항목). */
-    val localSelection: StateFlow<SelectionState<SelectMode.LocalOperation, LocalTransferMode>> = local.state
+    val localSelection: StateFlow<SelectionState<LocalSameStorageOperation, LocalTransferMode>> = local.state
 
     /** 원격 파일 목록 화면의 선택 상태(모드와 선택·업로드 대기 목록). */
     val remoteSelection: StateFlow<SelectionState<Nothing, SelectMode.Upload>> = remote.state
@@ -102,8 +103,8 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /** first 하나를 선택한 채로 로컬 화면을 다중 선택 모드로 전환한다. */
     fun startLocalMultiSelect(first: FileHolderItem) = local.startMultiSelect(first)
 
-    /** 선택 목록을 유지한 채 로컬 작업(복사·이동·압축 해제)의 목적지 확인 단계로 전환한다. */
-    fun enterLocalOperation(operation: SelectMode.LocalOperation) = local.enterOperation(operation)
+    /** 선택 목록을 유지한 채 로컬 작업(복사·이동·압축 해제·압축 파일에 추가)의 목적지 확인 단계로 전환한다. */
+    fun enterLocalOperation(operation: LocalSameStorageOperation) = local.enterOperation(operation)
 
     /** first 하나를 선택한 채로 원격 화면을 다중 선택 모드로 전환한다. */
     fun startRemoteMultiSelect(first: FileHolderItem) = remote.startMultiSelect(first)
@@ -133,6 +134,17 @@ class FileTransferCoordinatorViewModel @Inject constructor(
      * @return 꺼낸 항목. 로컬 화면의 선택이 한 항목이 아니면 null
      */
     fun submitLocalItem(): SubmittedItem? = local.submitSingle()
+
+    /**
+     * 압축 파일에 추가할 곳을 찾는 중일 때만 로컬 화면의 선택을 꺼내고 로컬 화면을 기본 모드로 되돌린다. 내용 보기의 '여기에 추가'는 확인할 때 이것으로 대상을 받는다 —
+     * 그사이 다른 작업·전송으로 바뀐 선택을 압축 파일에 넣지 않도록.
+     * @return 꺼낸 선택. 추가할 곳을 찾는 중이 아니면 상태를 바꾸지 않고 null
+     */
+    fun submitArchiveAddSelection(): SubmittedSelection? {
+        val current = local.state.value
+        if (current !is SelectionState.Operation || current.operation != SelectMode.AddToArchive) return null
+        return local.submit()
+    }
 
     /**
      * 원격 화면의 선택을 작업 대상으로 꺼내고 원격 화면을 기본 모드로 되돌린다. 원격 삭제는 확인할 때 이것으로 대상을 받는다.

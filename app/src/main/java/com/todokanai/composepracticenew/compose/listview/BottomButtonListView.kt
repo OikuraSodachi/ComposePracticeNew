@@ -6,6 +6,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalSameStorageOperation
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.PendingRename
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -31,7 +32,7 @@ import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 fun BottomButtonListView(
     modifier: Modifier,
     selectMode: LocalSelectMode,
-    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
+    onSelectOperation: (LocalSameStorageOperation) -> Unit,
     onResetSelection: () -> Unit,
     onSubmitSelection: () -> SubmittedSelection?,
     selectedList: () -> List<FileHolderItem>,

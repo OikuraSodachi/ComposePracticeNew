@@ -3,6 +3,14 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import com.todokanai.composepracticenew.InMemorySortPreference
 import com.todokanai.composepracticenew.TEST_LISTING
+import com.todokanai.composepracticenew.FakeNavigator
+import com.todokanai.composepracticenew.GrantedProtection
+import com.todokanai.composepracticenew.NoOpFailureRecorder
+import com.todokanai.composepracticenew.NoOpNotifier
+import com.todokanai.composepracticenew.RecordingArchiveAddRepository
+import com.todokanai.composepracticenew.RecordingOperationNotices
+import com.todokanai.composepracticenew.RecordingProgressReporter
+import com.todokanai.composepracticenew.UnexpectedQuestions
 import com.todokanai.composepracticenew.ViewableArchives
 import com.todokanai.composepracticenew.model.ArchiveEntry
 import com.todokanai.composepracticenew.model.ArchiveEntryKey
@@ -14,9 +22,19 @@ import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.ui.model.ArchiveEntryRow
 import com.todokanai.composepracticenew.ui.model.ArchiveEntryRowKind
+import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalSameStorageOperation
+import com.todokanai.composepracticenew.ui.model.LocalTransferMode
+import com.todokanai.composepracticenew.ui.model.SelectMode
+import com.todokanai.composepracticenew.ui.model.SelectionState
+import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
+import com.todokanai.composepracticenew.usecase.ArchiveAddUseCase
+import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.ArchiveViewUseCase
 import com.todokanai.composepracticenew.usecase.SortModeUseCase
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -44,6 +62,12 @@ class ArchiveViewViewModelTest {
     private val archives = ViewableArchives()
     /** 정렬 설정. */
     private val sortPreference = InMemorySortPreference()
+    /** 압축 파일에 추가 저장소. `/s/a.zip`만 넣을 수 있다. */
+    private val archiveAdds = RecordingArchiveAddRepository(setOf("/s/a.zip"))
+    /** 작업 실행 스코프. 작업이 그 자리에서 끝나도록 Unconfined로 둔다. */
+    private val operationScope = CoroutineScope(Job() + Dispatchers.Unconfined)
+    /** 추가 뒤 다시 조회하는 로컬 탐색. */
+    private val localNav = FakeNavigator()
 
     /** 루트에 파일 둘(b, a)과 폴더 하나(dir — 안에 in.txt)를 둔 트리. */
     private val tree = ArchiveFolder(listOf(
@@ -262,6 +286,47 @@ class ArchiveViewViewModelTest {
     }
 
     @Test
+    fun `넣을 수 있는 압축 파일은 목록을 다 읽은 뒤에만 추가할 수 있다`() {
+        archives.contents = { IoResult.ItemFailed(FailureReason.UnreadableArchive("a.zip")) }
+        val failed = viewModel()
+        archives.contents = { IoResult.Success(tree) }
+        val loaded = viewModel()
+        val other = viewModel(SavedStateHandle(mapOf(ArchiveViewViewModel.ARG_ARCHIVE_PATH to "/s/b.rar")))
+
+        assertFalse(await(failed) { it.content is ArchiveViewContent.Failed }.canAdd)
+        assertTrue(await(loaded) { it.content is ArchiveViewContent.Loaded }.canAdd)
+        assertFalse(await(other) { it.content is ArchiveViewContent.Loaded }.canAdd)
+    }
+
+    @Test
+    fun `지금 폴더에 로컬 선택을 넣고 선택을 비우며 끝나면 목록과 로컬 목록을 다시 읽는다`() {
+        val viewModel = viewModel()
+        viewModel.onRowClick(loadedRows(viewModel).first { it.kind == ArchiveEntryRowKind.FOLDER })
+        awaitRows(viewModel) { rows -> rows.singleOrNull()?.name == "in.txt" }
+        val selection = addingSelection("/local/x.txt", "/local/y.txt")
+
+        viewModel.addHere(selection::submit)
+
+        assertEquals(listOf(Triple(setOf("/local/x.txt", "/local/y.txt"), "/s/a.zip", listOf("dir"))), archiveAdds.calls)
+        assertEquals(SelectionState.Default, selection.state.value)
+        awaitRows(viewModel) { true }
+        assertEquals(2, archives.reads.size)
+        assertEquals(1, localNav.refreshCount)
+    }
+
+    @Test
+    fun `넣을 수 없는 압축 파일이면 로컬 선택을 꺼내지 않는다`() {
+        val viewModel = viewModel(SavedStateHandle(mapOf(ArchiveViewViewModel.ARG_ARCHIVE_PATH to "/s/b.rar")))
+        loadedRows(viewModel)
+        val selection = addingSelection("/local/x.txt")
+
+        viewModel.addHere(selection::submit)
+
+        assertEquals(emptyList<Any>(), archiveAdds.calls)
+        assertEquals(SelectMode.AddToArchive, (selection.state.value as SelectionState.Operation).operation)
+    }
+
+    @Test
     fun `프로세스가 다시 시작된 뒤 저장한 폴더가 없으면 루트로 돌아간다`() {
         val viewModel = viewModel(SavedStateHandle(mapOf(ArchiveViewViewModel.ARG_ARCHIVE_PATH to "/s/a.zip", "folderNames" to arrayListOf("gone"))))
 
@@ -271,7 +336,23 @@ class ArchiveViewViewModelTest {
 
     /** `/s/a.zip`을 보는 ViewModel을 만든다. */
     private fun viewModel(handle: SavedStateHandle = SavedStateHandle(mapOf(ArchiveViewViewModel.ARG_ARCHIVE_PATH to "/s/a.zip"))) =
-        ArchiveViewViewModel(handle, ArchiveViewUseCase(archives), SortModeUseCase(sortPreference))
+        ArchiveViewViewModel(handle, ArchiveViewUseCase(archives), SortModeUseCase(sortPreference), archiveAddUseCase(), FileNavigatorUseCase(localNav, localNav))
+
+    /** 이 테스트의 가짜 저장소로 압축 파일에 추가 UseCase를 만든다. */
+    private fun archiveAddUseCase(): ArchiveAddUseCase {
+        val orchestrator = FileOperationOrchestrator(NoOpNotifier, RecordingProgressReporter(), RecordingOperationNotices(), GrantedProtection, UnexpectedQuestions, NoOpFailureRecorder, operationScope)
+        return ArchiveAddUseCase(orchestrator, archiveAdds)
+    }
+
+    /** 로컬 다중 선택에서 [paths]를 압축 파일에 추가할 곳을 찾는 중인 선택 상태를 만든다. */
+    private fun addingSelection(vararg paths: String) = SelectionStateHolder<LocalSameStorageOperation, LocalTransferMode>().apply {
+        paths.forEachIndexed { index, path -> if (index == 0) startMultiSelect(localItem(path)) else add(localItem(path)) }
+        enterOperation(SelectMode.AddToArchive)
+    }
+
+    /** [path]의 로컬 파일 항목을 만든다. */
+    private fun localItem(path: String) =
+        FileHolderItem(path = path, isDirectory = false, name = path.substringAfterLast("/"), size = "", lastModified = "", sizeBytes = null, lastModifiedMillis = 0L)
 
     /** 다중 선택 상태가 될 때까지 기다려 선택된 행의 이름을 화면 순서로 돌려준다. */
     private fun selectedNames(viewModel: ArchiveViewViewModel): List<String> =

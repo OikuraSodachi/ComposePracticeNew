@@ -30,6 +30,7 @@ import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
+import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
 import com.todokanai.composepracticenew.viewmodel.ArchiveViewViewModel
@@ -263,11 +264,16 @@ private fun FileListDestination(
 /**
  * ARCHIVE_VIEW destination의 UI와 상태를 담당한다. 루트에서 뒤로가거나 비밀번호 질문에서 취소하면 이 화면만 닫는다.
  * 고른 항목을 복사하면 그 항목을 그래프의 로컬 선택 상태로 넘기고 이 화면을 닫아, 로컬 목록에서 풀 목적지를 고르게 한다.
+ * 로컬 목록에서 압축 파일에 추가할 곳을 찾는 중이면 지금 폴더에서 추가를 확인받는다 — 화면은 닫지 않고, 추가가 끝나면 목록을 다시 읽는다.
  */
 @Composable
 private fun ArchiveViewDestination(navController: NavHostController, entry: NavBackStackEntry) {
     val viewModel: ArchiveViewViewModel = hiltViewModel()
     val coordinator = rememberGraphCoordinator(navController)
+    // State 객체만 보관 — 로컬 선택 목록이 바뀔 때마다 이 destination 전체가 리컴포지션되지 않도록
+    val localSelection = coordinator.localSelection.collectAsStateWithLifecycle()
+    // localSelection을 추적하되 압축 파일에 추가할 곳을 찾는 중인지가 바뀔 때만 리컴포지션한다
+    val isAddingToArchive by remember(localSelection) { derivedStateOf { localSelection.value.localMode() == SelectMode.AddToArchive } }
 
     // 비밀번호 질문에서 취소하면 화면을 닫는다.
     // RESUMED를 확인하지 않는다 — 취소로 목록 읽기가 이미 끝났으므로, 버리면 읽지 못한 내용 보기가 남는다
@@ -291,7 +297,11 @@ private fun ArchiveViewDestination(navController: NavHostController, entry: NavB
             coordinator.enterArchiveCopy(selection)
             // 내용 보기는 로컬 목록 위에만 쌓이므로 닫으면 로컬 목록으로 돌아가 목적지를 고른다
             navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true)
-        }
+        },
+        isAddingToArchive = isAddingToArchive,
+        // 화면을 떠나지 않는 입력이라 RESUMED를 확인하지 않는다. 연타한 두 번째 확인은 꺼낼 선택이 없어 아무것도 하지 않는다
+        onAddHere = { viewModel.addHere(coordinator::submitArchiveAddSelection) },
+        onCancelAdd = coordinator::resetLocalSelection
     )
 }
 

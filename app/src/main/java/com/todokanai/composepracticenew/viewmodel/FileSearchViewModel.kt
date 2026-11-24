@@ -105,6 +105,7 @@ class FileSearchViewModel @Inject constructor(
         when (selectMode.clickActionOf(item)) {
             ItemClickAction.OPEN ->
                 if (item.isDirectory) navigateAndClose { fileSearchUseCase.openFolder(item.toDomain()) } else openFile(item)
+            ItemClickAction.OPEN_ARCHIVE -> openArchive(item)
             ItemClickAction.TOGGLE, ItemClickAction.IGNORE -> {}
         }
     }
@@ -162,6 +163,12 @@ class FileSearchViewModel @Inject constructor(
     private fun openFile(item: FileHolderItem) {
         viewModelScope.launch { itemOpener.open(item) }
     }
+
+    /**
+     * 결과 [item]이 내용을 볼 수 있는 압축 파일이면 내용 보기로 연다. 그 밖의 파일은 아무것도 하지 않는다.
+     * @param item 누른 결과 파일
+     */
+    private fun openArchive(item: FileHolderItem) = itemOpener.openArchive(item)
 
     /**
      * [navigate]로 다른 폴더로 이동하고, 이동했을 때만 검색을 닫는다. 거부되면 검색과 결과를 그대로 둔다 —

@@ -46,7 +46,7 @@ sealed interface SelectionState<out Op : SameStorageOperation, out T : TransferM
 }
 
 /** 로컬 화면의 선택 상태를 화면이 분기에 쓰는 모드로 바꾼다. */
-fun SelectionState<SelectMode.LocalOperation, LocalTransferMode>.localMode(): LocalSelectMode = when (this) {
+fun SelectionState<LocalSameStorageOperation, LocalTransferMode>.localMode(): LocalSelectMode = when (this) {
     SelectionState.Default -> SelectMode.Default
     is SelectionState.MultiSelect -> SelectMode.MultiSelect
     is SelectionState.Operation -> operation
