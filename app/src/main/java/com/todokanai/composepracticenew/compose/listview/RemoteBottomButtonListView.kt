@@ -86,13 +86,13 @@ fun RemoteBottomButtonListView(
                 ) { Text(strRemoteRename) }
             }
         }
-        SelectMode.Upload -> {
+        is SelectMode.Upload -> {
             ConfirmButtons(
                 modifier = modifier,
                 // 선택 초기화는 실제 실행 시점에 coordinator가 담당 — 충돌 확인을 취소하면 업로드 확인 모드가 유지된다
                 confirm = onConfirmUpload,
                 cancel = onResetSelection,
-                mode = SelectMode.Upload
+                mode = selectMode
             )
         }
         SelectMode.Default -> Unit

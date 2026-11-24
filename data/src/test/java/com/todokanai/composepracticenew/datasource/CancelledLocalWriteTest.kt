@@ -90,7 +90,7 @@ class CancelledLocalWriteTest {
 
         assertThrows(CancellationException::class.java) {
             val tracker = ByteProgressTracker(8, 2, cancelOnB)
-            ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker)
+            ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker, ExtractionScope.Whole)
         }
 
         assertEquals("AAAA", File(out, "a.txt").readText())

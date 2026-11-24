@@ -64,7 +64,7 @@ class UploadConfirmation(
      */
     fun confirm(waiting: SelectionState.Receiving<SelectMode.Upload>) {
         val job = scope.launch(checks, start = CoroutineStart.LAZY) {
-            val checked = uploadConflictCheckUseCase.findConflicts(waiting.pending, remoteNavigator, nameOf = { it.name }, pathOf = { it.path })
+            val checked = uploadConflictCheckUseCase.findConflicts(waiting.transfer.pending, remoteNavigator, nameOf = { it.name }, pathOf = { it.path })
             // 확인을 마친 직후 취소됐을 수 있다 — 취소한 업로드를 묻거나 올리지 않도록 이어 가기 전에 확인한다
             ensureActive()
             if (checked == null) {
@@ -72,11 +72,11 @@ class UploadConfirmation(
                 return@launch
             }
             gate.request(
-                waiting.pending,
+                waiting.transfer.pending,
                 checked.conflicts,
                 checked.collisions.map(NameCollisionGroup::from),
                 onCancel = { restoreReceiving(waiting) },
-            ) { skip -> upload(waiting.pending.excluding(skip), checked.destinationPath) }
+            ) { skip -> upload(waiting.transfer.pending.excluding(skip), checked.destinationPath) }
         }
         val check = RunningCheck(waiting, job)
         runningChecks.update { it + check }

@@ -41,5 +41,5 @@ private fun unknownFilesTextRes(operationType: FileOperationType): Int = when (o
     FileOperationType.DOWNLOAD -> R.string.progress_unknown_files_received
     FileOperationType.UPLOAD -> R.string.progress_unknown_files_sent
     FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.REMOTE_DELETE,
-    FileOperationType.COMPRESS, FileOperationType.UNZIP -> R.string.progress_unknown_files_processed
+    FileOperationType.COMPRESS, FileOperationType.UNZIP, FileOperationType.ARCHIVE_COPY -> R.string.progress_unknown_files_processed
 }

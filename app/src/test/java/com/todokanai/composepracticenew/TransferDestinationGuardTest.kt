@@ -15,6 +15,7 @@ import com.todokanai.composepracticenew.ui.model.NameCollisionGroup
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
+import com.todokanai.composepracticenew.usecase.ArchiveCopyUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -63,6 +64,9 @@ class TransferDestinationGuardTest {
     /** 원격 세션 끊김을 테스트가 일으키는 연결 저장소. 연결된 상태로 시작한다. */
     private val connection = FakeConnectionRepository()
     private val transferRepo = RecordingTransferRepository()
+
+    /** 압축 파일 항목 복사 요청을 기록하는 저장소. */
+    private val archiveCopyRepo = RecordingArchiveCopyRepository()
     private lateinit var viewModel: FileTransferCoordinatorViewModel
     private lateinit var localRequest: ListingRequest
     private lateinit var remoteRequest: ListingRequest
@@ -91,7 +95,8 @@ class TransferDestinationGuardTest {
             remoteOps,
             UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), folderEntries, ExactNameMatching),
             RemoteConnectionStateUseCase(connection),
-            RemoteSessionCheckUseCase(connection, notices)
+            RemoteSessionCheckUseCase(connection, notices),
+            ArchiveCopyUseCase(orchestrator, archiveCopyRepo)
         )
         localRequest = localNav.moveTo("/local")
         remoteRequest = remoteNav.moveTo("ftp://h/r")
@@ -112,7 +117,7 @@ class TransferDestinationGuardTest {
 
         assertTrue(transferRepo.calls.isEmpty())
         assertEquals(listOf(NoticeMessage.DestinationUnverified), notices.failures)
-        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload(listOf(upload))), viewModel.remoteSelection.value)
     }
 
     @Test
@@ -146,6 +151,17 @@ class TransferDestinationGuardTest {
 
         assertTrue(transferRepo.calls.isEmpty())
         assertNotNull(viewModel.uploadConflict.value)
+    }
+
+    @Test
+    fun `압축 파일 항목 복사를 확인하면 고른 항목을 지금 로컬 경로에 풀고 기본 모드로 돌아간다`() {
+        viewModel.enterArchiveCopy(archiveSelection)
+
+        viewModel.confirmLocalTransfer()
+
+        assertEquals(listOf(archiveSelection to "/local"), archiveCopyRepo.calls)
+        assertTrue(transferRepo.calls.isEmpty())
+        assertEquals(SelectionState.Default, viewModel.localSelection.value)
     }
 
     @Test
@@ -219,7 +235,7 @@ class TransferDestinationGuardTest {
 
         viewModel.resolveUploadConflict(ConflictResolution.CANCEL)
 
-        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload(listOf(upload))), viewModel.remoteSelection.value)
         assertTrue(transferRepo.calls.isEmpty())
     }
 
@@ -234,7 +250,7 @@ class TransferDestinationGuardTest {
 
         viewModel.resolveUploadConflict(ConflictResolution.CANCEL)
 
-        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(other)), viewModel.remoteSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload(listOf(other))), viewModel.remoteSelection.value)
         assertTrue(transferRepo.calls.isEmpty())
     }
 
@@ -279,7 +295,7 @@ class TransferDestinationGuardTest {
 
         assertTrue(transferRepo.calls.isEmpty())
         assertTrue(!viewModel.uploadChecking.value)
-        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload(listOf(upload))), viewModel.remoteSelection.value)
     }
 
     @Test
@@ -296,7 +312,7 @@ class TransferDestinationGuardTest {
         hold.complete(Unit)
 
         assertEquals(listOf("upload /local/c.txt"), transferRepo.calls)
-        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(upload)), viewModel.remoteSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload(listOf(upload))), viewModel.remoteSelection.value)
     }
 
     /** 로컬 다중 선택 목록([item] 하나)을 업로드 대기 목록으로 옮긴다. */

@@ -9,6 +9,7 @@ import com.todokanai.composepracticenew.compose.BottomButtons
 import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
+import com.todokanai.composepracticenew.ui.model.LocalTransferMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 
 /** [operation]의 목적지 확인 단계로 전환하는 버튼 항목을 만든다. */
@@ -71,7 +72,7 @@ internal fun multiSelectMoreActions(
  * @param onSelectOperation 선택을 유지한 채 로컬 작업의 목적지 확인 단계로 전환하는 콜백
  * @param onResetSelection 선택 모드·선택 목록을 초기화하는 콜백 — 확인 단계의 취소도 선택을 비운다
  * @param onShowInfo 현재 선택 항목의 정보 다이얼로그를 여는 콜백
- * @param transfer 다운로드 확인·업로드 모드 진입 콜백 묶음
+ * @param transfer 전송(다운로드·압축 파일 항목 복사) 확인과 업로드 모드 진입 콜백 묶음
  */
 @Composable
 fun ModeAwareButtons(
@@ -113,11 +114,11 @@ fun ModeAwareButtons(
             cancel = onResetSelection,
             mode = selectMode
         )
-        SelectMode.Download -> ConfirmButtons(
+        is LocalTransferMode -> ConfirmButtons(
             modifier = modifier,
-            confirm = transfer.onConfirmDownload,
+            confirm = transfer.onConfirmTransfer,
             cancel = onResetSelection,
-            mode = SelectMode.Download
+            mode = selectMode
         )
     }
 }

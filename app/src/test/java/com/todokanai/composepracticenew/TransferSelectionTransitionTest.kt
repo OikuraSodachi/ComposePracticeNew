@@ -6,6 +6,7 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
+import com.todokanai.composepracticenew.usecase.ArchiveCopyUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -72,7 +73,7 @@ class TransferSelectionTransitionTest {
 
         viewModel.enterDownloadMode()
 
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(remoteX)), viewModel.localSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download(listOf(remoteX))), viewModel.localSelection.value)
         assertEquals(emptyList<FileHolderItem>(), viewModel.localSelection.value.selected)
         assertEquals(SelectionState.Default, viewModel.remoteSelection.value)
     }
@@ -85,7 +86,7 @@ class TransferSelectionTransitionTest {
 
         viewModel.enterUploadMode()
 
-        assertEquals(SelectionState.Receiving(SelectMode.Upload, listOf(localA)), viewModel.remoteSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Upload(listOf(localA))), viewModel.remoteSelection.value)
         assertEquals(emptyList<FileHolderItem>(), viewModel.remoteSelection.value.selected)
         assertEquals(SelectionState.Default, viewModel.localSelection.value)
     }
@@ -129,6 +130,24 @@ class TransferSelectionTransitionTest {
     }
 
     @Test
+    fun `압축 파일 항목 복사로 들어가면 로컬 화면의 선택을 버리고 고른 항목만 기다린다`() {
+        viewModel.startLocalMultiSelect(localA)
+
+        viewModel.enterArchiveCopy(archiveSelection)
+
+        assertEquals(SelectionState.Receiving(SelectMode.ArchiveCopy(archiveSelection)), viewModel.localSelection.value)
+    }
+
+    @Test
+    fun `원격 세션이 끊겨도 압축 파일 항목 복사 대기는 남는다`() {
+        viewModel.enterArchiveCopy(archiveSelection)
+
+        connection.connectionState.value = RemoteConnectionState.Lost
+
+        assertEquals(SelectionState.Receiving(SelectMode.ArchiveCopy(archiveSelection)), viewModel.localSelection.value)
+    }
+
+    @Test
     fun `원격 세션이 끊겨도 로컬 화면의 선택과 작업 상태는 남는다`() {
         viewModel.startLocalMultiSelect(localA)
         viewModel.enterLocalOperation(SelectMode.LocalOperation.Move)
@@ -144,7 +163,7 @@ class TransferSelectionTransitionTest {
 
         connection.connectionState.value = RemoteConnectionState.Disconnected
 
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(remoteX)), viewModel.localSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download(listOf(remoteX))), viewModel.localSelection.value)
     }
 
     @Test
@@ -327,7 +346,8 @@ class TransferSelectionTransitionTest {
             RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules)),
             UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), folderEntries, ExactNameMatching),
             RemoteConnectionStateUseCase(connection),
-            RemoteSessionCheckUseCase(connection, notices)
+            RemoteSessionCheckUseCase(connection, notices),
+            ArchiveCopyUseCase(orchestrator, RecordingArchiveCopyRepository())
         )
     }
 

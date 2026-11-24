@@ -60,8 +60,9 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 ```
 SelectMode.Default / MultiSelect          — 두 화면 공통 (일반 탐색 / 다중 선택)
 SelectMode.LocalOperation.Copy/Move/Unzip/UnzipHere — 로컬 화면, 목적지 확인 후 실행 (같은 이름은 실행 중에 묻는다)
-SelectMode.Download                       — 로컬 화면, 다운로드 목적지 확인
-SelectMode.Upload                         — 원격 화면, 업로드 목적지 확인
+SelectMode.Download(pending)              — 로컬 화면, 다운로드 목적지 확인
+SelectMode.ArchiveCopy(selection)         — 로컬 화면, 압축 파일 내용 보기에서 고른 항목을 풀 목적지 확인
+SelectMode.Upload(pending)                — 원격 화면, 업로드 목적지 확인
 ```
 
 선택 상태(`SelectionState`, 전송 대기 목록, 선택 초기화 규칙 #226, `localMode()`/`remoteMode()`)는 `.claude/rules/selection-state.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.

@@ -14,6 +14,8 @@ enum class FileOperationType(val id: Int, val isRemote: Boolean) {
     REMOTE_DELETE(27, true),
     COMPRESS(23, false),
     UNZIP(24, false),
+    /** 압축 파일 내용 보기에서 고른 항목만 로컬 폴더로 푸는 복사. */
+    ARCHIVE_COPY(28, false),
     DOWNLOAD(25, true),
     UPLOAD(26, true);
 

@@ -3,7 +3,9 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.todokanai.composepracticenew.model.ArchiveContents
 import com.todokanai.composepracticenew.model.ArchiveEntryKey
+import com.todokanai.composepracticenew.model.ArchiveEntrySelection
 import com.todokanai.composepracticenew.model.ArchiveFolder
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.IoResult
@@ -35,7 +37,7 @@ import java.util.concurrent.atomic.AtomicLong
 import javax.inject.Inject
 
 /**
- * 압축 파일 내용 보기 화면의 목록 읽기·폴더 탐색·비밀번호 질문을 담당하는 ViewModel.
+ * 압축 파일 내용 보기 화면의 목록 읽기·폴더 탐색·선택(복사 대상 꺼내기 포함)·비밀번호 질문을 담당하는 ViewModel.
  * 목록은 화면이 열릴 때 한 번 읽어 두고, 폴더 이동은 읽은 트리 안에서만 한다. 지금 폴더는 [SavedStateHandle]에 이름으로 남겨 프로세스가 다시 시작돼도 이어진다.
  * 비밀번호 질문은 이 화면의 읽기에 묶여 있어(작업이 아니다) 작업 질문함이 아니라 이 ViewModel이 보관한다. 화면을 나가면 viewModelScope와 함께 읽기와 기다림이 끝난다.
  * @param savedStateHandle 내비게이션 인자(압축 파일 경로)와 지금 폴더를 담는 저장 상태
@@ -144,6 +146,17 @@ class ArchiveViewViewModel @Inject constructor(
     }
 
     /**
+     * 다중 선택을 복사 대상으로 꺼내고, 같은 갱신에서 기본 모드로 되돌린다. 꺼낸 값은 고른 폴더와 목록 식별값을 함께 담아, 압축 파일이 그사이 바뀌었는지 풀 때 가릴 수 있다.
+     * @return 고른 항목. 다중 선택이 아니거나 비었거나 목록을 다 읽지 않았으면 상태를 바꾸지 않고 null
+     */
+    fun submitCopy(): ArchiveEntrySelection? {
+        val keys = (selection.value as? ArchiveSelection.MultiSelect)?.keys?.takeIf { it.isNotEmpty() } ?: return null
+        val loaded = listing.value as? ArchiveListing.Loaded ?: return null
+        selection.value = ArchiveSelection.None
+        return ArchiveEntrySelection(archivePath, loaded.contents.listing, folderNames.value.toList(), keys)
+    }
+
+    /**
      * 뒤로가기를 처리한다. 다중 선택 중이면 선택을 비우고 기본 모드로 돌아가며, 안쪽 폴더면 바깥 폴더로 가고, 루트면 [close]로 화면을 닫는다.
      * @param close 화면을 닫는 함수
      */
@@ -194,7 +207,7 @@ class ArchiveViewViewModel @Inject constructor(
         listing.value = ArchiveListing.Loading
         loadJob = viewModelScope.launch {
             listing.value = when (val result = archiveViewUseCase.contentsOf(archivePath, askPassword)) {
-                is IoResult.Success -> ArchiveListing.Loaded(result.value).also { keepFolderIn(it.root) }
+                is IoResult.Success -> ArchiveListing.Loaded(result.value).also { keepFolderIn(it.contents.root) }
                 is IoResult.Failure -> ArchiveListing.Failed(result)
             }
         }
@@ -219,7 +232,7 @@ class ArchiveViewViewModel @Inject constructor(
         val content = when (listing) {
             ArchiveListing.Loading -> ArchiveViewContent.Loading
             is ArchiveListing.Failed -> ArchiveViewContent.Failed(failureTextOf(listing.failure, kind = null))
-            is ArchiveListing.Loaded -> loadedContentOf(listing.root, names, sortMode)
+            is ArchiveListing.Loaded -> loadedContentOf(listing.contents.root, names, sortMode)
         }
         return ArchiveViewUiState(archiveNameOf(), names, content, ArchiveViewSelection.None)
     }
@@ -260,9 +273,9 @@ class ArchiveViewViewModel @Inject constructor(
 
         /**
          * 다 읽었다.
-         * @param root 루트 폴더
+         * @param contents 루트 폴더와 그 목록의 식별값
          */
-        data class Loaded(val root: ArchiveFolder) : ArchiveListing
+        data class Loaded(val contents: ArchiveContents) : ArchiveListing
 
         /**
          * 읽지 못했다.

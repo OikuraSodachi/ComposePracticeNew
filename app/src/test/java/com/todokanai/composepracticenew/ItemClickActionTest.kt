@@ -38,7 +38,7 @@ class ItemClickActionTest {
     fun `로컬 목적지 확인 중에는 폴더만 연다`() {
         val confirmModes = listOf(
             SelectMode.LocalOperation.Copy, SelectMode.LocalOperation.Move, SelectMode.LocalOperation.Unzip,
-            SelectMode.LocalOperation.UnzipHere, SelectMode.Download
+            SelectMode.LocalOperation.UnzipHere, SelectMode.Download(emptyList()), SelectMode.ArchiveCopy(archiveSelection)
         )
         confirmModes.forEach { assertEquals("$it", listOf(OPEN, IGNORE), actions(it)) }
     }
@@ -50,7 +50,7 @@ class ItemClickActionTest {
 
     @Test
     fun `원격 기본 모드와 업로드 목적지 확인 중에는 폴더만 연다`() {
-        listOf(SelectMode.Default, SelectMode.Upload).forEach {
+        listOf(SelectMode.Default, SelectMode.Upload(emptyList())).forEach {
             assertEquals("$it", listOf(OPEN, IGNORE), remoteActions(it))
         }
     }

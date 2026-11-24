@@ -159,7 +159,7 @@ private fun startDragSelection(
 ): DragSelection<FileHolderItem>? = when (selectMode) {
     SelectMode.Default -> DragSelection.fresh(::fileListKeyOf).also { onStartMultiSelect(anchor) }
     SelectMode.MultiSelect -> DragSelection.startingAt(anchor, selectedList(), ::fileListKeyOf)
-    is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> null
+    is SelectMode.LocalOperation, is SelectMode.Download, is SelectMode.ArchiveCopy, is SelectMode.Upload -> null
 }
 
 /**

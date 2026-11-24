@@ -101,6 +101,7 @@ private fun reasonTextOf(reason: FailureReason): UiText = when (reason) {
     is FailureReason.MissingArchiveVolume -> UiText.Resource(R.string.failure_missing_archive_volume, listOf(reason.archiveName, reason.volumeName))
     is FailureReason.UnreadableArchive -> UiText.Resource(R.string.failure_unreadable_archive, listOf(reason.name))
     is FailureReason.ArchiveChangedWhileReading -> UiText.Resource(R.string.failure_archive_changed_while_reading, listOf(reason.name))
+    is FailureReason.ArchiveChangedSinceViewed -> UiText.Resource(R.string.failure_archive_changed_since_viewed, listOf(reason.name))
     FailureReason.ArchiveEntryNameUnreadable -> UiText.Resource(R.string.failure_archive_entry_name_unreadable)
     is FailureReason.ArchiveEntryPasswordMismatch -> UiText.Resource(R.string.failure_archive_entry_password_mismatch, listOf(reason.entryName))
     FailureReason.ArchivePasswordUnverifiable -> UiText.Resource(R.string.failure_archive_password_unverifiable)
@@ -338,7 +339,7 @@ private fun listedPathsOf(failures: List<FailedItem>): UiText {
  */
 @StringRes
 private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = when (operationType) {
-    FileOperationType.COPY -> R.string.failure_partial_heading_copy
+    FileOperationType.COPY, FileOperationType.ARCHIVE_COPY -> R.string.failure_partial_heading_copy
     FileOperationType.MOVE -> R.string.failure_partial_heading_move
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.failure_partial_heading_delete
     FileOperationType.COMPRESS -> R.string.failure_partial_heading_compress
@@ -356,5 +357,5 @@ private fun partialFailureHeadingRes(operationType: FileOperationType?): Int = w
 private fun headingStepOf(operationType: FileOperationType?): RemoteStep? = when (operationType) {
     FileOperationType.DOWNLOAD -> RemoteStep.DOWNLOAD
     FileOperationType.UPLOAD -> RemoteStep.UPLOAD
-    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.REMOTE_DELETE, FileOperationType.COMPRESS, FileOperationType.UNZIP, null -> null
+    FileOperationType.COPY, FileOperationType.MOVE, FileOperationType.DELETE, FileOperationType.REMOTE_DELETE, FileOperationType.COMPRESS, FileOperationType.UNZIP, FileOperationType.ARCHIVE_COPY, null -> null
 }

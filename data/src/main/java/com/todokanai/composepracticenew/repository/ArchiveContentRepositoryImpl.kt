@@ -4,9 +4,10 @@ import com.todokanai.composepracticenew.datasource.ArchiveExtractor
 import com.todokanai.composepracticenew.datasource.ArchiveNameRole
 import com.todokanai.composepracticenew.datasource.archiveTreeOf
 import com.todokanai.composepracticenew.datasource.askingPasswordSession
+import com.todokanai.composepracticenew.datasource.listingIdOf
 import com.todokanai.composepracticenew.datasource.localIo
 import com.todokanai.composepracticenew.datasource.matchOf
-import com.todokanai.composepracticenew.model.ArchiveFolder
+import com.todokanai.composepracticenew.model.ArchiveContents
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,7 @@ class ArchiveContentRepositoryImpl @Inject constructor(
 
     override fun canView(path: String): Boolean = extractors.matchOf(File(path).name)?.role is ArchiveNameRole.Entry
 
-    override suspend fun contentsOf(archivePath: String, askPassword: ArchivePasswordProvider): IoResult<ArchiveFolder> = withContext(Dispatchers.IO) {
+    override suspend fun contentsOf(archivePath: String, askPassword: ArchivePasswordProvider): IoResult<ArchiveContents> = withContext(Dispatchers.IO) {
         val name = File(archivePath).name
         // 추출 라이브러리의 콜백은 일시 중단할 수 없으므로 그 자리에서 답을 기다린다. 읽는 코루틴의 Job을 부모로 두어 화면을 나가면 기다림도 끝난다
         val job = coroutineContext.job
@@ -38,7 +39,7 @@ class ArchiveContentRepositoryImpl @Inject constructor(
             val passwords = askingPasswordSession(name, askPassword, job) { job.ensureActive() }
             val entries = match.extractor.entries(archivePath, passwords)
             job.ensureActive()
-            IoResult.Success(archiveTreeOf(entries))
+            IoResult.Success(ArchiveContents(archiveTreeOf(entries), listingIdOf(entries)))
         }
     }
 }

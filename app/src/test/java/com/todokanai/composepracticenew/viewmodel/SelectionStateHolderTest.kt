@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import com.todokanai.composepracticenew.archiveSelection
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalTransferMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
 import org.junit.Assert.assertEquals
@@ -10,7 +12,7 @@ import org.junit.Test
 /** 화면 하나의 선택 상태가 허용된 전환으로만 바뀌고, 기본·전송 목적지 상태에 선택이 남지 않는지 검증하는 단위 테스트. */
 class SelectionStateHolderTest {
 
-    private val holder = SelectionStateHolder<SelectMode.LocalOperation, SelectMode.Download>()
+    private val holder = SelectionStateHolder<SelectMode.LocalOperation, LocalTransferMode>()
     private val a = item("/a")
     private val b = item("/b")
 
@@ -46,15 +48,15 @@ class SelectionStateHolderTest {
     fun `전송을 받으면 이 화면의 선택을 버리고 대기 목록만 가진다`() {
         holder.startMultiSelect(a)
 
-        holder.receive(SelectMode.Download, listOf(b))
+        holder.receive(SelectMode.Download(listOf(b)))
 
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(b)), holder.state.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download(listOf(b))), holder.state.value)
         assertEquals(emptyList<FileHolderItem>(), holder.state.value.selected)
     }
 
     @Test
     fun `전송 목적지 확인에서 취소하면 대기 목록도 사라진다`() {
-        holder.receive(SelectMode.Download, listOf(b))
+        holder.receive(SelectMode.Download(listOf(b)))
 
         holder.reset()
 
@@ -68,10 +70,10 @@ class SelectionStateHolderTest {
         holder.enterOperation(SelectMode.LocalOperation.Copy)
         assertEquals(SelectionState.Default, holder.state.value)
 
-        holder.receive(SelectMode.Download, listOf(b))
+        holder.receive(SelectMode.Download(listOf(b)))
         holder.add(a)
         holder.enterOperation(SelectMode.LocalOperation.Copy)
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(b)), holder.state.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download(listOf(b))), holder.state.value)
     }
 
     @Test
@@ -103,21 +105,31 @@ class SelectionStateHolderTest {
 
     @Test
     fun `전송 대기를 버리면 기본 모드가 된다`() {
-        holder.receive(SelectMode.Download, listOf(b))
+        holder.receive(SelectMode.Download(listOf(b)))
 
-        holder.discardReceiving()
+        holder.discardReceiving { true }
 
         assertEquals(SelectionState.Default, holder.state.value)
     }
 
     @Test
+    fun `버릴 전송이 아닌 대기는 남는다`() {
+        val copy = SelectMode.ArchiveCopy(archiveSelection)
+        holder.receive(copy)
+
+        holder.discardReceiving { it is SelectMode.Download }
+
+        assertEquals(SelectionState.Receiving(copy), holder.state.value)
+    }
+
+    @Test
     fun `전송 대기를 버려도 이 화면의 선택과 작업 상태는 남는다`() {
         holder.startMultiSelect(a)
-        holder.discardReceiving()
+        holder.discardReceiving { true }
         assertEquals(SelectionState.MultiSelect(listOf(a)), holder.state.value)
 
         holder.enterOperation(SelectMode.LocalOperation.Move)
-        holder.discardReceiving()
+        holder.discardReceiving { true }
         assertEquals(SelectionState.Operation(SelectMode.LocalOperation.Move, listOf(a)), holder.state.value)
     }
 
@@ -162,10 +174,10 @@ class SelectionStateHolderTest {
 
     @Test
     fun `전송 목적지 확인 중에는 꺼낼 선택이 없으므로 대기 목록을 그대로 둔다`() {
-        holder.receive(SelectMode.Download, listOf(a))
+        holder.receive(SelectMode.Download(listOf(a)))
 
         assertNull(holder.submit())
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(a)), holder.state.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download(listOf(a))), holder.state.value)
     }
 
     @Test
@@ -214,9 +226,9 @@ class SelectionStateHolderTest {
         holder.endMultiSelect()
         assertEquals(SelectionState.Operation(SelectMode.LocalOperation.Move, listOf(a)), holder.state.value)
 
-        holder.receive(SelectMode.Download, listOf(b))
+        holder.receive(SelectMode.Download(listOf(b)))
         holder.endMultiSelect()
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(b)), holder.state.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download(listOf(b))), holder.state.value)
     }
 
     /** [path]의 파일 항목을 만든다. */

@@ -25,9 +25,10 @@ interface ArchiveExtractor {
      * 항목 목록까지 암호화한 아카이브는 목록을 읽으려고 [passwords]로 비밀번호를 받는다.
      * @param path 아카이브 파일 경로
      * @param passwords 이 아카이브의 비밀번호를 묻고 확인한 것을 기억하는 세션([extract]와 같은 것을 넘긴다)
-     * @return 크기를 아는 항목의 바이트 합, 파일 개수(폴더 제외, 링크 포함), 크기를 모르는 파일 개수
+     * @param scope 셀 항목([extract]와 같은 것을 넘긴다)
+     * @return [scope] 안에서 크기를 아는 항목의 바이트 합, 파일 개수(폴더 제외, 링크 포함), 크기를 모르는 파일 개수
      */
-    fun measure(path: String, passwords: ArchivePasswordSession): ArchiveSize
+    fun measure(path: String, passwords: ArchivePasswordSession, scope: ExtractionScope): ArchiveSize
 
     /**
      * 내용 보기에 쓸 항목을 내용을 풀지 않고 담긴 순서대로 읽는다. 항목 종류와 크기는 [measure]와 같은 규칙으로 정한다.
@@ -39,16 +40,18 @@ interface ArchiveExtractor {
     fun entries(path: String, passwords: ArchivePasswordSession): List<ArchiveEntryInfo>
 
     /**
-     * [path] 아카이브의 항목을 [writer]로 만들며 [tracker]로 진행률을 보고한다. [measure]가 크기를 모른다고 센 항목은 크기 없이(null) 보고한다.
-     * 폴더 항목은 [ArchiveEntryWriter.createFolder], 파일 항목은 [ArchiveEntryWriter.openFile]로만 만든다 — 위치 검증과 건너뜀 집계는 [writer]가 한다.
-     * 암호화된 항목은 그 출력을 만들기 전에 [passwords]로 확인한 비밀번호를 받는다([ArchivePasswordSession.verifiedPassword]).
+     * [path] 아카이브에서 [scope] 안의 항목을 [writer]로 만들며 [tracker]로 진행률을 보고한다. [measure]가 크기를 모른다고 센 항목은 크기 없이(null) 보고한다.
+     * 폴더 항목은 [ArchiveEntryWriter.createFolder], 파일 항목은 [ArchiveEntryWriter.openFile]로만, [scope]가 정한 경로로 만든다 — 위치 검증과 건너뜀 집계는 [writer]가 한다.
+     * 암호화된 항목은 그 출력을 만들기 전에 [passwords]로 확인한 비밀번호를 받는다([ArchivePasswordSession.verifiedPassword]). 확인에 풀어 볼 항목은 [scope] 안에서 고른다 —
+     * [scope] 밖의 항목은 풀지 않으므로, 그 안에 암호화된 항목이 없으면 비밀번호를 묻지 않는다.
      * 쓰기 실패와 풀 수 없는 항목(CRC·데이터 오류 등)은 그 항목에서 멈추고 IOException으로 알린다(작업 전체 실패). 이미 만든 항목은 남는다.
      * @param path 아카이브 파일 경로
      * @param writer 항목을 추출 루트 아래에 만드는 쓰기 도우미
      * @param passwords 이 아카이브의 비밀번호를 묻고 확인한 것을 기억하는 세션
      * @param tracker 누적 진행률 보고기
+     * @param scope 풀 항목과 그 경로
      */
-    fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker)
+    fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker, scope: ExtractionScope)
 }
 
 /**

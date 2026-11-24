@@ -48,7 +48,7 @@ fun completionTextRes(kind: OperationKind): Int = when (kind) {
         FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.noti_delete_complete
         FileOperationType.DOWNLOAD -> R.string.noti_download_complete
         FileOperationType.UPLOAD -> R.string.noti_upload_complete
-        FileOperationType.COPY, FileOperationType.COMPRESS, FileOperationType.UNZIP -> R.string.noti_complete
+        FileOperationType.COPY, FileOperationType.COMPRESS, FileOperationType.UNZIP, FileOperationType.ARCHIVE_COPY -> R.string.noti_complete
     }
     is OperationKind.Instant -> R.string.noti_complete
 }
@@ -71,7 +71,7 @@ private fun cancelledTextOf(kind: OperationKind): UiText = when (kind) {
  */
 @StringRes
 private fun operationNameRes(operationType: FileOperationType): Int = when (operationType) {
-    FileOperationType.COPY -> R.string.op_name_copy
+    FileOperationType.COPY, FileOperationType.ARCHIVE_COPY -> R.string.op_name_copy
     FileOperationType.MOVE -> R.string.op_name_move
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.op_name_delete
     FileOperationType.COMPRESS -> R.string.op_name_compress
@@ -87,7 +87,7 @@ private fun operationNameRes(operationType: FileOperationType): Int = when (oper
  */
 @StringRes
 private fun cancelRemainderRes(operationType: FileOperationType): Int = when (operationType) {
-    FileOperationType.COPY -> R.string.notice_cancel_remainder_copy
+    FileOperationType.COPY, FileOperationType.ARCHIVE_COPY -> R.string.notice_cancel_remainder_copy
     FileOperationType.MOVE -> R.string.notice_cancel_remainder_move
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.notice_cancel_remainder_delete
     FileOperationType.COMPRESS -> R.string.notice_cancel_remainder_compress
