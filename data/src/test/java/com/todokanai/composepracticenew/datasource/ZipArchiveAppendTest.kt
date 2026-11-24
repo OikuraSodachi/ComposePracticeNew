@@ -10,7 +10,11 @@ import com.todokanai.composepracticenew.model.WriteConflictKind
 import com.todokanai.composepracticenew.repository.ArchivePasswordProvider
 import com.todokanai.composepracticenew.repository.WriteConflictResolver
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.AesKeyStrength
@@ -19,6 +23,7 @@ import org.junit.After
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -94,6 +99,29 @@ class ZipArchiveAppendTest {
     }
 
     @Test
+    fun `표기만 다른 이름도 내용 보기와 같은 자리면 묻고, 덮어쓰면 그 자리의 기존 항목을 모두 바꾼다`() {
+        val zip = zipOf("a.zip", "./docs/a.txt", "docs//a.txt", "b.txt")
+        val asked = mutableListOf<WriteConflict>()
+
+        val result = add(setOf(localFile("a.txt", "new").path), zip, listOf("docs"), resolver = answering(ConflictChoice.PROCEED, asked))
+
+        assertEquals(IoResult.Done, result)
+        assertEquals(listOf(WriteConflict("a.txt", "a.zip/docs", WriteConflictKind.FILE)), asked)
+        assertEquals(mapOf("docs/a.txt" to "new", "b.txt" to "b.txt"), contentsOf(zip))
+    }
+
+    @Test
+    fun `표기만 다른 이름의 폴더도 묻지 않고 합친다`() {
+        val zip = zipOf("a.zip", "./sub/old.txt")
+        localFile("sub/new.txt", "new")
+
+        val result = add(setOf(File(local, "sub").path), zip)
+
+        assertEquals(IoResult.Done, result)
+        assertEquals(mapOf("./sub/old.txt" to "./sub/old.txt", "sub/new.txt" to "new"), contentsOf(zip))
+    }
+
+    @Test
     fun `같은 이름의 파일을 건너뛰면 압축 파일을 다시 쓰지 않는다`() {
         val zip = zipOf("a.zip", "a.txt")
         val before = zip.readBytes()
@@ -154,6 +182,30 @@ class ZipArchiveAppendTest {
         assertEquals(listOf(ArchivePasswordPrompt.FIRST, ArchivePasswordPrompt.WRONG), prompts)
         ZipFile(zip).use { zf -> assertTrue(zf.getFileHeader("new.txt").isEncrypted) }
         assertEquals("new", contentsOf(zip, "pw")["new.txt"])
+    }
+
+    @Test
+    fun `같은 압축 파일에 대한 추가는 차례로 실행해 앞의 추가가 넣은 항목을 지우지 않는다`() = runBlocking {
+        val zip = zipOf("a.zip", "a.txt")
+        val append = appendOf()
+        val asked = CompletableDeferred<Unit>()
+        val answer = CompletableDeferred<ConflictChoice>()
+        val waitingAnswer = WriteConflictResolver { asked.complete(Unit); answer.await() }
+        val first = async(Dispatchers.Default) {
+            append.addFiles(setOf(localFile("a.txt", "new").path), zip.path, emptyList(), waitingAnswer, UnexpectedPasswordProvider) {}
+        }
+        asked.await()
+        val second = async(Dispatchers.Default) {
+            append.addFiles(setOf(localFile("b.txt", "b").path), zip.path, emptyList(), UnexpectedConflictResolver, UnexpectedPasswordProvider) {}
+        }
+
+        // 앞의 추가가 질문의 답을 기다리는 동안 뒤의 추가가 끝나면 차례로 실행하지 않은 것이다
+        assertNull(withTimeoutOrNull(300) { second.await() })
+        answer.complete(ConflictChoice.PROCEED)
+
+        assertEquals(IoResult.Done, first.await())
+        assertEquals(IoResult.Done, second.await())
+        assertEquals(mapOf("a.txt" to "new", "b.txt" to "b"), contentsOf(zip))
     }
 
     @Test
