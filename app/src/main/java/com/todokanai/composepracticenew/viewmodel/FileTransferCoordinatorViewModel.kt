@@ -3,13 +3,16 @@ package com.todokanai.composepracticenew.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
+import com.todokanai.composepracticenew.model.ArchiveEntrySelection
 import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
+import com.todokanai.composepracticenew.ui.model.LocalTransferMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
+import com.todokanai.composepracticenew.usecase.ArchiveCopyUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import com.todokanai.composepracticenew.usecase.RemoteConnectionStateUseCase
 import com.todokanai.composepracticenew.usecase.RemoteFileOperationUseCase
@@ -25,14 +28,15 @@ import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 
 /**
- * 로컬·원격 파일 탐색기의 선택 상태([SelectionState] — 전송 대기 목록 포함)를 조율하고, 대기 목록의 다운로드·업로드(업로드는 확인할 때의 충돌 확인 포함)를 실행하는 ViewModel.
+ * 로컬·원격 파일 탐색기의 선택 상태([SelectionState] — 전송 대기 포함)를 조율하고, 대기 대상의 다운로드·업로드(업로드는 확인할 때의 충돌 확인 포함)·압축 파일 항목 복사를 실행하는 ViewModel.
  * FILE_BROWSER_GRAPH에 scoped된다.
  * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 완료 후 새로고침, 로컬 다중 선택을 맞출 로컬 목록을 제공하는 UseCase
  * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록(원격 다중 선택도 이 목록에 맞춘다)을 제공하는 UseCase
- * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
+ * @param remoteFileOperationUseCase 다운로드([LocalTransferExecutor]가 쓴다)·업로드를 실행하는 UseCase
  * @param uploadConflictCheckUseCase 업로드 전에 확인할 겹침(목적지에 이미 있는 이름, 함께 올리는 항목끼리)을 모으는 UseCase
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  * @param remoteSessionCheckUseCase 원격 화면으로 가는 진입(하단 전환·업로드) 전에 연결된 원격 세션이 있는지 확인하는 UseCase
+ * @param archiveCopyUseCase 압축 파일 내용 보기에서 고른 항목을 로컬 화면의 목적지에 푸는 UseCase([LocalTransferExecutor]가 쓴다)
  */
 @HiltViewModel
 class FileTransferCoordinatorViewModel @Inject constructor(
@@ -42,15 +46,16 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     uploadConflictCheckUseCase: UploadConflictCheckUseCase,
     connectionStateUseCase: RemoteConnectionStateUseCase,
     private val remoteSessionCheckUseCase: RemoteSessionCheckUseCase,
+    archiveCopyUseCase: ArchiveCopyUseCase,
 ) : ViewModel() {
 
-    /** 로컬 화면의 선택 상태 — 다운로드 대기 목록도 이 상태(다운로드 목적지 확인)에만 있다. */
-    private val local = SelectionStateHolder<SelectMode.LocalOperation, SelectMode.Download>()
+    /** 로컬 화면의 선택 상태 — 다운로드 대기 목록과 압축 파일에서 고른 항목도 이 상태(목적지 확인)에만 있다. */
+    private val local = SelectionStateHolder<SelectMode.LocalOperation, LocalTransferMode>()
     /** 원격 화면의 선택 상태 — 업로드 대기 목록도 이 상태(업로드 목적지 확인)에만 있다. 원격 작업은 아직 없다. */
     private val remote = SelectionStateHolder<Nothing, SelectMode.Upload>()
 
-    /** 로컬 파일 목록 화면의 선택 상태(모드와 선택·다운로드 대기 목록). */
-    val localSelection: StateFlow<SelectionState<SelectMode.LocalOperation, SelectMode.Download>> = local.state
+    /** 로컬 파일 목록 화면의 선택 상태(모드와 선택·다운로드 대기 목록·압축 파일에서 고른 항목). */
+    val localSelection: StateFlow<SelectionState<SelectMode.LocalOperation, LocalTransferMode>> = local.state
 
     /** 원격 파일 목록 화면의 선택 상태(모드와 선택·업로드 대기 목록). */
     val remoteSelection: StateFlow<SelectionState<Nothing, SelectMode.Upload>> = remote.state
@@ -63,6 +68,9 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         restoreReceiving = remote::restoreReceiving,
         upload = ::upload,
     )
+
+    /** 로컬 화면이 받는 전송(다운로드·압축 파일 항목 복사)을 실행하는 실행기. */
+    private val localTransfers = LocalTransferExecutor(remoteFileOperationUseCase, archiveCopyUseCase, refreshLocal = { localNavigator.refresh() })
 
     /** 업로드 실행 전 사용자 확인을 기다리는 충돌. */
     val uploadConflict: StateFlow<PendingConflict?> = uploadConfirmation.conflict
@@ -147,7 +155,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     fun enterUploadMode(): Boolean {
         if (!remoteSessionCheckUseCase.checkUploadEntry()) return false
         val submitted = local.submit() ?: return false
-        remote.receive(SelectMode.Upload, submitted.items)
+        remote.receive(SelectMode.Upload(submitted.items))
         return true
     }
 
@@ -158,19 +166,26 @@ class FileTransferCoordinatorViewModel @Inject constructor(
      */
     fun enterDownloadMode(): Boolean {
         val submitted = remote.submit() ?: return false
-        local.receive(SelectMode.Download, submitted.items)
+        local.receive(SelectMode.Download(submitted.items))
         return true
     }
 
     /**
-     * 다운로드 대기 목록을 현재 로컬 경로로 다운로드하고 로컬 화면을 기본 모드로 되돌린다(대기 목록도 함께 사라짐).
-     * 같은 이름의 로컬 항목은 다운로드가 그 항목을 쓰려 할 때 묻는다(전역 충돌 질문).
-     * 로컬 화면이 다운로드 확인 상태가 아니거나 현재 로컬 경로가 없으면 다운로드할 대상·자리가 없으므로 아무것도 하지 않는다.
+     * 압축 파일 내용 보기에서 고른 항목을 로컬 화면에 넘겨, 풀 목적지를 고르는 단계로 들어간다.
+     * 로컬 화면에 다중 선택이나 작업 목적지 확인·다운로드 대기가 남아 있어도 묻지 않고 버린다 — 다운로드 진입과 같은 의도된 동작이다(새로 시작한 전송이 우선한다).
+     * @param selection 내용 보기에서 고른 항목. 비어 있지 않아야 한다(실행할 때 [ArchiveCopyUseCase]가 확인한다)
      */
-    fun confirmDownload() {
-        val pending = (local.state.value as? SelectionState.Receiving)?.pending ?: return
+    fun enterArchiveCopy(selection: ArchiveEntrySelection) = local.receive(SelectMode.ArchiveCopy(selection))
+
+    /**
+     * 로컬 화면이 받는 전송의 대기 대상을 현재 로컬 경로로 보내고([LocalTransferExecutor]) 로컬 화면을 기본 모드로 되돌린다(대기 대상도 함께 사라짐).
+     * 다운로드는 대기 목록을 내려받고, 압축 파일 항목 복사는 고른 항목을 푼다(폴더는 묻지 않고 합친다).
+     * 로컬 화면이 전송 목적지 확인 상태가 아니거나 현재 로컬 경로가 없으면 보낼 대상·자리가 없으므로 아무것도 하지 않는다.
+     */
+    fun confirmLocalTransfer() {
+        val transfer = (local.state.value as? SelectionState.Receiving)?.transfer ?: return
         val destPath = localNavigator.currentPath.value ?: return
-        download(pending, destPath)
+        localTransfers.run(transfer, destPath)
         local.reset()
     }
 
@@ -203,12 +218,22 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /**
      * 끊긴 원격 세션에 기대는 상태를 버린다. 로컬의 다운로드 대기(원격 경로 목록)와 원격 화면의 선택·업로드 대기, 진행 중인 업로드 전 확인과 확인을 기다리는 충돌이 해당한다.
-     * 다시 연결하려면 저장소 선택을 거쳐 새 세션을 열어야 하므로 이 상태로는 어떤 전송도 성공할 수 없다. 로컬의 선택·작업 상태는 로컬 저장소만 쓰므로 그대로 둔다.
+     * 다시 연결하려면 저장소 선택을 거쳐 새 세션을 열어야 하므로 이 상태로는 어떤 전송도 성공할 수 없다. 로컬의 선택·작업 상태와 압축 파일 항목 복사 대기는 로컬 저장소만 쓰므로 그대로 둔다.
      */
     private fun discardRemoteSessionState() {
-        local.discardReceiving()
+        local.discardReceiving(::dependsOnRemoteSession)
         uploadConfirmation.discardAll()
         remote.reset()
+    }
+
+    /**
+     * 로컬 화면이 받는 [transfer]가 원격 세션에 기대는지 판별한다.
+     * @param transfer 로컬 화면이 받는 전송
+     * @return 다운로드(원격 경로 목록)면 true, 로컬 압축 파일만 읽는 압축 파일 항목 복사면 false
+     */
+    private fun dependsOnRemoteSession(transfer: LocalTransferMode): Boolean = when (transfer) {
+        is SelectMode.Download -> true
+        is SelectMode.ArchiveCopy -> false
     }
 
     /**
@@ -239,15 +264,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */
     fun resolveUploadConflict(resolution: ConflictResolution) = uploadConfirmation.resolve(resolution)
-
-    /** items를 [localDestPath]에 다운로드한다. */
-    private fun download(items: List<FileHolderItem>, localDestPath: String) {
-        remoteFileOperationUseCase.download(
-            items = items.map { it.toDomain() },
-            localDestPath = localDestPath,
-            onRefresh = { localNavigator.refresh() }
-        )
-    }
 
     /** items를 [remoteDestPath]에 업로드한다. */
     private fun upload(items: List<FileHolderItem>, remoteDestPath: String) {

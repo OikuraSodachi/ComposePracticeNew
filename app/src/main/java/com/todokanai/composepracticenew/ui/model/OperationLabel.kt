@@ -12,7 +12,7 @@ import com.todokanai.composepracticenew.model.FileOperationType
  */
 @StringRes
 fun operationLabelRes(type: FileOperationType?): Int = when (type) {
-    FileOperationType.COPY -> R.string.progress_copying
+    FileOperationType.COPY, FileOperationType.ARCHIVE_COPY -> R.string.progress_copying
     FileOperationType.MOVE -> R.string.progress_moving
     FileOperationType.DELETE, FileOperationType.REMOTE_DELETE -> R.string.progress_deleting
     FileOperationType.COMPRESS -> R.string.progress_compressing

@@ -1,6 +1,6 @@
 package com.todokanai.composepracticenew.usecase
 
-import com.todokanai.composepracticenew.model.ArchiveFolder
+import com.todokanai.composepracticenew.model.ArchiveContents
 import com.todokanai.composepracticenew.model.FileHolderItem
 import com.todokanai.composepracticenew.model.IoResult
 import com.todokanai.composepracticenew.repository.ArchiveContentRepository
@@ -23,8 +23,8 @@ class ArchiveViewUseCase(private val repository: ArchiveContentRepository) {
      * [archivePath]의 항목 목록을 폴더 트리로 읽는다.
      * @param archivePath 압축 파일 경로
      * @param askPassword 항목 목록까지 암호화한 압축 파일의 비밀번호를 묻는 통로
-     * @return 루트 폴더, 읽지 못하면 실패
+     * @return 루트 폴더와 그 목록의 식별값, 읽지 못하면 실패
      */
-    suspend fun contentsOf(archivePath: String, askPassword: ArchivePasswordProvider): IoResult<ArchiveFolder> =
+    suspend fun contentsOf(archivePath: String, askPassword: ArchivePasswordProvider): IoResult<ArchiveContents> =
         repository.contentsOf(archivePath, askPassword)
 }

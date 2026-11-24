@@ -53,7 +53,7 @@ class ZipArchiveExtractorIntegrityTest {
         // zip4j는 0바이트 파일을 새로 만들 빈 아카이브로 열어, 확인하지 않으면 항목 없는 성공으로 끝난다
         val zip = File(dir, "empty.zip").apply { createNewFile() }
 
-        assertThrows(IOException::class.java) { ZipArchiveExtractor().measure(zip.path, unexpectedPasswordSession()) }
+        assertThrows(IOException::class.java) { ZipArchiveExtractor().measure(zip.path, unexpectedPasswordSession(), ExtractionScope.Whole) }
         assertThrows(IOException::class.java) { ZipArchiveExtractor().entries(zip.path, unexpectedPasswordSession()) }
         assertThrows(IOException::class.java) { extract(zip) }
     }
@@ -69,7 +69,7 @@ class ZipArchiveExtractorIntegrityTest {
 
     /** [zip]을 [out]에 푼다. */
     private fun extract(zip: File) = ByteProgressTracker(1, 1, onProgress = {}).let { tracker ->
-        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker)
+        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(out), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker, ExtractionScope.Whole)
     }
 
     /** [content]를 압축하지 않고(STORED) 담은 항목 `a.txt` 하나짜리 ZIP 파일을 만든다. */

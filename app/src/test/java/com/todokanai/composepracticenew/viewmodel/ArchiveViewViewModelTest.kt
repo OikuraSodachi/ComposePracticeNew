@@ -2,9 +2,11 @@ package com.todokanai.composepracticenew.viewmodel
 
 import androidx.lifecycle.SavedStateHandle
 import com.todokanai.composepracticenew.InMemorySortPreference
+import com.todokanai.composepracticenew.TEST_LISTING
 import com.todokanai.composepracticenew.ViewableArchives
 import com.todokanai.composepracticenew.model.ArchiveEntry
 import com.todokanai.composepracticenew.model.ArchiveEntryKey
+import com.todokanai.composepracticenew.model.ArchiveEntrySelection
 import com.todokanai.composepracticenew.model.ArchiveFolder
 import com.todokanai.composepracticenew.model.ArchivePasswordPrompt
 import com.todokanai.composepracticenew.model.FailureReason
@@ -171,6 +173,31 @@ class ArchiveViewViewModelTest {
 
         viewModel.replaceSelection(rows)
         assertEquals(ArchiveViewSelection.None, viewModel.uiState.value.selection)
+    }
+
+    @Test
+    fun `복사로 꺼내면 지금 폴더와 고른 키와 목록 식별값을 담고 기본 모드로 돌아간다`() {
+        val viewModel = viewModel()
+        viewModel.onRowClick(loadedRows(viewModel).first { it.kind == ArchiveEntryRowKind.FOLDER })
+        viewModel.startMultiSelect(awaitRows(viewModel) { rows -> rows.singleOrNull()?.name == "in.txt" }.single())
+
+        val selection = viewModel.submitCopy()
+
+        assertEquals(ArchiveEntrySelection("/s/a.zip", TEST_LISTING, listOf("dir"), setOf(ArchiveEntryKey.Item(1))), selection)
+        assertEquals(ArchiveViewSelection.None, await(viewModel) { it.selection == ArchiveViewSelection.None }.selection)
+    }
+
+    @Test
+    fun `다중 선택이 아니거나 비었으면 복사로 꺼내지 않고 선택을 그대로 둔다`() {
+        val viewModel = viewModel()
+        val rows = loadedRows(viewModel)
+        assertNull(viewModel.submitCopy())
+
+        viewModel.startMultiSelect(rows.first())
+        viewModel.replaceSelection(emptyList())
+
+        assertNull(viewModel.submitCopy())
+        assertTrue(viewModel.uiState.value.selection is ArchiveViewSelection.MultiSelect)
     }
 
     @Test

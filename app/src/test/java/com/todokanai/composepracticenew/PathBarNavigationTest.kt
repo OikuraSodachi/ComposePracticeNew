@@ -20,7 +20,7 @@ class PathBarNavigationTest {
             SelectMode.Default,
             SelectMode.LocalOperation.Copy, SelectMode.LocalOperation.Move,
             SelectMode.LocalOperation.Unzip, SelectMode.LocalOperation.UnzipHere,
-            SelectMode.Download, SelectMode.Upload
+            SelectMode.Download(emptyList()), SelectMode.ArchiveCopy(archiveSelection), SelectMode.Upload(emptyList())
         )
 
         modes.forEach { assertTrue("$it", it.allowsPathBarNavigation) }

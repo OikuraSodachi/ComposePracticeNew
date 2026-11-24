@@ -232,7 +232,7 @@ class FileSearchViewModelTest {
         viewModel.onResultClick(results.first { !it.isDirectory }, SelectMode.LocalOperation.Copy)
         assertEquals(emptyList<String>(), launcher.launched)
 
-        viewModel.onResultClick(results.first { it.isDirectory }, SelectMode.Download)
+        viewModel.onResultClick(results.first { it.isDirectory }, SelectMode.Download(emptyList()))
         assertEquals(listOf(music.path), nav.navigated)
     }
 

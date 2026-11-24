@@ -36,20 +36,17 @@ sealed interface SelectionState<out Op : SameStorageOperation, out T : TransferM
     ) : SelectionState<O, Nothing>
 
     /**
-     * 다른 화면에서 고른 항목을 받을 목적지를 고르는 상태. 작업 대상은 이 화면의 선택이 아닌 [pending]이다.
-     * @param transfer 확인 시 실행할 전송
-     * @param pending 전송 대기 항목 목록(다른 저장소의 항목)
+     * 다른 화면에서 고른 것을 받을 목적지를 고르는 상태. 작업 대상은 이 화면의 선택이 아니라 [transfer]가 들고 있는 대기 대상이다
+     * (다른 저장소의 항목, 압축 파일 안에서 고른 항목 — 전송마다 대상의 모양이 달라 전송이 직접 갖는다).
+     * @param transfer 확인 시 실행할 전송과 그 대기 대상
      */
-    data class Receiving<out R : TransferMode>(
-        val transfer: R,
-        val pending: List<FileHolderItem>
-    ) : SelectionState<Nothing, R> {
+    data class Receiving<out R : TransferMode>(val transfer: R) : SelectionState<Nothing, R> {
         override val selected: List<FileHolderItem> get() = emptyList()
     }
 }
 
 /** 로컬 화면의 선택 상태를 화면이 분기에 쓰는 모드로 바꾼다. */
-fun SelectionState<SelectMode.LocalOperation, SelectMode.Download>.localMode(): LocalSelectMode = when (this) {
+fun SelectionState<SelectMode.LocalOperation, LocalTransferMode>.localMode(): LocalSelectMode = when (this) {
     SelectionState.Default -> SelectMode.Default
     is SelectionState.MultiSelect -> SelectMode.MultiSelect
     is SelectionState.Operation -> operation

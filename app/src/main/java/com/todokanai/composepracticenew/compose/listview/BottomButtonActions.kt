@@ -8,11 +8,11 @@ import com.todokanai.composepracticenew.viewmodel.SubmittedSelection
 
 /**
  * 로컬 화면 하단 버튼이 쓰는 전송 콜백 묶음.
- * @param onConfirmDownload 다운로드 확인 콜백 — 선택 초기화는 실제 실행 시점에 coordinator가 담당한다
+ * @param onConfirmTransfer 전송(다운로드·압축 파일 항목 복사) 확인 콜백 — 선택 초기화는 실제 실행 시점에 coordinator가 담당한다
  * @param onEnterUploadMode 업로드 모드 진입 콜백
  */
 class LocalTransferActions(
-    val onConfirmDownload: () -> Unit,
+    val onConfirmTransfer: () -> Unit,
     val onEnterUploadMode: () -> Unit,
 )
 

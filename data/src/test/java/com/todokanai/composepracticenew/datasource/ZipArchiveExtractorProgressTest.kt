@@ -30,7 +30,7 @@ class ZipArchiveExtractorProgressTest {
         val zip = zipOf("a.txt" to "aaaa", "b.txt" to "bb")
         val tracker = ByteProgressTracker(TransferTotal.Partial(knownBytes = 6, unknownFileCount = 1), totalFileCount = 3, onProgress = { reports += it })
 
-        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(File(dir, "out")), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker)
+        ZipArchiveExtractor().extract(zip.path, ArchiveEntryWriter(ExtractionRoot(File(dir, "out")), UnexpectedConflictAsk, tracker, UnexpectedLeftoverDiscarder), unexpectedPasswordSession(), tracker, ExtractionScope.Whole)
 
         val known = reports.map { it.asPartlyUnknown().knownSize }
         assertEquals(known.map { it.knownWrittenBytes }.sorted(), known.map { it.knownWrittenBytes })

@@ -198,7 +198,7 @@ private fun FileListDestination(
     // coordinator·navController·entry를 키로 — 위와 같은 이유로 이 셋이 같은 동안 유지한다
     val transferActions = remember(coordinator, navController, entry) {
         LocalTransferActions(
-            onConfirmDownload = coordinator::confirmDownload,
+            onConfirmTransfer = coordinator::confirmLocalTransfer,
             onEnterUploadMode = onEnterUploadMode@{
                 // 이미 떠나는 중이면 업로드 모드에 다시 들어가지 않고 버린다(#535)
                 if (!isResumed(entry)) return@onEnterUploadMode
@@ -260,10 +260,14 @@ private fun FileListDestination(
     )
 }
 
-/** ARCHIVE_VIEW destination의 UI와 상태를 담당한다. 루트에서 뒤로가거나 비밀번호 질문에서 취소하면 이 화면만 닫는다. */
+/**
+ * ARCHIVE_VIEW destination의 UI와 상태를 담당한다. 루트에서 뒤로가거나 비밀번호 질문에서 취소하면 이 화면만 닫는다.
+ * 고른 항목을 복사하면 그 항목을 그래프의 로컬 선택 상태로 넘기고 이 화면을 닫아, 로컬 목록에서 풀 목적지를 고르게 한다.
+ */
 @Composable
 private fun ArchiveViewDestination(navController: NavHostController, entry: NavBackStackEntry) {
     val viewModel: ArchiveViewViewModel = hiltViewModel()
+    val coordinator = rememberGraphCoordinator(navController)
 
     // 비밀번호 질문에서 취소하면 화면을 닫는다.
     // RESUMED를 확인하지 않는다 — 취소로 목록 읽기가 이미 끝났으므로, 버리면 읽지 못한 내용 보기가 남는다
@@ -276,7 +280,19 @@ private fun ArchiveViewDestination(navController: NavHostController, entry: NavB
         viewModel.onBackPressed { if (isResumed(entry)) navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
     }
 
-    ArchiveViewFrag(modifier = Modifier, viewModel = viewModel)
+    ArchiveViewFrag(
+        modifier = Modifier,
+        viewModel = viewModel,
+        onCopy = onCopy@{
+            // 이미 떠나는 중이면 버린다(#535). 선택을 꺼내기 전에 확인한다 — 버린 입력이 선택만 비우고 화면에 남지 않도록
+            if (!isResumed(entry)) return@onCopy
+            // 고른 항목이 없으면(모두 해제한 다중 선택) 넘길 것이 없으므로 화면에 남는다
+            val selection = viewModel.submitCopy() ?: return@onCopy
+            coordinator.enterArchiveCopy(selection)
+            // 내용 보기는 로컬 목록 위에만 쌓이므로 닫으면 로컬 목록으로 돌아가 목적지를 고른다
+            navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true)
+        }
+    )
 }
 
 /** REMOTE_FILE_LIST destination의 UI와 상태를 담당한다. */

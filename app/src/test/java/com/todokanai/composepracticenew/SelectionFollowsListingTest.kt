@@ -7,6 +7,7 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
+import com.todokanai.composepracticenew.usecase.ArchiveCopyUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
@@ -119,7 +120,7 @@ class SelectionFollowsListingTest {
         localNav.directoryListing.value = loaded(domainItem("/local/c.txt"))
         localNav.directoryListing.value = DirectoryListing.Failed(request, ListingFailureReason.entries.first(), failure = null)
 
-        assertEquals(SelectionState.Receiving(SelectMode.Download, listOf(x)), viewModel.localSelection.value)
+        assertEquals(SelectionState.Receiving(SelectMode.Download(listOf(x))), viewModel.localSelection.value)
     }
 
     @Test
@@ -168,7 +169,8 @@ class SelectionFollowsListingTest {
             RemoteFileOperationUseCase(orchestrator, notices, RecordingTransferRepository(), NoOpMutationRepository, ConnectedSessionProvider, FileNameUseCase(NoStorageNameRules)),
             UploadConflictCheckUseCase(ConflictCheckUseCase(notices, ExactNameMatching), FakeFolderEntryNamesRepository(), ExactNameMatching),
             RemoteConnectionStateUseCase(connection),
-            RemoteSessionCheckUseCase(connection, notices)
+            RemoteSessionCheckUseCase(connection, notices),
+            ArchiveCopyUseCase(orchestrator, RecordingArchiveCopyRepository())
         )
     }
 

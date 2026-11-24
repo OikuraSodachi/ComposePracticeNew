@@ -4,6 +4,7 @@ import com.todokanai.composepracticenew.data.progress.ByteProgressTracker
 import com.todokanai.composepracticenew.data.progress.IndeterminateProgressReporter
 import com.todokanai.composepracticenew.data.progress.TransferTotal
 import com.todokanai.composepracticenew.datasource.LocalFileChecks.checkDiskSpace
+import com.todokanai.composepracticenew.model.ArchiveEntrySelection
 import com.todokanai.composepracticenew.model.ConflictChoice
 import com.todokanai.composepracticenew.model.ExtractLayout
 import com.todokanai.composepracticenew.model.FailedItem
@@ -23,7 +24,7 @@ import java.io.File
 import javax.inject.Inject
 
 /**
- * 아카이브 하나(단일 아카이브 또는 분할 압축 한 세트)의 압축 해제를 조율한다. 형식별 처리는 주입된 [ArchiveExtractor] 집합에 위임한다.
+ * 아카이브 하나(단일 아카이브 또는 분할 압축 한 세트)의 항목을 푸는 일(전체 압축 해제, 내용 보기에서 고른 항목만 풀기)을 조율한다. 형식별 처리는 주입된 [ArchiveExtractor] 집합에 위임한다.
  * @param extractors 형식별 아카이브 추출기 집합 — 각 nameRoleOf()가 역할을 주는 이름은 서로 배타적이다
  * @param leftovers 취소로 멈춘 항목의 쓰다 만 파일을 지우고, 지우지 못하면 알리는 LeftoverDiscarder
  */
@@ -64,11 +65,10 @@ class LocalArchiveExtraction @Inject constructor(
             }
             // 산정과 추출은 같은 비밀번호 세션을 쓴다 — 산정에서 확인한 비밀번호를 추출에서 다시 묻지 않도록
             val passwords = passwordSessionOf(File(archive.path).name, askPassword, job, IndeterminateProgressReporter(onProgress))
-            val size = archive.extractor.measure(archive.path, passwords)
+            val size = archive.extractor.measure(archive.path, passwords, ExtractionScope.Whole)
             // 크기를 모르는 항목은 공간 검사에 넣지 못한다 — 그 몫이 부족하면 쓰기 단계의 실패로 끝난다
             checkDiskSpace(size.knownBytes, File(destPath).freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
-            val tracker = ByteProgressTracker(TransferTotal.of(size.knownBytes, size.unknownSizeCount), size.fileCount, onProgress)
-            tracker.reportStart()
+            val tracker = startedTrackerOf(size, onProgress)
 
             val root = rootOf(File(destPath), archive, layout)
             // 바로 풀기의 루트는 사용자가 고른 목적지 폴더라 확인하지 않는다(링크로 들어온 폴더일 수 있다). 아카이브 폴더는 새로 놓는 자리라 확인한다
@@ -78,12 +78,86 @@ class LocalArchiveExtraction @Inject constructor(
                 tracker.reportComplete()
                 return@localIo if (slot == WriteSlot.Link) IoResult.PartiallyFailed(listOf(FailedItem(root.name, FailureReason.UnsupportedLink()))) else IoResult.Done
             }
-            val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker, leftovers)
-            archive.extractor.extract(archive.path, writer, passwords, tracker)
-            tracker.reportComplete()
-            val failures = writer.failures.map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
+            val failures = extractInto(root, archive.path, archive.extractor, passwords, tracker, ExtractionScope.Whole, ask)
+                .map { if (layout == ExtractLayout.IntoDestination) it else it.under(root.name) }
             if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failures)
         }
+    }
+
+    /**
+     * 내용 보기에서 고른 [selection]의 항목만 [destPath] 안에, 고른 폴더 기준의 상대 위치로 푼다. 충돌·비밀번호·공간 검사는 [unzip]과 같다.
+     * 고른 키는 내용 보기가 읽은 목록의 순번이라, 그 목록과 지금 목록이 다르면(그사이 압축 파일이 바뀜) 같은 키가 다른 항목을 가리킨다 —
+     * 그래서 풀기 전에 지금 목록의 식별값을 비교해 다르면 아무것도 풀지 않고 실패한다.
+     * @param selection 고른 항목
+     * @param destPath 풀 대상 디렉터리 경로
+     * @param resolveConflict 같은 이름의 항목을 만났을 때 처리 방법을 묻는 통로. 폴더끼리는 묻지 않고 합친다
+     * @param askPassword 암호화된 항목의 비밀번호를 묻는 통로. 고른 항목 안에 암호화된 것이 있을 때만 묻는다
+     * @param onProgress 진행 상태를 수신하는 콜백
+     * @return 결과. 내용을 볼 수 없는 경로(지원하지 않는 형식, 분할 압축의 다른 볼륨)면 [FailureReason.UnsupportedArchiveFormat],
+     * 목록이 바뀌었으면 [FailureReason.ArchiveChangedSinceViewed]로 아무것도 풀지 않고 실패한다. 풀지 않은 항목(풀 수 없는 경로, 링크)이 있으면 [IoResult.PartiallyFailed]
+     */
+    suspend fun extractEntries(
+        selection: ArchiveEntrySelection,
+        destPath: String,
+        resolveConflict: WriteConflictResolver,
+        askPassword: ArchivePasswordProvider,
+        onProgress: (ProgressPhase) -> Unit
+    ): IoResult<Unit> = withContext(Dispatchers.IO) {
+        // unzip과 같은 이유로 작업의 Job을 부모로 답을 기다린다
+        val job = coroutineContext.job
+        val ask: (WriteConflict) -> ConflictChoice = { conflict -> runBlocking(job) { resolveConflict.resolve(conflict) } }
+        localIo {
+            val name = File(selection.archivePath).name
+            val extractor = extractors.matchOf(name)?.takeIf { it.role is ArchiveNameRole.Entry }?.extractor
+                ?: return@localIo IoResult.ItemFailed(FailureReason.UnsupportedArchiveFormat(name))
+            val passwords = passwordSessionOf(name, askPassword, job, IndeterminateProgressReporter(onProgress))
+            val entries = extractor.entries(selection.archivePath, passwords)
+            if (listingIdOf(entries) != selection.listing) return@localIo IoResult.ItemFailed(FailureReason.ArchiveChangedSinceViewed(name))
+            val scope = ExtractionScope.Selected(selectedEntryPathsOf(entries, selection.folderNames, selection.keys))
+            val dest = File(destPath)
+            val size = extractor.measure(selection.archivePath, passwords, scope)
+            // 크기를 모르는 항목은 공간 검사에 넣지 못한다(unzip과 같다)
+            checkDiskSpace(size.knownBytes, dest.freeSpace)?.let { return@localIo IoResult.ItemFailed(it) }
+            val tracker = startedTrackerOf(size, onProgress)
+            // 루트는 사용자가 고른 목적지 폴더라 확인하지 않는다(바로 풀기와 같다)
+            val failures = extractInto(dest, selection.archivePath, extractor, passwords, tracker, scope, ask)
+            if (failures.isEmpty()) IoResult.Done else IoResult.PartiallyFailed(failures)
+        }
+    }
+
+    /**
+     * 풀 항목의 크기로 진행률 보고기를 만들고 시작을 보고한다.
+     * @param size 풀 항목의 크기
+     * @param onProgress 진행 상태를 수신하는 콜백
+     * @return 시작한 진행률 보고기
+     */
+    private fun startedTrackerOf(size: ArchiveSize, onProgress: (ProgressPhase) -> Unit): ByteProgressTracker =
+        ByteProgressTracker(TransferTotal.of(size.knownBytes, size.unknownSizeCount), size.fileCount, onProgress).also { it.reportStart() }
+
+    /**
+     * [root] 아래에 [scope] 안의 항목을 풀고 진행률 보고를 끝낸다.
+     * @param root 추출 루트
+     * @param archivePath 아카이브 경로
+     * @param extractor 아카이브의 추출기
+     * @param passwords 이 아카이브의 비밀번호 세션
+     * @param tracker 시작한 진행률 보고기
+     * @param scope 풀 항목과 그 경로
+     * @param ask 겹침의 처리 방법을 묻는 함수
+     * @return 풀지 않고 실패로 알릴 항목(루트 기준 경로)
+     */
+    private fun extractInto(
+        root: File,
+        archivePath: String,
+        extractor: ArchiveExtractor,
+        passwords: ArchivePasswordSession,
+        tracker: ByteProgressTracker,
+        scope: ExtractionScope,
+        ask: (WriteConflict) -> ConflictChoice
+    ): List<FailedItem> {
+        val writer = ArchiveEntryWriter(ExtractionRoot(root), ask, tracker, leftovers)
+        extractor.extract(archivePath, writer, passwords, tracker, scope)
+        tracker.reportComplete()
+        return writer.failures
     }
 
     /**

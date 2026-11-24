@@ -43,13 +43,14 @@ class SevenZipArchiveExtractor(
 
     override fun nameRoleOf(fileName: String): ArchiveNameRole? = names(fileName)
 
-    override fun measure(path: String, passwords: ArchivePasswordSession): ArchiveSize =
+    override fun measure(path: String, passwords: ArchivePasswordSession, scope: ExtractionScope): ArchiveSize =
         withArchive(path, passwords) { archive ->
             var knownBytes = 0L
             var count = 0
             var unknownSizeCount = 0
             for (i in 0 until archive.numberOfItems) {
-                if (entryKindOf(archive, i) is SevenZipEntryKind.Folder) continue
+                val kind = entryKindOf(archive, i)
+                if (kind is SevenZipEntryKind.Folder || scope.pathOf(i, kind.path) == null) continue
                 val size = knownSizeOf(archive, i)
                 if (size == null) unknownSizeCount++ else knownBytes += size
                 count++
@@ -60,14 +61,37 @@ class SevenZipArchiveExtractor(
     override fun entries(path: String, passwords: ArchivePasswordSession): List<ArchiveEntryInfo> =
         withArchive(path, passwords) { archive -> (0 until archive.numberOfItems).map { entryInfoOf(archive, it) } }
 
-    override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
+    override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker, scope: ExtractionScope) {
         withArchive(path, passwords) { archive ->
             // 암호화된 항목이 있으면 출력을 만들기 전에 비밀번호를 확인해 둔다 — 추출 중 라이브러리가 묻는 비밀번호는 확인된 것만 준다
-            passwordCheckIndexOf(archive)?.let { index -> passwords.verifiedPassword { candidate -> checkPassword(archive, index, candidate, passwords.reportChecking) } }
-            SevenZipExtractCallback({ entryKindOf(archive, it) }, { knownSizeOf(archive, it) }, { passwords.verified }, writer, tracker).use { callback ->
-                runCollectingFailure(callback) { archive.extract(null, false, callback) }
+            passwordCheckIndexOf(archive, scope)?.let { index -> passwords.verifiedPassword { candidate -> checkPassword(archive, index, candidate, passwords.reportChecking) } }
+            SevenZipExtractCallback({ scopedEntryOf(archive, it, scope) }, { entryKindOf(archive, it).path }, { knownSizeOf(archive, it) }, { passwords.verified }, writer, tracker).use { callback ->
+                runCollectingFailure(callback) { archive.extract(indicesOf(scope), false, callback) }
             }
         }
+    }
+
+    /**
+     * 라이브러리에 넘길 풀 항목 번호.
+     * @param scope 풀 항목
+     * @return 전체면 null(모든 항목을 푼다), 고른 항목이면 그 번호
+     */
+    private fun indicesOf(scope: ExtractionScope): IntArray? = when (scope) {
+        ExtractionScope.Whole -> null
+        is ExtractionScope.Selected -> scope.indices
+    }
+
+    /**
+     * [index] 항목의 종류를 [scope]가 정한 풀 경로로 구한다.
+     * @param archive 열린 아카이브
+     * @param index 항목 번호. 라이브러리가 풀겠다고 알린 항목이므로 [scope] 안에 있다
+     * @param scope 풀 항목과 그 경로
+     * @return 풀 경로를 담은 항목 종류
+     */
+    private fun scopedEntryOf(archive: IInArchive, index: Int, scope: ExtractionScope): SevenZipEntryKind {
+        val kind = entryKindOf(archive, index)
+        // 라이브러리는 넘긴 번호만 풀겠다고 알린다 — 범위 밖 항목이 오면 라이브러리 계약 위반(로직 오류)이다
+        return kind.at(checkNotNull(scope.pathOf(index, kind.path)) { "범위 밖의 항목($index)을 풀겠다고 알렸다" })
     }
 
     /**
@@ -164,14 +188,27 @@ class SevenZipArchiveExtractor(
     }
 
     /**
-     * 암호화된 파일 항목 중 비밀번호 확인으로 끝까지 풀어 볼 항목을 고른다(기준은 [passwordCheckEntryOf]).
+     * [scope] 안의 암호화된 파일 항목 중 비밀번호 확인으로 끝까지 풀어 볼 항목을 고른다(기준은 [passwordCheckEntryOf]).
      * @param archive 열린 아카이브
-     * @return 항목 번호. 암호화된 파일 항목이 없으면 null
+     * @param scope 풀 항목
+     * @return 항목 번호. [scope] 안에 암호화된 파일 항목이 없으면 null
      */
-    private fun passwordCheckIndexOf(archive: IInArchive): Int? =
+    private fun passwordCheckIndexOf(archive: IInArchive, scope: ExtractionScope): Int? =
         passwordCheckEntryOf(
-            (0 until archive.numberOfItems).filter { entryKindOf(archive, it) is SevenZipEntryKind.File && archive.getProperty(it, PropID.ENCRYPTED) == true },
+            (0 until archive.numberOfItems).filter { isEncryptedFileIn(archive, it, scope) },
         ) { knownSizeOf(archive, it) }
+
+    /**
+     * [index] 항목이 [scope] 안의 암호화된 파일 항목인지 판별한다.
+     * @param archive 열린 아카이브
+     * @param index 항목 번호
+     * @param scope 풀 항목
+     * @return [scope] 안의 암호화된 파일 항목이면 true
+     */
+    private fun isEncryptedFileIn(archive: IInArchive, index: Int, scope: ExtractionScope): Boolean {
+        val kind = entryKindOf(archive, index)
+        return kind is SevenZipEntryKind.File && scope.pathOf(index, kind.path) != null && archive.getProperty(index, PropID.ENCRYPTED) == true
+    }
 
     /**
      * [candidate]로 [index] 항목을 출력 없이 끝까지 풀어 비밀번호를 확인한다.
@@ -224,7 +261,10 @@ class SevenZipArchiveExtractor(
  * 라이브러리가 진행을 알릴 때([setCompleted])마다 지금 진행을 다시 보고한다 — solid RAR은 건너뛴 항목도 출력 없이 끝까지 푸는데 그동안 기록이 없어,
  * 기록할 때의 보고만으로는 작업 취소가 듣지 않는다(진행 보고가 취소를 확인하는 자리이므로).
  * 라이브러리가 암호화된 항목의 비밀번호를 물으면 확인된 비밀번호만 준다 — 확인하지 않은 비밀번호로 출력을 만들지 않도록. 확인된 것이 없으면 실패로 멈춘다.
- * @param entryOf 항목 번호로 항목 종류를 구하는 함수
+ * 고른 항목만 풀 때 라이브러리는 solid 블록 안의 고르지 않은 항목도 건너뛰기 모드로 알리고 그 결과도 알린다 — 그 결과가 오류면 실패가 그 항목을 가리키도록,
+ * 건너뛰는 항목도 지금 항목으로 둔다.
+ * @param entryOf 푸는 항목의 번호로 항목 종류(풀 경로 포함)를 구하는 함수
+ * @param skippedPathOf 건너뛰는 항목의 번호로 실패에 쓸 경로(아카이브 안의 원래 경로)를 구하는 함수
  * @param sizeOf 항목 번호로 압축 해제 후 크기를 구하는 함수(모르면 null)
  * @param verifiedPassword 이 아카이브에서 확인된 비밀번호를 구하는 함수(없으면 null)
  * @param writer 항목을 추출 루트 아래에 만드는 쓰기 도우미
@@ -232,6 +272,7 @@ class SevenZipArchiveExtractor(
  */
 internal class SevenZipExtractCallback(
     private val entryOf: (Int) -> SevenZipEntryKind,
+    private val skippedPathOf: (Int) -> String,
     private val sizeOf: (Int) -> Long?,
     private val verifiedPassword: () -> String?,
     private val writer: ArchiveEntryWriter,
@@ -255,7 +296,12 @@ internal class SevenZipExtractCallback(
     private var currentItemSize: Long? = null
 
     override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? = recorder.record {
-        if (extractAskMode != ExtractAskMode.EXTRACT) return@record null
+        if (extractAskMode != ExtractAskMode.EXTRACT) {
+            // 건너뛰는 항목도 결과가 온다 — 앞 항목의 경로가 남아 그 결과의 실패가 다른 항목을 가리키지 않도록 지금 항목을 바꾼다
+            currentPath = skippedPathOf(index)
+            currentItemSize = null
+            return@record null
+        }
         val entry = entryOf(index)
         currentPath = entry.path
         when (entry) {
@@ -440,4 +486,15 @@ internal sealed interface SevenZipEntryKind {
      * @param path 아카이브 안의 '/' 구분 경로
      */
     data class Link(override val path: String) : SevenZipEntryKind
+
+    /**
+     * 종류는 그대로 두고 경로만 바꾼 항목.
+     * @param path 새 '/' 구분 경로
+     * @return 경로를 바꾼 같은 종류의 항목
+     */
+    fun at(path: String): SevenZipEntryKind = when (this) {
+        is Folder -> copy(path = path)
+        is File -> copy(path = path)
+        is Link -> copy(path = path)
+    }
 }

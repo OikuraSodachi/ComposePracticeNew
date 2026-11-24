@@ -26,9 +26,9 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
 
     override fun nameRoleOf(fileName: String): ArchiveNameRole? = zipNameRoleOf(fileName)
 
-    override fun measure(path: String, passwords: ArchivePasswordSession): ArchiveSize =
+    override fun measure(path: String, passwords: ArchivePasswordSession, scope: ExtractionScope): ArchiveSize =
         openZip(path).use { zf ->
-            val files = headersOf(zf).filter { !it.isDirectory }
+            val files = scopedHeadersOf(zf, scope).map { it.header }.filter { !it.isDirectory }
             val knownSizes = files.mapNotNull(::knownSizeOf)
             ArchiveSize(knownBytes = knownSizes.sum(), fileCount = files.size, unknownSizeCount = files.size - knownSizes.size)
         }
@@ -36,34 +36,50 @@ class ZipArchiveExtractor @Inject constructor() : ArchiveExtractor {
     override fun entries(path: String, passwords: ArchivePasswordSession): List<ArchiveEntryInfo> =
         openZip(path).use { zf -> headersOf(zf).map(::entryInfoOf) }
 
-    override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker) {
+    override fun extract(path: String, writer: ArchiveEntryWriter, passwords: ArchivePasswordSession, tracker: ByteProgressTracker, scope: ExtractionScope) {
         openZip(path).use { zf ->
-            val headers = headersOf(zf)
-            val checkEntry = passwordCheckEntryOf(headers.filter { !it.isDirectory && !isLink(it) && it.isEncrypted }, ::knownSizeOf)
-            headers.forEach { header ->
+            val scoped = scopedHeadersOf(zf, scope)
+            val checkEntry = passwordCheckEntryOf(scoped.map { it.header }.filter { !it.isDirectory && !isLink(it) && it.isEncrypted }, ::knownSizeOf)
+            scoped.forEach { (header, entryPath) ->
                 if (header.isDirectory) {
-                    writer.createFolder(header.fileName)
+                    writer.createFolder(entryPath)
                     return@forEach
                 }
                 if (isLink(header)) {
-                    writer.skipLink(header.fileName, knownSizeOf(header))
+                    writer.skipLink(entryPath, knownSizeOf(header))
                     return@forEach
                 }
                 // 비밀번호는 출력을 열기 전에 받는다 — 묻는 동안이나 취소한 뒤에 빈 파일이 남지 않도록
                 openEntry(zf, header, checkEntry, passwords).use { input ->
-                    val output = writer.openFile(header.fileName, knownSizeOf(header)) ?: return@forEach
+                    val output = writer.openFile(entryPath, knownSizeOf(header)) ?: return@forEach
                     tracker.startFile()
                     try {
-                        output.use { tracker.pump(input, it, header.fileName, knownSizeOf(header)) }
+                        output.use { tracker.pump(input, it, entryPath, knownSizeOf(header)) }
                     } catch (e: CancellationException) {
-                        writer.discardFile(header.fileName)
+                        writer.discardFile(entryPath)
                         throw e
                     }
                 }
-                tracker.onFileCompleted(header.fileName, knownSizeOf(header))
+                tracker.onFileCompleted(entryPath, knownSizeOf(header))
             }
         }
     }
+
+    /**
+     * 아카이브의 항목 중 [scope] 안의 것을 풀 경로와 함께 담긴 순서대로 고른다. 이름 검증([headersOf])은 고르기 전에 모든 항목에 한다.
+     * @param zf 연 ZIP 파일
+     * @param scope 풀 항목과 그 경로
+     * @return [scope] 안의 항목과 풀 경로
+     */
+    private fun scopedHeadersOf(zf: ZipFile, scope: ExtractionScope): List<ScopedHeader> =
+        headersOf(zf).mapIndexedNotNull { index, header -> scope.pathOf(index, header.fileName)?.let { ScopedHeader(header, it) } }
+
+    /**
+     * 풀 항목 하나.
+     * @param header 아카이브 항목
+     * @param entryPath 쓰기 도우미에 넘길 풀 경로
+     */
+    private data class ScopedHeader(val header: FileHeader, val entryPath: String)
 
     /**
      * [path]를 zip4j로 연다. zip4j는 읽기·쓰기 겸용이라 없는 파일과 0바이트 파일을 새로 만들 빈 아카이브로 열므로(그 밖의 손상은 예외로 알린다),

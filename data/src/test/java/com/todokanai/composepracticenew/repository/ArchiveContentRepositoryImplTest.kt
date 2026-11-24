@@ -3,6 +3,7 @@ package com.todokanai.composepracticenew.repository
 import com.todokanai.composepracticenew.datasource.UnexpectedPasswordProvider
 import com.todokanai.composepracticenew.datasource.ZipArchiveExtractor
 import com.todokanai.composepracticenew.model.ArchiveEntry
+import com.todokanai.composepracticenew.model.ArchiveContents
 import com.todokanai.composepracticenew.model.ArchiveFolder
 import com.todokanai.composepracticenew.model.FailureReason
 import com.todokanai.composepracticenew.model.IoResult
@@ -137,11 +138,11 @@ class ArchiveContentRepositoryImplTest {
         }
 
     /** [zip]을 묻지 않고 읽은 결과. */
-    private fun result(zip: File): IoResult<ArchiveFolder> = runBlocking { repository.contentsOf(zip.path, UnexpectedPasswordProvider) }
+    private fun result(zip: File): IoResult<ArchiveContents> = runBlocking { repository.contentsOf(zip.path, UnexpectedPasswordProvider) }
 
     /** [zip]을 읽은 루트 폴더. 실패하면 테스트가 실패한다. */
     private fun contentsOf(zip: File): ArchiveFolder = when (val result = result(zip)) {
-        is IoResult.Success -> result.value
+        is IoResult.Success -> result.value.root
         is IoResult.Failure -> throw AssertionError("목록을 읽지 못함: $result")
     }
 }

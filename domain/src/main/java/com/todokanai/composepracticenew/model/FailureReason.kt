@@ -78,6 +78,12 @@ sealed interface FailureReason {
      */
     data class ArchiveChangedWhileReading(val name: String) : FailureReason
 
+    /**
+     * 내용 보기에서 항목을 고른 뒤 압축 파일의 항목 목록이 바뀌어, 고른 항목을 찾을 수 없어 아무것도 풀지 않았다.
+     * @param name 압축 파일 이름
+     */
+    data class ArchiveChangedSinceViewed(val name: String) : FailureReason
+
     /** 이름을 읽을 수 없는 항목(해석하지 못한 이름, 이름 없는 항목)이 있어 아무것도 풀지 않았다. */
     data object ArchiveEntryNameUnreadable : FailureReason
 

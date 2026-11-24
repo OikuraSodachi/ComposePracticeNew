@@ -4,8 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +19,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -32,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.ArchivePasswordDialog
 import com.todokanai.composepracticenew.compose.holder.ArchiveEntryHolder
+import com.todokanai.composepracticenew.compose.listview.ListWithBottomButtons
 import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.dragSelectGesture
 import com.todokanai.composepracticenew.compose.listview.rememberTypeIcons
@@ -60,12 +65,13 @@ internal fun archiveListKeyOf(row: ArchiveEntryRow): Any = when (val key = row.k
 
 /**
  * 압축 파일 내용 보기 화면. 위에 압축 파일 이름과 지금 폴더를, 아래에 지금 폴더의 항목을 보인다. 압축 파일을 바꾸지 않는다.
- * 길게 눌러 끌면 다중 선택으로 들어가며, 다중 선택 중에는 위쪽 이름 자리에 모두 선택 바를 겹쳐 그린다. 항목 목록까지 암호화한 압축 파일이면 비밀번호를 묻는다.
+ * 길게 눌러 끌면 다중 선택으로 들어가며, 다중 선택 중에는 위쪽 이름 자리에 모두 선택 바를, 목록 아래에 복사 버튼을 겹쳐 그린다. 항목 목록까지 암호화한 압축 파일이면 비밀번호를 묻는다.
  * @param modifier 화면의 배치를 정하는 Modifier
  * @param viewModel 목록 읽기·폴더 탐색·선택·비밀번호 질문을 맡는 ViewModel
+ * @param onCopy 복사 버튼이 부르는 콜백 — 고른 항목을 꺼내 로컬 목록에서 목적지를 고르게 한다
  */
 @Composable
-fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
+fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel, onCopy: () -> Unit) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val passwordRequest by viewModel.passwordRequest.collectAsStateWithLifecycle()
     // 지금 폴더(이름 목록)를 키로 — 다른 폴더로 가면 맨 위부터 새로 시작한다(파일 목록의 rememberListingScrollState와 같은 규칙).
@@ -99,19 +105,26 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
             }
         }
         HorizontalDivider()
-        ArchiveContent(
+        // 복사 버튼은 목록 위에 겹쳐 그리고 그 높이를 목록 안쪽 여백으로만 받는다 — 다중 선택으로 들어갈 때 목록 크기가 바뀌면 진행 중인 드래그 선택이 어긋난다(#520)
+        ListWithBottomButtons(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            content = uiState.content,
-            listState = listState,
-            isMultiSelect = isMultiSelect,
-            selectedKeys = selectedKeysOf(uiState.selection),
-            onRetry = viewModel::retry,
-            onRowClick = viewModel::onRowClick,
-            startSelection = { anchor -> startDragSelection(uiState.selection, anchor, viewModel::startMultiSelect) },
-            onReplaceSelection = viewModel::replaceSelection
-        )
+            buttons = { if (isMultiSelect) ArchiveSelectionButtons(modifier = Modifier, onCopy = onCopy) }
+        ) { contentPadding ->
+            ArchiveContent(
+                modifier = Modifier.fillMaxSize(),
+                content = uiState.content,
+                listState = listState,
+                contentPadding = contentPadding,
+                isMultiSelect = isMultiSelect,
+                selectedKeys = selectedKeysOf(uiState.selection),
+                onRetry = viewModel::retry,
+                onRowClick = viewModel::onRowClick,
+                startSelection = { anchor -> startDragSelection(uiState.selection, anchor, viewModel::startMultiSelect) },
+                onReplaceSelection = viewModel::replaceSelection
+            )
+        }
     }
 
     passwordRequest?.let { request ->
@@ -155,10 +168,29 @@ private fun ArchiveHeader(modifier: Modifier, archiveName: String, folderNames: 
 }
 
 /**
+ * 다중 선택 중 목록 아래에 겹쳐 그리는 작업 버튼.
+ * @param modifier 배치를 정하는 Modifier
+ * @param onCopy 복사 버튼이 부르는 콜백
+ */
+@Composable
+private fun ArchiveSelectionButtons(modifier: Modifier, onCopy: () -> Unit) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(50.dp)
+    ) {
+        TextButton(onClick = onCopy, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.btn_copy))
+        }
+    }
+}
+
+/**
  * 목록 영역. 읽는 중 표시, 읽기 실패 안내와 다시 시도 버튼, 빈 폴더 안내, 또는 항목 목록을 보인다.
  * @param modifier 목록 영역의 크기·배치를 정하는 Modifier
  * @param content 목록 영역의 상태
  * @param listState 항목 목록의 스크롤 상태
+ * @param contentPadding 항목 목록의 안쪽 여백. 겹쳐 그린 버튼 높이를 받아 마지막 행이 버튼에 가리지 않게 한다
  * @param isMultiSelect 다중 선택 중이면 true
  * @param selectedKeys 선택된 행의 키
  * @param onRetry 다시 시도 버튼이 부르는 콜백
@@ -171,6 +203,7 @@ private fun ArchiveContent(
     modifier: Modifier,
     content: ArchiveViewContent,
     listState: LazyListState,
+    contentPadding: PaddingValues,
     isMultiSelect: Boolean,
     selectedKeys: Set<ArchiveEntryKey>,
     onRetry: () -> Unit,
@@ -205,6 +238,7 @@ private fun ArchiveContent(
                     modifier = modifier,
                     rows = content.rows,
                     listState = listState,
+                    contentPadding = contentPadding,
                     isMultiSelect = isMultiSelect,
                     selectedKeys = selectedKeys,
                     onRowClick = onRowClick,
@@ -220,6 +254,7 @@ private fun ArchiveContent(
  * @param modifier 목록의 크기·배치를 정하는 Modifier
  * @param rows 표시할 행들(정렬됨)
  * @param listState 목록의 스크롤 상태. 폴더마다 새로 만든 것을 받는다
+ * @param contentPadding 목록의 안쪽 여백
  * @param isMultiSelect 다중 선택 중이면 true — 모든 행을 누를 수 있다
  * @param selectedKeys 선택된 행의 키
  * @param onRowClick 행을 눌렀을 때 부르는 콜백
@@ -231,6 +266,7 @@ private fun ArchiveEntryList(
     modifier: Modifier,
     rows: List<ArchiveEntryRow>,
     listState: LazyListState,
+    contentPadding: PaddingValues,
     isMultiSelect: Boolean,
     selectedKeys: Set<ArchiveEntryKey>,
     onRowClick: (ArchiveEntryRow) -> Unit,
@@ -247,7 +283,8 @@ private fun ArchiveEntryList(
             startSelection = startSelection,
             onReplaceSelection = onReplaceSelection
         ),
-        state = listState
+        state = listState,
+        contentPadding = contentPadding
     ) {
         items(rows, key = ::archiveListKeyOf) { row ->
             ArchiveEntryHolder(

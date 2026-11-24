@@ -56,8 +56,8 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
         }
     }
 
-    /** 다른 화면에서 고른 pending을 받을 transfer의 목적지 확인 단계로 전환한다. 이 화면의 선택은 버린다. */
-    fun receive(transfer: T, pending: List<FileHolderItem>) { _state.value = SelectionState.Receiving(transfer, pending) }
+    /** 다른 화면에서 고른 대기 대상을 담은 transfer의 목적지 확인 단계로 전환한다. 이 화면의 선택은 버린다. */
+    fun receive(transfer: T) { _state.value = SelectionState.Receiving(transfer) }
 
     /**
      * 이 화면의 선택을 작업 대상으로 꺼내고, 같은 갱신에서 기본 모드로 되돌린다.
@@ -116,9 +116,12 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
     /** 기본 모드로 되돌린다. 선택 목록과 전송 대기 목록도 함께 사라진다. */
     fun reset() { _state.value = SelectionState.Default }
 
-    /** 전송 목적지 확인 중이면 기본 모드로 되돌린다. 이 화면의 선택·작업 상태는 그대로 둔다. */
-    fun discardReceiving() {
-        _state.update { current -> if (current is SelectionState.Receiving) SelectionState.Default else current }
+    /**
+     * [matches]에 맞는 전송의 목적지 확인 중이면 기본 모드로 되돌린다. 이 화면의 선택·작업 상태와 다른 전송은 그대로 둔다.
+     * @param matches 버릴 전송인지 판별하는 함수
+     */
+    fun discardReceiving(matches: (T) -> Boolean) {
+        _state.update { current -> if (current is SelectionState.Receiving && matches(current.transfer)) SelectionState.Default else current }
     }
 
     /** 다중 선택 중일 때만 선택 목록에 edit를 적용한다. */

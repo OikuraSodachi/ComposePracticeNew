@@ -8,6 +8,7 @@ import net.sf.sevenzipjbinding.ExtractAskMode
 import net.sf.sevenzipjbinding.ExtractOperationResult
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertThrows
@@ -71,11 +72,25 @@ class SevenZipExtractCallbackTest {
     }
 
     @Test
+    fun `고른 항목 뒤에 건너뛰는 항목의 결과가 오류면 실패는 건너뛴 항목을 가리킨다`() {
+        // 고른 항목만 풀 때 solid 블록 안의 고르지 않은 항목은 건너뛰기 모드로 오고, 그 결과도 온다
+        val callback = callbackOf(SevenZipEntryKind.File("picked.txt"), SevenZipEntryKind.File("damaged.txt"))
+        callback.getStream(0, ExtractAskMode.EXTRACT)!!.write("x".toByteArray())
+        callback.setOperationResult(ExtractOperationResult.OK)
+
+        assertNull(callback.getStream(1, ExtractAskMode.SKIP))
+        val thrown = assertThrows(IOException::class.java) { callback.setOperationResult(ExtractOperationResult.DATAERROR) }
+
+        assertEquals(FailureReason.UnreadableArchiveEntry("damaged.txt", "DATAERROR"), (thrown as LocalFailureException).reason)
+        assertFalse(File(root, "damaged.txt").exists())
+    }
+
+    @Test
     fun `파일을 만들지 못하면 건너뛰지 않고 그 IOException을 보관한다`() {
         File(root, "p").writeText("file")
         // 폴더 자리의 파일로 겹침을 묻게 하고, 묻는 쪽이 입출력 실패를 던지게 해 writer가 IOException을 내는 상황을 만든다
         val failingWriter = ArchiveEntryWriter(ExtractionRoot(root), { throw IOException("만들 수 없음") }, tracker(), UnexpectedLeftoverDiscarder)
-        val callback = SevenZipExtractCallback({ SevenZipEntryKind.File("p/a.txt") }, { null }, { null }, failingWriter, tracker())
+        val callback = SevenZipExtractCallback({ SevenZipEntryKind.File("p/a.txt") }, { "p/a.txt" }, { null }, { null }, failingWriter, tracker())
 
         val thrown = assertThrows(IOException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
@@ -86,7 +101,7 @@ class SevenZipExtractCallbackTest {
     @Test
     fun `구현 오류는 바꾸지 않고 그대로 보관한다`() {
         val bug = IllegalStateException("bug")
-        val callback = SevenZipExtractCallback({ throw bug }, { null }, { null }, writer, tracker())
+        val callback = SevenZipExtractCallback({ throw bug }, { throw bug }, { null }, { null }, writer, tracker())
 
         assertThrows(IllegalStateException::class.java) { callback.getStream(0, ExtractAskMode.EXTRACT) }
 
@@ -121,7 +136,7 @@ class SevenZipExtractCallbackTest {
         // solid RAR은 건너뛴 항목도 출력 없이 끝까지 풀며, 그동안 기록 없이 setCompleted만 온다 — 진행 보고가 취소를 확인한다
         val cancelled = CancellationException("취소")
         val cancelling = ByteProgressTracker(1, 1, onProgress = { throw cancelled })
-        val callback = SevenZipExtractCallback({ SevenZipEntryKind.File("../evil.txt") }, { null }, { null }, writer, cancelling)
+        val callback = SevenZipExtractCallback({ SevenZipEntryKind.File("../evil.txt") }, { "../evil.txt" }, { null }, { null }, writer, cancelling)
 
         assertNull(callback.getStream(0, ExtractAskMode.EXTRACT))
         assertThrows(CancellationException::class.java) { callback.setCompleted(0) }
@@ -130,7 +145,7 @@ class SevenZipExtractCallbackTest {
     }
 
     /** [entries]를 순서대로 항목 번호에 둔 콜백을 만든다. 크기는 모두 모름(null)으로 둔다. */
-    private fun callbackOf(vararg entries: SevenZipEntryKind) = SevenZipExtractCallback({ entries[it] }, { null }, { null }, writer, tracker())
+    private fun callbackOf(vararg entries: SevenZipEntryKind) = SevenZipExtractCallback({ entries[it] }, { entries[it].path }, { null }, { null }, writer, tracker())
 
     /** 진행 보고를 버리는 트래커. */
     private fun tracker() = ByteProgressTracker(1, 1, onProgress = {})

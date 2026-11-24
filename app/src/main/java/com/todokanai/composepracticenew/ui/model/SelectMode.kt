@@ -2,6 +2,7 @@ package com.todokanai.composepracticenew.ui.model
 
 import androidx.annotation.StringRes
 import com.todokanai.composepracticenew.R
+import com.todokanai.composepracticenew.model.ArchiveEntrySelection
 
 /**
  * 파일 목록 화면의 선택 모드.
@@ -31,19 +32,36 @@ sealed interface SelectMode {
         data object UnzipHere : LocalOperation(R.string.btn_unzip_here)
     }
 
-    /** 로컬 화면에서 다운로드 목적지를 탐색한 뒤 확인하는 모드. */
-    data object Download : LocalSelectMode, TransferMode {
+    /**
+     * 로컬 화면에서 다운로드 목적지를 탐색한 뒤 확인하는 모드.
+     * @param pending 원격 화면에서 고른 다운로드 대기 항목
+     */
+    data class Download(val pending: List<FileHolderItem>) : LocalTransferMode {
         @StringRes override val labelRes: Int = R.string.btn_download
     }
 
-    /** 원격 화면에서 업로드 목적지를 탐색한 뒤 확인하는 모드. */
-    data object Upload : RemoteSelectMode, TransferMode {
+    /**
+     * 로컬 화면에서 압축 파일 내용 보기에서 고른 항목을 풀 목적지를 탐색한 뒤 확인하는 모드.
+     * @param selection 내용 보기에서 고른 압축 파일 항목
+     */
+    data class ArchiveCopy(val selection: ArchiveEntrySelection) : LocalTransferMode {
+        @StringRes override val labelRes: Int = R.string.btn_copy_here
+    }
+
+    /**
+     * 원격 화면에서 업로드 목적지를 탐색한 뒤 확인하는 모드.
+     * @param pending 로컬 화면에서 고른 업로드 대기 항목
+     */
+    data class Upload(val pending: List<FileHolderItem>) : RemoteSelectMode, TransferMode {
         @StringRes override val labelRes: Int = R.string.btn_upload_confirm
     }
 }
 
 /** 로컬 파일 목록 화면에서 가능한 선택 모드. */
 sealed interface LocalSelectMode : SelectMode
+
+/** 로컬 화면이 목적지가 되는 전송 모드. */
+sealed interface LocalTransferMode : LocalSelectMode, TransferMode
 
 /**
  * 이 모드에서 로컬 항목 [item]을 눌렀을 때 할 일을 정한다. 목록 행과 검색 결과가 같은 규칙을 따르도록 한 곳에 둔다.
@@ -54,7 +72,7 @@ sealed interface LocalSelectMode : SelectMode
 fun LocalSelectMode.clickActionOf(item: FileHolderItem): ItemClickAction = when (this) {
     SelectMode.Default -> ItemClickAction.OPEN
     SelectMode.MultiSelect -> ItemClickAction.TOGGLE
-    is SelectMode.LocalOperation, SelectMode.Download -> opensFolderOnly(item)
+    is SelectMode.LocalOperation, is SelectMode.Download, is SelectMode.ArchiveCopy -> opensFolderOnly(item)
 }
 
 /** 원격 파일 목록 화면에서 가능한 선택 모드. */
@@ -68,7 +86,7 @@ sealed interface RemoteSelectMode : SelectMode
  */
 fun RemoteSelectMode.clickActionOf(item: FileHolderItem): ItemClickAction = when (this) {
     SelectMode.MultiSelect -> ItemClickAction.TOGGLE
-    SelectMode.Default, SelectMode.Upload -> opensFolderOnly(item)
+    SelectMode.Default, is SelectMode.Upload -> opensFolderOnly(item)
 }
 
 /**
@@ -78,7 +96,7 @@ fun RemoteSelectMode.clickActionOf(item: FileHolderItem): ItemClickAction = when
 val SelectMode.allowsPathBarNavigation: Boolean
     get() = when (this) {
         SelectMode.MultiSelect -> false
-        SelectMode.Default, is SelectMode.LocalOperation, SelectMode.Download, SelectMode.Upload -> true
+        SelectMode.Default, is SelectMode.LocalOperation, is SelectMode.Download, is SelectMode.ArchiveCopy, is SelectMode.Upload -> true
     }
 
 /**
