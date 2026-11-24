@@ -228,12 +228,14 @@ class ArchiveViewViewModel @Inject constructor(
      * 선택 상태를 화면에 보일 선택으로 바꾼다.
      * @param content 지금 폴더의 목록 영역 상태
      * @param selection 선택 상태
-     * @return 다중 선택이면 지금 폴더의 행 중 선택된 것들(화면의 행 순서)
+     * @return 다중 선택이면 지금 폴더의 행 중 선택된 것들(화면의 행 순서)과 그 키
      */
     private fun selectionOf(content: ArchiveViewContent, selection: ArchiveSelection): ArchiveViewSelection = when (selection) {
         ArchiveSelection.None -> ArchiveViewSelection.None
-        is ArchiveSelection.MultiSelect ->
-            ArchiveViewSelection.MultiSelect((content as? ArchiveViewContent.Loaded)?.rows.orEmpty().filter { it.key in selection.keys })
+        is ArchiveSelection.MultiSelect -> {
+            val selected = (content as? ArchiveViewContent.Loaded)?.rows.orEmpty().filter { it.key in selection.keys }
+            ArchiveViewSelection.MultiSelect(selected, selected.mapTo(HashSet()) { it.key })
+        }
     }
 
     /**
@@ -317,8 +319,9 @@ sealed interface ArchiveViewSelection {
     /**
      * 다중 선택 — 행을 누르면 선택을 토글한다.
      * @param selected 지금 폴더의 행 중 선택된 것들
+     * @param keys 선택된 행의 키 — 화면이 행마다 선택 여부를 찾는 데 쓴다
      */
-    data class MultiSelect(val selected: List<ArchiveEntryRow>) : ArchiveViewSelection
+    data class MultiSelect(val selected: List<ArchiveEntryRow>, val keys: Set<ArchiveEntryKey>) : ArchiveViewSelection
 }
 
 /** 내용 보기 화면 목록 영역의 상태. 읽기 실패는 빈 폴더가 아니라 실패로 보인다. */

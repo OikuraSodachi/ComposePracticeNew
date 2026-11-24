@@ -49,7 +49,7 @@ private const val FOLDER_SEPARATOR = " › "
 
 /**
  * 내용 보기 목록 행의 LazyColumn 키. 드래그 선택(dragSelectGesture)이 손가락 아래 행을 이 키로 찾으므로 목록과 제스처가 함께 쓴다.
- * 한 폴더의 행만 구분하면 된다 — 파일은 압축 파일 안의 순번(Int), 폴더는 이름(String, 같은 이름의 폴더는 합쳐 있다)으로, 타입이 달라 서로 겹치지 않으며 Bundle에 담긴다.
+ * 한 폴더의 행만 구분하면 된다([ArchiveEntryKey]) — 파일은 압축 파일 안의 순번(Int), 폴더는 이름(String, 같은 이름의 폴더는 합쳐 있다)으로, 타입이 달라 서로 겹치지 않으며 Bundle에 담긴다.
  * @param row 행
  * @return 지금 폴더 안에서 행마다 하나인 키
  */
@@ -73,7 +73,9 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
     val listState = rememberSaveable(uiState.folderNames, saver = LazyListState.Saver) { LazyListState() }
     /** 부를 때의 선택 목록을 읽는 함수. uiState State를 읽어, 모두 선택 바의 derivedStateOf가 선택 변경을 추적한다. */
     val selectedRows: () -> List<ArchiveEntryRow> = { selectedRowsOf(uiState.selection) }
+    /** 지금 폴더의 행들 — 모두 선택의 대상. 다 읽지 않았으면 빈 목록. */
     val rows = (uiState.content as? ArchiveViewContent.Loaded)?.rows.orEmpty()
+    /** 다중 선택 중인지 여부. */
     val isMultiSelect = uiState.selection is ArchiveViewSelection.MultiSelect
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -104,7 +106,7 @@ fun ArchiveViewFrag(modifier: Modifier, viewModel: ArchiveViewViewModel) {
             content = uiState.content,
             listState = listState,
             isMultiSelect = isMultiSelect,
-            selectedRows = selectedRows,
+            selectedKeys = selectedKeysOf(uiState.selection),
             onRetry = viewModel::retry,
             onRowClick = viewModel::onRowClick,
             startSelection = { anchor -> startDragSelection(uiState.selection, anchor, viewModel::startMultiSelect) },
@@ -158,7 +160,7 @@ private fun ArchiveHeader(modifier: Modifier, archiveName: String, folderNames: 
  * @param content 목록 영역의 상태
  * @param listState 항목 목록의 스크롤 상태
  * @param isMultiSelect 다중 선택 중이면 true
- * @param selectedRows 선택 목록을 반환하는 함수
+ * @param selectedKeys 선택된 행의 키
  * @param onRetry 다시 시도 버튼이 부르는 콜백
  * @param onRowClick 행을 눌렀을 때 부르는 콜백
  * @param startSelection 길게 누른 행으로 드래그 선택을 시작하는 함수
@@ -170,7 +172,7 @@ private fun ArchiveContent(
     content: ArchiveViewContent,
     listState: LazyListState,
     isMultiSelect: Boolean,
-    selectedRows: () -> List<ArchiveEntryRow>,
+    selectedKeys: Set<ArchiveEntryKey>,
     onRetry: () -> Unit,
     onRowClick: (ArchiveEntryRow) -> Unit,
     startSelection: (ArchiveEntryRow) -> DragSelection<ArchiveEntryRow>?,
@@ -204,7 +206,7 @@ private fun ArchiveContent(
                     rows = content.rows,
                     listState = listState,
                     isMultiSelect = isMultiSelect,
-                    selectedRows = selectedRows,
+                    selectedKeys = selectedKeys,
                     onRowClick = onRowClick,
                     startSelection = startSelection,
                     onReplaceSelection = onReplaceSelection
@@ -219,7 +221,7 @@ private fun ArchiveContent(
  * @param rows 표시할 행들(정렬됨)
  * @param listState 목록의 스크롤 상태. 폴더마다 새로 만든 것을 받는다
  * @param isMultiSelect 다중 선택 중이면 true — 모든 행을 누를 수 있다
- * @param selectedRows 선택 목록을 반환하는 함수
+ * @param selectedKeys 선택된 행의 키
  * @param onRowClick 행을 눌렀을 때 부르는 콜백
  * @param startSelection 길게 누른 행으로 드래그 선택을 시작하는 함수
  * @param onReplaceSelection 드래그 범위를 반영한 선택 목록을 전달하는 콜백
@@ -230,14 +232,13 @@ private fun ArchiveEntryList(
     rows: List<ArchiveEntryRow>,
     listState: LazyListState,
     isMultiSelect: Boolean,
-    selectedRows: () -> List<ArchiveEntryRow>,
+    selectedKeys: Set<ArchiveEntryKey>,
     onRowClick: (ArchiveEntryRow) -> Unit,
     startSelection: (ArchiveEntryRow) -> DragSelection<ArchiveEntryRow>?,
     onReplaceSelection: (List<ArchiveEntryRow>) -> Unit
 ) {
     // items{} 밖에서 한 번 만들어 모든 행이 같은 인스턴스를 공유 — 행이 Strong Skipping의 인스턴스 비교로 생략된다
     val typeIcons = rememberTypeIcons()
-    val selectedKeys = selectedRows().mapTo(HashSet()) { it.key }
     LazyColumn(
         modifier = modifier.dragSelectGesture(
             listState = listState,
@@ -269,6 +270,16 @@ private fun ArchiveEntryList(
 private fun selectedRowsOf(selection: ArchiveViewSelection): List<ArchiveEntryRow> = when (selection) {
     ArchiveViewSelection.None -> emptyList()
     is ArchiveViewSelection.MultiSelect -> selection.selected
+}
+
+/**
+ * 선택 상태에서 선택된 행의 키를 꺼낸다.
+ * @param selection 선택 상태
+ * @return 다중 선택이면 선택된 행의 키, 아니면 빈 집합
+ */
+private fun selectedKeysOf(selection: ArchiveViewSelection): Set<ArchiveEntryKey> = when (selection) {
+    ArchiveViewSelection.None -> emptySet()
+    is ArchiveViewSelection.MultiSelect -> selection.keys
 }
 
 /**

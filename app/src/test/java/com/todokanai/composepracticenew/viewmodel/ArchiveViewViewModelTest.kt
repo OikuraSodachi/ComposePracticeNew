@@ -49,7 +49,7 @@ class ArchiveViewViewModelTest {
         ArchiveEntry.Folder(
             "dir", null,
             ArchiveFolder(listOf(ArchiveEntry.File("in.txt", 1, null, isEncrypted = true, ArchiveEntryKey.Item(1)))),
-            ArchiveEntryKey.Folder(null, "dir")
+            ArchiveEntryKey.Folder("dir")
         ),
         ArchiveEntry.File("a.txt", 1, null, isEncrypted = false, ArchiveEntryKey.Item(2)),
     ))

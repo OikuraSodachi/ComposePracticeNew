@@ -9,13 +9,13 @@ import com.todokanai.composepracticenew.model.ArchiveFolder
  * 항목의 위치는 압축 해제([ExtractionRoot.targetOf])와 같은 판정([extractionSegmentsOf])으로 정한다 — 빈 세그먼트와 `.`는 무시하고 `..`는 앞 세그먼트를 지운다.
  * 압축 해제 위치 밖이나 루트 자신을 가리키는 항목은 루트에 [ArchiveEntry.UnsafePath]로 둔다(숨기지 않는다).
  * 폴더 항목이 없는 형식은 안쪽 항목의 경로로 폴더를 만든다. 같은 이름의 폴더는 합치고, 폴더가 아닌 항목은 이름이 같아도 모두 둔다.
- * 폴더가 아닌 항목의 키는 [entries]에서의 순번이고, 폴더의 키는 루트부터의 이름이다([ArchiveEntryKey]).
+ * 폴더가 아닌 항목의 키는 [entries]에서의 순번이고, 폴더의 키는 그 이름이다([ArchiveEntryKey]).
  * 재귀하지 않는다 — 깊이 중첩된 경로에서 스택이 넘치지 않도록.
  * @param entries [ArchiveExtractor.entries]가 읽은 항목 목록
  * @return 루트 폴더
  */
 internal fun archiveTreeOf(entries: List<ArchiveEntryInfo>): ArchiveFolder {
-    val root = FolderNode(name = "", key = null, lastModifiedMillis = null)
+    val root = FolderNode(name = "", lastModifiedMillis = null)
     // 만든 순서 — 하위 폴더는 항상 상위 폴더보다 뒤에 만들어지므로, 거꾸로 변환하면 하위가 먼저 끝난다
     val created = mutableListOf(root)
     entries.forEachIndexed { index, entry ->
@@ -40,10 +40,9 @@ internal fun archiveTreeOf(entries: List<ArchiveEntryInfo>): ArchiveFolder {
 /**
  * 트리를 만드는 동안의 폴더.
  * @param name 폴더 이름
- * @param key 폴더의 키. 루트면 null
  * @param lastModifiedMillis 폴더 항목의 수정 시각. 폴더 항목이 없으면 null
  */
-private class FolderNode(val name: String, val key: ArchiveEntryKey.Folder?, var lastModifiedMillis: Long?) {
+private class FolderNode(val name: String, var lastModifiedMillis: Long?) {
     /** 바로 아래 항목(압축 파일에 담긴 순서). */
     val items = mutableListOf<Item>()
 
@@ -61,7 +60,7 @@ private class FolderNode(val name: String, val key: ArchiveEntryKey.Folder?, var
      */
     fun childFolder(name: String, created: MutableList<FolderNode>): FolderNode =
         folders.getOrPut(name) {
-            FolderNode(name, ArchiveEntryKey.Folder(key, name), lastModifiedMillis = null).also {
+            FolderNode(name, lastModifiedMillis = null).also {
                 items += Item.Sub(it)
                 created += it
             }
@@ -84,7 +83,7 @@ private sealed interface Item {
             node.name,
             node.lastModifiedMillis,
             checkNotNull(node.result) { "하위 폴더가 먼저 변환되지 않았다" },
-            checkNotNull(node.key) { "루트는 항목이 아니다" }
+            ArchiveEntryKey.Folder(node.name)
         )
     }
 }

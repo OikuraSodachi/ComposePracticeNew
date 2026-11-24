@@ -4,7 +4,6 @@ import com.todokanai.composepracticenew.model.ArchiveEntry
 import com.todokanai.composepracticenew.model.ArchiveEntryKey
 import com.todokanai.composepracticenew.model.ArchiveFolder
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -75,28 +74,16 @@ class ArchiveTreeTest {
         val root = archiveTreeOf(listOf(file("a.txt"), file("../up.txt"), folder("d/"), file("a.txt")))
 
         assertEquals(
-            listOf(ArchiveEntryKey.Item(0), ArchiveEntryKey.Item(1), ArchiveEntryKey.Folder(null, "d"), ArchiveEntryKey.Item(3)),
+            listOf(ArchiveEntryKey.Item(0), ArchiveEntryKey.Item(1), ArchiveEntryKey.Folder("d"), ArchiveEntryKey.Item(3)),
             root.entries.map { it.key }
         )
     }
 
     @Test
-    fun `폴더의 키는 루트부터의 이름이라 합친 폴더는 키가 하나다`() {
+    fun `폴더의 키는 그 이름이라 합친 폴더는 키가 하나다`() {
         val root = archiveTreeOf(listOf(file("a/b/x.txt"), folder("a/b/")))
 
-        val b = root.folderAt(listOf("a"))!!.entries.single()
-        assertEquals(ArchiveEntryKey.Folder(ArchiveEntryKey.Folder(null, "a"), "b"), b.key)
-        assertNotEquals(ArchiveEntryKey.Folder(ArchiveEntryKey.Folder(null, "c"), "b"), b.key)
-    }
-
-    @Test
-    fun `깊이 중첩된 폴더의 키도 스택이 넘치지 않고 비교한다`() {
-        val depth = 100_000
-        val deep = (1..depth).fold(null as ArchiveEntryKey.Folder?) { parent, _ -> ArchiveEntryKey.Folder(parent, "d") }
-        val same = (1..depth).fold(null as ArchiveEntryKey.Folder?) { parent, _ -> ArchiveEntryKey.Folder(parent, "d") }
-
-        assertEquals(deep, same)
-        assertEquals(deep.hashCode(), same.hashCode())
+        assertEquals(listOf(ArchiveEntryKey.Folder("b")), root.folderAt(listOf("a"))!!.entries.map { it.key })
     }
 
     @Test
