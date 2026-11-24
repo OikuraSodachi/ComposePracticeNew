@@ -32,11 +32,11 @@ import javax.inject.Inject
  * FILE_BROWSER_GRAPH에 scoped된다.
  * @param localNavigator 다운로드 목적지(현재 로컬 경로)와 완료 후 새로고침, 로컬 다중 선택을 맞출 로컬 목록을 제공하는 UseCase
  * @param remoteNavigator 업로드 목적지(현재 원격 경로)와 원격 목록(원격 다중 선택도 이 목록에 맞춘다)을 제공하는 UseCase
- * @param remoteFileOperationUseCase 다운로드·업로드를 실행하는 UseCase
+ * @param remoteFileOperationUseCase 다운로드([LocalTransferExecutor]가 쓴다)·업로드를 실행하는 UseCase
  * @param uploadConflictCheckUseCase 업로드 전에 확인할 겹침(목적지에 이미 있는 이름, 함께 올리는 항목끼리)을 모으는 UseCase
  * @param connectionStateUseCase 원격 세션 끊김을 알려주는 연결 상태 UseCase
  * @param remoteSessionCheckUseCase 원격 화면으로 가는 진입(하단 전환·업로드) 전에 연결된 원격 세션이 있는지 확인하는 UseCase
- * @param archiveCopyUseCase 압축 파일 내용 보기에서 고른 항목을 로컬 화면의 목적지에 푸는 UseCase
+ * @param archiveCopyUseCase 압축 파일 내용 보기에서 고른 항목을 로컬 화면의 목적지에 푸는 UseCase([LocalTransferExecutor]가 쓴다)
  */
 @HiltViewModel
 class FileTransferCoordinatorViewModel @Inject constructor(
@@ -46,7 +46,7 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     uploadConflictCheckUseCase: UploadConflictCheckUseCase,
     connectionStateUseCase: RemoteConnectionStateUseCase,
     private val remoteSessionCheckUseCase: RemoteSessionCheckUseCase,
-    private val archiveCopyUseCase: ArchiveCopyUseCase,
+    archiveCopyUseCase: ArchiveCopyUseCase,
 ) : ViewModel() {
 
     /** 로컬 화면의 선택 상태 — 다운로드 대기 목록과 압축 파일에서 고른 항목도 이 상태(목적지 확인)에만 있다. */
@@ -68,6 +68,9 @@ class FileTransferCoordinatorViewModel @Inject constructor(
         restoreReceiving = remote::restoreReceiving,
         upload = ::upload,
     )
+
+    /** 로컬 화면이 받는 전송(다운로드·압축 파일 항목 복사)을 실행하는 실행기. */
+    private val localTransfers = LocalTransferExecutor(remoteFileOperationUseCase, archiveCopyUseCase, refreshLocal = { localNavigator.refresh() })
 
     /** 업로드 실행 전 사용자 확인을 기다리는 충돌. */
     val uploadConflict: StateFlow<PendingConflict?> = uploadConfirmation.conflict
@@ -170,27 +173,19 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /**
      * 압축 파일 내용 보기에서 고른 항목을 로컬 화면에 넘겨, 풀 목적지를 고르는 단계로 들어간다.
      * 로컬 화면에 다중 선택이나 작업 목적지 확인·다운로드 대기가 남아 있어도 묻지 않고 버린다 — 다운로드 진입과 같은 의도된 동작이다(새로 시작한 전송이 우선한다).
-     * @param selection 내용 보기에서 고른 항목. 비어 있지 않아야 한다
+     * @param selection 내용 보기에서 고른 항목. 비어 있지 않아야 한다(실행할 때 [ArchiveCopyUseCase]가 확인한다)
      */
-    fun enterArchiveCopy(selection: ArchiveEntrySelection) {
-        // 빈 선택은 내용 보기가 넘기지 않는다 — 여기 닿았다면 구현 오류다
-        require(selection.keys.isNotEmpty()) { "고른 항목 없이 압축 파일 항목 복사로 들어갈 수 없습니다" }
-        local.receive(SelectMode.ArchiveCopy(selection))
-    }
+    fun enterArchiveCopy(selection: ArchiveEntrySelection) = local.receive(SelectMode.ArchiveCopy(selection))
 
     /**
-     * 로컬 화면이 받는 전송의 대기 대상을 현재 로컬 경로로 보내고 로컬 화면을 기본 모드로 되돌린다(대기 대상도 함께 사라짐).
+     * 로컬 화면이 받는 전송의 대기 대상을 현재 로컬 경로로 보내고([LocalTransferExecutor]) 로컬 화면을 기본 모드로 되돌린다(대기 대상도 함께 사라짐).
      * 다운로드는 대기 목록을 내려받고, 압축 파일 항목 복사는 고른 항목을 푼다(폴더는 묻지 않고 합친다).
-     * 같은 이름의 로컬 파일은 작업이 그 항목을 쓰려 할 때 묻는다(전역 충돌 질문).
      * 로컬 화면이 전송 목적지 확인 상태가 아니거나 현재 로컬 경로가 없으면 보낼 대상·자리가 없으므로 아무것도 하지 않는다.
      */
     fun confirmLocalTransfer() {
         val transfer = (local.state.value as? SelectionState.Receiving)?.transfer ?: return
         val destPath = localNavigator.currentPath.value ?: return
-        when (transfer) {
-            is SelectMode.Download -> download(transfer.pending, destPath)
-            is SelectMode.ArchiveCopy -> archiveCopyUseCase.copy(transfer.selection, destPath, onRefresh = { localNavigator.refresh() })
-        }
+        localTransfers.run(transfer, destPath)
         local.reset()
     }
 
@@ -269,15 +264,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */
     fun resolveUploadConflict(resolution: ConflictResolution) = uploadConfirmation.resolve(resolution)
-
-    /** items를 [localDestPath]에 다운로드한다. */
-    private fun download(items: List<FileHolderItem>, localDestPath: String) {
-        remoteFileOperationUseCase.download(
-            items = items.map { it.toDomain() },
-            localDestPath = localDestPath,
-            onRefresh = { localNavigator.refresh() }
-        )
-    }
 
     /** items를 [remoteDestPath]에 업로드한다. */
     private fun upload(items: List<FileHolderItem>, remoteDestPath: String) {

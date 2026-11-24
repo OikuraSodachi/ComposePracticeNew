@@ -65,7 +65,7 @@ class SevenZipArchiveExtractor(
         withArchive(path, passwords) { archive ->
             // 암호화된 항목이 있으면 출력을 만들기 전에 비밀번호를 확인해 둔다 — 추출 중 라이브러리가 묻는 비밀번호는 확인된 것만 준다
             passwordCheckIndexOf(archive, scope)?.let { index -> passwords.verifiedPassword { candidate -> checkPassword(archive, index, candidate, passwords.reportChecking) } }
-            SevenZipExtractCallback({ scopedEntryOf(archive, it, scope) }, { knownSizeOf(archive, it) }, { passwords.verified }, writer, tracker).use { callback ->
+            SevenZipExtractCallback({ scopedEntryOf(archive, it, scope) }, { entryKindOf(archive, it).path }, { knownSizeOf(archive, it) }, { passwords.verified }, writer, tracker).use { callback ->
                 runCollectingFailure(callback) { archive.extract(indicesOf(scope), false, callback) }
             }
         }
@@ -261,7 +261,10 @@ class SevenZipArchiveExtractor(
  * 라이브러리가 진행을 알릴 때([setCompleted])마다 지금 진행을 다시 보고한다 — solid RAR은 건너뛴 항목도 출력 없이 끝까지 푸는데 그동안 기록이 없어,
  * 기록할 때의 보고만으로는 작업 취소가 듣지 않는다(진행 보고가 취소를 확인하는 자리이므로).
  * 라이브러리가 암호화된 항목의 비밀번호를 물으면 확인된 비밀번호만 준다 — 확인하지 않은 비밀번호로 출력을 만들지 않도록. 확인된 것이 없으면 실패로 멈춘다.
- * @param entryOf 항목 번호로 항목 종류를 구하는 함수
+ * 고른 항목만 풀 때 라이브러리는 solid 블록 안의 고르지 않은 항목도 건너뛰기 모드로 알리고 그 결과도 알린다 — 그 결과가 오류면 실패가 그 항목을 가리키도록,
+ * 건너뛰는 항목도 지금 항목으로 둔다.
+ * @param entryOf 푸는 항목의 번호로 항목 종류(풀 경로 포함)를 구하는 함수
+ * @param skippedPathOf 건너뛰는 항목의 번호로 실패에 쓸 경로(아카이브 안의 원래 경로)를 구하는 함수
  * @param sizeOf 항목 번호로 압축 해제 후 크기를 구하는 함수(모르면 null)
  * @param verifiedPassword 이 아카이브에서 확인된 비밀번호를 구하는 함수(없으면 null)
  * @param writer 항목을 추출 루트 아래에 만드는 쓰기 도우미
@@ -269,6 +272,7 @@ class SevenZipArchiveExtractor(
  */
 internal class SevenZipExtractCallback(
     private val entryOf: (Int) -> SevenZipEntryKind,
+    private val skippedPathOf: (Int) -> String,
     private val sizeOf: (Int) -> Long?,
     private val verifiedPassword: () -> String?,
     private val writer: ArchiveEntryWriter,
@@ -292,7 +296,12 @@ internal class SevenZipExtractCallback(
     private var currentItemSize: Long? = null
 
     override fun getStream(index: Int, extractAskMode: ExtractAskMode): ISequentialOutStream? = recorder.record {
-        if (extractAskMode != ExtractAskMode.EXTRACT) return@record null
+        if (extractAskMode != ExtractAskMode.EXTRACT) {
+            // 건너뛰는 항목도 결과가 온다 — 앞 항목의 경로가 남아 그 결과의 실패가 다른 항목을 가리키지 않도록 지금 항목을 바꾼다
+            currentPath = skippedPathOf(index)
+            currentItemSize = null
+            return@record null
+        }
         val entry = entryOf(index)
         currentPath = entry.path
         when (entry) {
