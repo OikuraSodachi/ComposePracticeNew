@@ -112,14 +112,9 @@ class FileListViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 항목을 연다 — 폴더는 그리로 이동하고, 내용을 볼 수 있는 압축 파일은 내용 보기로, 그 밖의 파일은 외부 앱으로 연다. 열지는 선택 모드 규칙(clickActionOf)이 정한다.
-     * @param selected 누른 항목
-     * @param archiveOnly true면 내용을 볼 수 있는 압축 파일만 연다(압축 파일에 추가할 곳을 찾는 중)
-     */
-    fun openItem(selected: FileHolderItem, archiveOnly: Boolean) {
-        if (archiveOnly) itemOpener.openArchive(selected)
-        else viewModelScope.launch { itemOpener.open(selected) }
+    /** 항목을 연다 — 폴더는 그리로 이동하고, 내용을 볼 수 있는 압축 파일은 내용 보기로, 그 밖의 파일은 외부 앱으로 연다. 열지는 선택 모드 규칙(clickActionOf)이 정한다. */
+    fun openItem(selected: FileHolderItem) {
+        viewModelScope.launch { itemOpener.open(selected) }
     }
 
     /**

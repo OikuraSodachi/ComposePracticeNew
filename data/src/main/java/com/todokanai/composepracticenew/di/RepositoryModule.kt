@@ -252,6 +252,25 @@ abstract class RepositoryModule {
             initialPath = Environment.getExternalStorageDirectory().absolutePath
         )
 
+        /**
+         * 압축 파일에 넣을 로컬 항목을 고르는 화면의 탐색. 로컬 목록과 같은 파일 시스템을 다루지만 따로 둔다 — 고르는 동안 로컬 목록의 경로·목록이 바뀌지 않도록.
+         * 화면마다 만들지 않고 싱글턴으로 둔다 — 목록 Flow를 appScope에서 공유하므로, 고르는 화면을 열 때마다 만들면 그 공유 코루틴이 하나씩 남는다.
+         * 고르는 화면은 열 때마다 시작 폴더로 이동해(새 목록 요청) 이전에 열었을 때의 목록을 쓰지 않는다.
+         */
+        @Provides @Singleton @ArchivePickerNavigator
+        fun provideArchivePickerNavigatorRepository(
+            listingProducer: FileListFlowProducer,
+            @ApplicationScope appScope: CoroutineScope,
+            @LocalScreenFileSystems fileSystems: Set<@JvmSuppressWildcards NavigableFileSystem>,
+            pathRules: StoragePathRules,
+            notices: OperationNoticeReporter
+        ): FileNavigatorRepository = FileExplorerRepositoryImpl(
+            listingProducer, appScope, SharingStarted.WhileSubscribed(5_000),
+            fileSystems = fileSystems,
+            pathRules = pathRules,
+            notices = notices
+        )
+
         /** 원격 화면의 탐색. */
         @Provides @Singleton @RemoteNavigator
         fun provideRemoteFileNavigatorRepository(

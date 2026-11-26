@@ -7,9 +7,7 @@ import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.BottomButtonAction
 import com.todokanai.composepracticenew.compose.BottomButtons
 import com.todokanai.composepracticenew.compose.ConfirmButtons
-import com.todokanai.composepracticenew.compose.HintCancelButtons
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.ui.model.LocalSameStorageOperation
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.LocalTransferMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -17,13 +15,13 @@ import com.todokanai.composepracticenew.ui.model.SelectMode
 /** [operation]의 목적지 확인 단계로 전환하는 버튼 항목을 만든다. */
 private fun operationAction(
     operation: SelectMode.LocalOperation,
-    onSelectOperation: (LocalSameStorageOperation) -> Unit,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
 ) = BottomButtonAction(operation.labelRes) { onSelectOperation(operation) }
 
 /** 다중 선택 모드에서 하단에 바로 보이는 버튼 항목(이동·복사·삭제)을 만든다. */
 private fun multiSelectPrimaryActions(
     dialogState: BottomButtonDialogState,
-    onSelectOperation: (LocalSameStorageOperation) -> Unit,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
 ): List<BottomButtonAction> = listOf(
     operationAction(SelectMode.LocalOperation.Move, onSelectOperation),
     operationAction(SelectMode.LocalOperation.Copy, onSelectOperation),
@@ -47,13 +45,11 @@ internal fun multiSelectMoreActions(
     canUnzip: (List<FileHolderItem>) -> Boolean,
     archiveFolderOf: (List<FileHolderItem>) -> String?,
     dialogState: BottomButtonDialogState,
-    onSelectOperation: (LocalSameStorageOperation) -> Unit,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onShowInfo: () -> Unit,
     onUpload: () -> Unit,
 ): List<BottomButtonAction> = buildList {
     archiveFolderOf(selectedList)?.let { folder -> add(BottomButtonAction(R.string.btn_zip) { dialogState.openCompress(folder) }) }
-    // 진입 버튼 문구는 확인 버튼(내용 보기의 '여기에 추가')과 달라 모드의 라벨 대신 따로 둔다
-    if (selectedList.isNotEmpty()) add(BottomButtonAction(R.string.btn_add_to_archive) { onSelectOperation(SelectMode.AddToArchive) })
     add(BottomButtonAction(R.string.btn_info, onShowInfo))
     add(BottomButtonAction(R.string.btn_upload, onUpload))
     if (selectedList.size == 1) add(BottomButtonAction(R.string.btn_rename, dialogState.entryActions::openRename))
@@ -87,7 +83,7 @@ fun ModeAwareButtons(
     archiveFolderOf: (List<FileHolderItem>) -> String?,
     dialogState: BottomButtonDialogState,
     onConfirmOperation: (SelectMode.LocalOperation) -> Unit,
-    onSelectOperation: (LocalSameStorageOperation) -> Unit,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
     onShowInfo: () -> Unit,
     transfer: LocalTransferActions,
@@ -117,12 +113,6 @@ fun ModeAwareButtons(
             confirm = { onConfirmOperation(selectMode) },
             cancel = onResetSelection,
             mode = selectMode
-        )
-        // 확인은 내용 보기에서 하므로 이 화면에는 안내와 취소만 둔다
-        SelectMode.AddToArchive -> HintCancelButtons(
-            modifier = modifier,
-            hintRes = R.string.add_to_archive_hint,
-            cancel = onResetSelection
         )
         is LocalTransferMode -> ConfirmButtons(
             modifier = modifier,

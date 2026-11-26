@@ -36,9 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.todokanai.composepracticenew.R
 import com.todokanai.composepracticenew.compose.dialog.ArchivePasswordDialog
 import com.todokanai.composepracticenew.compose.holder.ArchiveEntryHolder
-import com.todokanai.composepracticenew.compose.ConfirmButtons
 import com.todokanai.composepracticenew.compose.listview.ListWithBottomButtons
-import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.compose.listview.SelectAllBar
 import com.todokanai.composepracticenew.compose.listview.dragSelectGesture
 import com.todokanai.composepracticenew.compose.listview.rememberTypeIcons
@@ -67,26 +65,22 @@ internal fun archiveListKeyOf(row: ArchiveEntryRow): Any = when (val key = row.k
 
 /**
  * 압축 파일 내용 보기 화면. 위에 압축 파일 이름과 지금 폴더를, 아래에 지금 폴더의 항목을 보인다.
- * 길게 눌러 끌면 다중 선택으로 들어가며, 다중 선택 중에는 위쪽 이름 자리에 모두 선택 바를, 목록 아래에 복사 버튼을 겹쳐 그린다. 항목 목록까지 암호화한 압축 파일이면 비밀번호를 묻는다.
- * 로컬 목록에서 압축 파일에 추가할 곳을 찾는 중이고 이 압축 파일에 넣을 수 있으면, 다중 선택이 아닐 때 목록 아래에 추가 확인 버튼을 겹쳐 그린다.
+ * 목록 아래에는 메뉴 줄(압축 파일에 파일 추가)을 늘 겹쳐 그린다 — 넣을 수 없는 압축 파일이거나 목록을 다 읽지 않았으면 항목을 비활성으로 보인다.
+ * 길게 눌러 끌면 다중 선택으로 들어가며, 다중 선택 중에는 위쪽 이름 자리에 모두 선택 바를, 메뉴 줄 자리에 같은 높이의 복사 버튼을 겹쳐 그린다.
+ * 비밀번호 질문은 이 화면이 아니라 [ArchivePasswordHost]가 띄운다 — 고르는 화면이 이 화면 대신 보이는 동안에도 묻도록.
  * @param modifier 화면의 배치를 정하는 Modifier
- * @param viewModel 목록 읽기·폴더 탐색·선택·비밀번호 질문을 맡는 ViewModel
+ * @param viewModel 목록 읽기·폴더 탐색·선택을 맡는 ViewModel
  * @param onCopy 복사 버튼이 부르는 콜백 — 고른 항목을 꺼내 로컬 목록에서 목적지를 고르게 한다
- * @param isAddingToArchive 로컬 목록에서 압축 파일에 추가할 곳을 찾는 중이면 true
- * @param onAddHere 추가 확인 버튼이 부르는 콜백 — 로컬 선택을 꺼내 지금 폴더에 넣는다
- * @param onCancelAdd 추가 취소 버튼이 부르는 콜백 — 로컬 화면의 추가 모드를 끝낸다
+ * @param onAddFiles 메뉴 줄의 압축 파일에 파일 추가가 부르는 콜백 — 넣을 로컬 항목을 고르는 화면을 연다
  */
 @Composable
 fun ArchiveViewFrag(
     modifier: Modifier,
     viewModel: ArchiveViewViewModel,
     onCopy: () -> Unit,
-    isAddingToArchive: Boolean,
-    onAddHere: () -> Unit,
-    onCancelAdd: () -> Unit,
+    onAddFiles: () -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val passwordRequest by viewModel.passwordRequest.collectAsStateWithLifecycle()
     // 지금 폴더(이름 목록)를 키로 — 다른 폴더로 가면 맨 위부터 새로 시작한다(파일 목록의 rememberListingScrollState와 같은 규칙).
     // rememberSaveable이라 화면 회전 뒤에도 같은 폴더의 위치가 복원된다
     val listState = rememberSaveable(uiState.folderNames, saver = LazyListState.Saver) { LazyListState() }
@@ -118,21 +112,14 @@ fun ArchiveViewFrag(
             }
         }
         HorizontalDivider()
-        // 복사·추가 버튼은 목록 위에 겹쳐 그리고 그 높이를 목록 안쪽 여백으로만 받는다 — 다중 선택으로 들어갈 때 목록 크기가 바뀌면 진행 중인 드래그 선택이 어긋난다(#520)
+        // 메뉴 줄·복사 버튼은 목록 위에 같은 높이로 겹쳐 그리고 그 높이를 목록 안쪽 여백으로만 받는다 — 다중 선택으로 들어갈 때 목록 크기가 바뀌면 진행 중인 드래그 선택이 어긋난다(#520)
         ListWithBottomButtons(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
             buttons = {
-                when {
-                    isMultiSelect -> ArchiveSelectionButtons(modifier = Modifier, onCopy = onCopy)
-                    isAddingToArchive && uiState.canAdd -> ConfirmButtons(
-                        modifier = Modifier,
-                        confirm = onAddHere,
-                        cancel = onCancelAdd,
-                        mode = SelectMode.AddToArchive
-                    )
-                }
+                if (isMultiSelect) ArchiveSelectionButtons(modifier = Modifier, onCopy = onCopy)
+                else ArchiveMenuBar(modifier = Modifier, canAdd = uiState.canAdd, onAddFiles = onAddFiles)
             }
         ) { contentPadding ->
             ArchiveContent(
@@ -149,7 +136,15 @@ fun ArchiveViewFrag(
             )
         }
     }
+}
 
+/**
+ * 목록 읽기가 묻는 비밀번호 질문을 띄운다. 내용 보기와 고르는 화면 중 어느 쪽이 보이든 묻도록 두 화면 밖에 둔다.
+ * @param viewModel 비밀번호 질문을 보관하는 내용 보기 ViewModel
+ */
+@Composable
+fun ArchivePasswordHost(viewModel: ArchiveViewViewModel) {
+    val passwordRequest by viewModel.passwordRequest.collectAsStateWithLifecycle()
     passwordRequest?.let { request ->
         // 질문 id를 키로 — 다시 물을 때 앞서 입력한 비밀번호가 새 질문에 남지 않도록 다이얼로그 상태를 새로 만든다
         key(request.id) {
@@ -187,6 +182,25 @@ private fun ArchiveHeader(modifier: Modifier, archiveName: String, folderNames: 
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         )
+    }
+}
+
+/**
+ * 다중 선택이 아닐 때 목록 아래에 겹쳐 그리는 메뉴 줄. 높이는 [ArchiveSelectionButtons]와 같다 — 다중 선택으로 들어가도 목록 둘레가 움직이지 않도록.
+ * @param modifier 배치를 정하는 Modifier
+ * @param canAdd 지금 이 압축 파일에 항목을 넣을 수 있으면 true. false면 항목을 비활성으로 보인다
+ * @param onAddFiles 압축 파일에 파일 추가가 부르는 콜백
+ */
+@Composable
+private fun ArchiveMenuBar(modifier: Modifier, canAdd: Boolean, onAddFiles: () -> Unit) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(50.dp)
+    ) {
+        TextButton(onClick = onAddFiles, enabled = canAdd, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.btn_add_to_archive))
+        }
     }
 }
 

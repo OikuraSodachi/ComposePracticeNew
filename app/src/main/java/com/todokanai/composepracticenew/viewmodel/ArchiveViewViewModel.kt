@@ -166,15 +166,21 @@ class ArchiveViewViewModel @Inject constructor(
     }
 
     /**
-     * 지금 폴더에 로컬 항목을 넣는다. 넣을 수 있는 압축 파일이고 목록을 다 읽었을 때만 [take]로 대상을 꺼낸다 — 넣을 수 없는데 선택만 비우지 않도록.
-     * 추가가 끝나면 목록을 다시 읽어 넣은 항목을 보이고, 로컬 목록도 다시 조회한다(압축 파일 크기가 바뀐다).
-     * @param take 로컬 화면의 선택을 꺼내는 함수. 꺼낼 선택이 없으면(그사이 다른 작업·전송으로 바뀜) null
+     * 지금 폴더(루트부터의 이름들)를 반환한다. 고르는 화면을 열 때 고른 항목을 넣을 폴더로 넘긴다.
+     * @return 지금 폴더
      */
-    fun addHere(take: () -> SubmittedSelection?) {
+    fun currentFolder(): List<String> = folderNames.value.toList()
+
+    /**
+     * 고르는 화면에서 고른 로컬 항목을 고른 폴더에 넣는다. 넣을 수 있는 압축 파일이고 목록을 다 읽었을 때만 [take]로 대상을 꺼낸다 — 넣을 수 없는데 선택만 비우지 않도록.
+     * 추가가 끝나면 목록을 다시 읽어 넣은 항목을 보이고, 로컬 목록도 다시 조회한다(압축 파일 크기가 바뀐다).
+     * @param take 고르는 화면의 선택과 넣을 폴더를 꺼내는 함수. 꺼낼 선택이 없으면 null
+     */
+    fun addPicked(take: () -> PickedEntries?) {
         if (!isAppendable || listing.value !is ArchiveListing.Loaded) return
-        val selection = take() ?: return
-        val sources = selection.items.mapTo(LinkedHashSet()) { it.path }
-        archiveAddUseCase.add(sources, archivePath, folderNames.value.toList()) {
+        val picked = take() ?: return
+        val sources = picked.selection.items.mapTo(LinkedHashSet()) { it.path }
+        archiveAddUseCase.add(sources, archivePath, picked.targetFolder) {
             // 작업 스코프에서 불리므로 목록 읽기는 이 화면의 스코프로 넘긴다 — 화면을 이미 나갔으면 아무것도 하지 않는다
             viewModelScope.launch { load() }
             localNavigator.refresh()

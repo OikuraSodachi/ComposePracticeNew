@@ -23,9 +23,9 @@
     <string name="btn_move">Move</string>
     <string name="btn_copy">Copy</string>
     <string name="btn_copy_here">여기에 복사</string>
-    <string name="btn_add_to_archive">압축 파일에 추가</string>
-    <string name="btn_add_here">여기에 추가</string>
-    <string name="add_to_archive_hint">추가할 ZIP 압축 파일을 누르세요</string>
+    <string name="btn_add_to_archive">압축 파일에 파일 추가</string>
+    <string name="btn_add_picked">추가 (%1$d)</string>
+    <string name="archive_add_picker_title">%1$s에 추가할 항목 선택</string>
     <string name="btn_delete">Delete</string>
     <string name="btn_more">More</string>
     <string name="btn_zip">Zip</string>

@@ -189,7 +189,7 @@ private fun OptionTopBar(
  * @param onDirClick 항목 클릭 콜백
  */
 @Composable
-private fun PathBreadcrumb(
+internal fun PathBreadcrumb(
     dirTree: List<DirectoryItem>,
     onDirClick: (DirectoryItem) -> Unit,
 ) {

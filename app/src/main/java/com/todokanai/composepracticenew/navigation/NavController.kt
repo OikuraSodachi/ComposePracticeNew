@@ -6,6 +6,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
@@ -21,6 +22,8 @@ import androidx.navigation.compose.rememberNavController
 import com.todokanai.composepracticenew.compose.PendingRequestEffect
 import com.todokanai.composepracticenew.compose.dialog.FileConflictDialog
 import com.todokanai.composepracticenew.compose.dialog.UploadCheckingDialog
+import com.todokanai.composepracticenew.compose.frag.ArchiveAddPickerFrag
+import com.todokanai.composepracticenew.compose.frag.ArchivePasswordHost
 import com.todokanai.composepracticenew.compose.frag.ArchiveViewFrag
 import com.todokanai.composepracticenew.compose.frag.FileListFrag
 import com.todokanai.composepracticenew.compose.frag.RemoteFileListFrag
@@ -30,9 +33,9 @@ import com.todokanai.composepracticenew.compose.listview.SelectionInfoActions
 import com.todokanai.composepracticenew.compose.presets.dialog.LocalOpenDialogRegistry
 import com.todokanai.composepracticenew.compose.presets.dialog.OpenDialogRegistry
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
-import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.ui.model.remoteMode
+import com.todokanai.composepracticenew.viewmodel.ArchiveAddPickerViewModel
 import com.todokanai.composepracticenew.viewmodel.ArchiveViewViewModel
 import com.todokanai.composepracticenew.viewmodel.ChildCountViewModel
 import com.todokanai.composepracticenew.viewmodel.FileInfoViewModel
@@ -264,16 +267,23 @@ private fun FileListDestination(
 /**
  * ARCHIVE_VIEW destination의 UI와 상태를 담당한다. 루트에서 뒤로가거나 비밀번호 질문에서 취소하면 이 화면만 닫는다.
  * 고른 항목을 복사하면 그 항목을 그래프의 로컬 선택 상태로 넘기고 이 화면을 닫아, 로컬 목록에서 풀 목적지를 고르게 한다.
- * 로컬 목록에서 압축 파일에 추가할 곳을 찾는 중이면 지금 폴더에서 추가를 확인받는다 — 화면은 닫지 않고, 추가가 끝나면 목록을 다시 읽는다.
+ * 압축 파일에 파일 추가는 넣을 로컬 항목을 고르는 화면을 이 destination 안의 상태로 연다 — 백스택에 쌓지 않고, 뒤로가기는 한 겹씩 닫는다
+ * (고르는 화면의 다중 선택 → 바깥 폴더 → 고르는 화면 → 내용 보기의 다중 선택 → 바깥 폴더 → 이 화면). 고르는 화면은 전용 탐색을 써, 이 화면을 닫으면 아래의 로컬 목록이 연 때 그대로다.
+ * 고른 항목을 추가하면 고르는 화면만 닫고, 추가가 끝나면 내용 보기 목록을 다시 읽는다.
  */
 @Composable
 private fun ArchiveViewDestination(navController: NavHostController, entry: NavBackStackEntry) {
     val viewModel: ArchiveViewViewModel = hiltViewModel()
+    /** 넣을 로컬 항목을 고르는 화면의 상태. 고르는 화면은 이 destination 안의 상태라 같은 백스택 항목에 스코프된다. */
+    val pickerViewModel: ArchiveAddPickerViewModel = hiltViewModel()
     val coordinator = rememberGraphCoordinator(navController)
-    // State 객체만 보관 — 로컬 선택 목록이 바뀔 때마다 이 destination 전체가 리컴포지션되지 않도록
-    val localSelection = coordinator.localSelection.collectAsStateWithLifecycle()
-    // localSelection을 추적하되 압축 파일에 추가할 곳을 찾는 중인지가 바뀔 때만 리컴포지션한다
-    val isAddingToArchive by remember(localSelection) { derivedStateOf { localSelection.value.localMode() == SelectMode.AddToArchive } }
+    val isPicking by pickerViewModel.isOpen.collectAsStateWithLifecycle()
+    // State 객체만 보관 — 내용 보기 상태가 바뀔 때마다 이 destination 전체가 리컴포지션되지 않도록
+    val archiveState = viewModel.uiState.collectAsStateWithLifecycle()
+    // archiveState를 추적하되 지금 항목을 넣을 수 있는지가 바뀔 때만 리컴포지션한다
+    val canAdd by remember(archiveState) { derivedStateOf { archiveState.value.canAdd } }
+    // 키 없음 — destination이 살아 있는 동안 하나만 둔다. 고르는 화면이 보이는 동안 화면에서 빠진 내용 보기의 저장 상태(스크롤 위치)를 남겨 두려고 쓴다
+    val saveableStateHolder = rememberSaveableStateHolder()
 
     // 비밀번호 질문에서 취소하면 화면을 닫는다.
     // RESUMED를 확인하지 않는다 — 취소로 목록 읽기가 이미 끝났으므로, 버리면 읽지 못한 내용 보기가 남는다
@@ -282,28 +292,49 @@ private fun ArchiveViewDestination(navController: NavHostController, entry: NavB
     }
 
     BackHandler {
+        // 고르는 화면이 열려 있으면 그 화면이 한 겹씩 닫는다 — 이 화면을 떠나지 않는다
+        if (isPicking) {
+            pickerViewModel.onBackPressed()
+            return@BackHandler
+        }
         // 이미 떠나는 중이면 버린다(#535)
         viewModel.onBackPressed { if (isResumed(entry)) navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true) }
     }
 
-    ArchiveViewFrag(
-        modifier = Modifier,
-        viewModel = viewModel,
-        onCopy = onCopy@{
-            // 이미 떠나는 중이면 버린다(#535). 선택을 꺼내기 전에 확인한다 — 버린 입력이 선택만 비우고 화면에 남지 않도록
-            if (!isResumed(entry)) return@onCopy
-            // 고른 항목이 없으면(모두 해제한 다중 선택) 넘길 것이 없으므로 화면에 남는다
-            val selection = viewModel.submitCopy() ?: return@onCopy
-            coordinator.enterArchiveCopy(selection)
-            // 내용 보기는 로컬 목록 위에만 쌓이므로 닫으면 로컬 목록으로 돌아가 목적지를 고른다
-            navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true)
-        },
-        isAddingToArchive = isAddingToArchive,
-        // 화면을 떠나지 않는 입력이라 RESUMED를 확인하지 않는다. 연타한 두 번째 확인은 꺼낼 선택이 없어 아무것도 하지 않는다
-        onAddHere = { viewModel.addHere(coordinator::submitArchiveAddSelection) },
-        onCancelAdd = coordinator::resetLocalSelection
-    )
+    if (isPicking) {
+        ArchiveAddPickerFrag(
+            modifier = Modifier,
+            viewModel = pickerViewModel,
+            canAdd = canAdd,
+            // 이 화면을 떠나지 않는 입력이라 RESUMED를 확인하지 않는다. 연타한 두 번째 확인은 꺼낼 선택이 없어 아무것도 하지 않는다
+            onConfirm = { viewModel.addPicked(pickerViewModel::submit) }
+        )
+    } else {
+        saveableStateHolder.SaveableStateProvider(ARCHIVE_CONTENT_STATE_KEY) {
+            ArchiveViewFrag(
+                modifier = Modifier,
+                viewModel = viewModel,
+                onCopy = onCopy@{
+                    // 이미 떠나는 중이면 버린다(#535). 선택을 꺼내기 전에 확인한다 — 버린 입력이 선택만 비우고 화면에 남지 않도록
+                    if (!isResumed(entry)) return@onCopy
+                    // 고른 항목이 없으면(모두 해제한 다중 선택) 넘길 것이 없으므로 화면에 남는다
+                    val selection = viewModel.submitCopy() ?: return@onCopy
+                    coordinator.enterArchiveCopy(selection)
+                    // 내용 보기는 로컬 목록 위에만 쌓이므로 닫으면 로컬 목록으로 돌아가 목적지를 고른다
+                    navController.popBackStack(NavDestinations.ARCHIVE_VIEW, true)
+                },
+                // 이 화면을 떠나지 않는 입력이라 RESUMED를 확인하지 않는다. 연타한 두 번째 열기는 이미 열려 있어 아무것도 하지 않는다
+                onAddFiles = { pickerViewModel.open(viewModel.currentFolder()) }
+            )
+        }
+    }
+
+    // 두 화면 밖에 둔다 — 고르는 화면이 보이는 동안 목록을 다시 읽어도 비밀번호를 묻도록
+    ArchivePasswordHost(viewModel)
 }
+
+/** 고르는 화면이 보이는 동안 화면에서 빠지는 내용 보기의 저장 상태 키. */
+private const val ARCHIVE_CONTENT_STATE_KEY = "archiveContent"
 
 /** REMOTE_FILE_LIST destination의 UI와 상태를 담당한다. */
 @Composable
