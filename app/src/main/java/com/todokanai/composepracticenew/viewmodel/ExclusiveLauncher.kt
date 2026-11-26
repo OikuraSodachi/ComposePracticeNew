@@ -23,10 +23,10 @@ class ExclusiveLauncher(private val scope: CoroutineScope) {
      * 실행 중인 작업이 없으면 [task]를 실행한다. 있으면 아무것도 하지 않는다.
      * 실행 중 표시는 launch 전에 세운다 — 작업이 기다리는(suspend) 동안 들어온 입력과 같은 프레임의 연속 입력도 걸러진다.
      * 표시는 작업 안의 finally가 아니라 완료 콜백에서 내린다 — 스코프가 이미 취소돼 본문이 실행되지 않아도 내려가도록.
-     * @param task 실행할 작업
+     * @param task 실행할 작업. 코루틴 스코프를 받지 않는다 — 작업 안에서 띄운 자식 코루틴이 끝날 때까지 표시가 남지 않도록
      */
-    fun launch(task: suspend CoroutineScope.() -> Unit) {
+    fun launch(task: suspend () -> Unit) {
         if (!_isRunning.compareAndSet(expect = false, update = true)) return
-        scope.launch(block = task).invokeOnCompletion { _isRunning.value = false }
+        scope.launch { task() }.invokeOnCompletion { _isRunning.value = false }
     }
 }
