@@ -11,6 +11,7 @@ import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.ItemClickAction
 import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -72,6 +73,20 @@ class ArchiveAddPickerViewModelTest {
         viewModel.open(emptyList())
 
         assertEquals(listOf("/s/dir", "/s/dir/sub"), nav.navigations)
+    }
+
+    @Test
+    fun `시작 폴더로 이동하는 동안 다시 열어도 이동을 한 번만 한다`() {
+        val gate = CompletableDeferred<Unit>()
+        nav.gate = gate
+        val viewModel = viewModel()
+
+        viewModel.open(emptyList())
+        viewModel.open(emptyList())
+        gate.complete(Unit)
+
+        assertEquals(listOf("/s/dir"), nav.navigations)
+        assertTrue(viewModel.isOpen.value)
     }
 
     @Test
@@ -210,11 +225,15 @@ private class PickerNavigator : FileNavigatorRepository, StoragePathRules {
     /** 받은 이동 요청 경로를 순서대로(거부한 것 포함). */
     val navigations = mutableListOf<String>()
 
+    /** 있으면 이동이 이것이 끝날 때까지 기다린다 — 이동을 기다리는 동안의 입력을 흉내 낸다. */
+    var gate: CompletableDeferred<Unit>? = null
+
     /** 조회 요청 세대. */
     private var generation = 0L
 
     override suspend fun navigate(path: String): NavigateResult {
         navigations += path
+        gate?.await()
         if (path in rejected) return NavigateResult.Rejected
         relist(path, items[path].orEmpty())
         return NavigateResult.Navigated
