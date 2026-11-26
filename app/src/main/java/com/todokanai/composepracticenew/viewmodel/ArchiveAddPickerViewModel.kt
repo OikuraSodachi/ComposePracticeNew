@@ -77,8 +77,8 @@ class ArchiveAddPickerViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    /** 열기([open]의 시작 폴더 이동)가 끝나지 않았으면 true. 이동을 기다리는 동안 들어온 열기를 거르려고 [targetFolder]와 따로 표시한다. */
-    private var openInProgress = false
+    /** 열기([open]의 시작 폴더 이동)를 하나만 실행하는 실행기. 이동을 기다리는 동안 들어온 열기를 거르려고 [targetFolder]와 따로 둔다. */
+    private val opening = ExclusiveLauncher(viewModelScope)
 
     /**
      * 고르는 화면을 연다. 압축 파일이 있는 폴더로 이동해 새로 조회하고, 그 폴더를 읽을 수 있을 때만 연다(거부는 탐색 저장소가 알린다).
@@ -86,18 +86,12 @@ class ArchiveAddPickerViewModel @Inject constructor(
      * @param target 고른 항목을 넣을 압축 파일 안의 폴더(루트부터의 이름들) — 연 때의 내용 보기 폴더
      */
     fun open(target: List<String>) {
-        if (openInProgress || targetFolder.value != null) return
+        if (targetFolder.value != null) return
         val start = navigator.parentOf(archivePath) ?: return
-        // launch 전에 설정 — 이동을 기다리는 동안의 연속 입력도 위 확인에서 걸러진다(저장소 화면의 launchOpening과 같은 방식, #542)
-        openInProgress = true
-        viewModelScope.launch {
-            try {
-                if (navigator.setPath(start) != NavigateResult.Navigated) return@launch
-                selection.reset()
-                targetFolder.value = target.toList()
-            } finally {
-                openInProgress = false
-            }
+        opening.launch {
+            if (navigator.setPath(start) != NavigateResult.Navigated) return@launch
+            selection.reset()
+            targetFolder.value = target.toList()
         }
     }
 
