@@ -19,7 +19,6 @@ import com.todokanai.composepracticenew.usecase.StorageVolumeUseCase
 import com.todokanai.composepracticenew.tools.PendingRequest
 import com.todokanai.composepracticenew.ui.model.StorageExit
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -57,13 +56,13 @@ class StorageViewModel @Inject constructor(
     )
 
     /**
-     * 저장소 열기 작업([openLocalStorage]의 경로 설정, [setPath]의 연결·루트 이동·마지막 연결 저장)이 끝나지 않았으면 true.
+     * 저장소 열기 작업([openLocalStorage]의 경로 설정, [setPath]의 연결·루트 이동·마지막 연결 저장)을 하나만 실행하는 실행기. 작업이 끝나지 않았으면 `isRunning`이 true다.
      * FTP 세션의 연결 중 상태는 로그인 직후 false가 되어 루트 이동·저장 구간을 덮지 못하므로, 작업 전체를 이 값으로 따로 표시한다.
      */
-    private val openInProgress = MutableStateFlow(false)
+    private val opening = ExclusiveLauncher(viewModelScope)
 
     /** 저장소를 여는 중인지. 세션이 연결 중이거나 저장소 열기 작업이 끝나지 않았으면 true이며, 이 동안 목록 입력을 막는다. */
-    val isOpening: StateFlow<Boolean> = combine(connectionStateUseCase.isConnecting, openInProgress) { session, task -> session || task }
+    val isOpening: StateFlow<Boolean> = combine(connectionStateUseCase.isConnecting, opening.isRunning) { session, task -> session || task }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
 
     /**
@@ -143,7 +142,7 @@ class StorageViewModel @Inject constructor(
 
     /** 기존 원격 스토리지 접속 정보를 위반한 규칙이 없는 값으로 수정한다. 열기 작업이 진행 중이면 무시하고, 규칙을 위반한 입력이면 구현 오류로 실패한다. */
     fun updateRemoteStorage(input: RemoteStorageInput) {
-        if (openInProgress.value) return
+        if (opening.isRunning.value) return
         val valid = validInputOf(input)
         viewModelScope.launch {
             remoteStorageUseCase.save(valid)
@@ -163,7 +162,7 @@ class StorageViewModel @Inject constructor(
 
     /** 원격 스토리지 접속 정보를 삭제한다. 열기 작업이 진행 중이면 무시한다 — 삭제한 서버로 연결이 이어지거나 그 id가 마지막 연결 서버로 저장되지 않게 한다. */
     fun deleteRemoteStorage(item: RemoteStorageItem) {
-        if (openInProgress.value) return
+        if (opening.isRunning.value) return
         viewModelScope.launch { remoteStorageUseCase.delete(item.toDomain()) }
     }
 
@@ -188,17 +187,10 @@ class StorageViewModel @Inject constructor(
      * @param task 저장소를 열고 넘어갈 목록 화면을 돌려주는 작업. 넘어가지 않으면 null
      */
     private fun launchOpening(task: suspend () -> StorageExit?) {
-        if (openInProgress.value) return
-        // launch 전에 설정 — 같은 프레임의 연속 입력도 위 확인에서 걸러진다
-        openInProgress.value = true
         val startedVisit = visit
-        viewModelScope.launch {
-            try {
-                val exit = task()
-                if (exit != null && startedVisit == visit) pendingExit.post(exit)
-            } finally {
-                openInProgress.value = false
-            }
+        opening.launch {
+            val exit = task()
+            if (exit != null && startedVisit == visit) pendingExit.post(exit)
         }
     }
 }
