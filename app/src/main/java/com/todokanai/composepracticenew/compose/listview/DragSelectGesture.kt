@@ -34,7 +34,7 @@ private class DragSelectProgress<T> {
     var currentFingerY = 0f
     /** 0f=정지, 음수=위, 양수=아래 — 경계 근접도에 비례 */
     var scrollSpeed = 0f
-    /** 마지막으로 범위를 보고한 손가락 아래 항목의 키 — 같은 목록에서 같은 항목의 중복 보고를 막는다 */
+    /** 마지막으로 범위를 보고한 손가락 아래 항목의 키 — 같은 목록에서 같은 항목의 중복 보고를 막는다. 드래그가 끝나 범위 끝 행을 올린 뒤에는 null */
     var lastReportedKey: Any? = null
     /** 마지막으로 범위를 보고한 목록 — 목록이 바뀌면 손가락이 같은 항목에 있어도 범위가 달라지므로 다시 보고한다 */
     var lastReportedList: List<T>? = null
@@ -80,7 +80,7 @@ internal fun <T> dragRangeIn(list: List<T>, keyOf: (T) -> Any, anchorKey: Any, f
  * 드래그를 시작할지와 범위를 선택할지 해제할지는 화면의 선택 모드 규칙([startSelection])이 정한다([DragSelection]).
  *
  * @param T 목록 항목 타입
- * @param listState 대상 LazyColumn의 스크롤 상태
+ * @param listState 대상 LazyColumn의 스크롤 상태. 바뀌면 입력 처리를 새로 시작한다(진행 중인 드래그는 끝난다)
  * @param items 현재 표시 중인 항목 목록
  * @param keyOf 항목의 목록 키 — LazyColumn의 항목 키와 같아야 손가락 아래 행을 찾는다
  * @param startSelection 길게 누른 항목을 받아 이번 드래그의 범위 선택 규칙을 돌려준다. 기본 모드면 이 안에서 다중 선택으로 전환한다.
@@ -100,7 +100,7 @@ fun <T> Modifier.dragSelectGesture(
     // 키 없이 1회 생성 — 포인터 콜백과 LaunchedEffect가 같은 인스턴스를 공유해야 하며, State가 아니므로 갱신이 리컴포지션을 일으키지 않는다
     val progress = remember { DragSelectProgress<T>() }
 
-    // pointerInput(Unit) 클로저 내 stale 캡처 방지 — Composable 파라미터는 재호출 시 새 값이 오므로 State로 감쌈
+    // pointerInput 클로저 내 stale 캡처 방지 — Composable 파라미터는 재호출 시 새 값이 오므로 State로 감쌈
     val latestItems              by rememberUpdatedState(items)
     val latestKeyOf              by rememberUpdatedState(keyOf)
     val latestStartSelection     by rememberUpdatedState(startSelection)
@@ -135,8 +135,9 @@ fun <T> Modifier.dragSelectGesture(
     }
 
     // isDragSelecting이 true인 동안 실행 — 스크롤 후 currentFingerY 기준으로 범위 재계산.
-    // false가 되면(손을 뗌) 범위 끝 행이 겹친 하단 버튼에 가려 있을 때 버튼 위로 올린다
-    LaunchedEffect(isDragSelecting) {
+    // false가 되면(손을 뗌) 범위 끝 행이 겹친 하단 버튼에 가려 있을 때 버튼 위로 올린다.
+    // listState도 키 — 화면이 경로·폴더마다 새 스크롤 상태를 넘기므로, 이전 목록의 상태를 스크롤하지 않게 새 상태로 다시 시작한다(#548)
+    LaunchedEffect(listState, isDragSelecting) {
         if (!isDragSelecting) {
             revealRangeEnd(listState, progress)
             return@LaunchedEffect
@@ -150,7 +151,9 @@ fun <T> Modifier.dragSelectGesture(
         }
     }
 
-    return pointerInput(Unit) {
+    // listState를 키로 — 화면이 경로·폴더마다 새 스크롤 상태를 넘기므로, 바뀌면 입력 처리를 새로 시작해 손가락 아래 행을 새 목록의 배치에서 찾는다(#548).
+    // 끌던 드래그는 끝나고(onDragEnd) 그때까지의 선택은 남는다. 다른 파라미터는 다시 시작하지 않고 위의 latest* 값으로 읽는다
+    return pointerInput(listState) {
         val edgePx     = 80.dp.toPx()
         val maxSpeedPx = 15.dp.toPx()
 
@@ -244,6 +247,8 @@ internal fun edgeScrollSpeed(y: Float, viewportHeight: Float, edgePx: Float, max
 private suspend fun revealRangeEnd(listState: LazyListState, progress: DragSelectProgress<*>) {
     if (progress.rangeStopped) return
     val endKey = progress.lastReportedKey ?: return
+    // 끝난 드래그마다 한 번만 — 목록 상태가 바뀌어 다시 불려도 이전 목록의 끝 행 키로 새 목록을 스크롤하지 않는다(#548)
+    progress.lastReportedKey = null
     val layout = listState.layoutInfo
     val endRow = layout.visibleItemsInfo.firstOrNull { it.key == endKey } ?: return
     val hidden = hiddenBelowVisibleEnd(endRow, layout.viewportEndOffset, layout.afterContentPadding)
