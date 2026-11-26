@@ -23,9 +23,6 @@ import com.todokanai.composepracticenew.model.SortMode
 import com.todokanai.composepracticenew.ui.model.ArchiveEntryRow
 import com.todokanai.composepracticenew.ui.model.ArchiveEntryRowKind
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.ui.model.LocalSameStorageOperation
-import com.todokanai.composepracticenew.ui.model.LocalTransferMode
-import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.usecase.ArchiveAddUseCase
@@ -299,13 +296,12 @@ class ArchiveViewViewModelTest {
     }
 
     @Test
-    fun `지금 폴더에 로컬 선택을 넣고 선택을 비우며 끝나면 목록과 로컬 목록을 다시 읽는다`() {
+    fun `고른 항목을 고른 폴더에 넣고 선택을 비우며 끝나면 목록과 로컬 목록을 다시 읽는다`() {
         val viewModel = viewModel()
-        viewModel.onRowClick(loadedRows(viewModel).first { it.kind == ArchiveEntryRowKind.FOLDER })
-        awaitRows(viewModel) { rows -> rows.singleOrNull()?.name == "in.txt" }
-        val selection = addingSelection("/local/x.txt", "/local/y.txt")
+        loadedRows(viewModel)
+        val selection = pickingSelection("/local/x.txt", "/local/y.txt")
 
-        viewModel.addHere(selection::submit)
+        viewModel.addPicked { selection.submit()?.let { PickedEntries(it, listOf("dir")) } }
 
         assertEquals(listOf(Triple(setOf("/local/x.txt", "/local/y.txt"), "/s/a.zip", listOf("dir"))), archiveAdds.calls)
         assertEquals(SelectionState.Default, selection.state.value)
@@ -315,15 +311,25 @@ class ArchiveViewViewModelTest {
     }
 
     @Test
-    fun `넣을 수 없는 압축 파일이면 로컬 선택을 꺼내지 않는다`() {
+    fun `넣을 수 없는 압축 파일이면 고른 항목을 꺼내지 않는다`() {
         val viewModel = viewModel(SavedStateHandle(mapOf(ArchiveViewViewModel.ARG_ARCHIVE_PATH to "/s/b.rar")))
         loadedRows(viewModel)
-        val selection = addingSelection("/local/x.txt")
+        val selection = pickingSelection("/local/x.txt")
 
-        viewModel.addHere(selection::submit)
+        viewModel.addPicked { selection.submit()?.let { PickedEntries(it, emptyList()) } }
 
         assertEquals(emptyList<Any>(), archiveAdds.calls)
-        assertEquals(SelectMode.AddToArchive, (selection.state.value as SelectionState.Operation).operation)
+        assertTrue(selection.state.value is SelectionState.MultiSelect)
+    }
+
+    @Test
+    fun `지금 폴더는 루트부터 들어간 폴더 이름들이다`() {
+        val viewModel = viewModel()
+        assertEquals(emptyList<String>(), viewModel.currentFolder())
+        viewModel.onRowClick(loadedRows(viewModel).first { it.kind == ArchiveEntryRowKind.FOLDER })
+        awaitRows(viewModel) { rows -> rows.singleOrNull()?.name == "in.txt" }
+
+        assertEquals(listOf("dir"), viewModel.currentFolder())
     }
 
     @Test
@@ -344,10 +350,9 @@ class ArchiveViewViewModelTest {
         return ArchiveAddUseCase(orchestrator, archiveAdds)
     }
 
-    /** 로컬 다중 선택에서 [paths]를 압축 파일에 추가할 곳을 찾는 중인 선택 상태를 만든다. */
-    private fun addingSelection(vararg paths: String) = SelectionStateHolder<LocalSameStorageOperation, LocalTransferMode>().apply {
+    /** 고르는 화면에서 [paths]를 고른 다중 선택 상태를 만든다. */
+    private fun pickingSelection(vararg paths: String) = SelectionStateHolder<Nothing, Nothing>().apply {
         paths.forEachIndexed { index, path -> if (index == 0) startMultiSelect(localItem(path)) else add(localItem(path)) }
-        enterOperation(SelectMode.AddToArchive)
     }
 
     /** [path]의 로컬 파일 항목을 만든다. */

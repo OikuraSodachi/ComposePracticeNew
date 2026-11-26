@@ -4,11 +4,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.todokanai.composepracticenew.di.RemoteNavigator
 import com.todokanai.composepracticenew.model.ArchiveEntrySelection
-import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.model.RemoteConnectionState
 import com.todokanai.composepracticenew.ui.model.ConflictResolution
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.ui.model.LocalSameStorageOperation
 import com.todokanai.composepracticenew.ui.model.LocalTransferMode
 import com.todokanai.composepracticenew.ui.model.PendingConflict
 import com.todokanai.composepracticenew.ui.model.SelectMode
@@ -51,12 +49,12 @@ class FileTransferCoordinatorViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** 로컬 화면의 선택 상태 — 다운로드 대기 목록과 압축 파일에서 고른 항목도 이 상태(목적지 확인)에만 있다. */
-    private val local = SelectionStateHolder<LocalSameStorageOperation, LocalTransferMode>()
+    private val local = SelectionStateHolder<SelectMode.LocalOperation, LocalTransferMode>()
     /** 원격 화면의 선택 상태 — 업로드 대기 목록도 이 상태(업로드 목적지 확인)에만 있다. 원격 작업은 아직 없다. */
     private val remote = SelectionStateHolder<Nothing, SelectMode.Upload>()
 
     /** 로컬 파일 목록 화면의 선택 상태(모드와 선택·다운로드 대기 목록·압축 파일에서 고른 항목). */
-    val localSelection: StateFlow<SelectionState<LocalSameStorageOperation, LocalTransferMode>> = local.state
+    val localSelection: StateFlow<SelectionState<SelectMode.LocalOperation, LocalTransferMode>> = local.state
 
     /** 원격 파일 목록 화면의 선택 상태(모드와 선택·업로드 대기 목록). */
     val remoteSelection: StateFlow<SelectionState<Nothing, SelectMode.Upload>> = remote.state
@@ -103,8 +101,8 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     /** first 하나를 선택한 채로 로컬 화면을 다중 선택 모드로 전환한다. */
     fun startLocalMultiSelect(first: FileHolderItem) = local.startMultiSelect(first)
 
-    /** 선택 목록을 유지한 채 로컬 작업(복사·이동·압축 해제·압축 파일에 추가)의 목적지 확인 단계로 전환한다. */
-    fun enterLocalOperation(operation: LocalSameStorageOperation) = local.enterOperation(operation)
+    /** 선택 목록을 유지한 채 로컬 작업(복사·이동·압축 해제)의 목적지 확인 단계로 전환한다. */
+    fun enterLocalOperation(operation: SelectMode.LocalOperation) = local.enterOperation(operation)
 
     /** first 하나를 선택한 채로 원격 화면을 다중 선택 모드로 전환한다. */
     fun startRemoteMultiSelect(first: FileHolderItem) = remote.startMultiSelect(first)
@@ -134,17 +132,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
      * @return 꺼낸 항목. 로컬 화면의 선택이 한 항목이 아니면 null
      */
     fun submitLocalItem(): SubmittedItem? = local.submitSingle()
-
-    /**
-     * 압축 파일에 추가할 곳을 찾는 중일 때만 로컬 화면의 선택을 꺼내고 로컬 화면을 기본 모드로 되돌린다. 내용 보기의 '여기에 추가'는 확인할 때 이것으로 대상을 받는다 —
-     * 그사이 다른 작업·전송으로 바뀐 선택을 압축 파일에 넣지 않도록.
-     * @return 꺼낸 선택. 추가할 곳을 찾는 중이 아니면 상태를 바꾸지 않고 null
-     */
-    fun submitArchiveAddSelection(): SubmittedSelection? {
-        val current = local.state.value
-        if (current !is SelectionState.Operation || current.operation != SelectMode.AddToArchive) return null
-        return local.submit()
-    }
 
     /**
      * 원격 화면의 선택을 작업 대상으로 꺼내고 원격 화면을 기본 모드로 되돌린다. 원격 삭제는 확인할 때 이것으로 대상을 받는다.
@@ -246,32 +233,6 @@ class FileTransferCoordinatorViewModel @Inject constructor(
     private fun dependsOnRemoteSession(transfer: LocalTransferMode): Boolean = when (transfer) {
         is SelectMode.Download -> true
         is SelectMode.ArchiveCopy -> false
-    }
-
-    /**
-     * 다중 선택을 새 목록 조회 상태에 맞춘다. 조회 결과가 오면 선택을 그 목록에 맞추고, 조회에 실패했거나 목록이 없으면 고를 항목이 없으므로 다중 선택을 끝낸다.
-     * 다시 조회하는 중에는 결과를 기다리며 선택을 그대로 둔다. 작업 목적지 확인·전송 대기는 다른 폴더로 옮겨 다니는 상태이므로 맞추지 않는다.
-     * @param listing 이 화면의 새 목록 조회 상태
-     * @param isLocalFile 로컬 파일 목록이면 true — 선택 항목을 목록 화면과 같은 앱 레이어 항목으로 만든다
-     */
-    private fun SelectionStateHolder<*, *>.followListing(listing: DirectoryListing, isLocalFile: Boolean) {
-        when (listing) {
-            is DirectoryListing.Loaded -> retainListed(selectedIn(listing, isLocalFile))
-            is DirectoryListing.Loading -> Unit
-            DirectoryListing.NoPath, is DirectoryListing.Failed -> endMultiSelect()
-        }
-    }
-
-    /**
-     * [listing]에서 이 화면의 다중 선택과 경로가 같은 항목만 앱 레이어 항목으로 바꾼다 — 목록 전체는 화면이 따로 바꾸므로, 맞추는 데 필요한 항목만 바꾼다.
-     * @param listing 새 조회 결과
-     * @param isLocalFile 로컬 파일 목록이면 true
-     * @return 선택한 경로의 새 항목. 다중 선택이 아니면 빈 목록
-     */
-    private fun SelectionStateHolder<*, *>.selectedIn(listing: DirectoryListing.Loaded, isLocalFile: Boolean): List<FileHolderItem> {
-        val current = state.value as? SelectionState.MultiSelect ?: return emptyList()
-        val selectedPaths = current.selected.mapTo(HashSet()) { it.path }
-        return FileHolderItem.fromList(listing.items.filter { it.path in selectedPaths }, isLocalFile)
     }
 
     /** 대기 중인 업로드 충돌을 사용자 선택대로 처리한다. */

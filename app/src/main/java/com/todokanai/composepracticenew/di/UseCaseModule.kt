@@ -97,6 +97,10 @@ object UseCaseModule {
     fun provideFileNavigatorUseCase(nav: FileNavigatorRepository, paths: StoragePathRules) =
         FileNavigatorUseCase(nav, paths)
 
+    @Provides @ArchivePickerNavigator
+    fun provideArchivePickerNavigatorUseCase(@ArchivePickerNavigator nav: FileNavigatorRepository, paths: StoragePathRules) =
+        FileNavigatorUseCase(nav, paths)
+
     @Provides @RemoteNavigator
     fun provideRemoteFileNavigatorUseCase(@RemoteNavigator nav: FileNavigatorRepository, @RemoteNavigator paths: StoragePathRules) =
         FileNavigatorUseCase(nav, paths)

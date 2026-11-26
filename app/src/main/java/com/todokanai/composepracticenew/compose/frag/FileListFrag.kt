@@ -24,7 +24,6 @@ import com.todokanai.composepracticenew.compose.listview.CompressActions
 import com.todokanai.composepracticenew.compose.listview.rememberListingScrollState
 import com.todokanai.composepracticenew.compose.listview.selectAllTargetsOf
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
-import com.todokanai.composepracticenew.ui.model.LocalSameStorageOperation
 import com.todokanai.composepracticenew.ui.model.LocalSelectMode
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.allowsPathBarNavigation
@@ -59,7 +58,7 @@ fun FileListFrag(
     info: SelectionInfoActions,
     transfer: LocalTransferActions,
     onStartMultiSelect: (FileHolderItem) -> Unit,
-    onSelectOperation: (LocalSameStorageOperation) -> Unit,
+    onSelectOperation: (SelectMode.LocalOperation) -> Unit,
     onResetSelection: () -> Unit,
     onSubmitSelection: () -> SubmittedSelection?,
     onSubmitItem: () -> SubmittedItem?,

@@ -38,13 +38,4 @@ class LocalItemOpener @Inject constructor(
         if (archiveViewUseCase.canView(domain)) pendingArchiveView.post(item.path)
         else openFileUseCase.open(domain)
     }
-
-    /**
-     * [item]이 내용을 볼 수 있는 압축 파일이면 내용 보기 화면으로 가라고 요청한다. 그 밖의 항목은 아무것도 하지 않는다 —
-     * 압축 파일에 추가할 곳을 찾는 중에 다른 파일을 외부 앱으로 열지 않도록.
-     * @param item 누른 항목
-     */
-    fun openArchive(item: FileHolderItem) {
-        if (archiveViewUseCase.canView(item.toDomain())) pendingArchiveView.post(item.path)
-    }
 }

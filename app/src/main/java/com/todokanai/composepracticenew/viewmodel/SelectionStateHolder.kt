@@ -1,5 +1,6 @@
 package com.todokanai.composepracticenew.viewmodel
 
+import com.todokanai.composepracticenew.model.DirectoryListing
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.SameStorageOperation
 import com.todokanai.composepracticenew.ui.model.SelectionState
@@ -47,6 +48,32 @@ class SelectionStateHolder<Op : SameStorageOperation, T : TransferMode> {
     /** 다중 선택 중이면 기본 모드로 되돌린다. 작업 목적지 확인·전송 대기는 그대로 둔다. */
     fun endMultiSelect() {
         _state.update { current -> if (current is SelectionState.MultiSelect) SelectionState.Default else current }
+    }
+
+    /**
+     * 다중 선택을 화면의 새 목록 조회 상태에 맞춘다(#524). 조회 결과가 오면 선택을 그 목록에 맞추고([retainListed]), 조회에 실패했거나 목록이 없으면 고를 항목이 없으므로 다중 선택을 끝낸다.
+     * 다시 조회하는 중에는 결과를 기다리며 선택을 그대로 둔다. 작업 목적지 확인·전송 대기는 다른 폴더로 옮겨 다니는 상태이므로 맞추지 않는다.
+     * @param listing 이 화면의 새 목록 조회 상태
+     * @param isLocalFile 로컬 파일 목록이면 true — 선택 항목을 목록 화면과 같은 앱 레이어 항목으로 만든다
+     */
+    fun followListing(listing: DirectoryListing, isLocalFile: Boolean) {
+        when (listing) {
+            is DirectoryListing.Loaded -> retainListed(selectedIn(listing, isLocalFile))
+            is DirectoryListing.Loading -> Unit
+            DirectoryListing.NoPath, is DirectoryListing.Failed -> endMultiSelect()
+        }
+    }
+
+    /**
+     * [listing]에서 다중 선택과 경로가 같은 항목만 앱 레이어 항목으로 바꾼다 — 목록 전체는 화면이 따로 바꾸므로, 맞추는 데 필요한 항목만 바꾼다.
+     * @param listing 새 조회 결과
+     * @param isLocalFile 로컬 파일 목록이면 true
+     * @return 선택한 경로의 새 항목. 다중 선택이 아니면 빈 목록
+     */
+    private fun selectedIn(listing: DirectoryListing.Loaded, isLocalFile: Boolean): List<FileHolderItem> {
+        val current = state.value as? SelectionState.MultiSelect ?: return emptyList()
+        val selectedPaths = current.selected.mapTo(HashSet()) { it.path }
+        return FileHolderItem.fromList(listing.items.filter { it.path in selectedPaths }, isLocalFile)
     }
 
     /** 다중 선택 중이면 선택을 유지한 채 operation의 목적지 확인 단계로 전환한다. */

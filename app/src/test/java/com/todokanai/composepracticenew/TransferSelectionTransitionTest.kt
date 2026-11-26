@@ -6,7 +6,6 @@ import com.todokanai.composepracticenew.operation.FileOperationOrchestrator
 import com.todokanai.composepracticenew.ui.model.FileHolderItem
 import com.todokanai.composepracticenew.ui.model.SelectMode
 import com.todokanai.composepracticenew.ui.model.SelectionState
-import com.todokanai.composepracticenew.ui.model.localMode
 import com.todokanai.composepracticenew.usecase.ArchiveCopyUseCase
 import com.todokanai.composepracticenew.usecase.ConflictCheckUseCase
 import com.todokanai.composepracticenew.usecase.FileNameUseCase
@@ -260,23 +259,6 @@ class TransferSelectionTransitionTest {
         assertEquals(listOf(localA), submitted?.items)
         assertEquals(SelectionState.Default, viewModel.localSelection.value)
         assertEquals(SelectionState.MultiSelect(listOf(remoteX)), viewModel.remoteSelection.value)
-    }
-
-    @Test
-    fun `압축 파일에 추가할 곳을 찾는 중일 때만 추가 대상으로 선택을 꺼낸다`() {
-        viewModel.startLocalMultiSelect(localA)
-        assertEquals(null, viewModel.submitArchiveAddSelection())
-        viewModel.enterLocalOperation(SelectMode.LocalOperation.Copy)
-        assertEquals(null, viewModel.submitArchiveAddSelection())
-        assertEquals(SelectMode.LocalOperation.Copy, viewModel.localSelection.value.localMode())
-
-        viewModel.resetLocalSelection()
-        viewModel.startLocalMultiSelect(localA)
-        viewModel.enterLocalOperation(SelectMode.AddToArchive)
-        val submitted = viewModel.submitArchiveAddSelection()
-
-        assertEquals(listOf(localA), submitted?.items)
-        assertEquals(SelectionState.Default, viewModel.localSelection.value)
     }
 
     @Test
