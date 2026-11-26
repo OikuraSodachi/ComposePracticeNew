@@ -12,6 +12,7 @@ import com.todokanai.composepracticenew.ui.model.SelectionState
 import com.todokanai.composepracticenew.usecase.FileNavigatorUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.emitAll
@@ -28,13 +29,13 @@ import javax.inject.Inject
  * 압축 파일 내용 보기 안에서 압축 파일에 넣을 로컬 항목(파일·폴더, 여러 개)을 고르는 화면의 열림·폴더 탐색·선택을 담당하는 ViewModel.
  * 내용 보기 destination의 백스택 항목에 스코프된다 — 고르는 화면은 destination이 아니라 내용 보기 안의 상태라, 내용 보기를 닫으면 함께 사라진다.
  * 탐색은 로컬 목록과 따로 두는 전용 탐색([ArchivePickerNavigator])으로 해, 고르는 동안 아래에 있는 로컬 목록의 경로·목록·선택이 바뀌지 않는다.
- * 열림 여부(넣을 압축 안 폴더)와 지금 폴더는 [SavedStateHandle]에 남겨 프로세스가 다시 시작돼도 이어진다. 선택은 남기지 않는다(로컬 목록의 선택과 같다).
- * @param savedStateHandle 내비게이션 인자(압축 파일 경로)와 열림 상태·지금 폴더를 담는 저장 상태
+ * 열림 여부·지금 폴더·선택은 ViewModel에만 둔다 — 화면 회전에는 이어지고, 프로세스가 종료되면 닫힌 채 내용 보기로 돌아온다(화면 안 다이얼로그 `ScreenDialogState`와 같은 규칙).
+ * @param savedStateHandle 내비게이션 인자(압축 파일 경로)를 담는 저장 상태
  * @param navigator 고르는 화면 전용 로컬 탐색 UseCase
  */
 @HiltViewModel
 class ArchiveAddPickerViewModel @Inject constructor(
-    private val savedStateHandle: SavedStateHandle,
+    savedStateHandle: SavedStateHandle,
     @ArchivePickerNavigator private val navigator: FileNavigatorUseCase,
 ) : ViewModel() {
 
@@ -45,12 +46,12 @@ class ArchiveAddPickerViewModel @Inject constructor(
     val archiveName: String = navigator.displayNameOf(archivePath)
 
     /** 고른 항목을 넣을 압축 파일 안의 폴더(루트부터의 이름들). 고르는 화면이 열려 있을 때만 있고, 닫혀 있으면 null. */
-    private val targetFolder: StateFlow<ArrayList<String>?> = savedStateHandle.getStateFlow(KEY_TARGET_FOLDER, null)
+    private val targetFolder = MutableStateFlow<List<String>?>(null)
 
     /** 고르는 화면이 열려 있는지. */
     val isOpen: StateFlow<Boolean> = targetFolder
         .map { it != null }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, targetFolder.value != null)
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** 선택 상태. 고르는 화면에는 작업·전송 상태가 없다. */
     private val selection = SelectionStateHolder<Nothing, Nothing>()
@@ -74,10 +75,6 @@ class ArchiveAddPickerViewModel @Inject constructor(
         navigator.listing
             .onEach { selection.followListing(it, isLocalFile = true) }
             .launchIn(viewModelScope)
-        navigator.currentPath
-            .onEach { path -> if (path != null && targetFolder.value != null) savedStateHandle[KEY_PATH] = path }
-            .launchIn(viewModelScope)
-        restoreOpenPicker()
     }
 
     /**
@@ -91,16 +88,14 @@ class ArchiveAddPickerViewModel @Inject constructor(
         viewModelScope.launch {
             if (navigator.setPath(start) != NavigateResult.Navigated || targetFolder.value != null) return@launch
             selection.reset()
-            savedStateHandle[KEY_PATH] = start
-            savedStateHandle[KEY_TARGET_FOLDER] = ArrayList(target)
+            targetFolder.value = target.toList()
         }
     }
 
     /** 고르는 화면을 닫는다. 선택은 버린다. */
     fun close() {
         selection.reset()
-        savedStateHandle[KEY_TARGET_FOLDER] = null
-        savedStateHandle[KEY_PATH] = null
+        targetFolder.value = null
     }
 
     /**
@@ -111,7 +106,7 @@ class ArchiveAddPickerViewModel @Inject constructor(
         val target = targetFolder.value ?: return null
         val submitted = selection.submit() ?: return null
         close()
-        return PickedEntries(submitted, target.toList())
+        return PickedEntries(submitted, target)
     }
 
     /**
@@ -161,26 +156,6 @@ class ArchiveAddPickerViewModel @Inject constructor(
             return
         }
         viewModelScope.launch { navigator.navigateBack(toRoot = ::close) }
-    }
-
-    /**
-     * 프로세스가 다시 시작돼 고르는 화면이 열린 채 복원되면, 저장한 폴더로 다시 이동한다 — 전용 탐색은 새 프로세스에서 경로가 없다.
-     * 그 폴더를 읽을 수 없으면(그사이 지워짐 등) 고르는 화면을 닫는다(거부는 탐색 저장소가 알린다).
-     */
-    private fun restoreOpenPicker() {
-        if (targetFolder.value == null) return
-        val path = savedStateHandle.get<String>(KEY_PATH) ?: return close()
-        viewModelScope.launch {
-            if (navigator.setPath(path) != NavigateResult.Navigated) close()
-        }
-    }
-
-    companion object {
-        /** 넣을 압축 안 폴더(열림 여부를 겸한다)의 저장 키. */
-        private const val KEY_TARGET_FOLDER = "pickerTargetFolder"
-
-        /** 고르는 화면의 지금 폴더의 저장 키. */
-        private const val KEY_PATH = "pickerPath"
     }
 }
 

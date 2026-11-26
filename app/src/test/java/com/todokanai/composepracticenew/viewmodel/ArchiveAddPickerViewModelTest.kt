@@ -138,29 +138,17 @@ class ArchiveAddPickerViewModelTest {
     }
 
     @Test
-    fun `프로세스가 다시 시작돼 열린 채 복원되면 저장한 폴더로 다시 이동한다`() {
+    fun `프로세스가 다시 시작되면 고르는 화면은 닫힌 채로 시작한다`() {
         val first = viewModel()
         first.open(listOf("docs"))
         first.openFolder(folder("/s/dir/sub"))
         val saved = SavedStateHandle(first.savedKeys())
-
-        val restored = viewModel(saved)
-
-        assertTrue(restored.isOpen.value)
-        assertEquals("/s/dir/sub", nav.navigations.last())
-    }
-
-    @Test
-    fun `복원할 폴더를 읽을 수 없으면 고르는 화면을 닫는다`() {
-        val first = viewModel()
-        first.open(emptyList())
-        first.openFolder(folder("/s/dir/sub"))
-        val saved = SavedStateHandle(first.savedKeys())
-        nav.rejected += "/s/dir/sub"
+        val navigationsBefore = nav.navigations.size
 
         val restored = viewModel(saved)
 
         assertFalse(restored.isOpen.value)
+        assertEquals(navigationsBefore, nav.navigations.size)
     }
 
     @Test
