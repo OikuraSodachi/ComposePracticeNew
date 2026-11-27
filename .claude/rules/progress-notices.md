@@ -1,5 +1,5 @@
 ---
-paths: "**/*Progress*.kt, **/*Notice*.kt, **/*Notification*.kt, **/*Orchestrator*.kt, **/*Operation*.kt, **/*UseCase*.kt, **/*Repository*.kt, **/FailureText.kt, **/MainActivity.kt, **/MyApplication.kt, **/LeftoverDiscarder*.kt, **/ftp/**"
+paths: "**/*Progress*.kt, **/*Phase*.kt, **/*Notice*.kt, **/*Notification*.kt, **/*Orchestrator*.kt, **/*Operation*.kt, **/*UseCase*.kt, **/*Repository*.kt, **/FailureText.kt, **/MainActivity.kt, **/MyApplication.kt, **/LeftoverDiscarder*.kt, **/ftp/**"
 ---
 
 # 작업 진행·알림

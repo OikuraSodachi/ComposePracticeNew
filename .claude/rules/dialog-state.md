@@ -1,5 +1,5 @@
 ---
-paths: "**/*Dialog*.kt, **/*ViewModel*.kt"
+paths: "**/*Dialog*.kt, **/*ViewModel*.kt, **/*Frag.kt, **/*ListView.kt"
 ---
 
 # 다이얼로그 열림 상태
