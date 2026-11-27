@@ -1,6 +1,8 @@
 package com.todokanai.composepracticenew.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
@@ -87,7 +89,13 @@ fun AppNavHost(
     val openDialogRegistry = remember { OpenDialogRegistry() }
 
     CompositionLocalProvider(LocalOpenDialogRegistry provides openDialogRegistry) {
-        NavHost(navController = navController, startDestination = NavDestinations.STORAGE) {
+        // 화면 전환 애니메이션 없이 바로 바꾼다(기본 crossfade 700ms 대신). 뒤로가기(pop) 전환은 이 값을 물려받아 뒤로가기 제스처 미리보기도 없다
+        NavHost(
+            navController = navController,
+            startDestination = NavDestinations.STORAGE,
+            enterTransition = { EnterTransition.None },
+            exitTransition = { ExitTransition.None }
+        ) {
             composable(NavDestinations.STORAGE) { entry ->
                 StorageFrag(
                     modifier = Modifier,
@@ -155,7 +163,7 @@ private fun canNavigateToRemoteFrom(route: String?): Boolean =
  * [owner]의 화면이 입력을 받는 중인지(RESUMED) 판정한다.
  * 사용자 입력으로 화면을 떠나는 이동(navigate·popBackStack)은 실행하기 직전에 이것으로 확인하고, 아니면 버린다(#535) —
  * `navigate()`·`popBackStack()`을 부르면 떠나는 화면의 back stack entry는 그 안에서 곧바로 RESUMED를 벗어나므로, 연타한 두 번째 이동이 버려진다.
- * 화면 전환 애니메이션 동안에도 entry가 RESUMED가 아니므로 그 사이의 입력도 버려진다(다시 누르면 된다).
+ * 화면 전환 애니메이션은 쓰지 않으므로(NavHost 전환 None) 전환이 끝나기를 기다리며 입력이 버려지는 구간은 다음 화면이 RESUMED가 되기까지의 짧은 사이뿐이다.
  * 전환이 중간에 끊겨도 entry는 STARTED에 남지 않는다 — navigation 2.8.9 NavHost는 전환이 멈추거나 화면이 사라질 때 보이는 entry를 모두 전환 완료로 표시한다(바이트코드로 확인).
  * 사용자 입력이 아닌 상태 변화로 떠나는 이동(세션 없음, 비밀번호 질문 취소로 끝난 내용 보기)은 확인하지 않는다 — 버리면 화면이 그 상태와 맞지 않게 남는다.
  * @param owner 이동을 실행하는 destination의 back stack entry
