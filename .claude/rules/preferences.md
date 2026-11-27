@@ -1,5 +1,5 @@
 ---
-paths: "**/datastore/**, **/*Preference*.kt, **/CorruptionReset*.kt"
+paths: "**/datastore/**, **/*Preference*.kt, **/CorruptionReset*.kt, **/AppNotice*.kt"
 ---
 
 # 설정 저장소 실패
