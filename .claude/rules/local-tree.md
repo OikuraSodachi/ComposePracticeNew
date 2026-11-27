@@ -11,3 +11,9 @@ CLAUDE.md의 File Operations 절에서 나눈 규칙이다.
 - 압축 파일 안의 링크 항목도 지원 범위 밖이다 — 만들지 않고 실패로 알린다(`.claude/rules/archive.md`, #424).
 - 원격(FTP)의 심볼릭 링크도 지원 범위 밖이다(#255). 링크를 알아보는 처리는 두지 않는다 — MLSD가 링크로 알리는 줄(`type=OS.unix=symlink`·`slink:<대상>`)은 해석하지 못한 줄로 다뤄 명시적으로 실패하고(`.claude/rules/ftp.md`의 목록 해석), LIST 해석기가 링크로 읽은 항목은 파일로 다룬다(내려받으면 서버가 따라간 대상을 받고, 지우면 링크만 지운다).
 - 쓰다 만 파일: 취소로 멈춘 쓰기는 쓰던 파일을 지운다(복사·파티션이 다른 이동은 `LeftoverDiscarder.deletingOnCancel`, 압축 해제는 `ArchiveEntryWriter.discardFile`, 다운로드는 `DataCommandRunner.run`의 `onCancel`). 남은 로컬 파일의 정리는 `LeftoverDiscarder`로만 하며(`Files.deleteIfExists`, 이미 없으면 지운 것), 지우지 못하면 알린다(#431) — 결과를 돌려주는 경로(압축의 입출력 실패, 같은 파티션 이동의 rename 실패 뒤 확보한 빈 파일, 받기 시작하지 못한 다운로드)는 실패의 종류를 지키며 원인에 담고(`FailureReason.LeftoverNotRemoved`), 결과로 돌려줄 수 없는 경로(취소·구현 오류)는 작업 메시지 알림함에 넣는다(`NoticeMessage.Leftover`). 입출력 실패로 멈춘 쓰기(복사, 파티션이 다른 이동, 압축 해제, 받기 시작한 뒤의 다운로드)가 남긴 파일은 지우지 않는다 — 실패는 결과로 알리며, 남은 파일의 정리는 앱이 보장하지 않는다(지원 범위 밖, #319). 받기 시작하기 전에 실패한 다운로드의 빈 파일은 지운다(위 충돌 판정 항목). 압축은 예외로, 끝까지 쓰지 못하면(취소·입출력 실패) 이 작업이 만든 아카이브를 지운다(`deletingUnlessCompleted`, #427) — zip4j는 닫을 때 목차를 써서, 멈춘 곳까지만 담은 아카이브가 다른 앱에서 정상으로 열리기 때문이다.
+
+## 로컬 입출력 실패와 파일 교체
+
+- 로컬: java.io의 IOException을 결과로 바꾸는 곳은 `localIo` 하나다. 작업이 정한 실패(디스크 공간 부족 등)는 결과로 돌려준다. 결과를 돌려줄 수 없는 곳(라이브러리 콜백 안, IOException으로 실패를 알리는 단계)에서 앱이 정한 실패는 문장을 담은 IOException이 아니라 원인을 담은 `LocalFailureException`으로 던지며, `localIo`(문맥을 붙이는 `describe`를 줘도)와 `ioFailureReasonOf`가 그 원인을 쓴다 — 앱이 쓴 문장이 `IoFailed`로 화면에 새지 않도록. `IoFailed`의 문구는 시스템·라이브러리가 정한 메시지뿐이다.
+- 로컬: rename으로 기존 파일을 교체하는 곳은 `replaceFileAtomically`(`ATOMIC_MOVE` rename) 하나다(#432) — `REPLACE_EXISTING`은 Unix에서 대상을 먼저 지운 뒤 rename해, 실패하면 대상만 사라진다.
+- 로컬: 원본을 지우는 교차 파티션 이동은 복사본과 그 이름(부모 폴더)을 장치에 기록(`forceToDisk`, fsync)한 뒤에만 원본을 지운다(#430) — 닫은 출력은 OS 캐시에만 있을 수 있어, 지운 직후 전원이 끊기거나 매체가 빠지면 둘 다 잃는다. 기록하지 못하면 원본을 남기고 실패한다. 원본이 남는 쓰기(복사·압축·압축 해제·다운로드)는 기록을 기다리지 않는다.
