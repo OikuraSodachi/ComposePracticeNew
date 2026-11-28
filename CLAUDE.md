@@ -50,7 +50,7 @@ Cross-ViewModel reactive state lives as `MutableStateFlow` properties inside `@S
 - 압축 파일 내용 보기(`ARCHIVE_VIEW`)에서는 원격 진행 알림을 눌러도 원격 화면으로 가지 않는다(진행 다이얼로그만 뜬다) — 내용 보기 위에 원격 화면을 쌓지 않는다.
 - 내용 보기는 다이얼로그처럼 쌓인다: 그 안에서 여는 화면(압축 파일에 넣을 항목 고르기, `ArchiveAddPickerViewModel`)은 destination이 아니라 내용 보기 안의 상태라 백스택에 쌓이지 않고, 뒤로가기는 한 겹씩 닫는다(고르는 화면의 다중 선택 → 바깥 폴더 → 고르는 화면 → 내용 보기의 다중 선택 → 바깥 폴더 → 내용 보기). 고르는 화면은 로컬 목록과 따로 두는 전용 탐색(`@ArchivePickerNavigator`)을 써, 내용 보기를 닫으면 아래의 로컬 목록이 연 때 그대로다(`.claude/rules/archive.md`).
 - 다운로드 진입은 원격 화면을 꺼내고 로컬 목록으로 간다.
-- 연타 입력의 이 앱 적용(#535·#537·#542·#551), 화면 일회성 요청(`PendingRequest`, #534), 세션 없음으로 원격 화면 닫기(#492)은 `.claude/rules/navigation.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.
+- 연타 입력의 이 앱 적용(#535·#537·#542·#551), 화면 일회성 요청(`PendingRequest`, #534), 세션 없음으로 원격 화면 닫기(#492), 목록 화면 상태 저장·복원(`saveState`)은 `.claude/rules/navigation.md`에 있다 — 해당 코드를 다룰 때 자동으로 로드된다.
 
 ### UI Modes (`ui/model/SelectMode`)
 

@@ -80,8 +80,14 @@ fun AppNavHost(
         Lifecycle.State.CREATED,
         { progressDialogViewModel.onRemoteProgressNavigationHandled() }
     ) {
-        if (canNavigateToRemoteFrom(navController.currentDestination?.route)) {
-            navController.navigate(NavDestinations.REMOTE_FILE_LIST)
+        val route = navController.currentDestination?.route
+        if (canNavigateToRemoteFrom(route)) {
+            // 저장소 화면에서는 그래프로 새로 들어가고, 그래프 안(로컬 목록)에서는 저장된 원격 화면이 있으면 복원해 그 위에 쌓는다
+            if (route == NavDestinations.STORAGE) {
+                navController.enterFileBrowser(NavDestinations.REMOTE_FILE_LIST)
+            } else {
+                navController.navigate(NavDestinations.REMOTE_FILE_LIST) { restoreState = true }
+            }
         }
     }
 
@@ -101,12 +107,14 @@ fun AppNavHost(
                     modifier = Modifier,
                     // RESUMED를 다시 확인하지 않는다 — StorageFrag가 저장소 클릭을 RESUMED일 때만 받고, 이동 요청도 RESUMED가 된 뒤에 처리하며,
                     // 화면을 떠나면 남은 요청을 버린다(#534·#542)
-                    exitStorageFrag = { navController.navigate(NavDestinations.FILE_LIST) },
-                    exitToRemoteFileFrag = { navController.navigate(NavDestinations.REMOTE_FILE_LIST) },
+                    exitStorageFrag = { navController.enterFileBrowser(NavDestinations.FILE_LIST) },
+                    exitToRemoteFileFrag = { navController.enterFileBrowser(NavDestinations.REMOTE_FILE_LIST) },
                     isCurrentScreen = { navController.currentBackStackEntry == entry },
                     onExit = mainViewModel::exit
                 )
             }
+            // 그래프 안에서 목록 화면을 꺼낼 때는(탭 전환·다운로드 진입) 그 화면의 상태를 저장하고, 목록 화면으로 갈 때는 저장된 상태가 있으면 복원한다 —
+            // 탭을 오갈 때 화면·ViewModel을 새로 만들지 않도록. 루트 뒤로가기로 닫는 화면은 저장하지 않는다(떠나는 동작이므로).
             // 그래프 안의 백스택 모양은 들어온 경로마다 다르다(의도된 동작) — 탭 전환은 그래프에 화면 하나만 남기고,
             // 업로드 진입·원격 알림은 FILE_LIST 위에 원격 화면을 쌓으며, 다운로드 진입은 원격 화면을 꺼낸다. 원격 화면의 루트 뒤로가기 결과도 그에 따라 저장소/로컬 목록으로 갈린다
             navigation(
@@ -148,6 +156,38 @@ private fun rememberGraphCoordinator(navController: NavHostController): FileTran
     val graphEntry = remember { navController.getBackStackEntry(NavDestinations.FILE_BROWSER_GRAPH) }
     // FILE_BROWSER_GRAPH-scoped: 전송 대기·선택 상태는 그래프 범위로 충분하며, STORAGE 복귀 시 리셋이 의도된 동작
     return hiltViewModel(graphEntry)
+}
+
+/**
+ * 저장소 화면에서 파일 탐색 그래프의 [route] 목록 화면으로 들어간다.
+ * 들어가기 전에 두 목록 화면의 저장된 상태를 지운다 — 지난 그래프 방문에서 탭 전환으로 저장된 화면(이전 연결의 원격 화면 등)이 이번 방문에 복원되지 않도록.
+ * 그래프를 나가는 경로는 여럿(저장소 버튼, 루트 뒤로가기, 세션 없음)이지만 들어오는 곳은 저장소 화면뿐이라 여기서 지운다.
+ * @param route 들어갈 목록 화면의 route
+ */
+private fun NavHostController.enterFileBrowser(route: String) {
+    clearBackStack(NavDestinations.FILE_LIST)
+    clearBackStack(NavDestinations.REMOTE_FILE_LIST)
+    navigate(route)
+}
+
+/**
+ * 하단 탭으로 [route] 목록 화면으로 바꾼다. 지금 목록 화면을 꺼내 상태를 저장하고, [route] 화면의 저장된 상태가 있으면 복원한다(없으면 새로 만든다).
+ * 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다.
+ * @param route 바꿀 목록 화면의 route
+ */
+private fun NavHostController.switchListTab(route: String) = navigate(route) {
+    popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { saveState = true }
+    restoreState = true
+}
+
+/**
+ * 원격 화면을 저장하고 꺼내 로컬 목록으로 간다(하단 탭 전환, 다운로드 진입).
+ * 로컬 목록이 아래에 있으면(업로드 진입·원격 알림으로 쌓인 원격 화면) 그리로 돌아가고, 없으면(혼자 있던 원격 화면) 탭 전환으로 저장된 로컬 목록을 복원한다.
+ */
+private fun NavHostController.returnToLocalList() {
+    if (!popBackStack(NavDestinations.FILE_LIST, inclusive = false, saveState = true)) {
+        switchListTab(NavDestinations.FILE_LIST)
+    }
 }
 
 /**
@@ -216,10 +256,10 @@ private fun FileListDestination(
                 if (!isResumed(entry)) return@onEnterUploadMode
                 // 넘길 선택이 없거나 연결된 원격 세션이 없으면(거부를 알림) 업로드 확인 단계가 아니므로 원격 화면으로 가지 않는다
                 if (!coordinator.enterUploadMode()) return@onEnterUploadMode
-                // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다 —
+                // 원격 화면이 백스택에 있으면 그리로 돌아가 중복으로 쌓지 않고, 없으면 FILE_LIST 위에 쌓는다(저장된 원격 화면이 있으면 복원) —
                 // 원격 화면에서 뒤로가면 로컬 목록으로 돌아온다(그래프 항목이 남아 coordinator의 업로드 대기 상태도 유지)
                 if (!navController.popBackStack(NavDestinations.REMOTE_FILE_LIST, false)) {
-                    navController.navigate(NavDestinations.REMOTE_FILE_LIST)
+                    navController.navigate(NavDestinations.REMOTE_FILE_LIST) { restoreState = true }
                 }
             },
         )
@@ -260,10 +300,7 @@ private fun FileListDestination(
             if (!coordinator.hasRemoteSession()) return@onSwitchToRemote
             // 이미 떠나는 중이면 버린다(#535)
             if (!isResumed(entry)) return@onSwitchToRemote
-            navController.navigate(NavDestinations.REMOTE_FILE_LIST) {
-                // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
-                popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
-            }
+            navController.switchListTab(NavDestinations.REMOTE_FILE_LIST)
         },
         navigateToStorage = { if (isResumed(entry)) navController.popBackStack(NavDestinations.STORAGE, false) },
         onExit = mainViewModel::exit,
@@ -380,23 +417,14 @@ private fun RemoteFileListDestination(
         onSwitchToLocal = onSwitchToLocal@{
             // 이미 떠나는 중이면 버린다(#535)
             if (!isResumed(entry)) return@onSwitchToLocal
-            if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
-                navController.navigate(NavDestinations.FILE_LIST) {
-                    // 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다
-                    popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { inclusive = false }
-                }
-            }
+            navController.returnToLocalList()
         },
         onEnterDownloadMode = onEnterDownloadMode@{
             // 이미 떠나는 중이면 다운로드 모드에 다시 들어가지 않고 버린다(#535)
             if (!isResumed(entry)) return@onEnterDownloadMode
             // 넘길 선택이 없으면 다운로드 확인 단계가 아니므로 로컬 화면으로 가지 않는다
             if (!coordinator.enterDownloadMode()) return@onEnterDownloadMode
-            if (!navController.popBackStack(NavDestinations.FILE_LIST, false)) {
-                navController.navigate(NavDestinations.FILE_LIST) {
-                    popUpTo(NavDestinations.REMOTE_FILE_LIST) { inclusive = true }
-                }
-            }
+            navController.returnToLocalList()
         },
         onConfirmUpload = coordinator::confirmUpload,
         // 원격 화면만 닫는다(루트 뒤로가기와 같은 결과) — 저장소까지 거슬러 나가면 아래에 쌓인 로컬 목록과 그래프의 로컬 선택까지 사라진다(#492).
