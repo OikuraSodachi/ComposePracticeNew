@@ -182,10 +182,16 @@ private fun NavHostController.switchListTab(route: String) = navigate(route) {
 
 /**
  * 원격 화면을 저장하고 꺼내 로컬 목록으로 간다(하단 탭 전환, 다운로드 진입).
- * 로컬 목록이 아래에 있으면(업로드 진입·원격 알림으로 쌓인 원격 화면) 그리로 돌아가고, 없으면(혼자 있던 원격 화면) 탭 전환으로 저장된 로컬 목록을 복원한다.
+ * 로컬 목록이 바로 아래에 있으면(업로드 진입·원격 알림으로 쌓인 원격 화면) 원격 화면만 꺼내 그리로 돌아가고, 없으면(혼자 있던 원격 화면) 탭 전환으로 저장된 로컬 목록을 복원한다.
+ * 원격 화면은 inclusive로 꺼낸다 — inclusive가 아닌 저장(`popBackStack(FILE_LIST, false, true)`)은 FILE_LIST와 그 그래프의 복원 키까지 원격 화면 상태에 묶어,
+ * 이후 로컬 목록 저장이 무시되고 `clearBackStack(FILE_LIST)`가 원격 화면을 복원한 채 남긴다(navigation 2.8.9 `popBackStackInternal`).
+ * 혼자 있는 원격 화면은 inclusive로 꺼내면 그래프 항목까지 저장 없이 꺼지므로 아래 항목을 먼저 확인한다.
  */
 private fun NavHostController.returnToLocalList() {
-    if (!popBackStack(NavDestinations.FILE_LIST, inclusive = false, saveState = true)) {
+    // previousBackStackEntry는 그래프 항목을 건너뛴다 — 혼자 있는 원격 화면이면 저장소 화면이 나온다
+    if (previousBackStackEntry?.destination?.route == NavDestinations.FILE_LIST) {
+        popBackStack(NavDestinations.REMOTE_FILE_LIST, inclusive = true, saveState = true)
+    } else {
         switchListTab(NavDestinations.FILE_LIST)
     }
 }
