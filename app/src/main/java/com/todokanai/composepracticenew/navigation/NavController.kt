@@ -1,6 +1,7 @@
 package com.todokanai.composepracticenew.navigation
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
@@ -165,6 +166,7 @@ private fun rememberGraphCoordinator(navController: NavHostController): FileTran
  * 그래프를 나가는 경로는 여럿(저장소 버튼, 루트 뒤로가기, 세션 없음)이지만 들어오는 곳은 저장소 화면뿐이라 여기서 지운다.
  * @param route 들어갈 목록 화면의 route
  */
+@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
 internal fun NavHostController.enterFileBrowser(route: String) {
     clearSavedListState(NavDestinations.FILE_LIST)
     clearSavedListState(NavDestinations.REMOTE_FILE_LIST)
@@ -201,6 +203,7 @@ private fun NavHostController.fileBrowserDestinationId(route: String): Int {
  * 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다.
  * @param route 바꿀 목록 화면의 route
  */
+@VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
 internal fun NavHostController.switchListTab(route: String) = navigate(route) {
     popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { saveState = true }
     restoreState = true
@@ -210,7 +213,7 @@ internal fun NavHostController.switchListTab(route: String) = navigate(route) {
  * 원격 화면을 저장하고 꺼내 로컬 목록으로 간다(하단 탭 전환, 다운로드 진입).
  * 로컬 목록이 바로 아래에 있으면(업로드 진입·원격 알림으로 쌓인 원격 화면) 원격 화면만 꺼내 그리로 돌아가고, 없으면(혼자 있던 원격 화면) 탭 전환으로 저장된 로컬 목록을 복원한다.
  * 원격 화면은 inclusive로 꺼낸다 — inclusive가 아닌 저장(`popBackStack(FILE_LIST, false, true)`)은 FILE_LIST와 그 그래프의 복원 키까지 원격 화면 상태에 묶어,
- * 이후 로컬 목록 저장이 무시되고 `clearBackStack(FILE_LIST)`가 원격 화면을 복원한 채 남긴다(navigation 2.8.9 `popBackStackInternal`).
+ * 이후 로컬 목록 저장이 무시되고 FILE_LIST의 저장 상태를 지우는 `clearBackStack`(`clearSavedListState`)이 원격 화면을 복원한 채 남긴다(navigation 2.8.9 `popBackStackInternal`).
  * 혼자 있는 원격 화면은 inclusive로 꺼내면 그래프 항목까지 저장 없이 꺼지므로 아래 항목을 먼저 확인한다.
  */
 private fun NavHostController.returnToLocalList() {

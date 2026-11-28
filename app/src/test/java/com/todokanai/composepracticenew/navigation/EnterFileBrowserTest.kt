@@ -71,6 +71,20 @@ class EnterFileBrowserTest {
         assertNotEquals(firstVisitLocalEntryId, currentEntryId())
     }
 
+    @Test
+    fun remoteListSavedByTabSwitchIsNotRestoredOnNextVisit() {
+        navigate { enterFileBrowser(NavDestinations.REMOTE_FILE_LIST) }
+        val firstVisitRemoteEntryId = currentEntryId()
+        navigate { switchListTab(NavDestinations.FILE_LIST) }
+        navigate { popBackStack(NavDestinations.STORAGE, false) }
+
+        navigate { enterFileBrowser(NavDestinations.FILE_LIST) }
+        navigate { switchListTab(NavDestinations.REMOTE_FILE_LIST) }
+
+        assertEquals(NavDestinations.REMOTE_FILE_LIST, currentRoute())
+        assertNotEquals(firstVisitRemoteEntryId, currentEntryId())
+    }
+
     /** UI 스레드에서 [action]으로 이동하고 컴포지션이 따라올 때까지 기다린다. */
     private fun navigate(action: NavHostController.() -> Unit) {
         composeRule.runOnIdle { navController.action() }
