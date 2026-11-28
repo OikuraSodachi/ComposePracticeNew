@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavGraph
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -164,10 +165,35 @@ private fun rememberGraphCoordinator(navController: NavHostController): FileTran
  * 그래프를 나가는 경로는 여럿(저장소 버튼, 루트 뒤로가기, 세션 없음)이지만 들어오는 곳은 저장소 화면뿐이라 여기서 지운다.
  * @param route 들어갈 목록 화면의 route
  */
-private fun NavHostController.enterFileBrowser(route: String) {
-    clearBackStack(NavDestinations.FILE_LIST)
-    clearBackStack(NavDestinations.REMOTE_FILE_LIST)
+internal fun NavHostController.enterFileBrowser(route: String) {
+    clearSavedListState(NavDestinations.FILE_LIST)
+    clearSavedListState(NavDestinations.REMOTE_FILE_LIST)
     navigate(route)
+}
+
+/**
+ * 파일 탐색 그래프의 [route] 목록 화면에 저장된 상태가 있으면 지운다(없으면 아무것도 하지 않는다).
+ * route가 아니라 destination id로 지운다 — `clearBackStack(String)`은 저장된 상태가 없으면 route를 지금 화면에서 찾는데,
+ * 저장소 화면에서는 중첩 그래프 안의 목록 화면을 찾지 못해 예외를 던진다. id로 지우면 저장된 상태가 없을 때 false만 돌려준다(navigation 2.8.9 `restoreStateInternal`).
+ * @param route 저장된 상태를 지울 목록 화면의 route
+ */
+private fun NavHostController.clearSavedListState(route: String) {
+    clearBackStack(fileBrowserDestinationId(route))
+}
+
+/**
+ * 파일 탐색 그래프 안의 [route] destination id를 찾는다.
+ * 루트 그래프의 `findNode`는 중첩 그래프 안을 찾지 않으므로 파일 탐색 그래프에서 찾는다. 찾지 못하면 그래프 정의의 오류이므로 예외를 던진다.
+ * @param route 파일 탐색 그래프 안의 destination route
+ * @return [route] destination의 id
+ */
+private fun NavHostController.fileBrowserDestinationId(route: String): Int {
+    val fileBrowserGraph = checkNotNull(graph.findNode(NavDestinations.FILE_BROWSER_GRAPH) as? NavGraph) {
+        "${NavDestinations.FILE_BROWSER_GRAPH} graph is not defined"
+    }
+    return checkNotNull(fileBrowserGraph.findNode(route)) {
+        "$route is not defined in ${NavDestinations.FILE_BROWSER_GRAPH}"
+    }.id
 }
 
 /**
@@ -175,7 +201,7 @@ private fun NavHostController.enterFileBrowser(route: String) {
  * 그래프 항목은 남긴다 — 그래프 밖(STORAGE)까지 꺼내면 coordinator가 새로 생겨 업로드/다운로드 모드·대기 목록이 사라진다.
  * @param route 바꿀 목록 화면의 route
  */
-private fun NavHostController.switchListTab(route: String) = navigate(route) {
+internal fun NavHostController.switchListTab(route: String) = navigate(route) {
     popUpTo(NavDestinations.FILE_BROWSER_GRAPH) { saveState = true }
     restoreState = true
 }

@@ -54,6 +54,12 @@ android {
             excludes += '/META-INF/{AL2.0,LGPL2.1}'
         }
     }
+    // Robolectric Compose 테스트가 ui-test-manifest의 ComponentActivity를 띄우도록 병합된 매니페스트·리소스를 넣는다
+    testOptions {
+        unitTests {
+            includeAndroidResources = true
+        }
+    }
 }
 
 // data를 runtimeOnly로 둬도 data의 Hilt 모듈을 찾도록 집계 태스크를 쓴다(기본값이지만 아래 의존이 기대므로 명시)
@@ -87,6 +93,9 @@ dependencies {
 
     testImplementation libs.junit
     testImplementation libs.kotlinx.coroutines.test
+    testImplementation libs.robolectric
+    testImplementation platform(libs.androidx.compose.bom)
+    testImplementation libs.androidx.compose.ui.test.junit4
     androidTestImplementation libs.androidx.test.ext.junit
     androidTestImplementation libs.androidx.test.espresso.core
     androidTestImplementation platform(libs.androidx.compose.bom)
